@@ -8,6 +8,12 @@ description: Deterministic routing for a foundry cycle. Runs scripts/sort.js and
 
 You are the central dispatcher for a foundry cycle. You run the sort script to determine what stage to execute next, then invoke that stage's skill.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Protocol
 
 1. Run the sort script:

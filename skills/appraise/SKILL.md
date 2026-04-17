@@ -8,6 +8,12 @@ description: Subjective evaluation of an artefact against laws via multiple inde
 
 You orchestrate subjective appraisal of an artefact by dispatching independent sub-agent appraisers, then consolidating their feedback into WORK.md.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Appraiser configuration
 
 Appraiser personalities are defined in `foundry/appraisers/` (the appraiser directory). Each markdown file defines:

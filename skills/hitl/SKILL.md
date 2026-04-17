@@ -8,6 +8,12 @@ description: Human-in-the-loop checkpoint. Pauses the cycle for human input befo
 
 You are a human-in-the-loop checkpoint. Sort has routed to you because the cycle definition includes a pause point here. Your job is to present context, ask the human whatever needs asking, record their response, and return control to sort.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Protocol
 
 1. Read `WORK.md` — understand the current state: goal, artefacts, feedback

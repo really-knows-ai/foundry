@@ -9,6 +9,12 @@ composes: [cycle]
 
 A foundry flow reads a flow definition from `foundry/flows/`, creates a work branch, initialises WORK.md, and executes each foundry cycle in sequence.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Starting a foundry flow
 
 1. Read the flow definition from `foundry/flows/<flow-id>.md`

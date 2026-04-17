@@ -8,6 +8,12 @@ description: Creates a new artefact type, checking for conflicts with existing t
 
 You help the user create a new artefact type. You ensure it doesn't conflict with existing types, scaffold the directory structure, and walk the user through defining laws and validation.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Protocol
 
 ### 1. Gather basics

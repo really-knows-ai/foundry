@@ -8,6 +8,12 @@ description: Produces or revises an artefact, guided by WORK.md and the foundry 
 
 You produce or revise artefacts. You read WORK.md to understand the goal and feedback, and the foundry cycle definition to understand what you're producing and what inputs you can read.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Protocol
 
 ### First generation (no artefact registered in WORK.md yet)

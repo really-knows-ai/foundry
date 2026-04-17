@@ -9,6 +9,12 @@ composes: [sort, forge, quench, appraise, hitl]
 
 A foundry cycle reads its definition from `foundry/cycles/<cycle-id>.md`, sets up WORK.md for routing, then hands control to the sort skill which drives the forge → quench → appraise loop.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Cycle definition
 
 The cycle definition (`foundry/cycles/<cycle-id>.md`) specifies:

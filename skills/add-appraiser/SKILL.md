@@ -8,6 +8,12 @@ description: Creates a new appraiser personality, checking for semantic overlap 
 
 You help the user create a new appraiser personality. You ensure it's genuinely distinct from existing appraisers and scaffold the definition file.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Protocol
 
 ### 1. Gather basics

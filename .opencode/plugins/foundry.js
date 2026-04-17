@@ -1,9 +1,9 @@
 /**
  * Foundry plugin for OpenCode.ai
  *
- * Conditional bootstrap:
- * - If foundry/ exists in project: full skill registration + pipeline context
- * - If foundry/ does not exist: only init-foundry skill + minimal prompt
+ * All skills are always registered. Individual skills check for foundry/ dir.
+ * - If foundry/ exists: pipeline context + multi-model agent registration
+ * - If foundry/ does not exist: minimal prompt guiding user to init-foundry
  */
 
 import path from 'path';
@@ -56,11 +56,12 @@ export const FoundryPlugin = async ({ client, directory }) => {
       config.skills = config.skills || {};
       config.skills.paths = config.skills.paths || [];
 
-      if (foundryExists) {
-        if (!config.skills.paths.includes(allSkillsDir)) {
-          config.skills.paths.push(allSkillsDir);
-        }
+      // Always register all skills — individual skills check for foundry/ dir
+      if (!config.skills.paths.includes(allSkillsDir)) {
+        config.skills.paths.push(allSkillsDir);
+      }
 
+      if (foundryExists) {
         // Register per-model subagents for multi-model stage routing
         try {
           const providers = await client.provider.list();
@@ -82,10 +83,6 @@ export const FoundryPlugin = async ({ client, directory }) => {
           }
         } catch (err) {
           console.warn('[foundry] Failed to discover models for agent registration:', err.message);
-        }
-      } else {
-        if (!config.skills.paths.includes(initSkillDir)) {
-          config.skills.paths.push(initSkillDir);
         }
       }
     },

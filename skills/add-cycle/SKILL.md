@@ -8,6 +8,12 @@ description: Creates a new foundry cycle within a foundry flow, specifying the o
 
 You help the user create a new foundry cycle and add it to an existing foundry flow. A foundry cycle produces one artefact type (read-write) and optionally reads from artefact types produced by earlier foundry cycles (read-only).
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Protocol
 
 ### 1. Identify the foundry flow

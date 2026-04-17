@@ -8,6 +8,12 @@ description: Deterministic validation of an artefact by running CLI commands. Wr
 
 You run deterministic checks on an artefact by executing the CLI commands defined in the artefact type's validation file. No judgment — commands pass or fail.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## When this skill applies
 
 This skill only runs if `foundry/artefacts/<type>/validation.md` exists. If there is no validation file for the artefact type, this skill is skipped.

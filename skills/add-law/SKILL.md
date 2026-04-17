@@ -8,6 +8,12 @@ description: Creates a new law, checking for conflicts with existing laws.
 
 You help the user create a new law. You ensure it's well-scoped, doesn't conflict with existing laws, and ends up in the right file.
 
+## Prerequisites
+
+Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
 ## Protocol
 
 ### 1. Determine scope
