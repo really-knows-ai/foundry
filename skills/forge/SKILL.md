@@ -26,7 +26,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 6. If the foundry cycle has inputs, read the input artefacts (read-only context)
 7. Produce the artefact, respecting all applicable laws from the start
 8. Write the artefact to the location specified in the artefact type definition
-9. Register the artefact in the WORK.md artefacts table (file, type, cycle, status: draft)
+9. Register the artefact in the WORK.md artefacts table. The table MUST have all four columns — File, Type, Cycle, Status. Set cycle to the current cycle id from WORK.md frontmatter. Set status to `draft`.
 
 ### Revision (feedback exists in WORK.md)
 

@@ -76,24 +76,32 @@ function parseFeedback(text, cycle, artefacts) {
   const items = [];
   let currentFile = null;
   let inFeedback = false;
+  let feedbackLevel = 0; // 1 for '# Feedback', 2 for '## Feedback'
 
   for (const line of text.split('\n')) {
     const stripped = line.trim();
 
-    if (stripped === '# Feedback') {
+    if (stripped === '# Feedback' || stripped === '## Feedback') {
       inFeedback = true;
+      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
       continue;
     }
 
-    if (inFeedback && stripped.startsWith('# ') && stripped !== '# Feedback') {
-      inFeedback = false;
-      continue;
+    // Exit feedback on a heading at the same or higher level
+    if (inFeedback && /^#{1,2} /.test(stripped)) {
+      const level = stripped.startsWith('## ') ? 2 : 1;
+      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
+        inFeedback = false;
+        continue;
+      }
     }
 
     if (!inFeedback) continue;
 
-    if (stripped.startsWith('## ')) {
-      currentFile = stripped.slice(3).trim();
+    // File sub-headings are one level below the Feedback heading
+    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
+    if (stripped.startsWith(fileHeadingPrefix)) {
+      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
       continue;
     }
 

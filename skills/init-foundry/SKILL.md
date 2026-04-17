@@ -29,18 +29,24 @@ Set up the `foundry/` directory structure in the current project.
      appraisers/.gitkeep
    ```
 
-3. **Commit the structure**
+3. **Generate foundry agent files**
+
+   Run the `refresh-agents` skill to generate `.opencode/agents/foundry-*.md` files for multi-model routing.
+
+4. **Commit the structure**
 
    ```bash
-   git add foundry/
+   git add foundry/ .opencode/agents/foundry-*.md
    git commit -m "feat: initialize Foundry project structure"
    ```
 
-4. **Guide next steps**
+5. **Guide next steps**
 
    Tell the user:
 
-   > Foundry is initialized. Here's how to set up your first pipeline:
+   > Foundry is initialized. **Restart OpenCode** for the new foundry agents to take effect.
+   >
+   > Here's how to set up your first pipeline:
    >
    > 1. **Define an artefact type** — use the `add-artefact-type` skill
    > 2. **Add laws** — use the `add-law` skill to define quality criteria

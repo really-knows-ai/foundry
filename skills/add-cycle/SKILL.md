@@ -37,7 +37,7 @@ If any of these are missing, ask.
 
 For each stage in the cycle (forge, quench, appraise), ask the user if they want to specify a model:
 
-> Each stage can optionally run on a specific model for model diversity. Available models are registered as `foundry-*` agents by the Foundry plugin.
+> Each stage can optionally run on a specific model for model diversity. Available models are listed as `foundry-*` agent files in `.opencode/agents/`. Run the `list-agents` skill to see them.
 >
 > For each stage, specify a model ID (e.g., `openai/gpt-4o`) or leave blank to use the session's default model:
 > - forge: ___

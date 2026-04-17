@@ -2,8 +2,9 @@
  * Foundry plugin for OpenCode.ai
  *
  * All skills are always registered. Individual skills check for foundry/ dir.
- * - If foundry/ exists: pipeline context + multi-model agent registration
+ * - If foundry/ exists: pipeline context injected into first message
  * - If foundry/ does not exist: minimal prompt guiding user to init-foundry
+ * Multi-model agents are managed as .opencode/agents/foundry-*.md files via the refresh-agents skill.
  */
 
 import path from 'path';
@@ -13,7 +14,6 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
 const allSkillsDir = path.join(packageRoot, 'skills');
-const initSkillDir = path.join(allSkillsDir, 'init-foundry');
 
 function getBootstrapContent(directory) {
   const foundryDir = path.join(directory, 'foundry');
@@ -39,7 +39,8 @@ Available skills:
 - **Pipeline:** forge, quench, appraise, cycle, flow, sort, hitl
 - **Helpers:** add-artefact-type, add-law, add-appraiser, add-cycle, add-flow, init-foundry
 
-Multi-model routing: The Foundry plugin has auto-registered \`foundry-*\` sub-agents for each available model.
+Multi-model routing: Foundry uses \`foundry-*\` sub-agents defined as markdown files in \`.opencode/agents/\`.
+Run the \`refresh-agents\` skill to regenerate them after adding or removing providers.
 Cycle definitions can specify per-stage models via the \`models\` frontmatter map. Appraisers can override with their own \`model\` field.
 
 To start a flow, use the \`flow\` skill. All user content lives under foundry/.
@@ -47,10 +48,7 @@ Scripts are located at: ${path.join(packageRoot, 'scripts')}
 </FOUNDRY_CONTEXT>`;
 }
 
-export const FoundryPlugin = async ({ client, directory }) => {
-  const foundryDir = path.join(directory, 'foundry');
-  const foundryExists = fs.existsSync(foundryDir) && fs.statSync(foundryDir).isDirectory();
-
+export const FoundryPlugin = async ({ directory }) => {
   return {
     config: async (config) => {
       config.skills = config.skills || {};
@@ -59,31 +57,6 @@ export const FoundryPlugin = async ({ client, directory }) => {
       // Always register all skills — individual skills check for foundry/ dir
       if (!config.skills.paths.includes(allSkillsDir)) {
         config.skills.paths.push(allSkillsDir);
-      }
-
-      if (foundryExists) {
-        // Register per-model subagents for multi-model stage routing
-        try {
-          const providers = await client.provider.list();
-          config.agent = config.agent || {};
-          for (const provider of providers) {
-            if (!provider.models) continue;
-            const modelKeys = Array.isArray(provider.models)
-              ? provider.models
-              : Object.keys(provider.models);
-            for (const modelKey of modelKeys) {
-              const agentName = `foundry-${provider.id}-${modelKey}`;
-              config.agent[agentName] = {
-                model: `${provider.id}/${modelKey}`,
-                mode: 'subagent',
-                hidden: true,
-                description: `Foundry stage agent using ${provider.id}/${modelKey}`,
-              };
-            }
-          }
-        } catch (err) {
-          console.warn('[foundry] Failed to discover models for agent registration:', err.message);
-        }
       }
     },
 

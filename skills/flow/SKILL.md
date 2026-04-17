@@ -22,7 +22,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 3. Create `WORK.md` in the root following the spec in `docs/work-spec.md`:
    - Set frontmatter: flow id, first cycle id, first stage
    - Write the goal (from flow definition + human context)
-   - Empty artefacts table
+   - Empty artefacts table with all four columns: `| File | Type | Cycle | Status |`
    - Empty feedback section
 4. Execute each foundry cycle in order by reading its definition from `foundry/cycles/<cycle-id>.md`
 5. Update the frontmatter cursor as each foundry cycle starts (set `cycle` to the new cycle id)

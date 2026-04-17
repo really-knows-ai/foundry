@@ -143,6 +143,7 @@ describe('parseArtefactsTable', () => {
     const arts = parseArtefactsTable(text);
     assert.equal(arts.length, 1);
   });
+
 });
 
 describe('parseFeedback', () => {
@@ -189,6 +190,32 @@ describe('parseFeedback', () => {
   it('returns empty when no Feedback section', () => {
     const items = parseFeedback('# Something else\n- [ ] Nope', 'build', artefacts);
     assert.equal(items.length, 0);
+  });
+
+  it('parses feedback under h2 Feedback heading', () => {
+    const text = [
+      '## Feedback',
+      '### src/main.ts',
+      '- [ ] Fix error handling #validation',
+      '- [x] Add types #law:types',
+    ].join('\n');
+    const items = parseFeedback(text, 'build', artefacts);
+    assert.equal(items.length, 2);
+    assert.equal(items[0].state, 'open');
+    assert.equal(items[1].state, 'actioned');
+  });
+
+  it('stops h2 Feedback at next h2 heading', () => {
+    const text = [
+      '## Feedback',
+      '### src/main.ts',
+      '- [ ] Included #validation',
+      '## Other Section',
+      '### src/main.ts',
+      '- [ ] Excluded #validation',
+    ].join('\n');
+    const items = parseFeedback(text, 'build', artefacts);
+    assert.equal(items.length, 1);
   });
 });
 
