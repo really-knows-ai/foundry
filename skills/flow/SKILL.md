@@ -19,11 +19,33 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 1. Read the flow definition from `foundry/flows/<flow-id>.md`
 2. Create a branch off main: `work/<flow-id>-<short-description>`
-3. Create `WORK.md` in the root following the spec in `docs/work-spec.md`:
-   - Set frontmatter: flow id, first cycle id, first stage
-   - Write the goal (from flow definition + human context)
-   - Empty artefacts table with all four columns: `| File | Type | Cycle | Status |`
-   - Empty feedback section
+3. Create `WORK.md` in the project root with this structure:
+
+   ```markdown
+   ---
+   flow: <flow-id>
+   cycle: <first-cycle-id>
+   stages: [<determined by cycle skill>]
+   max-iterations: 3
+   ---
+
+   # Goal
+
+   <goal from flow definition + human context>
+
+   ## Artefacts
+
+   | File | Type | Cycle | Status |
+   |------|------|-------|--------|
+
+   ## Feedback
+   ```
+
+   - `flow` — set once, never changes
+   - `cycle` — current cycle id, updated when each cycle starts
+   - `stages` — the ordered route for the cycle, set by the cycle skill. Each entry uses `base:alias` format (e.g. `forge:write-haiku`, `quench:check-syllables`). Determined from the artefact type: if `validation.md` exists, include `quench`; always include `forge` and `appraise`. `hitl` stages are optional.
+   - `max-iterations` — how many forge passes before the cycle is blocked (default: 3, can be overridden in cycle definition)
+   - Feedback is grouped under `### <file-path>` sub-headings matching the artefact's File column. See the quench and appraise skills for the format.
 4. Execute each foundry cycle in order by reading its definition from `foundry/cycles/<cycle-id>.md`
 5. Update the frontmatter cursor as each foundry cycle starts (set `cycle` to the new cycle id)
 6. When all foundry cycles are done, delete WORK.md — the artefacts and git history are the record
