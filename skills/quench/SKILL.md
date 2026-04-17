@@ -26,9 +26,22 @@ This skill only runs if `foundry/artefacts/<type>/validation.md` exists. If ther
 4. For each validation entry:
    - Substitute `{file}` in the command with the artefact path
    - Run the command
-   - If exit code is non-zero: add feedback to WORK.md:
-     - `- [ ] <failure description from validation.md> #validation`
+   - If exit code is non-zero: add feedback to WORK.md under the artefact's file heading
 5. If all commands exit zero, add no new feedback
+
+## Feedback format
+
+Feedback MUST be scoped to the artefact file it applies to. Under `## Feedback`, create a `### <file-path>` sub-heading matching the artefact's File column from the artefacts table, then write feedback items beneath it:
+
+```markdown
+## Feedback
+
+### foundry/output/haiku/pissed-off-spaghetti.md
+- [ ] The haiku does not have exactly 3 lines. #validation
+- [ ] One or more lines do not match the 5-7-5 syllable pattern. #validation
+```
+
+If the `## Feedback` section or the file sub-heading already exists, append items under the existing heading. Never write feedback items without a file sub-heading — the sort script cannot parse them.
 
 ## Reviewing actioned feedback
 
@@ -59,3 +72,4 @@ After completing validation (whether issues were found or not), append an entry 
 - You do not evaluate laws — that is the appraise skill's job
 - You do not invent validation rules — you only run commands from the validation file
 - You do not duplicate feedback that already exists in WORK.md
+- You do not write feedback items without a file sub-heading under `## Feedback`
