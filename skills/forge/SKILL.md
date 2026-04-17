@@ -30,7 +30,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 ### Revision (feedback exists in WORK.md)
 
-1. Read `WORK.md` — find unresolved feedback items for the artefact
+1. Read `WORK.md` — find unresolved feedback items for the artefact. Feedback is scoped by file: look under `## Feedback` for the `### <file-path>` sub-heading that matches the artefact's File column in the artefacts table. Only items under that heading belong to this artefact.
 2. Read the artefact
 3. If the foundry cycle has inputs, read the input artefacts (read-only context)
 4. For each unresolved feedback item, either:

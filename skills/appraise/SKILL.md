@@ -54,8 +54,18 @@ Model diversity is configured at two levels: the cycle definition sets a default
    - Union of all issues — if any one appraiser flags it, it's feedback
    - De-duplicate: merge overlapping observations into a single feedback item
    - Preserve which appraiser(s) raised each issue (for traceability)
-9. Write consolidated feedback to WORK.md:
-   - `- [ ] <description of the issue> #law:<law-id>`
+9. Write consolidated feedback to WORK.md under the artefact's file heading:
+
+   Feedback MUST be scoped to the artefact file. Under `## Feedback`, create a `### <file-path>` sub-heading matching the artefact's File column from the artefacts table, then write feedback items beneath it:
+
+   ```markdown
+   ## Feedback
+
+   ### foundry/output/haiku/pissed-off-spaghetti.md
+   - [ ] The imagery lacks originality #law:vivid-imagery
+   ```
+
+   If the `## Feedback` section or the file sub-heading already exists (e.g., quench already wrote validation feedback there), append items under the existing heading. Never write feedback items without a file sub-heading — the sort script cannot parse them.
 10. If no appraiser found any issues, the artefact clears appraisal
 
 ## Dispatch
@@ -120,7 +130,7 @@ If there are no issues, return an empty list.
 
 ## Reviewing actioned and wont-fix feedback
 
-On subsequent passes, appraisers also evaluate previously actioned and wont-fix items:
+On subsequent passes, appraisers also evaluate previously actioned and wont-fix items under the artefact's `### <file-path>` heading:
 
 - `[x]` actioned items: appraiser checks whether the change actually addresses the issue
   - If yes: mark `| approved`
@@ -146,3 +156,4 @@ After completing the appraisal consolidation, append an entry to `WORK.history.y
 - You do not revise the artefact
 - You do not check deterministic rules — that is the quench skill's job
 - You do not filter out feedback because only one appraiser raised it — one is enough
+- You do not write feedback items without a file sub-heading under `## Feedback`
