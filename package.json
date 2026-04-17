@@ -1,0 +1,44 @@
+{
+  "name": "@really-knows-ai/foundry",
+  "version": "1.0.0",
+  "description": "A structured framework for AI-driven artefact creation with deterministic routing, quality gates, and iterative refinement cycles.",
+  "type": "module",
+  "main": ".opencode/plugins/foundry.js",
+  "license": "MIT",
+  "author": "Really Knows AI",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/really-knows-ai/foundry.git"
+  },
+  "homepage": "https://github.com/really-knows-ai/foundry",
+  "keywords": [
+    "foundry",
+    "ai",
+    "artefact",
+    "cycle",
+    "routing",
+    "quality",
+    "opencode",
+    "plugin"
+  ],
+  "engines": {
+    "node": ">=18.3.0"
+  },
+  "scripts": {
+    "test": "node --test tests/sort.test.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "minimatch": "^10.2.5"
+  },
+  "files": [
+    ".opencode/",
+    "skills/",
+    "scripts/",
+    "docs/work-spec.md",
+    "docs/concepts.md",
+    "docs/getting-started.md",
+    "README.md",
+    "LICENSE"
+  ]
+}

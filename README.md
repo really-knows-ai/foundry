@@ -1,0 +1,250 @@
+# Foundry
+
+A skill-driven framework for governed artefact generation and evaluation using AI coding tools. Install it as an npm package and define your own artefact types, laws, and flows — Foundry handles the forge-quench-appraise pipeline.
+
+## Compatibility
+
+- **OpenCode** — full support, multi-model routing via plugin-registered agents
+
+Multi-model support enables model diversity across pipeline stages. The Foundry plugin auto-discovers available models at startup and registers them as hidden sub-agents. Cycle definitions specify which model each stage uses. Tools limited to a single model lose model-diversity but still get personality-based diversity.
+
+## Installation
+
+Add `@really-knows-ai/foundry` to your OpenCode config:
+
+```json
+// opencode.json
+{
+  "packages": {
+    "@really-knows-ai/foundry": "latest"
+  }
+}
+```
+
+## Quick start
+
+1. **Install** the package as shown above
+2. **Initialize** — use the `init-foundry` skill to scaffold a `foundry/` directory in your project
+3. **Define artefact types** — use `add-artefact-type` to create types with file patterns, descriptions, and optional validation
+4. **Add laws** — use `add-law` to define subjective pass/fail criteria (global or per-type)
+5. **Add appraisers** — use `add-appraiser` to create appraiser personalities
+6. **Define cycles** — use `add-cycle` to wire artefact types into forge/quench/appraise loops
+7. **Define flows** — use `add-flow` to sequence cycles into end-to-end pipelines
+8. **Run** — use the `flow` skill to execute a flow
+
+## How it works
+
+```
+Foundry Flow
+ └─ Cycle 1 (e.g., ideation)
+ │   ├─ Forge → produce the artefact
+ │   ├─ Quench → deterministic CLI checks (if defined)
+ │   ├─ Appraise → subjective evaluation by multiple appraisers
+ │   └─ ↺ iterate until all feedback is resolved
+ └─ Cycle 2 (e.g., creation)
+     ├─ reads output from Cycle 1 (read-only)
+     ├─ Forge → produce the artefact
+     ├─ Quench → deterministic CLI checks
+     ├─ Appraise → subjective evaluation
+     └─ ↺ iterate until all feedback is resolved
+```
+
+A **foundry flow** runs one or more **foundry cycles** in sequence. Each cycle produces a single artefact type by looping through forge → quench → appraise until the artefact passes all criteria. The output of one cycle becomes read-only input for the next.
+
+All state lives in `WORK.md` on a dedicated work branch. Every stage micro-commits, and file modification enforcement ensures stages only touch what they're allowed to.
+
+## Core concepts
+
+### Foundry Flows
+
+Defined in `foundry/flows/`. A flow lists cycles to execute in order. Starting a flow creates a work branch and a fresh `WORK.md`.
+
+### Foundry Cycles
+
+Defined in `foundry/cycles/`. A cycle specifies:
+- `output` — the artefact type it produces (read-write)
+- `inputs` — artefact types from previous cycles (read-only)
+
+### Stages
+
+The three steps within a cycle:
+- **Forge** — produce or revise the artefact
+- **Quench** — run deterministic CLI checks (skipped if artefact type has no `validation.md`)
+- **Appraise** — subjective evaluation by multiple independent appraisers
+
+### Artefact types
+
+Defined in `foundry/artefacts/<type>/`. Each type has:
+- `definition.md` — id, name, file patterns, output directory, appraiser config, prose description
+- `laws.md` (optional) — type-specific subjective criteria
+- `validation.md` (optional) — CLI commands with `{file}` placeholder; non-zero exit = failure
+
+### Laws
+
+Subjective pass/fail criteria. Two scopes:
+- `foundry/laws/*.md` — global laws, all files concatenated, apply to everything
+- `foundry/artefacts/<type>/laws.md` — type-specific laws
+
+Each law is a `## heading` (the identifier, used in feedback tags as `#law:<id>`) with a description, passing criteria, and failing criteria.
+
+### Appraisers
+
+Defined in `foundry/appraisers/`. Each appraiser has a personality and an optional model override. Appraisers are assigned to artefact types via the `appraisers` section in the type's `definition.md`:
+
+```yaml
+appraisers:
+  count: 3                          # how many appraisers (default: 3)
+  allowed: [pedantic, pragmatic]    # which personalities (default: all available)
+```
+
+Appraisers are distributed evenly across available personalities for maximum diversity. If you request 6 appraisers with 3 personalities, you get 2 of each. Model diversity is configured at the cycle level (per-stage) and optionally per-appraiser — see [concepts](docs/concepts.md).
+
+### WORK.md
+
+Transient shared state on the work branch. Tracks:
+- Current position (flow, cycle, stage) in frontmatter
+- Goal description
+- Artefact registry (what exists, its status)
+- All feedback with full lifecycle
+
+### Feedback lifecycle
+
+```
+open         - [ ] issue #tag                                    → needs generator action
+actioned     - [x] issue #tag                                    → needs approval
+wont-fix     - [~] issue #tag | wont-fix: <reason>               → needs approval
+approved     - [x] issue #tag | approved                         → resolved
+approved     - [~] issue #tag | wont-fix: <reason> | approved    → resolved
+rejected     - [x] issue #tag | rejected: <reason>               → re-opened
+rejected     - [~] issue #tag | wont-fix: <reason> | rejected    → re-opened
+```
+
+Validation feedback (`#validation`) cannot be wont-fixed — deterministic rules are not negotiable.
+
+### File modification enforcement
+
+Every stage micro-commits. The cycle checks the git diff:
+- After forge: only output artefact file patterns + WORK.md + WORK.history.yaml (input artefacts are read-only — violation if touched)
+- After quench/appraise: only WORK.md + WORK.history.yaml
+- Violations are hard stops
+
+> **Merge hygiene:** WORK.md and WORK.history.yaml are ephemeral working files. Delete them before squash-merging the branch back into main.
+
+## Skills
+
+Everything is a skill. Skills are either atomic (do one thing) or composite (orchestrate other skills).
+
+### Pipeline skills
+
+| Skill | Type | Purpose |
+|-------|------|---------|
+| `forge` | atomic | Produce or revise an artefact |
+| `quench` | atomic | Run deterministic CLI checks |
+| `appraise` | atomic | Dispatch multiple appraisers, consolidate feedback |
+| `cycle` | composite | forge → quench → appraise → iterate |
+| `flow` | composite | Orchestrate cycles on a work branch |
+
+### Helper skills
+
+| Skill | Purpose |
+|-------|---------|
+| `init-foundry` | Scaffold the `foundry/` directory in your project |
+| `add-artefact-type` | Create a new artefact type with conflict and glob-overlap checks |
+| `add-law` | Create a new law with conflict detection |
+| `add-appraiser` | Create a new appraiser personality with semantic overlap checks |
+| `add-cycle` | Create a new cycle within a flow with dependency validation |
+| `add-flow` | Create a new flow definition |
+
+### Utility skills
+
+| Skill | Purpose |
+|-------|---------|
+| `sort` | Deterministic cycle router — determines and dispatches the next stage |
+| `hitl` | Human-in-the-loop intervention points |
+
+All helper skills are interactive — they walk you through the process, check for conflicts, and confirm before writing files.
+
+## Package structure
+
+```
+@really-knows-ai/foundry
+├── .opencode/
+│   └── plugins/
+│       └── foundry.js          # OpenCode plugin (registers skills)
+├── skills/                     # skill definitions (the pipeline)
+│   ├── forge/
+│   ├── quench/
+│   ├── appraise/
+│   ├── cycle/
+│   ├── flow/
+│   ├── init-foundry/
+│   ├── add-artefact-type/
+│   ├── add-law/
+│   ├── add-appraiser/
+│   ├── add-cycle/
+│   ├── add-flow/
+│   ├── sort/
+│   └── hitl/
+├── scripts/                    # validation support scripts
+├── docs/                       # concept docs and specs
+├── package.json
+└── README.md
+```
+
+## User project structure
+
+After running `init-foundry`, your project gets a `foundry/` directory:
+
+```
+your-project/
+├── foundry/
+│   ├── flows/                  # flow definitions
+│   ├── cycles/                 # cycle definitions
+│   ├── artefacts/              # artefact type definitions
+│   │   └── <type>/
+│   │       ├── definition.md
+│   │       ├── laws.md         # (optional) type-specific laws
+│   │       └── validation.md   # (optional) CLI checks
+│   ├── laws/                   # global laws
+│   └── appraisers/             # appraiser personalities
+├── opencode.json
+└── ...
+```
+
+## Design decisions
+
+### Everything is markdown
+
+Flow definitions, cycle definitions, artefact types, laws, appraiser personalities, skills — all markdown. Readable by humans, consumable by LLMs, versionable in git. No config files, no databases, no custom formats.
+
+### Skills are the pipeline
+
+No separate runner script. Composition happens via skills referencing other skills. The `flow` skill reads a flow definition and invokes the `cycle` skill. The `cycle` skill invokes `forge`, `quench`, and `appraise`. This keeps everything in one format.
+
+### WORK.md as shared state
+
+All communication between stages goes through WORK.md. No stage passes output directly to another. This gives a complete audit trail, makes the process resumable, and means any stage can be re-run independently.
+
+### Feedback as checklist items
+
+Feedback uses markdown checklists with `#validation` or `#law:<id>` tags. Human-readable, trivially parseable by an LLM, with lifecycle states expressed inline.
+
+### Wont-fix requires appraiser approval
+
+The generator can decline subjective feedback with a justification, but an appraiser must approve or reject that decision. This prevents silently ignoring feedback while allowing legitimate pushback.
+
+### Multi-model stage routing
+
+Cycle definitions specify which model each stage uses via a `models` map. The Foundry plugin auto-discovers available models and registers them as `foundry-*` sub-agents. Individual appraisers can override the cycle-level model. Resolution order: appraiser `model` → cycle `models.<stage>` → session default. Multiple personalities catch different issues. Consolidation is union with dedup — one appraiser flagging an issue is enough.
+
+### Input artefacts are read-only
+
+When a cycle reads from a previous cycle's output, those files cannot be modified. Enforced via git diff after every micro-commit. This prevents downstream cycles from corrupting upstream work.
+
+### Glob patterns must not overlap
+
+Two artefact types cannot have file patterns that match the same files. This is checked when creating new types and is a hard block — file modification enforcement can't determine ownership if patterns overlap.
+
+## License
+
+[MIT](LICENSE)
