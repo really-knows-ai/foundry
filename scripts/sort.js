@@ -199,6 +199,62 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
 }
 
 // ---------------------------------------------------------------------------
+// Exported runSort — structured result for programmatic use
+// ---------------------------------------------------------------------------
+
+export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef } = {}, io = defaultIO) {
+  if (!io.exists(workPath)) {
+    return { route: 'blocked', details: 'WORK.md not found' };
+  }
+
+  const workText = io.readFile(workPath);
+  const frontmatter = parseFrontmatter(workText);
+
+  const cycle = frontmatter.cycle;
+  const stages = frontmatter.stages;
+  const maxIterations = frontmatter['max-iterations'] ?? 3;
+
+  if (!cycle) return { route: 'blocked', details: 'No cycle in WORK.md frontmatter' };
+  if (!stages || !Array.isArray(stages)) return { route: 'blocked', details: 'No stages in WORK.md frontmatter' };
+  if (!findFirst(stages, 'forge')) return { route: 'blocked', details: 'stages must include at least one forge stage' };
+
+  const artefacts = parseArtefactsTable(workText);
+  const history = loadHistory(historyPath, cycle, io);
+  const feedback = parseFeedback(workText, cycle, artefacts);
+
+  // File modification enforcement
+  const nonSortHistory = history.filter(e => baseStage(e.stage || '') !== 'sort');
+  if (nonSortHistory.length > 0) {
+    const lastEntry = nonSortHistory[nonSortHistory.length - 1];
+    const lastBase = baseStage(lastEntry.stage || '');
+    const resolvedCycleDef = cycleDef || frontmatter['cycle-def'] || `${foundryDir}/cycles/${cycle}.md`;
+    const result = checkModifiedFiles(lastBase, foundryDir, resolvedCycleDef, cycle, io);
+    if (!result.ok) {
+      return { route: 'violation', details: `File modification violation after ${lastBase} stage: ${result.violations.join(', ')}` };
+    }
+  }
+
+  // Tag validation
+  const tagErrors = validateTags(workText, foundryDir);
+  if (tagErrors.length > 0) {
+    const details = tagErrors.map(e => `line ${e.line}: ${e.message}`).join('; ');
+    return { route: 'violation', details: `Feedback tag validation failed: ${details}` };
+  }
+
+  const route = determineRoute(stages, history, feedback, maxIterations);
+
+  // Model resolution
+  let model = null;
+  const routeBase = baseStage(route);
+  if (frontmatter.models && frontmatter.models[routeBase]) {
+    const modelId = frontmatter.models[routeBase];
+    model = `foundry-${modelId.replace(/\//g, '-')}`;
+  }
+
+  return { route, ...(model ? { model } : {}) };
+}
+
+// ---------------------------------------------------------------------------
 // Exports (for testing) — keep main() private
 // ---------------------------------------------------------------------------
 

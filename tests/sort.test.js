@@ -374,6 +374,22 @@ describe('loadHistory', () => {
     const io = { exists: () => true, readFile: () => '' };
     assert.deepEqual(loadHistory('history.yaml', 'c1', io), []);
   });
+
+  it('sorts entries by timestamp ascending regardless of file order', () => {
+    const yamlContent = [
+      '- stage: quench:review',
+      '  cycle: c1',
+      '  timestamp: "2026-01-01T00:02:00Z"',
+      '- stage: forge:write',
+      '  cycle: c1',
+      '  timestamp: "2026-01-01T00:01:00Z"',
+    ].join('\n');
+    const io = { exists: () => true, readFile: () => yamlContent };
+    const result = loadHistory('history.yaml', 'c1', io);
+    assert.equal(result.length, 2);
+    assert.equal(result[0].stage, 'forge:write');
+    assert.equal(result[1].stage, 'quench:review');
+  });
 });
 
 describe('getModifiedFiles', () => {

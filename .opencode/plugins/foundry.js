@@ -16,6 +16,9 @@ import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/histor
 import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField } from '../../scripts/lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../scripts/lib/feedback.js';
+import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow, selectAppraisers } from '../../scripts/lib/config.js';
+import { runSort } from '../../scripts/sort.js';
+import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -316,6 +319,163 @@ export const FoundryPlugin = async ({ directory }) => {
           const artefacts = parseArtefactsTable(text);
           const cycle = fm.cycle || '';
           return JSON.stringify(listFeedback(text, cycle, artefacts, args.file));
+        },
+      }),
+
+      // ── Sort tool ──
+      foundry_sort: tool({
+        description: 'Run sort routing to determine the next stage',
+        args: {
+          cycleDef: tool.schema.string().optional().describe('Path to cycle definition file'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const result = runSort({ cycleDef: args.cycleDef }, io);
+          return JSON.stringify(result);
+        },
+      }),
+
+      // ── Git tools ──
+      foundry_git_branch: tool({
+        description: 'Create and checkout a work branch for a flow',
+        args: {
+          flowId: tool.schema.string().describe('Flow ID'),
+          description: tool.schema.string().describe('Branch description suffix'),
+        },
+        async execute(args, context) {
+          const branch = `work/${args.flowId}-${args.description}`;
+          execSync(`git checkout -b ${branch}`, { cwd: context.worktree, encoding: 'utf8' });
+          return JSON.stringify({ ok: true, branch });
+        },
+      }),
+
+      foundry_git_commit: tool({
+        description: 'Stage all changes and commit with a cycle-prefixed message',
+        args: {
+          cycle: tool.schema.string().describe('Cycle name'),
+          stage: tool.schema.string().describe('Stage name'),
+          description: tool.schema.string().describe('Commit description'),
+        },
+        async execute(args, context) {
+          execSync('git add .', { cwd: context.worktree, encoding: 'utf8' });
+          const msg = `[${args.cycle}] ${args.stage}: ${args.description}`;
+          execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: context.worktree, encoding: 'utf8' });
+          const hash = execSync('git rev-parse --short HEAD', { cwd: context.worktree, encoding: 'utf8' }).trim();
+          return JSON.stringify({ ok: true, hash });
+        },
+      }),
+
+      // ── Config tools ──
+      foundry_config_cycle: tool({
+        description: 'Get a cycle definition from foundry config',
+        args: {
+          cycleId: tool.schema.string().describe('Cycle ID'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const result = await getCycleDefinition('foundry', args.cycleId, io);
+          return JSON.stringify(result);
+        },
+      }),
+
+      foundry_config_artefact_type: tool({
+        description: 'Get an artefact type definition',
+        args: {
+          typeId: tool.schema.string().describe('Artefact type ID'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const result = await getArtefactType('foundry', args.typeId, io);
+          return JSON.stringify(result);
+        },
+      }),
+
+      foundry_config_laws: tool({
+        description: 'Get laws, optionally filtered by artefact type',
+        args: {
+          typeId: tool.schema.string().optional().describe('Artefact type ID'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const result = args.typeId
+            ? await getLaws('foundry', args.typeId, io)
+            : await getLaws('foundry', io);
+          return JSON.stringify(result);
+        },
+      }),
+
+      foundry_config_validation: tool({
+        description: 'Get validation commands for an artefact type',
+        args: {
+          typeId: tool.schema.string().describe('Artefact type ID'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const result = await getValidation('foundry', args.typeId, io);
+          return JSON.stringify(result);
+        },
+      }),
+
+      foundry_config_appraisers: tool({
+        description: 'List all appraisers',
+        args: {},
+        async execute(_args, context) {
+          const io = makeIO(context.worktree);
+          const result = await getAppraisers('foundry', io);
+          return JSON.stringify(result);
+        },
+      }),
+
+      foundry_config_flow: tool({
+        description: 'Get a flow definition',
+        args: {
+          flowId: tool.schema.string().describe('Flow ID'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const result = await getFlow('foundry', args.flowId, io);
+          return JSON.stringify(result);
+        },
+      }),
+
+      // ── Validate tool ──
+      foundry_validate_run: tool({
+        description: 'Run validation commands for an artefact type against a file',
+        args: {
+          typeId: tool.schema.string().describe('Artefact type ID'),
+          file: tool.schema.string().describe('File path to validate'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const commands = await getValidation('foundry', args.typeId, io);
+          if (!commands) return JSON.stringify({ error: 'No validation defined for type: ' + args.typeId });
+          const results = [];
+          for (const cmd of commands) {
+            const expanded = cmd.replace(/\{file\}/g, args.file);
+            try {
+              const output = execSync(expanded, { cwd: context.worktree, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+              results.push({ command: expanded, passed: true, output: output.trim() });
+            } catch (err) {
+              results.push({ command: expanded, passed: false, output: (err.stderr || err.stdout || err.message || '').trim() });
+            }
+          }
+          return JSON.stringify(results);
+        },
+      }),
+
+      // ── Appraiser selection tool ──
+      foundry_appraisers_select: tool({
+        description: 'Select appraisers for an artefact type',
+        args: {
+          typeId: tool.schema.string().describe('Artefact type ID'),
+          count: tool.schema.number().optional().describe('Number of appraisers to select'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const result = args.count
+            ? await selectAppraisers('foundry', args.typeId, args.count, io)
+            : await selectAppraisers('foundry', args.typeId, io);
+          return JSON.stringify(result);
         },
       }),
     },
