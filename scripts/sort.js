@@ -21,6 +21,7 @@ import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { minimatch } from 'minimatch';
 import { validateTags, extractAllTags } from './lib/tags.js';
+import { parseFrontmatter } from './lib/workfile.js';
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -58,12 +59,6 @@ const defaultIO = {
 // ---------------------------------------------------------------------------
 // Parsing
 // ---------------------------------------------------------------------------
-
-function parseFrontmatter(text) {
-  const match = text.match(/^---\n(.+?)\n---/s);
-  if (!match) return {};
-  return yaml.load(match[1]) || {};
-}
 
 function parseFeedback(text, cycle, artefacts) {
   const cycleFiles = new Set();
@@ -171,7 +166,15 @@ function parseArtefactsTable(text) {
 function loadHistory(historyPath, cycle, io = defaultIO) {
   if (!io.exists(historyPath)) return [];
   const data = yaml.load(io.readFile(historyPath)) || [];
-  return data.filter(e => e.cycle === cycle);
+  const filtered = data.filter(e => e.cycle === cycle);
+  // Sort by timestamp ascending to ensure correct ordering regardless of
+  // whether entries were appended or prepended by the LLM.
+  filtered.sort((a, b) => {
+    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return ta - tb;
+  });
+  return filtered;
 }
 
 // ---------------------------------------------------------------------------
