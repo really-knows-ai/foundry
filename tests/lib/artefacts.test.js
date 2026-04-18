@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
+import { createWorkfile } from '../../scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
 // parseArtefactsTable
@@ -89,6 +90,12 @@ describe('addArtefactRow', () => {
 
   it('throws if no table found', () => {
     assert.throws(() => addArtefactRow('no table', { file: 'x', type: 't', cycle: 'c', status: 's' }), /not found/);
+  });
+
+  it('works with createWorkfile output', () => {
+    const work = createWorkfile({ cycle: 'create-haiku' }, 'Write a haiku');
+    const result = addArtefactRow(work, { file: 'haikus/test.md', type: 'haiku', cycle: 'create-haiku', status: 'draft' });
+    assert.ok(result.includes('| haikus/test.md | haiku | create-haiku | draft |'));
   });
 });
 

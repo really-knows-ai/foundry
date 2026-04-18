@@ -45,8 +45,8 @@ export function createWorkfile(frontmatter, goal) {
 
 ${goal}
 
-| Artefact | Status |
-|----------|--------|
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
 
 ## Feedback
 `;

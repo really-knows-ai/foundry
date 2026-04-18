@@ -71,7 +71,7 @@ describe('createWorkfile', () => {
     assert.ok(result.includes('---\ncycle: test\n---'));
     assert.ok(result.includes('# Goal'));
     assert.ok(result.includes('Write a haiku'));
-    assert.ok(result.includes('| Artefact | Status |'));
+    assert.ok(result.includes('| File | Type | Cycle | Status |'));
     assert.ok(result.includes('## Feedback'));
   });
 });
