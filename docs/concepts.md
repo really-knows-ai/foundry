@@ -52,4 +52,8 @@ Human-in-the-loop checkpoint. A stage type that pauses the foundry cycle and req
 
 ## Micro commit
 
-Every stage ends with a commit. This enables file modification enforcement — the foundry cycle checks the git diff to ensure each stage only touched files it was allowed to.
+Every stage ends with a commit (via the `foundry_git_commit` tool). This enables file modification enforcement — the sort tool checks the git diff to ensure each stage only touched files it was allowed to.
+
+## Custom tools
+
+All deterministic pipeline operations are exposed as custom tools via the Foundry plugin. Skills call tools instead of manipulating files directly. The tools are backed by shared library modules in `scripts/lib/` with injectable I/O for testability. This separation ensures that file format parsing, state transitions, and routing logic are handled by tested code rather than LLM interpretation.

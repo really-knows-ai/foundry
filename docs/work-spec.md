@@ -95,11 +95,11 @@ Grouped by artefact file path. Each item is a checklist entry with a tag indicat
 
 | Section | Written by | Updated by |
 |---------|-----------|------------|
-| Frontmatter (`flow`) | foundry flow skill | nobody |
-| Frontmatter (`cycle`, `stages`, `max-iterations`) | foundry cycle skill | foundry cycle skill (reset on each new cycle) |
-| Goal | foundry flow skill | nobody |
-| Artefacts | forge skill (registers new) | foundry cycle skill (status changes) |
-| Feedback | quench skill, appraise skill, hitl skill | forge skill (actioned/wont-fix), quench/appraise/hitl skill (approved/rejected) |
+| Frontmatter (`flow`) | `foundry_workfile_create` (flow skill) | nobody |
+| Frontmatter (`cycle`, `stages`, `max-iterations`) | `foundry_workfile_set` (cycle skill) | `foundry_workfile_set` (reset on each new cycle) |
+| Goal | `foundry_workfile_create` (flow skill) | nobody |
+| Artefacts | `foundry_artefacts_add` (forge skill) | `foundry_artefacts_set_status` (cycle skill) |
+| Feedback | `foundry_feedback_add` (quench/appraise/hitl) | `foundry_feedback_action`/`foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (quench/appraise/hitl) |
 
 ## WORK.history.yaml
 
@@ -149,12 +149,12 @@ A separate file (`WORK.history.yaml`) alongside WORK.md. Append-only log of ever
 
 - Append-only — never edit or delete entries
 - Every stage skill appends an entry when it completes
-- The sort script reads this to determine what has happened in the current foundry cycle
+- The sort tool reads this to determine what has happened in the current foundry cycle
 - Iteration is derived from counting forge entries for the current foundry cycle
 
 ### Who writes
 
-Every stage skill (forge, quench, appraise, hitl) appends an entry when it finishes.
+Every stage skill (forge, quench, appraise, hitl) appends an entry when it finishes via the `foundry_history_append` tool.
 
 ## Example
 

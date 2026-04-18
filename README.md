@@ -53,6 +53,23 @@ A **foundry flow** runs one or more **foundry cycles** in sequence. Each cycle p
 
 All state lives in `WORK.md` on a dedicated work branch. Every stage micro-commits, and file modification enforcement ensures stages only touch what they're allowed to.
 
+## Custom tools
+
+The Foundry plugin exposes 25 custom tools that handle all deterministic pipeline operations. Skills call these tools instead of manipulating files directly — this eliminates LLM interpretation of file formats and ensures consistent state management.
+
+| Category | Tools |
+|----------|-------|
+| **Workfile** | `foundry_workfile_create`, `foundry_workfile_get`, `foundry_workfile_set`, `foundry_workfile_delete` |
+| **Artefacts** | `foundry_artefacts_add`, `foundry_artefacts_list`, `foundry_artefacts_set_status` |
+| **Feedback** | `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, `foundry_feedback_resolve`, `foundry_feedback_list` |
+| **History** | `foundry_history_append`, `foundry_history_list` |
+| **Sort** | `foundry_sort` |
+| **Config** | `foundry_config_cycle`, `foundry_config_artefact_type`, `foundry_config_laws`, `foundry_config_validation`, `foundry_config_appraisers`, `foundry_config_flow` |
+| **Validation** | `foundry_validate_run`, `foundry_appraisers_select` |
+| **Git** | `foundry_git_branch`, `foundry_git_commit` |
+
+Tools are backed by shared library modules in `scripts/lib/` that use injectable I/O for testability. The sort routing engine (`scripts/sort.js`) exports `runSort()` for the sort tool.
+
 ## Core concepts
 
 ### Foundry Flows
@@ -170,7 +187,7 @@ All helper skills are interactive — they walk you through the process, check f
 @really-knows-ai/foundry
 ├── .opencode/
 │   └── plugins/
-│       └── foundry.js          # OpenCode plugin (registers skills)
+│       └── foundry.js          # OpenCode plugin (skills + 25 custom tools)
 ├── skills/                     # skill definitions (the pipeline)
 │   ├── forge/
 │   ├── quench/
@@ -185,7 +202,16 @@ All helper skills are interactive — they walk you through the process, check f
 │   ├── add-flow/
 │   ├── sort/
 │   └── hitl/
-├── scripts/                    # validation support scripts
+├── scripts/                    # shared library and routing engine
+│   ├── lib/
+│   │   ├── workfile.js         # WORK.md frontmatter parsing/writing
+│   │   ├── artefacts.js        # artefacts table operations
+│   │   ├── history.js          # WORK.history.yaml operations
+│   │   ├── feedback.js         # feedback lifecycle operations
+│   │   ├── config.js           # foundry/ config readers
+│   │   └── tags.js             # tag extraction
+│   └── sort.js                 # deterministic routing engine (exports runSort)
+├── tests/                      # test suite (node:test)
 ├── docs/                       # concept docs and specs
 ├── package.json
 └── README.md
@@ -217,13 +243,13 @@ your-project/
 
 Flow definitions, cycle definitions, artefact types, laws, appraiser personalities, skills — all markdown. Readable by humans, consumable by LLMs, versionable in git. No config files, no databases, no custom formats.
 
-### Skills are the pipeline
+### Skills are the pipeline, tools are the machinery
 
-No separate runner script. Composition happens via skills referencing other skills. The `flow` skill reads a flow definition and invokes the `cycle` skill. The `cycle` skill invokes `forge`, `quench`, and `appraise`. This keeps everything in one format.
+Composition happens via skills referencing other skills. The `flow` skill reads a flow definition and invokes the `cycle` skill. The `cycle` skill invokes `forge`, `quench`, and `appraise`. Skills handle creative and subjective work; deterministic operations (parsing, routing, state updates) are handled by custom tools backed by shared library code.
 
 ### WORK.md as shared state
 
-All communication between stages goes through WORK.md. No stage passes output directly to another. This gives a complete audit trail, makes the process resumable, and means any stage can be re-run independently.
+All communication between stages goes through WORK.md. No stage passes output directly to another — all reads and writes go through the `foundry_workfile_*`, `foundry_artefacts_*`, and `foundry_feedback_*` tools. This gives a complete audit trail, makes the process resumable, and means any stage can be re-run independently.
 
 ### Feedback as checklist items
 
