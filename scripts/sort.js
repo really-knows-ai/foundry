@@ -20,10 +20,11 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { minimatch } from 'minimatch';
-import { validateTags, extractAllTags } from './lib/tags.js';
+import { validateTags } from './lib/tags.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable } from './lib/artefacts.js';
 import { loadHistory } from './lib/history.js';
+import { parseFeedback, parseFeedbackItem } from './lib/feedback.js';
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -61,77 +62,6 @@ const defaultIO = {
 // ---------------------------------------------------------------------------
 // Parsing
 // ---------------------------------------------------------------------------
-
-function parseFeedback(text, cycle, artefacts) {
-  const cycleFiles = new Set();
-  for (const art of artefacts) {
-    if (art.cycle === cycle) {
-      cycleFiles.add(art.file || '');
-    }
-  }
-
-  const items = [];
-  let currentFile = null;
-  let inFeedback = false;
-  let feedbackLevel = 0; // 1 for '# Feedback', 2 for '## Feedback'
-
-  for (const line of text.split('\n')) {
-    const stripped = line.trim();
-
-    if (stripped === '# Feedback' || stripped === '## Feedback') {
-      inFeedback = true;
-      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
-      continue;
-    }
-
-    // Exit feedback on a heading at the same or higher level
-    if (inFeedback && /^#{1,2} /.test(stripped)) {
-      const level = stripped.startsWith('## ') ? 2 : 1;
-      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
-        inFeedback = false;
-        continue;
-      }
-    }
-
-    if (!inFeedback) continue;
-
-    // File sub-headings are one level below the Feedback heading
-    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
-    if (stripped.startsWith(fileHeadingPrefix)) {
-      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
-      continue;
-    }
-
-    if (cycleFiles.has(currentFile) && /^- \[/.test(stripped)) {
-      items.push(parseFeedbackItem(stripped));
-    }
-  }
-
-  return items;
-}
-
-function parseFeedbackItem(line) {
-  const item = { raw: line, state: 'unknown', tags: [], resolved: false };
-
-  if (line.startsWith('- [ ]')) {
-    item.state = 'open';
-  } else if (line.startsWith('- [x]')) {
-    item.state = 'actioned';
-  } else if (line.startsWith('- [~]')) {
-    item.state = 'wont-fix';
-  }
-
-  if (line.includes('| approved')) {
-    item.resolved = true;
-  } else if (line.includes('| rejected')) {
-    item.state = 'rejected';
-    item.resolved = false;
-  }
-
-  item.tags = extractAllTags(line);
-
-  return item;
-}
 
 // ---------------------------------------------------------------------------
 // Routing logic
@@ -274,14 +204,13 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
 
 export { parseArtefactsTable } from './lib/artefacts.js';
 export { loadHistory } from './lib/history.js';
+export { parseFeedback, parseFeedbackItem } from './lib/feedback.js';
 
 export {
   baseStage,
   findFirst,
   nextInRoute,
   parseFrontmatter,
-  parseFeedback,
-  parseFeedbackItem,
   determineRoute,
   nextAfterQuench,
   nextAfterAppraise,
