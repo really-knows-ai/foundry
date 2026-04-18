@@ -10,4 +10,4 @@
 
 - [x] **BUG-5: `foundry_workfile_create` stages don't use aliases.** The flow skill passed `["forge", "quench", "appraise"]` instead of aliased names. Both `foundry_workfile_create` (BUG-3) and `foundry_workfile_set` now auto-enrich bare stage names via `enrichStages()`. Cycle skill updated to mention alias format.
 
-- [ ] **BUG-6: Validation scripts use `require()` but project has `"type": "module"`.** The haiku validators in `foundry/artefacts/haiku/` use CommonJS `require('fs')` which will fail in ESM projects. The scripts happened to work in the test because `opencode-test` doesn't have `"type": "module"`, but this is a latent issue for ESM projects.
+- [x] **BUG-6: Validation scripts use `require()` but project has `"type": "module"`.** Not a code bug — skill instruction issue. Updated `add-artefact-type` skill to check project module format and advise on `.mjs`/`.cjs` extensions.
