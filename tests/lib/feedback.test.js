@@ -107,6 +107,19 @@ describe('parseFeedback', () => {
     const r = parseFeedback(text, 'write', artefacts);
     assert.equal(r.length, 1);
   });
+
+  it('collects all feedback when artefacts list is empty', () => {
+    const text = [
+      '## Feedback',
+      '### haikus/test.md',
+      '- [ ] imagery is too vague #law:vivid-imagery',
+      '- [ ] too conventional #law:bold-risk-taking-style',
+    ].join('\n');
+    const r = parseFeedback(text, 'create-haiku', []);
+    assert.equal(r.length, 2);
+    assert.equal(r[0].state, 'open');
+    assert.equal(r[1].state, 'open');
+  });
 });
 
 // ---------------------------------------------------------------------------

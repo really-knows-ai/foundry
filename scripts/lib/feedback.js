@@ -38,6 +38,7 @@ export function parseFeedback(text, cycle, artefacts) {
       cycleFiles.add(art.file || '');
     }
   }
+  const filterByFile = cycleFiles.size > 0;
 
   const items = [];
   let currentFile = null;
@@ -71,7 +72,7 @@ export function parseFeedback(text, cycle, artefacts) {
       continue;
     }
 
-    if (cycleFiles.has(currentFile) && /^- \[/.test(stripped)) {
+    if ((!filterByFile || cycleFiles.has(currentFile)) && /^- \[/.test(stripped)) {
       items.push(parseFeedbackItem(stripped));
     }
   }
@@ -183,6 +184,7 @@ export function listFeedback(text, cycle, artefacts, filterFile) {
       cycleFiles.add(art.file || '');
     }
   }
+  const filterByCycle = cycleFiles.size > 0;
 
   const results = [];
   let currentFile = null;
@@ -216,7 +218,7 @@ export function listFeedback(text, cycle, artefacts, filterFile) {
       continue;
     }
 
-    if (cycleFiles.has(currentFile) && /^- \[/.test(stripped)) {
+    if ((!filterByCycle || cycleFiles.has(currentFile)) && /^- \[/.test(stripped)) {
       if (!filterFile || filterFile === currentFile) {
         const item = parseFeedbackItem(stripped);
         results.push({
