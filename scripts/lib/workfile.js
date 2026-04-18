@@ -35,6 +35,19 @@ export function setFrontmatterField(text, key, value) {
 }
 
 // ---------------------------------------------------------------------------
+// Stage alias enrichment
+// ---------------------------------------------------------------------------
+
+/**
+ * Ensure each stage has a base:alias format.
+ * Bare names (e.g. "forge") become "forge:<cycleId>".
+ * Already-aliased names (e.g. "forge:write-haiku") pass through unchanged.
+ */
+export function enrichStages(stages, cycleId) {
+  return stages.map(s => s.includes(':') ? s : `${s}:${cycleId}`);
+}
+
+// ---------------------------------------------------------------------------
 // Workfile creation
 // ---------------------------------------------------------------------------
 

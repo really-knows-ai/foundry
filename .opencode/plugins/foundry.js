@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
 import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
-import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField } from '../../scripts/lib/workfile.js';
+import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField, enrichStages } from '../../scripts/lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../scripts/lib/feedback.js';
 import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow, selectAppraisers } from '../../scripts/lib/config.js';
@@ -139,7 +139,7 @@ export const FoundryPlugin = async ({ directory }) => {
           if (existsSync(workPath)) {
             return JSON.stringify({ error: 'WORK.md already exists' });
           }
-          const fm = { flow: args.flow, cycle: args.cycle, stages: args.stages, maxIterations: args.maxIterations };
+          const fm = { flow: args.flow, cycle: args.cycle, stages: enrichStages(args.stages, args.cycle), maxIterations: args.maxIterations };
           if (args.models) {
             try { fm.models = JSON.parse(args.models); } catch { fm.models = {}; }
           }

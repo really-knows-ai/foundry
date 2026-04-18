@@ -6,6 +6,7 @@ import {
   createWorkfile,
   getFrontmatterField,
   setFrontmatterField,
+  enrichStages,
 } from '../../scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
@@ -77,8 +78,27 @@ describe('createWorkfile', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getFrontmatterField
+// enrichStages
 // ---------------------------------------------------------------------------
+
+describe('enrichStages', () => {
+  it('adds cycleId alias to bare stage names', () => {
+    const result = enrichStages(['forge', 'quench', 'appraise'], 'create-haiku');
+    assert.deepEqual(result, ['forge:create-haiku', 'quench:create-haiku', 'appraise:create-haiku']);
+  });
+
+  it('preserves already-aliased stages', () => {
+    const result = enrichStages(['forge:write-haiku', 'quench:check-syllables'], 'create-haiku');
+    assert.deepEqual(result, ['forge:write-haiku', 'quench:check-syllables']);
+  });
+
+  it('handles mix of bare and aliased', () => {
+    const result = enrichStages(['forge:custom', 'quench', 'appraise'], 'my-cycle');
+    assert.deepEqual(result, ['forge:custom', 'quench:my-cycle', 'appraise:my-cycle']);
+  });
+});
+
+//
 
 describe('getFrontmatterField', () => {
   const text = '---\ncycle: forge\ntags:\n  - a\n  - b\n---\nbody';
