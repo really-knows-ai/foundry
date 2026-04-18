@@ -25,7 +25,7 @@
     "node": ">=18.3.0"
   },
   "scripts": {
-    "test": "node --test tests/sort.test.js"
+    "test": "node --test tests/**/*.test.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
