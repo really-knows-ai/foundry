@@ -23,6 +23,7 @@ import { minimatch } from 'minimatch';
 import { validateTags, extractAllTags } from './lib/tags.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable } from './lib/artefacts.js';
+import { loadHistory } from './lib/history.js';
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -130,20 +131,6 @@ function parseFeedbackItem(line) {
   item.tags = extractAllTags(line);
 
   return item;
-}
-
-function loadHistory(historyPath, cycle, io = defaultIO) {
-  if (!io.exists(historyPath)) return [];
-  const data = yaml.load(io.readFile(historyPath)) || [];
-  const filtered = data.filter(e => e.cycle === cycle);
-  // Sort by timestamp ascending to ensure correct ordering regardless of
-  // whether entries were appended or prepended by the LLM.
-  filtered.sort((a, b) => {
-    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return ta - tb;
-  });
-  return filtered;
 }
 
 // ---------------------------------------------------------------------------
@@ -286,6 +273,7 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
 // ---------------------------------------------------------------------------
 
 export { parseArtefactsTable } from './lib/artefacts.js';
+export { loadHistory } from './lib/history.js';
 
 export {
   baseStage,
@@ -294,7 +282,6 @@ export {
   parseFrontmatter,
   parseFeedback,
   parseFeedbackItem,
-  loadHistory,
   determineRoute,
   nextAfterQuench,
   nextAfterAppraise,
@@ -350,7 +337,7 @@ function main() {
   }
 
   const artefacts = parseArtefactsTable(workText);
-  const history = loadHistory(historyPath, cycle);
+  const history = loadHistory(historyPath, cycle, defaultIO);
   const feedback = parseFeedback(workText, cycle, artefacts);
 
   // --- File modification enforcement ---
