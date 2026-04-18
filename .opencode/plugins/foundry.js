@@ -132,7 +132,7 @@ export const FoundryPlugin = async ({ directory }) => {
           stages: tool.schema.array(tool.schema.string()).describe('Ordered stage names'),
           maxIterations: tool.schema.number().describe('Maximum iterations'),
           goal: tool.schema.string().describe('Goal text'),
-          models: tool.schema.record(tool.schema.string()).optional().describe('Per-stage model overrides'),
+          models: tool.schema.string().optional().describe('Per-stage model overrides as JSON object, e.g. \'{"forge":"openai/gpt-4o"}\''),
         },
         async execute(args, context) {
           const workPath = path.join(context.worktree, 'WORK.md');
@@ -140,7 +140,9 @@ export const FoundryPlugin = async ({ directory }) => {
             return JSON.stringify({ error: 'WORK.md already exists' });
           }
           const fm = { flow: args.flow, cycle: args.cycle, stages: args.stages, maxIterations: args.maxIterations };
-          if (args.models) fm.models = args.models;
+          if (args.models) {
+            try { fm.models = JSON.parse(args.models); } catch { fm.models = {}; }
+          }
           const content = createWorkfile(fm, args.goal);
           writeFileSync(workPath, content, 'utf-8');
           return JSON.stringify({ ok: true });
@@ -167,7 +169,7 @@ export const FoundryPlugin = async ({ directory }) => {
         description: 'Update a single frontmatter field in WORK.md',
         args: {
           key: tool.schema.string().describe('Frontmatter key'),
-          value: tool.schema.any().describe('Value to set'),
+          value: tool.schema.string().describe('Value to set (use JSON for arrays/objects, e.g. \'["forge:a","quench:b"]\' or \'{"forge":"openai/gpt-4o"}\')'),
         },
         async execute(args, context) {
           const workPath = path.join(context.worktree, 'WORK.md');
@@ -175,7 +177,17 @@ export const FoundryPlugin = async ({ directory }) => {
             return JSON.stringify({ error: 'WORK.md not found' });
           }
           const text = readFileSync(workPath, 'utf-8');
-          const updated = setFrontmatterField(text, args.key, args.value);
+          // Parse JSON values for arrays/objects, keep strings as-is
+          let value = args.value;
+          try {
+            const parsed = JSON.parse(args.value);
+            if (typeof parsed === 'object' || Array.isArray(parsed) || typeof parsed === 'number') {
+              value = parsed;
+            }
+          } catch {
+            // Not JSON, use as plain string
+          }
+          const updated = setFrontmatterField(text, args.key, value);
           writeFileSync(workPath, updated, 'utf-8');
           return JSON.stringify({ ok: true });
         },
