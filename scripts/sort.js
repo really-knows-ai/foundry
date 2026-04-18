@@ -15,9 +15,6 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
-import { parseArgs } from 'util';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { minimatch } from 'minimatch';
 import { validateTags } from './lib/tags.js';
@@ -276,88 +273,4 @@ export {
   checkModifiedFiles,
 };
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 
-function main() {
-  const { values } = parseArgs({
-    options: {
-      work: { type: 'string', default: 'WORK.md' },
-      history: { type: 'string', default: 'WORK.history.yaml' },
-      'foundry-dir': { type: 'string', default: 'foundry' },
-      'cycle-def': { type: 'string' },
-    },
-  });
-
-  const workPath = values.work;
-  const historyPath = values.history;
-  const foundryDir = values['foundry-dir'];
-
-  if (!existsSync(workPath)) {
-    process.stderr.write('ERROR: WORK.md not found\n');
-    process.exit(1);
-  }
-
-  const workText = readFileSync(workPath, 'utf-8');
-  const frontmatter = parseFrontmatter(workText);
-
-  const cycle = frontmatter.cycle;
-  const stages = frontmatter.stages;
-  const maxIterations = frontmatter['max-iterations'] ?? 3;
-
-  if (!cycle) {
-    process.stderr.write('ERROR: No cycle in WORK.md frontmatter\n');
-    process.exit(1);
-  }
-
-  if (!stages || !Array.isArray(stages)) {
-    process.stderr.write('ERROR: No stages in WORK.md frontmatter\n');
-    process.exit(1);
-  }
-
-  if (!findFirst(stages, 'forge')) {
-    process.stderr.write('ERROR: stages must include at least one forge stage\n');
-    process.exit(1);
-  }
-
-  const artefacts = parseArtefactsTable(workText);
-  const history = loadHistory(historyPath, cycle, defaultIO);
-  const feedback = parseFeedback(workText, cycle, artefacts);
-
-  // --- File modification enforcement ---
-  const nonSortHistory = history.filter(e => baseStage(e.stage || '') !== 'sort');
-  if (nonSortHistory.length > 0) {
-    const lastEntry = nonSortHistory[nonSortHistory.length - 1];
-    const lastBase = baseStage(lastEntry.stage || '');
-
-    // Resolve cycle-def: CLI arg > WORK.md frontmatter field
-    const cycleDef = values['cycle-def']
-      || frontmatter['cycle-def']
-      || `${foundryDir}/cycles/${cycle}.md`;
-
-    const result = checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle);
-    if (!result.ok) {
-      console.log('violation');
-      process.stderr.write(`File modification violation after ${lastBase} stage:\n`);
-      result.violations.forEach(f => process.stderr.write(`  ${f}\n`));
-      process.exit(0);
-    }
-  }
-
-  // --- Tag validation ---
-  const tagErrors = validateTags(workText, foundryDir);
-  if (tagErrors.length > 0) {
-    console.log('violation');
-    process.stderr.write(`Feedback tag validation failed (${tagErrors.length} issue${tagErrors.length > 1 ? 's' : ''}):\n`);
-    tagErrors.forEach(e => process.stderr.write(`  line ${e.line}: ${e.message}\n`));
-    process.exit(0);
-  }
-
-  const route = determineRoute(stages, history, feedback, maxIterations);
-  console.log(route);
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main();
-}

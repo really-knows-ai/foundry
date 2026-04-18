@@ -16,6 +16,7 @@ import {
   getModifiedFiles,
   getAllowedPatterns,
   checkModifiedFiles,
+  runSort,
 } from '../scripts/sort.js';
 
 // ---------------------------------------------------------------------------
@@ -508,5 +509,50 @@ describe('checkModifiedFiles', () => {
     };
     const result = checkModifiedFiles('quench', 'foundry', 'foundry/cycles/c1.md', 'c1', io);
     assert.deepEqual(result, { ok: true, violations: [] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runSort
+// ---------------------------------------------------------------------------
+
+describe('runSort', () => {
+  it('returns route for fresh cycle', () => {
+    const workText = [
+      '---',
+      'cycle: c1',
+      'stages:',
+      '  - forge:write',
+      '  - quench:review',
+      '---',
+      '',
+    ].join('\n');
+    const io = {
+      exists: (p) => p === 'WORK.md',
+      readFile: (p) => {
+        if (p === 'WORK.md') return workText;
+        throw new Error(`unexpected read: ${p}`);
+      },
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(result.route, 'forge:write');
+  });
+
+  it('returns blocked when WORK.md not found', () => {
+    const io = { exists: () => false, readFile: () => '', exec: () => '' };
+    const result = runSort({}, io);
+    assert.equal(result.route, 'blocked');
+    assert.ok(result.details.includes('not found'));
+  });
+
+  it('returns blocked when no cycle in frontmatter', () => {
+    const io = {
+      exists: () => true,
+      readFile: () => '---\nstages:\n  - forge:a\n---\n',
+      exec: () => '',
+    };
+    const result = runSort({}, io);
+    assert.equal(result.route, 'blocked');
   });
 });
