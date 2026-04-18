@@ -22,6 +22,7 @@ import yaml from 'js-yaml';
 import { minimatch } from 'minimatch';
 import { validateTags, extractAllTags } from './lib/tags.js';
 import { parseFrontmatter } from './lib/workfile.js';
+import { parseArtefactsTable } from './lib/artefacts.js';
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -129,38 +130,6 @@ function parseFeedbackItem(line) {
   item.tags = extractAllTags(line);
 
   return item;
-}
-
-function parseArtefactsTable(text) {
-  const artefacts = [];
-  let inTable = false;
-
-  for (const line of text.split('\n')) {
-    const stripped = line.trim();
-
-    if (stripped.startsWith('| File')) {
-      inTable = true;
-      continue;
-    }
-    if (inTable && stripped.startsWith('|---')) {
-      continue;
-    }
-    if (inTable && stripped.startsWith('|')) {
-      const cols = stripped.split('|').slice(1, -1).map(c => c.trim());
-      if (cols.length >= 4) {
-        artefacts.push({
-          file: cols[0],
-          type: cols[1],
-          cycle: cols[2],
-          status: cols[3],
-        });
-      }
-    } else if (inTable) {
-      inTable = false;
-    }
-  }
-
-  return artefacts;
 }
 
 function loadHistory(historyPath, cycle, io = defaultIO) {
@@ -316,6 +285,8 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
 // Exports (for testing) — keep main() private
 // ---------------------------------------------------------------------------
 
+export { parseArtefactsTable } from './lib/artefacts.js';
+
 export {
   baseStage,
   findFirst,
@@ -323,7 +294,6 @@ export {
   parseFrontmatter,
   parseFeedback,
   parseFeedbackItem,
-  parseArtefactsTable,
   loadHistory,
   determineRoute,
   nextAfterQuench,
