@@ -23,6 +23,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
    - Use the cycle definition's `stages` field if present
    - Otherwise generate defaults: always `forge`, add `quench` if `foundry_config_validation` returns non-null for the type, always `appraise`
    - Cycle definitions can include `hitl` entries for human-in-the-loop checkpoints
+   - Stages should use `base:alias` format (e.g. `forge:write-haiku`, `quench:check-syllables`). If you pass bare names, the tool will auto-append the cycle ID as the alias.
 4. Call `foundry_workfile_set` to configure the work file:
    - `key: "cycle"`, `value: <cycle-id>`
    - `key: "stages"`, `value: <determined stages list>`

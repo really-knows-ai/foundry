@@ -8,6 +8,6 @@
 
 - [x] **BUG-4: Sort returns `done` after first iteration despite open feedback.** Appraisers flagged issues on `vivid-imagery` and `bold-risk-taking-style` but sort skipped the revision loop entirely. The iteration/feedback check logic in sort is broken or feedback state isn't being read correctly.
 
-- [ ] **BUG-5: `foundry_workfile_create` stages don't use aliases.** The flow skill passed `["forge", "quench", "appraise"]` instead of `["forge:write-haiku", "quench:check-syllables", "appraise:evaluate-quality"]`. This feeds into BUG-3. Partially mitigated by `enrichStages()` fallback in BUG-3 fix, but needs full investigation.
+- [x] **BUG-5: `foundry_workfile_create` stages don't use aliases.** The flow skill passed `["forge", "quench", "appraise"]` instead of aliased names. Both `foundry_workfile_create` (BUG-3) and `foundry_workfile_set` now auto-enrich bare stage names via `enrichStages()`. Cycle skill updated to mention alias format.
 
 - [ ] **BUG-6: Validation scripts use `require()` but project has `"type": "module"`.** The haiku validators in `foundry/artefacts/haiku/` use CommonJS `require('fs')` which will fail in ESM projects. The scripts happened to work in the test because `opencode-test` doesn't have `"type": "module"`, but this is a latent issue for ESM projects.

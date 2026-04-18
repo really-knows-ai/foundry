@@ -187,6 +187,13 @@ export const FoundryPlugin = async ({ directory }) => {
           } catch {
             // Not JSON, use as plain string
           }
+          // Auto-enrich bare stage names with cycle ID alias
+          if (args.key === 'stages' && Array.isArray(value)) {
+            const fm = parseFrontmatter(text);
+            if (fm.cycle) {
+              value = enrichStages(value, fm.cycle);
+            }
+          }
           const updated = setFrontmatterField(text, args.key, value);
           writeFileSync(workPath, updated, 'utf-8');
           return JSON.stringify({ ok: true });
