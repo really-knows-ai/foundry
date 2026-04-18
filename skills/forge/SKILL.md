@@ -6,7 +6,7 @@ description: Produces or revises an artefact, guided by WORK.md and the foundry 
 
 # Forge
 
-You produce or revise artefacts. You read WORK.md to understand the goal and feedback, and the foundry cycle definition to understand what you're producing and what inputs you can read.
+You produce or revise artefacts. You read the work file to understand the goal and feedback, and the foundry cycle definition to understand what you're producing and what inputs you can read.
 
 ## Prerequisites
 
@@ -16,59 +16,43 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 ## Protocol
 
-### First generation (no artefact registered in WORK.md yet)
+### First generation (no artefact registered yet)
 
-1. Read `WORK.md` — understand the goal
-2. Read the foundry cycle definition from `foundry/cycles/<cycle-id>.md` — understand what to produce and what inputs are available
-3. Read the output artefact type definition from `foundry/artefacts/<type>/definition.md`
-4. Read all files in `foundry/laws/` for global laws
-5. Read `foundry/artefacts/<type>/laws.md` for type-specific laws (if it exists)
-6. If the foundry cycle has inputs, read the input artefacts (read-only context)
-7. Produce the artefact, respecting all applicable laws from the start
-8. Write the artefact to the location specified in the artefact type definition
-9. Register the artefact in the WORK.md artefacts table. The table MUST have all four columns — File, Type, Cycle, Status. Set cycle to the current cycle id from WORK.md frontmatter. Set status to `draft`.
+1. Call `foundry_workfile_get` — understand the goal
+2. Call `foundry_config_cycle` — understand what to produce and what inputs are available
+3. Call `foundry_config_artefact_type` with the output type ID — get the artefact type definition
+4. Call `foundry_config_laws` — get all applicable laws (global + type-specific)
+5. If the cycle has inputs, read the input artefacts (read-only context)
+6. Produce the artefact, respecting all applicable laws from the start (this is judgment — use your craft)
+7. Write the artefact file to the location specified in the artefact type definition
+8. Call `foundry_artefacts_add` with the file path, type, and cycle to register it with status `"draft"`
 
-### Revision (feedback exists in WORK.md)
+### Revision (feedback exists)
 
-1. Read `WORK.md` — find unresolved feedback items for the artefact. Feedback is scoped by file: look under `## Feedback` for the `### <file-path>` sub-heading that matches the artefact's File column in the artefacts table. Only items under that heading belong to this artefact.
-2. Read the artefact
-3. If the foundry cycle has inputs, read the input artefacts (read-only context)
+1. Call `foundry_feedback_list` to find unresolved feedback for the artefact
+2. Read the artefact file
+3. If the cycle has inputs, read the input artefacts (read-only context)
 4. For each unresolved feedback item, either:
-   - Address it and mark as `[x]` (actioned)
-   - Mark as `[~]` with justification if you believe the feedback should not be actioned: `- [~] <issue> #law:<id> | wont-fix: <reason>`
+   - Address it and call `foundry_feedback_action` with the item ID (marks as actioned)
+   - Call `foundry_feedback_wontfix` with the item ID and a justification (appraisal feedback only)
 5. Update the artefact file
-6. Wont-fix is only available for `#law:` feedback (subjective appraisal). Validation feedback (`#validation`) must be actioned — deterministic rules are not negotiable.
+6. Wont-fix is only available for `law:` feedback (subjective appraisal). Validation feedback must be actioned — deterministic rules are not negotiable.
+
+### After (both paths)
+
+Call `foundry_history_append` with the current cycle, the full stage alias (e.g., `forge:write-haiku`), and a brief description of what you did.
 
 ## Unresolved feedback
 
 An item is unresolved if it is:
-- `[ ]` — open, not yet addressed
-- `[x] ... | rejected: ...` — actioned but rejected by appraiser, effectively re-opened
-- `[~] ... | rejected` — wont-fix rejected by appraiser, effectively re-opened
+- `open` — not yet addressed
+- `rejected` — actioned or wont-fixed but rejected by appraiser, effectively re-opened
 
-An item is resolved if it is:
-- `[x] ... | approved`
-- `[~] ... | approved`
-
-## History
-
-After completing your work (first generation or revision), append an entry to `WORK.history.yaml`:
-
-```yaml
-- timestamp: "<ISO 8601 UTC>"
-  cycle: <current-cycle-id>
-  stage: <alias>
-  iteration: <n>
-  comment: <brief description of what you did>
-```
-
-The `<alias>` is the full alias received from sort (e.g., `forge:write-haiku`). Use it exactly as given.
-
-The iteration number is one more than the count of existing `forge` entries for this cycle in the history.
+An item is resolved if it is `approved`.
 
 ## Feedback tagged `#hitl`
 
-Feedback tagged `#hitl` (human-in-the-loop) is treated the same as any other open feedback. Address it or wont-fix it using the same rules as other feedback items.
+Feedback tagged `hitl` (human-in-the-loop) is treated the same as any other open feedback. Address it or wont-fix it using the same rules as other feedback items.
 
 ## What you do NOT do
 
