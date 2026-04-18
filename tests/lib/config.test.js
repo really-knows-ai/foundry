@@ -92,12 +92,25 @@ describe('getLaws', () => {
 });
 
 describe('getValidation', () => {
-  it('extracts commands from code blocks', async () => {
+  it('parses Command:/Failure means: format under ## headings', async () => {
     const io = mockIO({
-      'foundry/artefacts/code/validation.md': '# Validation\n\n```bash\nnpm test\nnpm run lint\n```\n\nSome text.\n\n```sh\necho hi\n```',
+      'foundry/artefacts/haiku/validation.md': [
+        '# Validation',
+        '',
+        '## three-lines',
+        'Command: node validate-three-lines.js {file}',
+        'Failure means: The haiku does not have exactly 3 lines.',
+        '',
+        '## syllable-structure',
+        'Command: node validate-syllable-structure.js {file}',
+        'Failure means: The haiku does not follow the 5-7-5 syllable structure.',
+      ].join('\n'),
     });
-    const cmds = await getValidation('foundry', 'code', io);
-    assert.deepEqual(cmds, ['npm test', 'npm run lint', 'echo hi']);
+    const result = await getValidation('foundry', 'haiku', io);
+    assert.deepEqual(result, [
+      { id: 'three-lines', command: 'node validate-three-lines.js {file}', failureMeans: 'The haiku does not have exactly 3 lines.' },
+      { id: 'syllable-structure', command: 'node validate-syllable-structure.js {file}', failureMeans: 'The haiku does not follow the 5-7-5 syllable structure.' },
+    ]);
   });
 
   it('returns null if file missing', async () => {

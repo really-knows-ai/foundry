@@ -89,16 +89,37 @@ export async function getValidation(foundryDir, typeId, io) {
     return null;
   }
   const text = await io.readFile(path);
-  const commands = [];
-  const regex = /```(?:bash|sh)\n([\s\S]*?)```/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    for (const line of match[1].trim().split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed) commands.push(trimmed);
+  const entries = [];
+  const lines = text.split('\n');
+  let currentId = null;
+  let currentCommand = null;
+  let currentFailure = null;
+
+  function flush() {
+    if (currentId && currentCommand) {
+      const entry = { id: currentId, command: currentCommand };
+      if (currentFailure) entry.failureMeans = currentFailure;
+      entries.push(entry);
+    }
+    currentId = null;
+    currentCommand = null;
+    currentFailure = null;
+  }
+
+  for (const line of lines) {
+    const heading = line.match(/^## (.+)/);
+    if (heading) {
+      flush();
+      currentId = heading[1].trim();
+    } else if (currentId) {
+      const cmdMatch = line.match(/^Command:\s*(.+)/);
+      const failMatch = line.match(/^Failure means:\s*(.+)/);
+      if (cmdMatch) currentCommand = cmdMatch[1].trim();
+      if (failMatch) currentFailure = failMatch[1].trim();
     }
   }
-  return commands;
+  flush();
+  return entries;
 }
 
 export async function getAppraisers(foundryDir, io) {

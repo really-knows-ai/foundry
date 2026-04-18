@@ -460,15 +460,15 @@ export const FoundryPlugin = async ({ directory }) => {
         async execute(args, context) {
           const io = makeIO(context.worktree);
           const commands = await getValidation('foundry', args.typeId, io);
-          if (!commands) return JSON.stringify({ error: 'No validation defined for type: ' + args.typeId });
+          if (!commands || commands.length === 0) return JSON.stringify({ error: 'No validation defined for type: ' + args.typeId });
           const results = [];
-          for (const cmd of commands) {
-            const expanded = cmd.replace(/\{file\}/g, args.file);
+          for (const entry of commands) {
+            const expanded = entry.command.replace(/\{file\}/g, args.file);
             try {
               const output = execSync(expanded, { cwd: context.worktree, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
-              results.push({ command: expanded, passed: true, output: output.trim() });
+              results.push({ id: entry.id, command: expanded, passed: true, output: output.trim() });
             } catch (err) {
-              results.push({ command: expanded, passed: false, output: (err.stderr || err.stdout || err.message || '').trim() });
+              results.push({ id: entry.id, command: expanded, passed: false, output: (err.stderr || err.stdout || err.message || '').trim(), failureMeans: entry.failureMeans });
             }
           }
           return JSON.stringify(results);
