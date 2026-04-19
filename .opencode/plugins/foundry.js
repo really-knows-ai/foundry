@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
 import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
-import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField, enrichStages } from '../../scripts/lib/workfile.js';
+import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField, enrichStages, parseStagesValue } from '../../scripts/lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../scripts/lib/feedback.js';
 import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow, selectAppraisers } from '../../scripts/lib/config.js';
@@ -179,13 +179,18 @@ export const FoundryPlugin = async ({ directory }) => {
           const text = readFileSync(workPath, 'utf-8');
           // Parse JSON values for arrays/objects, keep strings as-is
           let value = args.value;
-          try {
-            const parsed = JSON.parse(args.value);
-            if (typeof parsed === 'object' || Array.isArray(parsed) || typeof parsed === 'number') {
-              value = parsed;
+          if (args.key === 'stages') {
+            // Always parse stages into an array (handles JSON arrays and comma-separated strings)
+            value = parseStagesValue(args.value);
+          } else {
+            try {
+              const parsed = JSON.parse(args.value);
+              if (typeof parsed === 'object' || Array.isArray(parsed) || typeof parsed === 'number') {
+                value = parsed;
+              }
+            } catch {
+              // Not JSON, use as plain string
             }
-          } catch {
-            // Not JSON, use as plain string
           }
           // Auto-enrich bare stage names with cycle ID alias
           if (args.key === 'stages' && Array.isArray(value)) {

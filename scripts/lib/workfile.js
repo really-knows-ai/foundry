@@ -47,6 +47,21 @@ export function enrichStages(stages, cycleId) {
   return stages.map(s => s.includes(':') ? s : `${s}:${cycleId}`);
 }
 
+/**
+ * Parse a stages value from tool input.
+ * Accepts JSON array string or comma-separated string.
+ * Always returns an array of trimmed, non-empty strings.
+ */
+export function parseStagesValue(raw) {
+  // Try JSON first
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+  } catch { /* not JSON */ }
+  // Fall back to comma-separated
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 // ---------------------------------------------------------------------------
 // Workfile creation
 // ---------------------------------------------------------------------------

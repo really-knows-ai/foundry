@@ -7,6 +7,7 @@ import {
   getFrontmatterField,
   setFrontmatterField,
   enrichStages,
+  parseStagesValue,
 } from '../../scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
@@ -140,5 +141,37 @@ describe('setFrontmatterField', () => {
     const text = '---\ncycle: forge\n---\n# Goal\nImportant stuff';
     const result = setFrontmatterField(text, 'cycle', 'appraise');
     assert.ok(result.includes('# Goal\nImportant stuff'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseStagesValue
+// ---------------------------------------------------------------------------
+
+describe('parseStagesValue', () => {
+  it('returns a JSON array as-is', () => {
+    assert.deepEqual(parseStagesValue('["forge:a","quench:b"]'), ['forge:a', 'quench:b']);
+  });
+
+  it('splits comma-separated string into array', () => {
+    assert.deepEqual(
+      parseStagesValue('forge:write-haiku, quench:check-haiku, appraise:evaluate-haiku'),
+      ['forge:write-haiku', 'quench:check-haiku', 'appraise:evaluate-haiku'],
+    );
+  });
+
+  it('handles single stage string', () => {
+    assert.deepEqual(parseStagesValue('forge:write-haiku'), ['forge:write-haiku']);
+  });
+
+  it('trims whitespace from each entry', () => {
+    assert.deepEqual(
+      parseStagesValue('  forge:a ,  quench:b  '),
+      ['forge:a', 'quench:b'],
+    );
+  });
+
+  it('filters out empty entries', () => {
+    assert.deepEqual(parseStagesValue('forge:a,,quench:b,'), ['forge:a', 'quench:b']);
   });
 });
