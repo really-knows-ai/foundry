@@ -14,8 +14,10 @@ export function parseFrontmatter(text) {
   const fm = yaml.load(match[1]) || {};
   // Normalize: on-disk canonical key is `max-iterations` (kebab).
   // Tolerate legacy `maxIterations` (camel) by rewriting on read.
-  if (fm.maxIterations !== undefined && fm['max-iterations'] === undefined) {
-    fm['max-iterations'] = fm.maxIterations;
+  if (fm.maxIterations !== undefined) {
+    if (fm['max-iterations'] === undefined) {
+      fm['max-iterations'] = fm.maxIterations;
+    }
     delete fm.maxIterations;
   }
   return fm;

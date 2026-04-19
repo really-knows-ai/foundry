@@ -129,6 +129,7 @@ describe('createWorkfile', () => {
     const md = '---\nmax-iterations: 7\nmaxIterations: 5\n---\n# Goal\n';
     const fm = parseFrontmatter(md);
     assert.equal(fm['max-iterations'], 7);
+    assert.equal(fm.maxIterations, undefined);
   });
 
   it('setFrontmatterField writes kebab even when given camel key', () => {
