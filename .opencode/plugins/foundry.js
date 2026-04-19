@@ -433,17 +433,24 @@ export const FoundryPlugin = async ({ directory }) => {
       }),
 
       foundry_artefacts_set_status: tool({
-        description: 'Update the status of an artefact in WORK.md',
+        description: 'Update the status of an artefact in WORK.md (done|blocked only)',
         args: {
           file: tool.schema.string().describe('Artefact file path'),
-          status: tool.schema.string().describe('New status'),
+          status: tool.schema.string().describe('New status (done|blocked)'),
         },
         async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_artefacts_set_status ${guard.error}` });
           const workPath = path.join(context.worktree, 'WORK.md');
           const text = readFileSync(workPath, 'utf-8');
-          const updated = setArtefactStatus(text, args.file, args.status);
-          writeFileSync(workPath, updated, 'utf-8');
-          return JSON.stringify({ ok: true });
+          try {
+            const updated = setArtefactStatus(text, args.file, args.status);
+            writeFileSync(workPath, updated, 'utf-8');
+            return JSON.stringify({ ok: true });
+          } catch (e) {
+            return JSON.stringify({ error: e.message });
+          }
         },
       }),
 

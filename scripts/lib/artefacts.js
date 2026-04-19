@@ -86,6 +86,12 @@ export function addArtefactRow(text, { file, type, cycle, status }) {
  * @returns {string} Updated text
  */
 export function setArtefactStatus(text, file, newStatus) {
+  if (newStatus === 'draft') {
+    throw new Error('status draft not permitted; use stage_finalize for registration');
+  }
+  if (!['done', 'blocked'].includes(newStatus)) {
+    throw new Error(`invalid status: ${newStatus}`);
+  }
   const lines = text.split('\n');
   let inTable = false;
   let found = false;

@@ -137,3 +137,42 @@ describe('feedback stage-base allow-list on action/wontfix/resolve', () => {
     assert.match(res.error, /requires active forge/);
   });
 });
+
+// ── Artefacts tools ──
+
+describe('foundry_artefacts_set_status preconditions', () => {
+  let dir, plugin;
+  beforeEach(async () => {
+    dir = initRepo();
+    plugin = await FoundryPlugin({ directory: dir });
+    // Seed an artefact row.
+    const p = join(dir, 'WORK.md');
+    const t = readFileSync(p, 'utf-8').replace(
+      '|------|------|-------|--------|\n',
+      '|------|------|-------|--------|\n| x.md | foo | c | draft |\n',
+    );
+    writeFileSync(p, t);
+  });
+
+  it('rejects status "draft"', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_artefacts_set_status.execute(
+      { file: 'x.md', status: 'draft' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /status draft not permitted/);
+  });
+
+  it('accepts status "done" with no active stage', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_artefacts_set_status.execute(
+      { file: 'x.md', status: 'done' }, makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+  });
+
+  it('rejects during active stage', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_artefacts_set_status.execute(
+      { file: 'x.md', status: 'done' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+});

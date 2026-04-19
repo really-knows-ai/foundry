@@ -126,4 +126,12 @@ describe('setArtefactStatus', () => {
   it('throws on missing file', () => {
     assert.throws(() => setArtefactStatus(table, 'nope.md', 'done'), /not found/i);
   });
+
+  it('rejects status "draft"', () => {
+    assert.throws(() => setArtefactStatus(table, 'a.md', 'draft'), /status draft not permitted/);
+  });
+
+  it('rejects unknown status', () => {
+    assert.throws(() => setArtefactStatus(table, 'a.md', 'foobar'), /invalid status: foobar/);
+  });
 });
