@@ -17,8 +17,9 @@ import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterFi
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../scripts/lib/feedback.js';
 import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow, selectAppraisers } from '../../scripts/lib/config.js';
+import { slugify } from '../../scripts/lib/slug.js';
 import { runSort } from '../../scripts/sort.js';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -424,8 +425,10 @@ export const FoundryPlugin = async ({ directory }) => {
           description: tool.schema.string().describe('Branch description suffix'),
         },
         async execute(args, context) {
-          const branch = `work/${args.flowId}-${args.description}`;
-          execSync(`git checkout -b ${branch}`, { cwd: context.worktree, encoding: 'utf8' });
+          const flowSlug = slugify(args.flowId);
+          const descSlug = slugify(args.description);
+          const branch = `work/${flowSlug}-${descSlug}`;
+          execFileSync('git', ['checkout', '-b', branch], { cwd: context.worktree, encoding: 'utf8', stdio: 'pipe' });
           return JSON.stringify({ ok: true, branch });
         },
       }),
