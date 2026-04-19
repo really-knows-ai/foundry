@@ -21,7 +21,7 @@ import { validateTags } from './lib/tags.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable } from './lib/artefacts.js';
 import { loadHistory } from './lib/history.js';
-import { parseFeedback, parseFeedbackItem } from './lib/feedback.js';
+import { parseFeedback, parseFeedbackItem, detectDeadlocks } from './lib/feedback.js';
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -73,11 +73,6 @@ function determineRoute(stages, history, feedback, maxIterations) {
 
   if (lastBase === null) return stages[0];
 
-  if (lastBase === 'hitl') {
-    const next = nextInRoute(stages, lastEntry);
-    return next ?? 'done';
-  }
-
   if (lastBase === 'forge') {
     const next = nextInRoute(stages, lastEntry);
     return next ?? 'done';
@@ -88,7 +83,11 @@ function determineRoute(stages, history, feedback, maxIterations) {
   }
 
   if (lastBase === 'appraise') {
-    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations);
+    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory);
+  }
+
+  if (lastBase === 'human-appraise') {
+    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory);
   }
 
   return 'blocked';
@@ -104,7 +103,18 @@ function nextAfterQuench(stages, current, feedback, forgeCount, maxIterations) {
   return nextInRoute(stages, current) ?? 'done';
 }
 
-function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations) {
+function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations, history = []) {
+  // Check for deadlock escalation
+  const deadlocked = detectDeadlocks(feedback, history);
+  if (deadlocked.length > 0) {
+    const humanAppraise = findFirst(stages, 'human-appraise');
+    if (humanAppraise && baseStage(current) !== 'human-appraise') {
+      return humanAppraise;
+    }
+    // Human-appraise not available or we're already in it — blocked
+    if (forgeCount >= maxIterations) return 'blocked';
+  }
+
   const needsForge = feedback.some(f => f.state === 'open' || f.state === 'rejected');
   if (needsForge) {
     if (forgeCount >= maxIterations) return 'blocked';

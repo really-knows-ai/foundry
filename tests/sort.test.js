@@ -236,15 +236,6 @@ describe('determineRoute', () => {
     assert.equal(determineRoute(stages, history, [], 3), 'quench:review');
   });
 
-  it('advances after hitl', () => {
-    const stagesWithHitl = ['forge:write', 'hitl:human', 'quench:review'];
-    const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'hitl:human', cycle: 'c1' },
-    ];
-    assert.equal(determineRoute(stagesWithHitl, history, [], 3), 'quench:review');
-  });
-
   it('returns done when forge is last stage and completes', () => {
     const history = [{ stage: 'forge:write', cycle: 'c1' }];
     assert.equal(determineRoute(['forge:write'], history, [], 3), 'done');
@@ -261,6 +252,39 @@ describe('determineRoute', () => {
   it('returns blocked for unknown last stage base', () => {
     const history = [{ stage: 'unknown:thing', cycle: 'c1' }];
     assert.equal(determineRoute(stages, history, [], 3), 'blocked');
+  });
+
+  it('routes to human-appraise after appraise when enabled', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    assert.equal(determineRoute(stages, history, [], 3), 'human-appraise:review');
+  });
+
+  it('advances to done after human-appraise', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'human-appraise:review', cycle: 'c1' },
+    ];
+    assert.equal(determineRoute(stages, history, [], 3), 'done');
+  });
+
+  it('loops back to forge when human-appraise adds feedback', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'human-appraise:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open', tag: 'human' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'forge:write');
   });
 });
 
@@ -335,6 +359,36 @@ describe('nextAfterAppraise', () => {
     const stages = ['forge:write', 'quench:review', 'appraise:check'];
     const feedback = [{ state: 'actioned', resolved: true }];
     assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 0, 3), 'done');
+  });
+});
+
+describe('deadlock escalation', () => {
+  it('routes to human-appraise on deadlock when enabled', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'rejected' }];
+    assert.equal(determineRoute(stages, history, feedback, 5), 'human-appraise:review');
+  });
+
+  it('returns blocked on deadlock when human-appraise not in stages', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'rejected' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
   });
 });
 
