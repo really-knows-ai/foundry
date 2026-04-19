@@ -9,7 +9,7 @@
 
 import path from 'path';
 import fs from 'fs';
-import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
 import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
@@ -115,6 +115,8 @@ function makeIO(directory) {
     readFile: (p) => readFileSync(resolve(p), 'utf-8'),
     writeFile: (p, content) => writeFileSync(resolve(p), content, 'utf-8'),
     readDir: (p) => readdirSync(resolve(p)),
+    mkdir: (p) => mkdirSync(resolve(p), { recursive: true }),
+    unlink: (p) => { if (existsSync(resolve(p))) unlinkSync(resolve(p)); },
   };
 }
 
