@@ -312,3 +312,34 @@ describe('foundry_history_append preconditions', () => {
     assert.match(res.error, /requires no active stage/);
   });
 });
+
+// ── Git tools ──
+
+describe('git tools require no active stage', () => {
+  let dir, plugin;
+  beforeEach(async () => { dir = initRepo(); plugin = await FoundryPlugin({ directory: dir }); });
+
+  it('foundry_git_branch errors when stage active', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_git_branch.execute(
+      { flowId: 'f', description: 'x' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+
+  it('foundry_git_commit errors when stage active', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_git_commit.execute(
+      { cycle: 'c', stage: 'forge:c', description: 'x' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+
+  it('foundry_git_finish errors when stage active', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'squash' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+});

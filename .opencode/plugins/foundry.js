@@ -629,6 +629,9 @@ export const FoundryPlugin = async ({ directory }) => {
           description: tool.schema.string().describe('Branch description suffix'),
         },
         async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_git_branch ${guard.error}` });
           const flowSlug = slugify(args.flowId);
           const descSlug = slugify(args.description);
           const branch = `work/${flowSlug}-${descSlug}`;
@@ -645,6 +648,9 @@ export const FoundryPlugin = async ({ directory }) => {
           description: tool.schema.string().describe('Commit description'),
         },
         async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_git_commit ${guard.error}` });
           execSync('git add .', { cwd: context.worktree, encoding: 'utf8' });
           const msg = `[${args.cycle}] ${args.stage}: ${args.description}`;
           execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: context.worktree, encoding: 'utf8' });
@@ -660,6 +666,9 @@ export const FoundryPlugin = async ({ directory }) => {
           baseBranch: tool.schema.string().optional().describe('Target branch (default: main)'),
         },
         async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_git_finish ${guard.error}` });
           const base = args.baseBranch || 'main';
           const cwd = context.worktree;
           const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
