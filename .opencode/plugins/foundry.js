@@ -415,23 +415,9 @@ export const FoundryPlugin = async ({ directory }) => {
       }),
 
       // ── Artefacts tools ──
-      foundry_artefacts_add: tool({
-        description: 'Add an artefact row to the WORK.md table',
-        args: {
-          file: tool.schema.string().describe('Artefact file path'),
-          type: tool.schema.string().describe('Artefact type'),
-          cycle: tool.schema.string().describe('Cycle name'),
-          status: tool.schema.string().optional().describe('Status (default: draft)'),
-        },
-        async execute(args, context) {
-          const workPath = path.join(context.worktree, 'WORK.md');
-          const text = readFileSync(workPath, 'utf-8');
-          const updated = addArtefactRow(text, { file: args.file, type: args.type, cycle: args.cycle, status: args.status || 'draft' });
-          writeFileSync(workPath, updated, 'utf-8');
-          return JSON.stringify({ ok: true });
-        },
-      }),
-
+      // NOTE: `foundry_artefacts_add` was removed in v2.2.0. Artefacts are now
+      // registered automatically by `foundry_stage_finalize` as drafts, then
+      // promoted to done|blocked via `foundry_artefacts_set_status`.
       foundry_artefacts_set_status: tool({
         description: 'Update the status of an artefact in WORK.md (done|blocked only)',
         args: {

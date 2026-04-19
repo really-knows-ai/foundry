@@ -176,3 +176,11 @@ describe('foundry_artefacts_set_status preconditions', () => {
     assert.match(res.error, /requires no active stage/);
   });
 });
+
+describe('foundry_artefacts_add removed', () => {
+  it('is not registered as a tool', async () => {
+    const dir = initRepo();
+    const plugin = await FoundryPlugin({ directory: dir });
+    assert.equal(plugin.tool.foundry_artefacts_add, undefined);
+  });
+});
