@@ -20,6 +20,15 @@ import { getCycleDefinition, getArtefactType, getLaws, getValidation, getApprais
 import { slugify } from '../../scripts/lib/slug.js';
 import { runSort } from '../../scripts/sort.js';
 import { execSync, execFileSync } from 'child_process';
+import { createHash } from 'node:crypto';
+import { readOrCreateSecret } from '../../scripts/lib/secret.js';
+import { createPendingStore } from '../../scripts/lib/pending.js';
+import { signToken, verifyToken } from '../../scripts/lib/token.js';
+import {
+  ensureFoundryDir, readActiveStage, writeActiveStage, clearActiveStage,
+  readLastStage, writeLastStage,
+} from '../../scripts/lib/state.js';
+import { requireNoActiveStage, requireActiveStage, stageBaseOf } from '../../scripts/lib/stage-guard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -121,7 +130,15 @@ function makeIO(directory) {
 }
 
 export const FoundryPlugin = async ({ directory }) => {
-  return {
+  // Bootstrap per-worktree HMAC secret (created on first boot, persisted to .foundry/secret).
+  // Note: `directory` is the worktree root at plugin-boot time. Per-invocation `context.worktree`
+  // may differ in multi-worktree setups — we still use `context.worktree` inside tool `execute`
+  // bodies to locate `.foundry/` on disk, and use the plugin-boot `secret` only for
+  // signing/verifying. A worktree change mid-session would mismatch; deferred out of v2.2.0 scope.
+  const secret = readOrCreateSecret(directory);
+  const pending = createPendingStore();
+
+  const plugin = {
     config: async (config) => {
       config.skills = config.skills || {};
       config.skills.paths = config.skills.paths || [];
@@ -619,4 +636,8 @@ export const FoundryPlugin = async ({ directory }) => {
       }),
     },
   };
+
+  Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.secret'), { value: secret });
+  return plugin;
 };
