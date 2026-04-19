@@ -1,13 +1,13 @@
 ---
 name: flow
 type: composite
-description: Orchestrates foundry cycles on a work branch, driven by a foundry flow definition.
+description: Orchestrates foundry cycles as a dependency graph, driven by a flow definition.
 composes: [cycle]
 ---
 
 # Flow
 
-A foundry flow reads a flow definition, creates a work branch, initialises the work file, and executes each foundry cycle in sequence.
+A foundry flow reads a flow definition, creates a work branch, and executes cycles by following the dependency graph — each cycle declares its own targets and input contracts.
 
 ## Prerequisites
 
@@ -15,26 +15,52 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 > Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
 
-## Starting a foundry flow
+## Starting a flow
 
 1. Call `foundry_config_flow` with the flow ID — get the flow definition
-2. Call `foundry_git_branch` with name `work/<flow-id>-<short-description>` — create the work branch
-3. Call `foundry_workfile_create` with the flow ID, first cycle ID, and goal from the flow definition + human context
-4. Execute each cycle in order by invoking the cycle skill
-5. Between cycles: call `foundry_workfile_set` with `key: "cycle"`, `value: <next-cycle-id>`
-6. When all cycles are done: call `foundry_workfile_delete` — the artefacts and git history are the record
+2. Call `foundry_git_branch` with the flow ID and a short description — create the work branch
+3. Determine the starting cycle:
+   - If only one starting cycle, use it
+   - If multiple starting cycles, check whether the user's request makes the choice obvious (e.g., "write a haiku" clearly maps to `create-haiku`)
+   - If ambiguous, prompt the user to choose
+4. Call `foundry_workfile_create` with the flow ID, chosen cycle ID, and goal
+5. Execute the cycle by invoking the cycle skill
 
-## Completing a foundry flow
+## Between cycles
 
-When the flow is complete, the branch contains:
-- The finished artefacts
-- The full git history of micro commits showing every stage
+When a cycle completes (sort returns `done`):
 
-The human decides whether to merge, open a PR, or discard.
+1. Read the completed cycle's definition to find its `targets`
+2. If no targets → this branch of the flow is done. Proceed to "Completing a flow"
+3. If one target:
+   - Read the target cycle's definition
+   - Check input contract: `any-of` requires at least one listed artefact type to exist as a completed artefact; `all-of` requires all
+   - If satisfied → ask the user if they want to proceed, or run another starting cycle first
+   - If not satisfied → inform the user which artefacts are missing, offer to run cycles that produce them
+4. If multiple targets:
+   - Present the options to the user
+   - Check input contracts for each
+   - The user chooses which target to pursue (or which to pursue first)
+5. Set up the next cycle:
+   - Call `foundry_workfile_set` with `key: "cycle"`, `value: <next-cycle-id>`
+   - Reset stages and iteration count for the new cycle
+   - Execute the cycle by invoking the cycle skill
+
+## Completing a flow
+
+When all desired cycles are done:
+
+1. Present a summary of what was produced (all artefacts and their status)
+2. Ask the user how they want to finish:
+   - **Squash merge** — call `foundry_git_finish` with a commit message and base branch
+   - **Keep the branch** — leave as-is for manual handling
+   - **Create a PR** — push and create a pull request
+3. Execute the chosen option
 
 ## What you do NOT do
 
-- You do not skip cycles
-- You do not reorder cycles
+- You do not skip input contract validation
 - You do not modify artefacts directly — only cycles modify artefacts
 - You do not delete or rewrite feedback history during the flow
+- You do not route to a target cycle whose input contract is not met
+- You do not assume cycle order — follow the targets declared by each cycle
