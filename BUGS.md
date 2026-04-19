@@ -16,7 +16,7 @@
 
 - [x] **BUG-7: `foundry_workfile_set` stores stages as plain string.** LLM called `foundry_workfile_set` with `value: "forge:write-haiku, quench:check-haiku, ..."` — a comma-separated string, not JSON. The JSON parse falls through to the catch block, storing the raw string. `runSort` then rejects it: `!Array.isArray(stages)` → `"No stages in WORK.md frontmatter"`. Fix: parse comma-separated strings as arrays in `foundry_workfile_set` when `key === "stages"`.
 
-- [ ] **BUG-8: `models` field silently becomes `{}` when LLM passes non-JSON string.** LLM passed `models: "forge: github-copilot/claude-sonnet-4.6, quench: ..."` — human-readable key-value string, not JSON. `JSON.parse` fails, catch sets `fm.models = {}`. Model routing silently broken. Fix: parse `"key: value, key: value"` format into an object, or throw a clear error.
+- [x] **BUG-8: `models` field silently becomes `{}` when LLM passes non-JSON string.** LLM passed `models: "forge: github-copilot/claude-sonnet-4.6, quench: ..."` — human-readable key-value string, not JSON. `JSON.parse` fails, catch sets `fm.models = {}`. Model routing silently broken. Fix: parse `"key: value, key: value"` format into an object, or throw a clear error.
 
 - [ ] **BUG-9: Sort stuck returning `forge:write-haiku` after artefact already created.** After the forge subagent created the haiku and registered the artefact, `foundry_sort` returned `forge:write-haiku` three times in a row. The AI had to manually advance to quench. Root cause: `determineRoute()` returns `stages[0]` (forge) when `lastBase === null`, meaning no non-sort history entries were found for this cycle. The forge subagent likely didn't record a history entry, or the history wasn't committed/visible to sort.
 

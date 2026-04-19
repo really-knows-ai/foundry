@@ -8,6 +8,7 @@ import {
   setFrontmatterField,
   enrichStages,
   parseStagesValue,
+  parseModelsValue,
 } from '../../scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
@@ -173,5 +174,34 @@ describe('parseStagesValue', () => {
 
   it('filters out empty entries', () => {
     assert.deepEqual(parseStagesValue('forge:a,,quench:b,'), ['forge:a', 'quench:b']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseModelsValue
+// ---------------------------------------------------------------------------
+
+describe('parseModelsValue', () => {
+  it('returns a JSON object as-is', () => {
+    assert.deepEqual(parseModelsValue('{"forge":"openai/gpt-4o","quench":"claude-sonnet"}'), { forge: 'openai/gpt-4o', quench: 'claude-sonnet' });
+  });
+
+  it('parses key: value comma-separated string', () => {
+    assert.deepEqual(
+      parseModelsValue('forge: github-copilot/claude-sonnet-4.6, quench: github-copilot/claude-sonnet-4.6, appraise: github-copilot/gpt-5.4'),
+      { forge: 'github-copilot/claude-sonnet-4.6', quench: 'github-copilot/claude-sonnet-4.6', appraise: 'github-copilot/gpt-5.4' },
+    );
+  });
+
+  it('handles extra whitespace', () => {
+    assert.deepEqual(parseModelsValue('  forge :  gpt-4o  ,  quench :  claude  '), { forge: 'gpt-4o', quench: 'claude' });
+  });
+
+  it('skips malformed entries without colon', () => {
+    assert.deepEqual(parseModelsValue('forge: gpt-4o, badentry, quench: claude'), { forge: 'gpt-4o', quench: 'claude' });
+  });
+
+  it('returns empty object for empty string', () => {
+    assert.deepEqual(parseModelsValue(''), {});
   });
 });

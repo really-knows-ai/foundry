@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
 import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
-import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField, enrichStages, parseStagesValue } from '../../scripts/lib/workfile.js';
+import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField, enrichStages, parseStagesValue, parseModelsValue } from '../../scripts/lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../scripts/lib/feedback.js';
 import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow, selectAppraisers } from '../../scripts/lib/config.js';
@@ -141,7 +141,7 @@ export const FoundryPlugin = async ({ directory }) => {
           }
           const fm = { flow: args.flow, cycle: args.cycle, stages: enrichStages(args.stages, args.cycle), maxIterations: args.maxIterations };
           if (args.models) {
-            try { fm.models = JSON.parse(args.models); } catch { fm.models = {}; }
+            fm.models = parseModelsValue(args.models);
           }
           const content = createWorkfile(fm, args.goal);
           writeFileSync(workPath, content, 'utf-8');
@@ -182,6 +182,9 @@ export const FoundryPlugin = async ({ directory }) => {
           if (args.key === 'stages') {
             // Always parse stages into an array (handles JSON arrays and comma-separated strings)
             value = parseStagesValue(args.value);
+          } else if (args.key === 'models') {
+            // Always parse models into an object (handles JSON objects and "key: value" strings)
+            value = parseModelsValue(args.value);
           } else {
             try {
               const parsed = JSON.parse(args.value);

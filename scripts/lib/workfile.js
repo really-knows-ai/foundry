@@ -62,6 +62,30 @@ export function parseStagesValue(raw) {
   return raw.split(',').map(s => s.trim()).filter(Boolean);
 }
 
+/**
+ * Parse a models value from tool input.
+ * Accepts JSON object string or "key: value, key: value" string.
+ * Always returns an object mapping stage base names to model IDs.
+ */
+export function parseModelsValue(raw) {
+  if (!raw || !raw.trim()) return {};
+  // Try JSON first
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  } catch { /* not JSON */ }
+  // Fall back to "key: value, key: value" format
+  const result = {};
+  for (const part of raw.split(',')) {
+    const colonIdx = part.indexOf(':');
+    if (colonIdx === -1) continue;
+    const key = part.slice(0, colonIdx).trim();
+    const val = part.slice(colonIdx + 1).trim();
+    if (key && val) result[key] = val;
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Workfile creation
 // ---------------------------------------------------------------------------
