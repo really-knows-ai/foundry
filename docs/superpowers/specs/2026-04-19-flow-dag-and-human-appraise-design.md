@@ -192,11 +192,69 @@ This replaces the multi-step manual process that leaked files and required `-D` 
 - Update `flow` skill to use `foundry_git_finish` on completion
 - Update `finishing-a-development-branch` integration (the superpowers skill) to be aware of the foundry tool
 
-## 4. Existing bugs to fix alongside
+## 5. Upgrade Flow Skill
+
+### Purpose
+
+After a user updates the `@really-knows-ai/foundry` package, their existing `foundry/` directory may contain flow definitions, cycle configs, and stage lists that use the old format. The `upgrade-flow` skill analyses their current setup and migrates it to the current version, asking for clarification where needed.
+
+### When to use
+
+- After upgrading the foundry package to a new version
+- When the user asks to migrate or upgrade their foundry configuration
+
+### Protocol
+
+1. **Scan current state:**
+   - Read all flow definitions in `foundry/flows/*.md`
+   - Read all cycle definitions in `foundry/cycles/*.md`
+   - Identify the format version by checking for presence/absence of new fields
+
+2. **Detect what needs migration:**
+   - Flows with ordered `## Cycles` lists but no `starting-cycles` → needs DAG migration
+   - Cycles without `targets` field → needs target routing
+   - Cycles with `hitl` in their stages → needs human-appraise migration
+   - Cycles referencing `hitl:*` stage aliases → needs removal
+
+3. **For each flow — migrate to DAG format:**
+   - Present the current ordered cycle list to the user
+   - Ask: which cycles are starting cycles?
+   - For cycles that were adjacent in the old list, suggest the predecessor's target should be the successor
+   - Ask the user to confirm or adjust the target routing for each cycle
+
+4. **For each cycle — add targets and input contracts:**
+   - Infer targets from the old flow ordering (cycle N targets cycle N+1)
+   - Present the inferred targets and ask the user to confirm
+   - If a target cycle has inputs, ask whether the contract is `any-of` or `all-of`
+   - If a cycle had no inputs declared, check if target cycles need its output type
+
+5. **For cycles with hitl stages:**
+   - Ask: do you want to enable `human-appraise` on this cycle?
+   - If yes, ask for `deadlock-threshold` (suggest default: 3)
+   - Remove `hitl` from the cycle's stage list
+   - Remove any hitl-specific configuration
+
+6. **Present the migration plan:**
+   - Show a summary of all changes before writing anything
+   - List each file that will be modified and what changes
+   - Ask for confirmation
+
+7. **Apply changes:**
+   - Update flow and cycle definition files
+   - Commit with message: `[foundry] upgrade: migrate to vX.Y format`
+
+### What it does NOT do
+
+- It does not create new cycles or artefact types
+- It does not delete existing files without confirmation
+- It does not modify artefact content or laws
+- It does not run automatically — the user invokes it explicitly
+
+## 6. Existing bugs to fix alongside
 
 - **nextAfterAppraise returns `done` instead of advancing:** `nextAfterAppraise` in `sort.js` returns `done` when all feedback is resolved, without checking if remaining stages (like human-appraise) exist. This will be addressed naturally by the human-appraise routing changes.
 
-## Migration
+## 7. Migration
 
 - Existing flow definitions with ordered cycle lists continue to work — the flow skill treats them as a linear graph where each cycle targets the next
 - Existing cycles without `targets` field are assumed terminal unless the flow provides ordering
