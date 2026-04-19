@@ -240,6 +240,21 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
 
+      foundry_stage_end: tool({
+        description: 'Close the active subagent work stage; preserves baseSha for finalize.',
+        args: {
+          summary: tool.schema.string().describe('Short summary of the work done'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const active = readActiveStage(io);
+          if (!active) return JSON.stringify({ error: 'foundry_stage_end requires active stage; current: none' });
+          writeLastStage(io, { cycle: active.cycle, stage: active.stage, baseSha: active.baseSha, summary: args.summary });
+          clearActiveStage(io);
+          return JSON.stringify({ ok: true, summary: args.summary });
+        },
+      }),
+
       // ── Workfile tools ──
       foundry_workfile_create: tool({
         description: 'Create WORK.md with frontmatter and goal',

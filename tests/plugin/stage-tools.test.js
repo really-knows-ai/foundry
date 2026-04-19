@@ -105,3 +105,41 @@ describe('foundry_stage_begin', () => {
     assert.match(res.error, /stage already active|no active stage/);
   });
 });
+
+describe('foundry_stage_end', () => {
+  let dir;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'foundry-stageend-'));
+    initRepo(dir);
+  });
+
+  async function beginStage(plugin, nonce = 'na') {
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const payload = { route: 'forge:c', cycle: 'c', nonce, exp: Date.now() + 60_000 };
+    pending.add(nonce, payload);
+    const token = signToken(payload, secret);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c', token }, makeCtx(dir));
+  }
+
+  it('clears active-stage and writes last-stage', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    await beginStage(plugin);
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, makeCtx(dir)));
+    assert.equal(res.ok, true);
+    assert.equal(res.summary, 'done');
+    assert.equal(existsSync(join(dir, '.foundry/active-stage.json')), false);
+    assert.ok(existsSync(join(dir, '.foundry/last-stage.json')));
+    const last = JSON.parse(readFileSync(join(dir, '.foundry/last-stage.json'), 'utf-8'));
+    assert.equal(last.cycle, 'c');
+    assert.equal(last.stage, 'forge:c');
+    assert.ok(last.baseSha);
+    assert.equal(last.summary, 'done');
+  });
+
+  it('errors when no active stage', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 'x' }, makeCtx(dir)));
+    assert.match(res.error, /requires active stage/);
+  });
+});
