@@ -734,3 +734,69 @@ describe('runSort', () => {
     assert.equal(result.model, undefined);
   });
 });
+
+describe('runSort token minting', () => {
+  const workText = [
+    '---',
+    'cycle: c1',
+    'stages:',
+    '  - forge:write',
+    '  - quench:review',
+    '---',
+    '',
+  ].join('\n');
+  const io = {
+    exists: (p) => p === 'WORK.md',
+    readFile: () => workText,
+    exec: () => '',
+  };
+
+  it('calls mint and returns token for dispatchable route', () => {
+    const seen = [];
+    const res = runSort({
+      workPath: 'WORK.md', historyPath: 'history.yaml',
+      mint: (p) => { seen.push(p); return 'TOKEN'; },
+      now: 1_000_000,
+    }, io);
+    assert.equal(res.route, 'forge:write');
+    assert.equal(res.token, 'TOKEN');
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].route, 'forge:write');
+    assert.equal(seen[0].cycle, 'c1');
+    assert.equal(seen[0].exp, 1_000_000 + 10 * 60 * 1000);
+  });
+
+  it('omits token when mint not supplied', () => {
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(res.token, undefined);
+  });
+
+  it('does not call mint for non-dispatchable route (blocked)', () => {
+    const mint = () => { throw new Error('should not be called'); };
+    const ioNoWork = { exists: () => false, readFile: () => '', exec: () => '' };
+    const res = runSort({ mint }, ioNoWork);
+    assert.equal(res.route, 'blocked');
+    assert.equal(res.token, undefined);
+  });
+
+  it('does not call mint for route=done', () => {
+    const doneWork = [
+      '---',
+      'cycle: c1',
+      'stages:',
+      '  - forge:write',
+      '---',
+      '',
+    ].join('\n');
+    const historyYaml = '- { cycle: c1, stage: forge:write, iteration: 1, comment: x }\n';
+    const doneIo = {
+      exists: (p) => p === 'WORK.md' || p === 'history.yaml',
+      readFile: (p) => p === 'WORK.md' ? doneWork : historyYaml,
+      exec: () => '',
+    };
+    const mint = () => { throw new Error('should not be called'); };
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml', mint }, doneIo);
+    assert.equal(res.route, 'done');
+    assert.equal(res.token, undefined);
+  });
+});

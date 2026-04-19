@@ -20,7 +20,7 @@ import { getCycleDefinition, getArtefactType, getLaws, getValidation, getApprais
 import { slugify } from '../../scripts/lib/slug.js';
 import { runSort } from '../../scripts/sort.js';
 import { execSync, execFileSync } from 'child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readOrCreateSecret } from '../../scripts/lib/secret.js';
 import { createPendingStore } from '../../scripts/lib/pending.js';
 import { signToken, verifyToken } from '../../scripts/lib/token.js';
@@ -610,13 +610,21 @@ export const FoundryPlugin = async ({ directory }) => {
 
       // ── Sort tool ──
       foundry_sort: tool({
-        description: 'Run sort routing to determine the next stage',
+        description: 'Determine the next stage for the current cycle and (if dispatchable) mint a single-use token.',
         args: {
           cycleDef: tool.schema.string().optional().describe('Path to cycle definition file'),
         },
         async execute(args, context) {
           const io = makeIO(context.worktree);
-          const result = runSort({ cycleDef: args.cycleDef }, io);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_sort ${guard.error}` });
+          const mint = ({ route, cycle, exp }) => {
+            const nonce = randomUUID();
+            const payload = { route, cycle, nonce, exp };
+            pending.add(nonce, payload);
+            return signToken(payload, secret);
+          };
+          const result = runSort({ cycleDef: args.cycleDef, mint }, io);
           return JSON.stringify(result);
         },
       }),

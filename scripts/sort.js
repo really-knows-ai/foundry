@@ -209,7 +209,11 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
 // Exported runSort — structured result for programmatic use
 // ---------------------------------------------------------------------------
 
-export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef, agentsDir = '.opencode/agents' } = {}, io = defaultIO) {
+function isDispatchableRoute(route) {
+  return typeof route === 'string' && /^(forge|quench|appraise|human-appraise):/.test(route);
+}
+
+export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef, agentsDir = '.opencode/agents', mint, now = Date.now() } = {}, io = defaultIO) {
   if (!io.exists(workPath)) {
     return { route: 'blocked', details: 'WORK.md not found' };
   }
@@ -267,7 +271,12 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
     }
   }
 
-  return { route, ...(model ? { model } : {}) };
+  const result = { route, ...(model ? { model } : {}) };
+  if (mint && isDispatchableRoute(route)) {
+    const token = mint({ route, cycle, exp: now + 10 * 60 * 1000 });
+    if (token) result.token = token;
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
