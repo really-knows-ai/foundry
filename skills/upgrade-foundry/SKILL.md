@@ -98,6 +98,19 @@ For each `.opencode/agents/foundry-*.md` file with a `.` in its filename:
 
 After renaming, remind the user: **Restart OpenCode** for the new agent filenames to register.
 
+### 4a. v2.2.0 lifecycle upgrade
+
+Foundry v2.2.0 introduces a tool-enforced stage lifecycle (`stage_begin` / `stage_end` / `stage_finalize`) backed by a per-project state directory and HMAC-signed dispatch tokens. The upgrade is non-destructive — no WORK.md or artefact migration is required — but the project needs three small changes:
+
+1. **Create `.foundry/`** (if absent):
+   - `mkdir -p .foundry`
+   - The plugin auto-creates `.foundry/.secret` on first boot via `readOrCreateSecret`. You do not need to generate it by hand; just ensure the directory exists and is writable.
+2. **Gitignore `.foundry/`**:
+   - Ensure `.gitignore` contains a line `.foundry/` (append if missing; do not duplicate). The directory holds a per-worktree HMAC secret and transient active-stage state — neither should be committed.
+3. **Pre-existing state:** v2.2.0 is a fresh state system. There is no `active-stage.json` to migrate. If one happens to exist from a manually-aborted prior run, leave it alone — the new plugin treats its absence as "no active stage" and its presence as a legitimate in-flight stage.
+
+The `foundry_artefacts_add` tool has been removed in v2.2.0 — artefact registration now happens automatically via `foundry_stage_finalize`. No existing config references this tool, so there is nothing to migrate in `foundry/`.
+
 ### 5. Migrate flows
 
 For each flow needing migration:
