@@ -209,12 +209,16 @@ export const FoundryPlugin = async ({ directory }) => {
       }),
 
       foundry_workfile_delete: tool({
-        description: 'Delete WORK.md',
+        description: 'Delete WORK.md and WORK.history.yaml',
         args: {},
         async execute(_args, context) {
           const workPath = path.join(context.worktree, 'WORK.md');
+          const historyPath = path.join(context.worktree, 'WORK.history.yaml');
           if (existsSync(workPath)) {
             unlinkSync(workPath);
+          }
+          if (existsSync(historyPath)) {
+            unlinkSync(historyPath);
           }
           return JSON.stringify({ ok: true });
         },
