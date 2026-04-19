@@ -22,12 +22,15 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 3. Determine the stage route:
    - Use the cycle definition's `stages` field if present
    - Otherwise generate defaults: always `forge`, add `quench` if `foundry_config_validation` returns non-null for the type, always `appraise`
-   - If the cycle definition has `human-appraise.enabled: true`, append `human-appraise` as the final stage
+   - If the cycle definition has `human-appraise: true`, append `human-appraise` as the final stage (runs every iteration). If `human-appraise: false` (default), do NOT include it in `stages` — sort will synthesize `human-appraise:<cycle>` on deadlock when needed.
    - Stages should use `base:alias` format (e.g. `forge:write-haiku`, `quench:check-syllables`). If you pass bare names, the tool will auto-append the cycle ID as the alias.
 4. Call `foundry_workfile_set` to configure the work file:
    - `key: "cycle"`, `value: <cycle-id>`
    - `key: "stages"`, `value: <determined stages list>`
    - `key: "max-iterations"`, `value: <default 3 or from cycle definition>`
+   - `key: "human-appraise"`, `value: <true|false from cycle def, default false>`
+   - `key: "deadlock-appraise"`, `value: <true|false from cycle def, default true>`
+   - `key: "deadlock-iterations"`, `value: <number from cycle def, default 5>`
    - If the cycle definition has a `models` map: `key: "models"`, `value: <models map>`
 5. Invoke the sort skill
 
@@ -53,7 +56,11 @@ When sort returns `violation` (e.g., `stage_finalize` `unexpected_files`, missin
 
 ## Human Appraise
 
-If the cycle definition has `human-appraise.enabled: true`, the human-appraise stage is included after appraise. Sort will route to it after LLM appraisers pass, or earlier if a deadlock is detected.
+Human-appraise is controlled by two flat cycle-def keys:
+
+- `human-appraise: true` — human-appraise runs every iteration as part of the normal stage flow (appended to `stages`).
+- `deadlock-appraise: true` (default) — if LLM appraisers deadlock on the same feedback for `deadlock-iterations` rounds (default 5), sort routes to human-appraise to resolve it, even when it isn't in `stages`.
+- `deadlock-appraise: false` — no human intervention; deadlock → `blocked`.
 
 ## Micro commits
 

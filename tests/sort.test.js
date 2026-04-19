@@ -363,32 +363,93 @@ describe('nextAfterAppraise', () => {
 });
 
 describe('deadlock escalation', () => {
-  it('routes to human-appraise on deadlock when enabled', () => {
+  const threeAppraiseRounds = [
+    { stage: 'forge:write', cycle: 'c1' },
+    { stage: 'appraise:check', cycle: 'c1' },
+    { stage: 'forge:write', cycle: 'c1' },
+    { stage: 'appraise:check', cycle: 'c1' },
+    { stage: 'forge:write', cycle: 'c1' },
+    { stage: 'appraise:check', cycle: 'c1' },
+  ];
+  const fiveAppraiseRounds = [
+    ...threeAppraiseRounds,
+    { stage: 'forge:write', cycle: 'c1' },
+    { stage: 'appraise:check', cycle: 'c1' },
+    { stage: 'forge:write', cycle: 'c1' },
+    { stage: 'appraise:check', cycle: 'c1' },
+  ];
+  const rejected = [{ state: 'rejected' }];
+
+  it('routes to human-appraise in stages when deadlock triggers with deadlock-appraise on', () => {
     const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-    const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
-    ];
-    const feedback = [{ state: 'rejected' }];
-    assert.equal(determineRoute(stages, history, feedback, 5), 'human-appraise:review');
+    assert.equal(
+      determineRoute(stages, fiveAppraiseRounds, rejected, 10, {
+        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
+      }),
+      'human-appraise:review',
+    );
   });
 
-  it('returns blocked on deadlock when human-appraise not in stages', () => {
+  it('synthesizes human-appraise:<cycle> when not in stages but deadlock-appraise is on', () => {
     const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    assert.equal(
+      determineRoute(stages, fiveAppraiseRounds, rejected, 10, {
+        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
+      }),
+      'human-appraise:c1',
+    );
+  });
+
+  it('returns blocked on deadlock when deadlock-appraise is disabled', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    assert.equal(
+      determineRoute(stages, fiveAppraiseRounds, rejected, 10, {
+        deadlockAppraise: false, deadlockIterations: 5, cycle: 'c1',
+      }),
+      'blocked',
+    );
+  });
+
+  it('returns blocked when already in human-appraise and still deadlocked', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
     const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
+      ...fiveAppraiseRounds,
+      { stage: 'human-appraise:review', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'rejected' }];
-    assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
+    assert.equal(
+      determineRoute(stages, history, rejected, 10, {
+        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
+      }),
+      'blocked',
+    );
+  });
+
+  it('does not trigger deadlock before threshold', () => {
+    // 3 appraise rounds, threshold 5 → not deadlocked yet
+    const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    // With 3 appraise rounds + rejected feedback + maxIterations=10, sort returns to forge
+    assert.equal(
+      determineRoute(stages, threeAppraiseRounds, rejected, 10, {
+        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
+      }),
+      'forge:write',
+    );
+  });
+
+  it('uses default threshold 5 when deadlockIterations not supplied', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    // 3 rounds with default threshold 5 → not deadlocked
+    assert.equal(determineRoute(stages, threeAppraiseRounds, rejected, 10), 'forge:write');
+  });
+
+  it('honors custom deadlockIterations=3', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    assert.equal(
+      determineRoute(stages, threeAppraiseRounds, rejected, 10, {
+        deadlockAppraise: true, deadlockIterations: 3, cycle: 'c1',
+      }),
+      'human-appraise:c1',
+    );
   });
 });
 

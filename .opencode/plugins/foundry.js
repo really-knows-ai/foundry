@@ -381,7 +381,7 @@ export const FoundryPlugin = async ({ directory }) => {
           const io = makeIO(context.worktree);
           const guard = requireNoActiveStage(io);
           if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_set ${guard.error}` });
-          const ALLOWED_KEYS = new Set(['cycle', 'stages', 'max-iterations', 'maxIterations', 'models']);
+          const ALLOWED_KEYS = new Set(['cycle', 'stages', 'max-iterations', 'maxIterations', 'models', 'human-appraise', 'deadlock-appraise', 'deadlock-iterations']);
           if (!ALLOWED_KEYS.has(args.key)) {
             return JSON.stringify({ error: `foundry_workfile_set: key must be one of cycle|stages|max-iterations|models; got ${args.key}` });
           }

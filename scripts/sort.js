@@ -64,7 +64,7 @@ const defaultIO = {
 // Routing logic
 // ---------------------------------------------------------------------------
 
-function determineRoute(stages, history, feedback, maxIterations) {
+function determineRoute(stages, history, feedback, maxIterations, opts = {}) {
   const forgeCount = history.filter(e => baseStage(e.stage || '') === 'forge').length;
 
   const nonSortHistory = history.filter(e => baseStage(e.stage || '') !== 'sort');
@@ -83,11 +83,11 @@ function determineRoute(stages, history, feedback, maxIterations) {
   }
 
   if (lastBase === 'appraise') {
-    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory);
+    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory, opts);
   }
 
   if (lastBase === 'human-appraise') {
-    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory);
+    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory, opts);
   }
 
   return 'blocked';
@@ -103,16 +103,31 @@ function nextAfterQuench(stages, current, feedback, forgeCount, maxIterations) {
   return nextInRoute(stages, current) ?? 'done';
 }
 
-function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations, history = []) {
-  // Check for deadlock escalation
-  const deadlocked = detectDeadlocks(feedback, history);
+function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations, history = [], opts = {}) {
+  const {
+    humanAppraise: humanAppraiseEnabled = false,
+    deadlockAppraise = true,
+    deadlockIterations = 5,
+    cycle = null,
+  } = opts;
+
+  // Check for deadlock escalation using configured threshold
+  const deadlocked = detectDeadlocks(feedback, history, deadlockIterations);
   if (deadlocked.length > 0) {
-    const humanAppraise = findFirst(stages, 'human-appraise');
-    if (humanAppraise && baseStage(current) !== 'human-appraise') {
-      return humanAppraise;
+    const alreadyInHumanAppraise = baseStage(current) === 'human-appraise';
+    if (alreadyInHumanAppraise) {
+      // Human-appraise ran and deadlock still present — give up.
+      return 'blocked';
     }
-    // Human-appraise not available or we're already in it — blocked
-    if (forgeCount >= maxIterations) return 'blocked';
+    if (deadlockAppraise) {
+      // Route to human-appraise. Prefer one in `stages`; else synthesize via cycle id.
+      const inStages = findFirst(stages, 'human-appraise');
+      if (inStages) return inStages;
+      if (cycle) return `human-appraise:${cycle}`;
+      return 'blocked';
+    }
+    // deadlock-appraise disabled — block the cycle.
+    return 'blocked';
   }
 
   const needsForge = feedback.some(f => f.state === 'open' || f.state === 'rejected');
@@ -224,6 +239,9 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
   const cycle = frontmatter.cycle;
   const stages = frontmatter.stages;
   const maxIterations = frontmatter['max-iterations'] ?? 3;
+  const humanAppraiseEnabled = frontmatter['human-appraise'] === true;
+  const deadlockAppraise = frontmatter['deadlock-appraise'] !== false; // default true
+  const deadlockIterations = frontmatter['deadlock-iterations'] ?? 5;
 
   if (!cycle) return { route: 'blocked', details: 'No cycle in WORK.md frontmatter' };
   if (!stages || !Array.isArray(stages)) return { route: 'blocked', details: 'No stages in WORK.md frontmatter' };
@@ -252,7 +270,12 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
     return { route: 'violation', details: `Feedback tag validation failed: ${details}` };
   }
 
-  const route = determineRoute(stages, history, feedback, maxIterations);
+  const route = determineRoute(stages, history, feedback, maxIterations, {
+    humanAppraise: humanAppraiseEnabled,
+    deadlockAppraise,
+    deadlockIterations,
+    cycle,
+  });
 
   // Model resolution
   let model = null;

@@ -46,7 +46,7 @@ Check each file against the current expected format:
 - Has `targets` field? If not → needs target routing
 - Has `inputs.type` (`any-of`/`all-of`)? If `inputs` is a plain list → needs contract type
 - Has `hitl` in stages or frontmatter? → needs human-appraise migration
-- Has `human-appraise` config? Check format is correct
+- Has nested `human-appraise: {enabled, deadlock-threshold}`? → v2.2.1 flat-keys migration (see §4b)
 - Has `models` map? Check format
 
 **Artefact types:**
@@ -110,6 +110,25 @@ Foundry v2.2.0 introduces a tool-enforced stage lifecycle (`stage_begin` / `stag
 3. **Pre-existing state:** v2.2.0 is a fresh state system. There is no `active-stage.json` to migrate. If one happens to exist from a manually-aborted prior run, leave it alone — the new plugin treats its absence as "no active stage" and its presence as a legitimate in-flight stage.
 
 The `foundry_artefacts_add` tool has been removed in v2.2.0 — artefact registration now happens automatically via `foundry_stage_finalize`. No existing config references this tool, so there is nothing to migrate in `foundry/`.
+
+### 4b. v2.2.1 cycle-definition flat human-appraise keys
+
+v2.2.1 replaces the nested `human-appraise: {enabled, deadlock-threshold}` block in cycle definitions with three flat keys:
+
+```yaml
+human-appraise: <true|false>         # default: false — run human-appraise every iteration
+deadlock-appraise: <true|false>      # default: true — pull in human-appraise when LLM appraisers deadlock
+deadlock-iterations: <number>        # default: 5 — deadlock detection threshold
+```
+
+For each `foundry/cycles/*.md` whose frontmatter has the old nested form, migrate:
+
+- `human-appraise.enabled: true` → `human-appraise: true`
+- `human-appraise.enabled: false` (or missing) → `human-appraise: false`
+- `human-appraise.deadlock-threshold: N` → `deadlock-iterations: N`
+- Always add `deadlock-appraise: true` unless the user explicitly wants the stricter "no human ever" behavior (`deadlock-appraise: false` → deadlock marks the cycle `blocked`).
+
+The old nested form is no longer read. After migration, verify by asking: "cycle `<id>`: human-appraise every iteration? deadlock-appraise on? deadlock-iterations = N?".
 
 ### 5. Migrate flows
 

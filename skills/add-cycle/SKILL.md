@@ -54,10 +54,15 @@ Only stages with an explicitly specified model are included in the `models` fron
 
 Ask the user:
 
-> Do you want a human quality gate on this cycle? If enabled, a human reviewer will check the artefact after LLM appraisers pass, and can break deadlocks between forge and appraisers.
+> Human-appraise has two independent knobs:
 >
-> - Enable human-appraise? (yes/no)
-> - If yes, deadlock threshold (default: 3 — number of forge/appraise iterations before escalating to human)
+> 1. `human-appraise` — should a human review the artefact every iteration? Default: no.
+> 2. `deadlock-appraise` — should a human be pulled in only when LLM appraisers deadlock? Default: yes.
+> 3. If either is enabled, `deadlock-iterations` sets the deadlock threshold (default: 5).
+>
+> - human-appraise: yes/no (default no)
+> - deadlock-appraise: yes/no (default yes)
+> - deadlock-iterations: number (default 5)
 
 ### 5. Validate artefact types
 
@@ -108,9 +113,9 @@ inputs:
     - <artefact-type-id>
 targets:
   - <cycle-id>
-human-appraise:
-  enabled: <true|false>
-  deadlock-threshold: <number>
+human-appraise: <true|false>
+deadlock-appraise: <true|false>
+deadlock-iterations: <number>
 models:
   appraise: <model-id>
 ---
