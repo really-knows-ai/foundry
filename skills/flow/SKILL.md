@@ -23,7 +23,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
    - If only one starting cycle, use it
    - If multiple starting cycles, check whether the user's request makes the choice obvious (e.g., "write a haiku" clearly maps to `create-haiku`)
    - If ambiguous, prompt the user to choose
-4. Call `foundry_workfile_create` with the flow ID, chosen cycle ID, and goal
+4. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The `cycle` skill will read the cycle definition and populate those via `foundry_workfile_set` in the next step.
 5. Execute the cycle by invoking the cycle skill
 
 ## Between cycles
