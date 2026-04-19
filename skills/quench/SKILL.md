@@ -35,7 +35,7 @@ There is no wont-fix for validation feedback. Deterministic rules are not negoti
 
 ## History
 
-After completing validation, call `foundry_history_append` with the current cycle, stage alias, and a brief summary (e.g., "2 validation issues found" or "Validation passed").
+Do NOT call `foundry_history_append` — the sort skill (your caller) is responsible for writing history. Instead, return a clear summary of what you found (e.g., "2 validation issues found" or "Validation passed") so sort can log it.
 
 ## What you do NOT do
 

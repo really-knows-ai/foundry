@@ -40,7 +40,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 ### After (both paths)
 
-Call `foundry_history_append` with the current cycle, the full stage alias (e.g., `forge:write-haiku`), and a brief description of what you did.
+Do NOT call `foundry_history_append` — the sort skill (your caller) is responsible for writing history. Instead, return a clear summary of what you did so sort can log it.
 
 ## Unresolved feedback
 

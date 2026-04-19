@@ -91,7 +91,7 @@ If there are no issues, return an empty list.
 
 ## History
 
-After completing the appraisal consolidation, call `foundry_history_append` with the current cycle, stage alias, and a brief summary (e.g., "3 issues found across 2 appraisers" or "No issues found").
+Do NOT call `foundry_history_append` — the sort skill (your caller) is responsible for writing history. Instead, return a clear summary of what you found (e.g., "3 issues found across 2 appraisers" or "No issues found") so sort can log it.
 
 ## What you do NOT do
 

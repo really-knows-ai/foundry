@@ -36,7 +36,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
    - **Provide context** — note in the history comment for future stages to reference
    - **Abort** — call `foundry_artefacts_set_status` with status `"blocked"`, cycle ends
 
-5. Call `foundry_history_append` with the current cycle, stage alias, and a comment capturing the substance of what the human said or decided.
+5. Do NOT call `foundry_history_append` — the sort skill (your caller) is responsible for writing history. Instead, return a clear summary of what the human said or decided so sort can log it.
 
 6. Return control to the sort skill.
 

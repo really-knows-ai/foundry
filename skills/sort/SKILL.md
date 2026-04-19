@@ -29,22 +29,13 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
    - `blocked` — foundry cycle is blocked (iteration limit hit with unresolved feedback), return to the cycle skill
    - `violation` — file modification or tag validation violation detected (see `details`). The cycle halts — call `foundry_artefacts_set_status` with status `"blocked"`, and return to the cycle skill
 
-### Model dispatch
+4. After the subagent completes, call `foundry_history_append` with the current cycle, the **dispatched stage alias** (e.g., `forge:write-haiku`), and a comment summarizing what the subagent reported doing. This is critical — sort is the only reliable writer of stage history. Subagents must NOT write their own history entries.
 
-Use the `model` field from the `foundry_sort` result to determine sub-agent routing:
-
-- If `model` is set (e.g., `openai/gpt-4o`):
-  - Convert to agent name: `foundry-openai-gpt-4o`
-  - Dispatch with `subagent_type: "foundry-openai-gpt-4o"`
-  - If no agent with that name exists, **hard fail**: "Cycle specifies model `<model>` for stage `<base>` but no matching agent `foundry-<name>` is registered. Check your OpenCode provider config."
-- If `model` is null:
-  - Dispatch with `subagent_type: "general"` (inherits session model)
-
-4. After the invoked skill completes, call `foundry_sort` again. Repeat until it returns `done`, `blocked`, or `violation`.
+5. After logging the stage history, call `foundry_sort` again. Repeat from step 1 until it returns `done`, `blocked`, or `violation`.
 
 ## What you do NOT do
 
 - You do not make routing decisions yourself — the tool decides
 - You do not skip calling `foundry_sort`
 - You do not override the tool's output
-- You do not skip the history entry — every sort invocation must be logged via `foundry_history_append`
+- You do not skip the history entry — every sort invocation gets a `sort` entry, and every completed stage gets a stage entry (e.g., `forge:write-haiku`). You are the sole writer of history.
