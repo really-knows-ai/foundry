@@ -11,7 +11,14 @@ import yaml from 'js-yaml';
 export function parseFrontmatter(text) {
   const match = text.match(/^---\n(.+?)\n---/s);
   if (!match) return {};
-  return yaml.load(match[1]) || {};
+  const fm = yaml.load(match[1]) || {};
+  // Normalize: on-disk canonical key is `max-iterations` (kebab).
+  // Tolerate legacy `maxIterations` (camel) by rewriting on read.
+  if (fm.maxIterations !== undefined && fm['max-iterations'] === undefined) {
+    fm['max-iterations'] = fm.maxIterations;
+    delete fm.maxIterations;
+  }
+  return fm;
 }
 
 export function writeFrontmatter(fields) {
@@ -25,6 +32,8 @@ export function getFrontmatterField(text, key) {
 }
 
 export function setFrontmatterField(text, key, value) {
+  // Coerce legacy camelCase key to canonical kebab form on write.
+  if (key === 'maxIterations') key = 'max-iterations';
   const fm = parseFrontmatter(text);
   fm[key] = value;
   const fmBlock = writeFrontmatter(fm);

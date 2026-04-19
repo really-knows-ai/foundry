@@ -197,7 +197,7 @@ export const FoundryPlugin = async ({ directory }) => {
             fm.stages = enrichStages(args.stages, args.cycle);
           }
           if (args.maxIterations !== undefined) {
-            fm.maxIterations = args.maxIterations;
+            fm['max-iterations'] = args.maxIterations;
           }
           if (args.models) {
             fm.models = parseModelsValue(args.models);

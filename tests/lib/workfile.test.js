@@ -112,8 +112,32 @@ describe('createWorkfile', () => {
   it('supports frontmatter with maxIterations but no stages', () => {
     const result = createWorkfile({ flow: 'f', cycle: 'c', maxIterations: 5 }, 'g');
     const fm = parseFrontmatter(result);
-    assert.equal(fm.maxIterations, 5);
+    // parseFrontmatter normalizes legacy camel `maxIterations` → kebab `max-iterations`
+    assert.equal(fm['max-iterations'], 5);
+    assert.equal(fm.maxIterations, undefined);
     assert.equal(fm.stages, undefined);
+  });
+
+  it('parseFrontmatter normalizes maxIterations to max-iterations', () => {
+    const md = '---\nmaxIterations: 5\n---\n# Goal\n';
+    const fm = parseFrontmatter(md);
+    assert.equal(fm['max-iterations'], 5);
+    assert.equal(fm.maxIterations, undefined);
+  });
+
+  it('parseFrontmatter prefers kebab when both present', () => {
+    const md = '---\nmax-iterations: 7\nmaxIterations: 5\n---\n# Goal\n';
+    const fm = parseFrontmatter(md);
+    assert.equal(fm['max-iterations'], 7);
+  });
+
+  it('setFrontmatterField writes kebab even when given camel key', () => {
+    const input = '---\ncycle: c\n---\n# Goal\n';
+    const out = setFrontmatterField(input, 'maxIterations', 3);
+    assert.match(out, /max-iterations: 3/);
+    assert.doesNotMatch(out, /^maxIterations:/m);
+    const fm = parseFrontmatter(out);
+    assert.equal(fm['max-iterations'], 3);
   });
 });
 
