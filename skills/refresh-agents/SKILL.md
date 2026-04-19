@@ -16,11 +16,14 @@ Regenerate `.opencode/agents/foundry-*.md` files from the currently available mo
 
 ### Agent file format
 
-Filename: `.opencode/agents/foundry-<provider>-<model-key>.md`
+Filename: `.opencode/agents/foundry-<slug>.md`
 
-Where `<provider>-<model-key>` is the model ID with `/` replaced by `-`.
+Where `<slug>` is the model ID with **both** `/` and `.` replaced by `-`. This keeps filenames shell-safe and unambiguous.
 
-Example: model `opencode/claude-sonnet-4` produces `.opencode/agents/foundry-opencode-claude-sonnet-4.md`
+Examples:
+- `opencode/claude-sonnet-4` → `.opencode/agents/foundry-opencode-claude-sonnet-4.md`
+- `github-copilot/claude-sonnet-4.6` → `.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md`
+- `github-copilot/gpt-5.4` → `.opencode/agents/foundry-github-copilot-gpt-5-4.md`
 
 Content:
 
