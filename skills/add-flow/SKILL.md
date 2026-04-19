@@ -6,7 +6,7 @@ description: Creates a new foundry flow definition.
 
 # Add Flow
 
-You help the user create a new foundry flow. A foundry flow is an ordered list of foundry cycles that transforms a request into finished artefacts.
+You help the user create a new foundry flow. A foundry flow is a set of foundry cycles with declared starting points — cycles own their own routing via targets and input contracts.
 
 ## Prerequisites
 
@@ -32,35 +32,35 @@ Read all existing flow definitions in `foundry/flows/*.md`.
 - Exact id match → hard conflict, must choose a different id
 - Semantically similar name or description → warn and ask if the new foundry flow is genuinely distinct
 
-### 3. Determine foundry cycles
+### 3. Determine foundry cycles and starting cycles
 
-Ask the user which foundry cycles this foundry flow should include, in order. List available cycles from `foundry/cycles/*.md` for reference.
+Ask the user which foundry cycles this flow includes. List available cycles from `foundry/cycles/*.md` for reference.
 
-The user may:
-- Pick from existing foundry cycles
-- Describe foundry cycles that don't exist yet — note these and tell the user they'll need to create them with the add-cycle skill
+Then ask: which of these are **starting cycles** — the cycles that can be entered first when the flow begins?
 
-For each selected foundry cycle, verify it exists in `foundry/cycles/`. If it doesn't, note it as pending:
+- Starting cycles typically have no input dependencies
+- Multiple starting cycles are fine — the user (or context) determines which one to run first
 
-> Foundry cycle `<id>` doesn't exist yet. I'll include it in the foundry flow definition, but you'll need to create it before running the foundry flow.
+### 4. Validate cycle graph
 
-### 4. Validate foundry cycle ordering
+For each non-starting cycle, verify it is reachable:
+- At least one other cycle in the flow has it as a target
+- Its input contract can be satisfied by cycles in the flow
 
-Check that input dependencies are satisfied:
-- For each foundry cycle, its `inputs` must be produced as `output` by an earlier foundry cycle in the list
+If a cycle is unreachable (no cycle targets it and it's not a starting cycle), warn:
 
-If a dependency is unmet, warn:
-
-> Foundry cycle `<cycle-id>` reads from `<type>`, but no earlier foundry cycle produces it. Either reorder or add a foundry cycle that produces `<type>` first.
+> Cycle `<id>` is not a starting cycle and no other cycle targets it. It will never be reached in this flow.
 
 ### 5. Draft the definition
 
-Present the foundry flow definition to the user:
+Present the flow definition to the user:
 
 ```markdown
 ---
 id: <id>
 name: <name>
+starting-cycles:
+  - <cycle-id>
 ---
 
 # <Name>
@@ -69,11 +69,13 @@ name: <name>
 
 ## Cycles
 
-1. <cycle-id>
-2. <cycle-id>
+- <cycle-id>
+- <cycle-id>
 ```
 
-Ask: does this capture the foundry flow correctly?
+The `starting-cycles` field lists entry points. `## Cycles` lists all cycles in the flow (no ordering implied — routing is owned by individual cycle definitions via their `targets` field).
+
+Ask: does this capture the flow correctly?
 
 ### 6. Write the file
 
