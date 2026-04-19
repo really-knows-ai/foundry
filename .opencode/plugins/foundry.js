@@ -396,6 +396,53 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
 
+      foundry_git_finish: tool({
+        description: 'Clean up work files, squash merge to base branch, and delete the work branch',
+        args: {
+          message: tool.schema.string().describe('Squash merge commit message'),
+          baseBranch: tool.schema.string().optional().describe('Target branch (default: main)'),
+        },
+        async execute(args, context) {
+          const base = args.baseBranch || 'main';
+          const cwd = context.worktree;
+          const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
+
+          // Get current branch name
+          const workBranch = execSync('git branch --show-current', opts).trim();
+          if (workBranch === base) {
+            return JSON.stringify({ error: `Already on ${base} — nothing to merge` });
+          }
+
+          // Delete work files
+          const workPath = path.join(cwd, 'WORK.md');
+          const historyPath = path.join(cwd, 'WORK.history.yaml');
+          if (existsSync(workPath)) unlinkSync(workPath);
+          if (existsSync(historyPath)) unlinkSync(historyPath);
+
+          // Commit cleanup if there are changes
+          try {
+            execSync('git add -A', opts);
+            const status = execSync('git status --porcelain', opts).trim();
+            if (status) {
+              const cleanupMsg = `[${workBranch.replace('work/', '')}] cleanup: remove work files`;
+              execSync(`git commit -m "${cleanupMsg.replace(/"/g, '\\"')}"`, opts);
+            }
+          } catch { /* no changes to commit */ }
+
+          // Switch to base and squash merge
+          execSync(`git checkout ${base}`, opts);
+          execSync(`git merge --squash ${workBranch}`, opts);
+          const msg = args.message.replace(/"/g, '\\"');
+          execSync(`git commit -m "${msg}"`, opts);
+          const hash = execSync('git rev-parse --short HEAD', opts).trim();
+
+          // Force-delete work branch (required after squash)
+          execSync(`git branch -D ${workBranch}`, opts);
+
+          return JSON.stringify({ ok: true, hash, branch: base });
+        },
+      }),
+
       // ── Config tools ──
       foundry_config_cycle: tool({
         description: 'Get a cycle definition from foundry config',
