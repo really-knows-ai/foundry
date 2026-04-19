@@ -29,6 +29,7 @@ import {
   readLastStage, writeLastStage,
 } from '../../scripts/lib/state.js';
 import { requireNoActiveStage, requireActiveStage, stageBaseOf } from '../../scripts/lib/stage-guard.js';
+import { finalizeStage } from '../../scripts/lib/finalize.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -252,6 +253,57 @@ export const FoundryPlugin = async ({ directory }) => {
           writeLastStage(io, { cycle: active.cycle, stage: active.stage, baseSha: active.baseSha, summary: args.summary });
           clearActiveStage(io);
           return JSON.stringify({ ok: true, summary: args.summary });
+        },
+      }),
+
+      foundry_stage_finalize: tool({
+        description: 'Verify stage output matches allowed file patterns; register artefacts as drafts.',
+        args: {
+          cycle: tool.schema.string().describe('Cycle name'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: guard.error });
+          const last = readLastStage(io);
+          if (!last) return JSON.stringify({ error: 'foundry_stage_finalize: no last stage recorded; call stage_end first' });
+          if (last.cycle !== args.cycle) {
+            return JSON.stringify({ error: `foundry_stage_finalize: cycle mismatch (last=${last.cycle}, got=${args.cycle})` });
+          }
+
+          // Load on-disk definitions and translate to finalizeStage's camelCase contract.
+          let cycleDoc;
+          try {
+            cycleDoc = await getCycleDefinition('foundry', args.cycle, io);
+          } catch (e) {
+            return JSON.stringify({ error: `foundry_stage_finalize: ${e.message}` });
+          }
+          const outputType = cycleDoc.frontmatter.output;
+          const cycleDef = { outputArtefactType: outputType };
+          const artefactTypes = {};
+          if (outputType) {
+            try {
+              const artDoc = await getArtefactType('foundry', outputType, io);
+              artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
+            } catch {
+              artefactTypes[outputType] = { filePatterns: [] };
+            }
+          }
+
+          const workPath = path.join(context.worktree, 'WORK.md');
+          const result = finalizeStage({
+            cwd: context.worktree,
+            baseSha: last.baseSha,
+            stageBase: stageBaseOf(last.stage),
+            cycleDef,
+            artefactTypes,
+            registerArtefact: ({ file, type, status }) => {
+              const text = readFileSync(workPath, 'utf-8');
+              const updated = addArtefactRow(text, { file, type, cycle: args.cycle, status });
+              writeFileSync(workPath, updated, 'utf-8');
+            },
+          });
+          return JSON.stringify(result);
         },
       }),
 

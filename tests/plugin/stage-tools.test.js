@@ -143,3 +143,98 @@ describe('foundry_stage_end', () => {
     assert.match(res.error, /requires active stage/);
   });
 });
+
+describe('foundry_stage_finalize', () => {
+  let dir;
+
+  function seedFoundryConfig(d) {
+    execSync(`mkdir -p ${d}/foundry/cycles ${d}/foundry/artefacts/haiku`);
+    writeFileSync(join(d, 'foundry/cycles/c.md'), '---\noutput: haiku\n---\nCycle c.');
+    writeFileSync(join(d, 'foundry/artefacts/haiku/definition.md'), '---\nfile-patterns:\n  - "haikus/*.md"\n---\nHaiku.');
+  }
+
+  async function beginEndStage(plugin, d, nonce = 'n') {
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const payload = { route: 'forge:c', cycle: 'c', nonce, exp: Date.now() + 60_000 };
+    pending.add(nonce, payload);
+    const token = signToken(payload, secret);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c', token }, makeCtx(d));
+    return { pending, secret };
+  }
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'foundry-stagefin-'));
+    initRepo(dir);
+    // Commit foundry config so baseSha includes it (clean diff at stage_begin).
+    seedFoundryConfig(dir);
+    // Seed an empty WORK.md with artefacts table so addArtefactRow has something to append to.
+    writeFileSync(join(dir, 'WORK.md'), [
+      '---',
+      'flow: f',
+      'cycle: c',
+      '---',
+      '',
+      '# Goal',
+      '',
+      'test',
+      '',
+      '## Artefacts',
+      '',
+      '| File | Type | Status | Cycle |',
+      '|------|------|--------|-------|',
+      '',
+    ].join('\n'));
+    execSync('git add .', { cwd: dir, env: GIT_ENV });
+    execSync('git commit -m seed -q', { cwd: dir, env: GIT_ENV });
+  });
+
+  it('happy path: forge stage, matching file, registers artefact row', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    await beginEndStage(plugin, dir);
+    execSync(`mkdir -p ${dir}/haikus`);
+    writeFileSync(join(dir, 'haikus/one.md'), 'a\nb\nc\n');
+    await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, makeCtx(dir));
+
+    const res = JSON.parse(await plugin.tool.foundry_stage_finalize.execute({ cycle: 'c' }, makeCtx(dir)));
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.artefacts, [{ file: 'haikus/one.md', type: 'haiku', status: 'draft' }]);
+    const work = readFileSync(join(dir, 'WORK.md'), 'utf-8');
+    assert.match(work, /haikus\/one\.md/);
+    assert.match(work, /\| haiku \|/);
+  });
+
+  it('rejects unexpected files and returns files list', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    await beginEndStage(plugin, dir);
+    writeFileSync(join(dir, 'stray.txt'), 'x');
+    await plugin.tool.foundry_stage_end.execute({ summary: 'x' }, makeCtx(dir));
+
+    const res = JSON.parse(await plugin.tool.foundry_stage_finalize.execute({ cycle: 'c' }, makeCtx(dir)));
+    assert.equal(res.ok, false);
+    assert.equal(res.error, 'unexpected_files');
+    assert.deepEqual(res.files, ['stray.txt']);
+  });
+
+  it('requires no active stage', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    await beginEndStage(plugin, dir);
+    // Do NOT call stage_end — active-stage.json still present.
+    const res = JSON.parse(await plugin.tool.foundry_stage_finalize.execute({ cycle: 'c' }, makeCtx(dir)));
+    assert.match(res.error, /no active stage/);
+  });
+
+  it('errors when no last-stage recorded', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_stage_finalize.execute({ cycle: 'c' }, makeCtx(dir)));
+    assert.match(res.error, /no last stage/);
+  });
+
+  it('errors on cycle mismatch', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    await beginEndStage(plugin, dir);
+    await plugin.tool.foundry_stage_end.execute({ summary: 'x' }, makeCtx(dir));
+    const res = JSON.parse(await plugin.tool.foundry_stage_finalize.execute({ cycle: 'other' }, makeCtx(dir)));
+    assert.match(res.error, /cycle mismatch/);
+  });
+});
