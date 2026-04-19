@@ -14,34 +14,46 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 > Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
 
+## Stage lifecycle (mandatory)
+
+Appraise runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
+
+1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
+2. **Last:** `foundry_stage_end({summary})`.
+
+Appraise makes **no disk writes**. All output flows through `foundry_feedback_add`. `foundry_stage_finalize` flags any unexpected writes as a violation.
+
 ## Protocol
 
-1. Gather context:
-   - Call `foundry_workfile_get` — identify the artefact to appraise and its type
-   - Call `foundry_config_laws` — get all applicable laws (global + type-specific)
-   - Call `foundry_config_artefact_type` with the type ID — get the artefact type definition
-   - Call `foundry_appraisers_select` with the type ID — returns selected appraiser personalities with their raw model IDs
+1. `foundry_stage_begin(...)`.
+2. Gather context:
+   - `foundry_workfile_get` — identify the artefact to appraise and its type
+   - `foundry_config_laws` — get all applicable laws (global + type-specific)
+   - `foundry_config_artefact_type` with the type ID — get the artefact type definition
+   - `foundry_appraisers_select` with the type ID — returns selected appraiser personalities with their raw model IDs
 
-2. Dispatch each appraiser as an independent sub-agent (see Dispatch below)
+3. Dispatch each appraiser as an independent sub-agent (see Dispatch below)
 
-3. Collect results from all appraisers
+4. Collect results from all appraisers
 
-4. Consolidate (this is judgment):
+5. Consolidate (this is judgment):
    - Union of all issues — if any one appraiser flags it, it's feedback
    - De-duplicate: merge overlapping observations into a single feedback item
    - Preserve which appraiser(s) raised each issue (for traceability)
 
-5. For each consolidated issue: call `foundry_feedback_add` with the artefact file path, the issue description, and tag `law:<law-id>`
+6. For each consolidated issue: `foundry_feedback_add(file, text, tag: 'law:<law-id>')`. Tag MUST start with `law:` — the tool rejects other tags during appraise. The tool also de-duplicates by text-hash.
 
-6. If no appraiser found any issues, the artefact clears appraisal
+7. If no appraiser found any issues, the artefact clears appraisal.
+
+8. `foundry_stage_end({summary})`.
 
 ## Reviewing actioned and wont-fix feedback
 
 On subsequent passes, review previously actioned and wont-fix items:
 
-1. Call `foundry_feedback_list` to find `actioned` and `wontfix` items for this artefact
-2. For each item, the appraiser sub-agents evaluate whether the change addresses the issue (actioned) or the justification is sound (wont-fix)
-3. Call `foundry_feedback_resolve` with disposition `"approved"` or `"rejected"` (with reason) for each
+1. `foundry_feedback_list` — find `actioned` and `wont-fix` items for this artefact.
+2. Appraiser sub-agents evaluate whether the change addresses the issue (`actioned`) or the justification is sound (`wont-fix`).
+3. `foundry_feedback_resolve(file, index, resolution: 'approved'|'rejected', reason?)`. Appraise is the only stage (other than human-appraise) allowed to resolve `wont-fix` items.
 
 ## Dispatch
 
@@ -91,7 +103,7 @@ If there are no issues, return an empty list.
 
 ## History
 
-Do NOT call `foundry_history_append` — the sort skill (your caller) is responsible for writing history. Instead, return a clear summary of what you found (e.g., "3 issues found across 2 appraisers" or "No issues found") so sort can log it.
+Do NOT call `foundry_history_append` or `foundry_git_commit` — the sort skill handles those. Return a summary via `foundry_stage_end` (e.g., "3 issues found across 2 appraisers" or "No issues found").
 
 ### Human override awareness
 
@@ -99,6 +111,8 @@ When reviewing an artefact, check the feedback history for `#human` tagged items
 
 ## What you do NOT do
 
-- You do not revise the artefact
-- You do not check deterministic rules — that is the quench skill's job
-- You do not filter out feedback because only one appraiser raised it — one is enough
+- You do not write files — all output goes through `foundry_feedback_add`.
+- You do not revise the artefact.
+- You do not check deterministic rules — that is the quench skill's job.
+- You do not filter out feedback because only one appraiser raised it — one is enough.
+- You do not register artefacts — that happens automatically via `foundry_stage_finalize`.
