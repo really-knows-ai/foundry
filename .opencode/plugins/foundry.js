@@ -180,8 +180,8 @@ export const FoundryPlugin = async ({ directory }) => {
         args: {
           flow: tool.schema.string().describe('Flow name'),
           cycle: tool.schema.string().describe('Cycle name'),
-          stages: tool.schema.array(tool.schema.string()).describe('Ordered stage names'),
-          maxIterations: tool.schema.number().describe('Maximum iterations'),
+          stages: tool.schema.array(tool.schema.string()).optional().describe('Ordered stage names'),
+          maxIterations: tool.schema.number().optional().describe('Maximum iterations'),
           goal: tool.schema.string().describe('Goal text'),
           models: tool.schema.string().optional().describe('Per-stage model overrides as JSON object, e.g. \'{"forge":"openai/gpt-4o"}\''),
         },
@@ -190,7 +190,13 @@ export const FoundryPlugin = async ({ directory }) => {
           if (existsSync(workPath)) {
             return JSON.stringify({ error: 'WORK.md already exists' });
           }
-          const fm = { flow: args.flow, cycle: args.cycle, stages: enrichStages(args.stages, args.cycle), maxIterations: args.maxIterations };
+          const fm = { flow: args.flow, cycle: args.cycle };
+          if (args.stages) {
+            fm.stages = enrichStages(args.stages, args.cycle);
+          }
+          if (args.maxIterations !== undefined) {
+            fm.maxIterations = args.maxIterations;
+          }
           if (args.models) {
             fm.models = parseModelsValue(args.models);
           }

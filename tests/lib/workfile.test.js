@@ -77,6 +77,44 @@ describe('createWorkfile', () => {
     assert.ok(result.includes('| File | Type | Cycle | Status |'));
     assert.ok(result.includes('## Feedback'));
   });
+
+  it('produces valid WORK.md with minimal frontmatter (no stages, no maxIterations)', () => {
+    const result = createWorkfile({ flow: 'creative-flow', cycle: 'create-haiku' }, 'Write a haiku');
+    const fm = parseFrontmatter(result);
+    assert.equal(fm.flow, 'creative-flow');
+    assert.equal(fm.cycle, 'create-haiku');
+    assert.equal(fm.stages, undefined);
+    assert.equal(fm.maxIterations, undefined);
+    assert.ok(!result.includes('stages:'));
+    assert.ok(!result.includes('maxIterations:'));
+    assert.ok(result.includes('# Goal'));
+    assert.ok(result.includes('## Feedback'));
+  });
+
+  it('round-trips: minimal workfile, then setFrontmatterField adds stages', () => {
+    const initial = createWorkfile({ flow: 'creative-flow', cycle: 'create-haiku' }, 'Goal text');
+    const withStages = setFrontmatterField(initial, 'stages', ['forge:create-haiku', 'quench:create-haiku']);
+    const fm = parseFrontmatter(withStages);
+    assert.deepEqual(fm.stages, ['forge:create-haiku', 'quench:create-haiku']);
+    assert.equal(fm.flow, 'creative-flow');
+    assert.equal(fm.cycle, 'create-haiku');
+    assert.ok(withStages.includes('Goal text'));
+    assert.ok(withStages.includes('## Feedback'));
+  });
+
+  it('supports frontmatter with stages but no maxIterations', () => {
+    const result = createWorkfile({ flow: 'f', cycle: 'c', stages: ['forge:c'] }, 'g');
+    const fm = parseFrontmatter(result);
+    assert.deepEqual(fm.stages, ['forge:c']);
+    assert.equal(fm.maxIterations, undefined);
+  });
+
+  it('supports frontmatter with maxIterations but no stages', () => {
+    const result = createWorkfile({ flow: 'f', cycle: 'c', maxIterations: 5 }, 'g');
+    const fm = parseFrontmatter(result);
+    assert.equal(fm.maxIterations, 5);
+    assert.equal(fm.stages, undefined);
+  });
 });
 
 // ---------------------------------------------------------------------------
