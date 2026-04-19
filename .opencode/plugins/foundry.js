@@ -24,6 +24,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
 const allSkillsDir = path.join(packageRoot, 'skills');
 
+function listFlows(foundryDir) {
+  const flowsDir = path.join(foundryDir, 'flows');
+  if (!fs.existsSync(flowsDir)) return [];
+  const flows = [];
+  for (const entry of readdirSync(flowsDir)) {
+    if (!entry.endsWith('.md') || entry === '.gitkeep') continue;
+    try {
+      const text = readFileSync(path.join(flowsDir, entry), 'utf-8');
+      const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
+      if (!fmMatch) continue;
+      const fm = fmMatch[1];
+      const idMatch = fm.match(/^id:\s*(.+)$/m);
+      const nameMatch = fm.match(/^name:\s*(.+)$/m);
+      const startingMatch = fm.match(/^starting-cycles:\s*\n((?:\s*-\s*.+\n?)+)/m);
+      const id = idMatch ? idMatch[1].trim() : entry.replace(/\.md$/, '');
+      const name = nameMatch ? nameMatch[1].trim() : id;
+      const startingCycles = startingMatch
+        ? startingMatch[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
+        : [];
+      flows.push({ id, name, startingCycles });
+    } catch { /* skip bad files */ }
+  }
+  return flows;
+}
+
 function getBootstrapContent(directory) {
   const foundryDir = path.join(directory, 'foundry');
   const foundryExists = fs.existsSync(foundryDir) && fs.statSync(foundryDir).isDirectory();
@@ -37,6 +62,14 @@ and guide you through defining artefact types, laws, appraisers, cycles, and flo
 </FOUNDRY_CONTEXT>`;
   }
 
+  const flows = listFlows(foundryDir);
+  const flowList = flows.length > 0
+    ? flows.map(f => {
+        const sc = f.startingCycles.length > 0 ? ` — starting cycles: ${f.startingCycles.join(', ')}` : '';
+        return `- \`${f.id}\` — ${f.name}${sc}`;
+      }).join('\n')
+    : '- (no flows defined yet — use the `add-flow` skill to create one)';
+
   return `<FOUNDRY_CONTEXT>
 Foundry is active in this project. The foundry/ directory contains the project's artefact definitions,
 laws, appraisers, cycles, and flows.
@@ -44,15 +77,32 @@ laws, appraisers, cycles, and flows.
 Foundry is a skill-driven framework for governed artefact generation and evaluation.
 The pipeline: forge (produce) → quench (deterministic checks) → appraise (subjective evaluation) → iterate.
 
-Available skills:
-- **Pipeline:** forge, quench, appraise, cycle, flow, sort, hitl
-- **Helpers:** add-artefact-type, add-law, add-appraiser, add-cycle, add-flow, init-foundry
+## Defined flows
 
-Multi-model routing: Foundry uses \`foundry-*\` sub-agents defined as markdown files in \`.opencode/agents/\`.
+${flowList}
+
+**CRITICAL ROUTING RULE:** When the user references any flow above — by id (e.g. "creative-flow"),
+by name (e.g. "Creative Flow"), or by clear paraphrase (e.g. "the creative flow", "use the creative pipeline") —
+invoke the \`flow\` skill DIRECTLY with that flow's id. Do NOT invoke brainstorming, do NOT explore the
+codebase, do NOT ask clarifying questions about what to build. The flow's cycles already define the
+work. The user's request text (e.g. "make a haiku about X") is the goal to pass to the flow.
+
+Brainstorming applies to NEW features being added to foundry itself (new cycles, new artefact types,
+new skills). It does NOT apply to running an existing, defined flow.
+
+## Available skills
+
+- **Pipeline:** forge, quench, appraise, cycle, flow, sort, human-appraise
+- **Authoring:** add-artefact-type, add-law, add-appraiser, add-cycle, add-flow, init-foundry
+- **Maintenance:** upgrade-foundry, refresh-agents, list-agents
+
+## Multi-model routing
+
+Foundry uses \`foundry-*\` sub-agents defined as markdown files in \`.opencode/agents/\`.
 Run the \`refresh-agents\` skill to regenerate them after adding or removing providers.
 Cycle definitions can specify per-stage models via the \`models\` frontmatter map. Appraisers can override with their own \`model\` field.
 
-To start a flow, use the \`flow\` skill. All user content lives under foundry/.
+All user content lives under foundry/.
 Scripts are located at: ${path.join(packageRoot, 'scripts')}
 </FOUNDRY_CONTEXT>`;
 }

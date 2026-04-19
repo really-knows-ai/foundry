@@ -1,7 +1,7 @@
 ---
 name: flow
 type: composite
-description: Orchestrates foundry cycles as a dependency graph, driven by a flow definition.
+description: Runs a defined foundry flow to produce artefacts. Use this whenever the user references a flow by id, name, or paraphrase (e.g. "use the creative flow", "run creative-flow"). Do not brainstorm — the flow's cycles already define the work. The user's request is the goal to pass in.
 composes: [cycle]
 ---
 
