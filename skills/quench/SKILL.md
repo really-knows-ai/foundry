@@ -14,33 +14,46 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 > Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
 
+## Stage lifecycle (mandatory)
+
+Quench runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
+
+1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt. Any other tool call before this will be blocked.
+2. **Last:** `foundry_stage_end({summary})`.
+
+Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`, never by creating or modifying files. `foundry_stage_finalize` (run by the orchestrator after you return) will flag any unexpected writes as a violation.
+
 ## Protocol
 
-1. Call `foundry_workfile_get` to identify the artefact and its type.
-2. Call `foundry_config_validation` with the artefact type ID. If it returns null, output SKIP and stop — there is no validation for this type.
-3. Call `foundry_validate_run` with the type ID and artefact file path. It executes all validation commands and returns results.
-4. For each failure: call `foundry_feedback_add` with the artefact file path, a description of the failure, and tag `"validation"`.
-5. If all commands pass, add no new feedback.
+1. `foundry_stage_begin(...)`.
+2. `foundry_workfile_get` — identify the artefact and its type.
+3. `foundry_config_validation` with the artefact type ID. If it returns null, `foundry_stage_end({summary: 'SKIP: no validation for this type'})` and stop.
+4. `foundry_validate_run` with the type ID and artefact file path — executes all validation commands and returns results.
+5. For each failure: `foundry_feedback_add(file, text, tag: 'validation')`. Tag MUST be `validation` — the tool rejects other tags during quench.
+6. If all commands pass, add no new feedback.
+7. `foundry_stage_end({summary})`.
 
 ## Reviewing actioned feedback
 
 On subsequent passes, review previously actioned items:
 
-1. Call `foundry_feedback_list` to find `actioned` items tagged `validation` for this artefact.
+1. `foundry_feedback_list` — find `actioned` items tagged `validation` for this artefact.
 2. Re-run the relevant command via `foundry_validate_run`.
-3. If the check now passes: call `foundry_feedback_resolve` with disposition `"approved"`.
-4. If it still fails: call `foundry_feedback_resolve` with disposition `"rejected"` and a reason.
+3. If the check now passes: `foundry_feedback_resolve(file, index, resolution: 'approved')`.
+4. If it still fails: `foundry_feedback_resolve(file, index, resolution: 'rejected', reason)`.
 
-There is no wont-fix for validation feedback. Deterministic rules are not negotiable.
+There is no wont-fix for validation feedback — deterministic rules are not negotiable. Quench may only resolve items in state `actioned`; the feedback tool enforces this.
 
 ## History
 
-Do NOT call `foundry_history_append` — the sort skill (your caller) is responsible for writing history. Instead, return a clear summary of what you found (e.g., "2 validation issues found" or "Validation passed") so sort can log it.
+Do NOT call `foundry_history_append` or `foundry_git_commit` — the sort skill handles those. Return a clear summary via `foundry_stage_end` (e.g., "2 validation issues found" or "Validation passed").
 
 ## What you do NOT do
 
-- You do not make subjective judgments
-- You do not revise the artefact
-- You do not evaluate laws — that is the appraise skill's job
-- You do not invent validation rules — you only run commands from the validation config
-- You do not duplicate feedback that already exists
+- You do not write files — all output goes through `foundry_feedback_add`.
+- You do not make subjective judgments.
+- You do not revise the artefact (forge's job).
+- You do not evaluate laws — that is the appraise skill's job.
+- You do not invent validation rules — you only run commands from the validation config.
+- You do not duplicate feedback that already exists (the tool de-duplicates by text-hash, but don't rely on it).
+- You do not register artefacts — that happens automatically.
