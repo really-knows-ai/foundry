@@ -88,7 +88,7 @@ function determineRoute(stages, history, feedback, maxIterations) {
   }
 
   if (lastBase === 'appraise') {
-    return nextAfterAppraise(stages, feedback, forgeCount, maxIterations);
+    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations);
   }
 
   return 'blocked';
@@ -104,7 +104,7 @@ function nextAfterQuench(stages, current, feedback, forgeCount, maxIterations) {
   return nextInRoute(stages, current) ?? 'done';
 }
 
-function nextAfterAppraise(stages, feedback, forgeCount, maxIterations) {
+function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations) {
   const needsForge = feedback.some(f => f.state === 'open' || f.state === 'rejected');
   if (needsForge) {
     if (forgeCount >= maxIterations) return 'blocked';
@@ -118,7 +118,7 @@ function nextAfterAppraise(stages, feedback, forgeCount, maxIterations) {
     return findFirst(stages, 'appraise') ?? 'blocked';
   }
 
-  return 'done';
+  return nextInRoute(stages, current) ?? 'done';
 }
 
 // ---------------------------------------------------------------------------
