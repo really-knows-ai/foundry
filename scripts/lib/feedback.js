@@ -3,6 +3,7 @@
  */
 
 import { extractAllTags } from './tags.js';
+import { validateTransition, hashText } from './feedback-transitions.js';
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -85,6 +86,16 @@ export function parseFeedback(text, cycle, artefacts) {
 // ---------------------------------------------------------------------------
 
 export function addFeedbackItem(text, file, itemText, tag) {
+  // Dedup by (file, tag, text hash): if any existing item under this file
+  // heading has the same tag and the same itemText, return without mutating.
+  const existing = collectItemsForFile(text, file);
+  const h = hashText(itemText);
+  for (const ex of existing) {
+    if (ex.tags.includes(`#${tag}`) && hashText(ex.coreText) === h) {
+      return { text, deduped: true };
+    }
+  }
+
   const newItem = `- [ ] ${itemText} #${tag}`;
   const lines = text.split('\n');
 
@@ -111,7 +122,7 @@ export function addFeedbackItem(text, file, itemText, tag) {
   if (feedbackIdx === -1) {
     // No Feedback section — append one
     lines.push('', '## Feedback', '', `### ${file}`, newItem);
-    return lines.join('\n');
+    return { text: lines.join('\n'), deduped: false };
   }
 
   // Find the file heading within the feedback section
@@ -135,7 +146,7 @@ export function addFeedbackItem(text, file, itemText, tag) {
   if (fileIdx === -1) {
     // File heading doesn't exist — add it before section end
     lines.splice(sectionEnd, 0, '', fileHeading, newItem);
-    return lines.join('\n');
+    return { text: lines.join('\n'), deduped: false };
   }
 
   // Find last item under this file heading
@@ -149,23 +160,23 @@ export function addFeedbackItem(text, file, itemText, tag) {
   }
 
   lines.splice(insertIdx, 0, newItem);
-  return lines.join('\n');
+  return { text: lines.join('\n'), deduped: false };
 }
 
-export function actionFeedbackItem(text, file, index) {
-  return transformFeedbackItem(text, file, index, (line) =>
+export function actionFeedbackItem(text, file, index, stageBase) {
+  return transformFeedbackItemWithValidation(text, file, index, 'actioned', stageBase, (line) =>
     line.replace('- [ ]', '- [x]')
   );
 }
 
-export function wontfixFeedbackItem(text, file, index, reason) {
-  return transformFeedbackItem(text, file, index, (line) =>
+export function wontfixFeedbackItem(text, file, index, reason, stageBase) {
+  return transformFeedbackItemWithValidation(text, file, index, 'wont-fix', stageBase, (line) =>
     line.replace('- [ ]', '- [~]') + ` | wont-fix: ${reason}`
   );
 }
 
-export function resolveFeedbackItem(text, file, index, resolution, reason) {
-  return transformFeedbackItem(text, file, index, (line) => {
+export function resolveFeedbackItem(text, file, index, resolution, reason, stageBase) {
+  return transformFeedbackItemWithValidation(text, file, index, resolution, stageBase, (line) => {
     if (resolution === 'approved') {
       return line + ' | approved';
     }
@@ -256,6 +267,132 @@ export function detectDeadlocks(feedback, history, threshold = 3) {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Collect feedback items under a specific file heading, returning the parsed
+ * representation plus the "core text" (item body with tag and trailing resolution
+ * stripped) for dedup hashing.
+ */
+function collectItemsForFile(text, file) {
+  const items = [];
+  const lines = text.split('\n');
+  let inFeedback = false;
+  let feedbackLevel = 0;
+  let currentFile = null;
+
+  for (const line of lines) {
+    const stripped = line.trim();
+
+    if (stripped === '# Feedback' || stripped === '## Feedback') {
+      inFeedback = true;
+      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
+      continue;
+    }
+
+    if (inFeedback && /^#{1,2} /.test(stripped)) {
+      const level = stripped.startsWith('## ') ? 2 : 1;
+      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
+        inFeedback = false;
+        continue;
+      }
+    }
+
+    if (!inFeedback) continue;
+
+    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
+    if (stripped.startsWith(fileHeadingPrefix)) {
+      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
+      continue;
+    }
+
+    if (currentFile === file && /^- \[/.test(stripped)) {
+      const parsed = parseFeedbackItem(stripped);
+      // Strip checkbox, tags, and trailing `| approved` / `| rejected: ...` /
+      // `| wont-fix: ...` to get the core author-supplied text for dedup.
+      let core = stripped.replace(/^- \[[ x~]\]\s*/, '');
+      core = core.replace(/\s*\|\s*(approved|rejected[^|]*|wont-fix[^|]*)\s*$/, '');
+      for (const t of parsed.tags) {
+        core = core.replace(t, '');
+      }
+      core = core.trim();
+      items.push({ line: stripped, state: parsed.state, tags: parsed.tags, coreText: core });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Read the line at (file, index) and return its current feedback state
+ * (or null if not found).
+ */
+function readItemState(text, file, index) {
+  const lines = text.split('\n');
+  let inFeedback = false;
+  let feedbackLevel = 0;
+  let currentFile = null;
+  let fileIndex = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const stripped = lines[i].trim();
+
+    if (stripped === '# Feedback' || stripped === '## Feedback') {
+      inFeedback = true;
+      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
+      continue;
+    }
+
+    if (inFeedback && /^#{1,2} /.test(stripped)) {
+      const level = stripped.startsWith('## ') ? 2 : 1;
+      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
+        inFeedback = false;
+        continue;
+      }
+    }
+
+    if (!inFeedback) continue;
+
+    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
+    if (stripped.startsWith(fileHeadingPrefix)) {
+      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
+      fileIndex = 0;
+      continue;
+    }
+
+    if (currentFile === file && /^- \[/.test(stripped)) {
+      if (fileIndex === index) {
+        const parsed = parseFeedbackItem(stripped);
+        // Map parseFeedbackItem's (state, resolved) pair onto state-machine states:
+        // - `| approved` → terminal "approved"
+        // - `| rejected` → "rejected" (parseFeedbackItem already sets this)
+        // - bare `[x]`   → "actioned"
+        // - bare `[~]`   → "wont-fix"
+        // - bare `[ ]`   → "open"
+        if (parsed.resolved) return 'approved';
+        return parsed.state;
+      }
+      fileIndex++;
+    }
+  }
+  return null;
+}
+
+function transformFeedbackItemWithValidation(text, file, index, target, stageBase, transform) {
+  if (stageBase !== undefined) {
+    const current = readItemState(text, file, index);
+    if (!current) {
+      return { ok: false, error: `feedback item not found: file=${file} index=${index}` };
+    }
+    const v = validateTransition(current, target, stageBase);
+    if (!v.ok) {
+      return { ok: false, error: v.reason };
+    }
+    const updated = transformFeedbackItem(text, file, index, transform);
+    return { ok: true, text: updated };
+  }
+  // Backward-compatible path: return plain string.
+  return transformFeedbackItem(text, file, index, transform);
+}
 
 function transformFeedbackItem(text, file, index, transform) {
   const lines = text.split('\n');

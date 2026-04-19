@@ -134,17 +134,19 @@ describe('addFeedbackItem', () => {
       '### foo.md',
       '- [ ] existing #validation',
     ].join('\n');
-    const result = addFeedbackItem(text, 'foo.md', 'new item', 'validation');
-    assert.ok(result.includes('- [ ] new item #validation'));
-    assert.ok(result.indexOf('existing') < result.indexOf('new item'));
+    const r = addFeedbackItem(text, 'foo.md', 'new item', 'validation');
+    assert.equal(r.deduped, false);
+    assert.ok(r.text.includes('- [ ] new item #validation'));
+    assert.ok(r.text.indexOf('existing') < r.text.indexOf('new item'));
   });
 
   it('creates section and heading when missing', () => {
     const text = '# Title\n\nSome content';
-    const result = addFeedbackItem(text, 'foo.md', 'item', 'validation');
-    assert.ok(result.includes('## Feedback'));
-    assert.ok(result.includes('### foo.md'));
-    assert.ok(result.includes('- [ ] item #validation'));
+    const r = addFeedbackItem(text, 'foo.md', 'item', 'validation');
+    assert.equal(r.deduped, false);
+    assert.ok(r.text.includes('## Feedback'));
+    assert.ok(r.text.includes('### foo.md'));
+    assert.ok(r.text.includes('- [ ] item #validation'));
   });
 
   it('creates heading under existing section', () => {
@@ -153,9 +155,33 @@ describe('addFeedbackItem', () => {
       '### bar.js',
       '- [ ] bar item #validation',
     ].join('\n');
-    const result = addFeedbackItem(text, 'foo.md', 'new', 'hitl');
-    assert.ok(result.includes('### foo.md'));
-    assert.ok(result.includes('- [ ] new #hitl'));
+    const r = addFeedbackItem(text, 'foo.md', 'new', 'hitl');
+    assert.equal(r.deduped, false);
+    assert.ok(r.text.includes('### foo.md'));
+    assert.ok(r.text.includes('- [ ] new #hitl'));
+  });
+
+  it('dedupes by {file, tag, text-hash}', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [ ] same item #validation',
+    ].join('\n');
+    const r = addFeedbackItem(text, 'foo.md', 'same item', 'validation');
+    assert.equal(r.deduped, true);
+    // text unchanged
+    assert.equal(r.text, text);
+  });
+
+  it('does not dedup when tag differs', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [ ] same item #validation',
+    ].join('\n');
+    const r = addFeedbackItem(text, 'foo.md', 'same item', 'law:foo');
+    assert.equal(r.deduped, false);
+    assert.ok(r.text.includes('#law:foo'));
   });
 });
 
@@ -216,6 +242,72 @@ describe('resolveFeedbackItem', () => {
     ].join('\n');
     const result = resolveFeedbackItem(text, 'foo.md', 0, 'rejected', 'not good enough');
     assert.ok(result.includes('| rejected: not good enough'));
+  });
+
+  it('with stageBase: quench approves actioned → { ok, text }', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [x] done #validation',
+    ].join('\n');
+    const r = resolveFeedbackItem(text, 'foo.md', 0, 'approved', undefined, 'quench');
+    assert.equal(r.ok, true);
+    assert.ok(r.text.includes('| approved'));
+  });
+
+  it('with stageBase: quench cannot approve wont-fix', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [~] skipping #validation | wont-fix: nope',
+    ].join('\n');
+    const r = resolveFeedbackItem(text, 'foo.md', 0, 'approved', undefined, 'quench');
+    assert.equal(r.ok, false);
+    assert.match(r.error, /stage quench cannot transition wont-fix/);
+  });
+
+  it('with stageBase: rejects mutation of approved (terminal)', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [x] done #validation | approved',
+    ].join('\n');
+    const r = resolveFeedbackItem(text, 'foo.md', 0, 'rejected', 'x', 'quench');
+    assert.equal(r.ok, false);
+    assert.match(r.error, /invalid transition/);
+  });
+
+  it('with stageBase forge: actionFeedbackItem on open', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [ ] do it #validation',
+    ].join('\n');
+    const r = actionFeedbackItem(text, 'foo.md', 0, 'forge');
+    assert.equal(r.ok, true);
+    assert.ok(r.text.includes('- [x] do it'));
+  });
+
+  it('with stageBase forge: wontfix on open', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [ ] do it #validation',
+    ].join('\n');
+    const r = wontfixFeedbackItem(text, 'foo.md', 0, 'no time', 'forge');
+    assert.equal(r.ok, true);
+    assert.ok(r.text.includes('- [~] do it'));
+  });
+
+  it('with stageBase quench: cannot action (only forge can)', () => {
+    const text = [
+      '## Feedback',
+      '### foo.md',
+      '- [ ] do it #validation',
+    ].join('\n');
+    const r = actionFeedbackItem(text, 'foo.md', 0, 'quench');
+    assert.equal(r.ok, false);
+    assert.match(r.error, /stage quench cannot transition open/);
   });
 });
 
