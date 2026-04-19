@@ -1,6 +1,8 @@
 # Flow DAG, Human Appraise, and Branch Management — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use `superpowers:subagent-driven-development` to execute this plan. Dispatch a fresh subagent per task. Review the result between tasks before proceeding to the next.
+
+**Execution method:** Subagent-driven development. Each of the 12 tasks below should be dispatched as an independent subagent. Tasks are ordered — complete each one and verify before starting the next. Each subagent gets the task description, file paths, code blocks, and test commands it needs. The orchestrator reviews the subagent's output (test results, committed files) before dispatching the next task.
 
 **Goal:** Evolve Foundry flows from linear cycle lists to DAGs with cycle-owned routing, replace HITL with human-appraise (quality gate + deadlock breaker), add deterministic branch cleanup, and create an upgrade-foundry migration skill.
 
