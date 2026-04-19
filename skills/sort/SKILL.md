@@ -24,7 +24,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
    - `forge:*` — dispatch the forge skill as a sub-agent. Use model dispatch (see below).
    - `quench:*` — dispatch the quench skill as a sub-agent. Use model dispatch.
    - `appraise:*` — dispatch the appraise skill as a sub-agent. Use model dispatch. Note: the appraise skill handles its own per-appraiser model resolution internally.
-   - `hitl:*` — invoke the hitl skill (no model dispatch — human stage)
+   - `human-appraise:*` — invoke the human-appraise skill (no model dispatch — human stage)
    - `done` — foundry cycle is complete, return to the cycle skill
    - `blocked` — foundry cycle is blocked (iteration limit hit with unresolved feedback), return to the cycle skill
    - `violation` — file modification or tag validation violation detected (see `details`). The cycle halts — call `foundry_artefacts_set_status` with status `"blocked"`, and return to the cycle skill

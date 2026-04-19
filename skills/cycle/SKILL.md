@@ -2,12 +2,12 @@
 name: cycle
 type: composite
 description: Runs a foundry cycle by delegating all routing to the sort skill.
-composes: [sort, forge, quench, appraise, hitl]
+composes: [sort, forge, quench, appraise, human-appraise]
 ---
 
 # Cycle
 
-A foundry cycle reads its definition, sets up the work file for routing, then hands control to the sort skill which drives the forge/quench/appraise loop.
+A foundry cycle reads its definition, sets up the work file for routing, then hands control to the sort skill which drives the forge/quench/appraise/human-appraise loop.
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 3. Determine the stage route:
    - Use the cycle definition's `stages` field if present
    - Otherwise generate defaults: always `forge`, add `quench` if `foundry_config_validation` returns non-null for the type, always `appraise`
-   - Cycle definitions can include `hitl` entries for human-in-the-loop checkpoints
+   - If the cycle definition has `human-appraise.enabled: true`, append `human-appraise` as the final stage
    - Stages should use `base:alias` format (e.g. `forge:write-haiku`, `quench:check-syllables`). If you pass bare names, the tool will auto-append the cycle ID as the alias.
 4. Call `foundry_workfile_set` to configure the work file:
    - `key: "cycle"`, `value: <cycle-id>`
@@ -47,9 +47,9 @@ When sort returns `blocked`:
 - Call `foundry_artefacts_set_status` with status `"blocked"`
 - Return control to the flow skill (the flow decides how to handle it)
 
-## HITL stages
+## Human Appraise
 
-Cycle definitions can include `hitl` entries in their stages list to pause for human input. When sort routes to a `hitl` stage, the hitl skill presents the configured prompt and records the human's response.
+If the cycle definition has `human-appraise.enabled: true`, the human-appraise stage is included after appraise. Sort will route to it after LLM appraisers pass, or earlier if a deadlock is detected.
 
 ## Micro commits
 
@@ -70,7 +70,7 @@ approved     - resolved
 rejected     - re-opened
 ```
 
-Tag types: `validation` (from quench), `law:<law-id>` (from appraise), `hitl` (from human) — indicates the source and category of feedback.
+Tag types: `validation` (from quench), `law:<law-id>` (from appraise), `human` (from human-appraise) — indicates the source and category of feedback.
 
 ## What you do NOT do
 

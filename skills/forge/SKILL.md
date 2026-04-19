@@ -50,9 +50,12 @@ An item is unresolved if it is:
 
 An item is resolved if it is `approved`.
 
-## Feedback tagged `#hitl`
+## #human feedback
 
-Feedback tagged `hitl` (human-in-the-loop) is treated the same as any other open feedback. Address it or wont-fix it using the same rules as other feedback items.
+Feedback tagged `human` (from the human-appraise stage) takes absolute priority:
+- You MUST address it — you cannot wont-fix `#human` feedback
+- When `#human` feedback contradicts LLM appraiser feedback on the same topic, follow the human's direction
+- Acknowledge the human's input in your revision
 
 ## What you do NOT do
 

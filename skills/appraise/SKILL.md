@@ -93,6 +93,10 @@ If there are no issues, return an empty list.
 
 Do NOT call `foundry_history_append` — the sort skill (your caller) is responsible for writing history. Instead, return a clear summary of what you found (e.g., "3 issues found across 2 appraisers" or "No issues found") so sort can log it.
 
+### Human override awareness
+
+When reviewing an artefact, check the feedback history for `#human` tagged items. If a human has already ruled on a topic in a prior iteration, do not re-raise the same issue — the human's decision is final.
+
 ## What you do NOT do
 
 - You do not revise the artefact
