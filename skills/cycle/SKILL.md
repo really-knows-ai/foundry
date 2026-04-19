@@ -33,19 +33,23 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 ## Sort drives everything
 
-Once sort is invoked, it calls `foundry_sort` to determine the next stage, invokes the corresponding skill, then calls sort again. This repeats until sort returns `done` or `blocked`.
+Once sort is invoked, it calls `foundry_sort` to determine the next stage, dispatches the corresponding skill to a fresh subagent with a single-use token, calls `foundry_stage_finalize` to register outputs (or detect file-pattern violations), writes history, and commits. This repeats until sort returns `done`, `blocked`, or `violation`.
 
-The cycle skill does not contain routing logic — sort owns all of that.
+The cycle skill does not contain routing, finalization, history, or commit logic — sort owns all of that. The cycle skill only sets up the work file and reacts to sort's terminal result.
 
 ## Completing a foundry cycle
 
 When sort returns `done`:
-- Call `foundry_artefacts_set_status` with status `"done"`
-- Return control to the flow skill
+- Call `foundry_artefacts_set_status(file, 'done')` for the cycle's output artefact.
+- Return control to the flow skill.
 
 When sort returns `blocked`:
-- Call `foundry_artefacts_set_status` with status `"blocked"`
-- Return control to the flow skill (the flow decides how to handle it)
+- The target artefact is usually already marked `blocked` by sort (on violations) or by human-appraise (on explicit abort). If not, call `foundry_artefacts_set_status(file, 'blocked')`.
+- Return control to the flow skill — the flow decides how to handle it.
+
+When sort returns `violation` (e.g., `stage_finalize` `unexpected_files`, missing subagent, or file-pattern violation):
+- Sort has already marked affected artefacts blocked and returned. Treat as the blocked path.
+- Return control to the flow skill.
 
 ## Human Appraise
 
@@ -53,7 +57,7 @@ If the cycle definition has `human-appraise.enabled: true`, the human-appraise s
 
 ## Micro commits
 
-Every stage must end with a micro commit. Call `foundry_git_commit` with message format: `[<cycle-id>] <base>:<alias>: <brief description>`
+Every stage ends with a micro commit, written by sort (not cycle, not subagents). The message format is `[<cycle-id>] <base>:<alias>: <brief description>`.
 
 Examples:
 - `[haiku-creation] forge:write-haiku: initial draft`
@@ -74,8 +78,10 @@ Tag types: `validation` (from quench), `law:<law-id>` (from appraise), `human` (
 
 ## What you do NOT do
 
-- You do not make routing decisions — sort does that
-- You do not change the laws mid-cycle
-- You do not decide the artefact is "close enough" — it passes or it doesn't
-- You do not proceed past a file modification violation
-- You do not modify input artefacts — they are read-only
+- You do not make routing decisions — sort does that.
+- You do not register artefacts — `foundry_stage_finalize` does that (invoked by sort).
+- You do not write history or commits — sort does that.
+- You do not change the laws mid-cycle.
+- You do not decide the artefact is "close enough" — it passes or it doesn't.
+- You do not proceed past a file modification violation — honor sort's `violation`/`blocked` return.
+- You do not modify input artefacts — they are read-only.
