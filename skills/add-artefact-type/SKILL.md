@@ -128,7 +128,11 @@ If yes, walk through each validation entry:
 - A `Command:` line with `{file}` placeholder
 - A `Failure means:` line explaining what a non-zero exit indicates
 
-If the user wants validation scripts (not just inline commands), create them as separate files in the artefact type directory. Check the project's `package.json` for `"type": "module"`:
+If the user wants validation scripts (not just inline commands), create them as separate files in the artefact type directory.
+
+**Use existing libraries:** Before writing custom validation logic, search npm for well-tested libraries that solve the problem (e.g., `syllable` for syllable counting, `natural` for NLP tasks). Hand-rolled heuristics are fragile — prefer battle-tested packages. Install them as project dependencies.
+
+Check the project's `package.json` for `"type": "module"`:
 - If ESM (`"type": "module"`): use `import` syntax, or name scripts with `.mjs` extension
 - If CommonJS (no `"type"` field or `"type": "commonjs"`): `require()` is fine, or use `.cjs` extension
 - When in doubt, use `.mjs` or `.cjs` extensions to be explicit regardless of project settings
