@@ -192,11 +192,11 @@ This replaces the multi-step manual process that leaked files and required `-D` 
 - Update `flow` skill to use `foundry_git_finish` on completion
 - Update `finishing-a-development-branch` integration (the superpowers skill) to be aware of the foundry tool
 
-## 5. Upgrade Flow Skill
+## 5. Upgrade Foundry Skill
 
 ### Purpose
 
-After a user updates the `@really-knows-ai/foundry` package, their existing `foundry/` directory may contain flow definitions, cycle configs, and stage lists that use the old format. The `upgrade-flow` skill analyses their current setup and migrates it to the current version, asking for clarification where needed.
+After a user updates the `@really-knows-ai/foundry` package, their existing `foundry/` directory may contain configuration that uses old formats. The `upgrade-foundry` skill analyses the entire foundry setup — flows, cycles, artefact types, laws, appraisers, and validation — and migrates everything to the current version, asking for clarification where needed.
 
 ### When to use
 
@@ -205,16 +205,23 @@ After a user updates the `@really-knows-ai/foundry` package, their existing `fou
 
 ### Protocol
 
-1. **Scan current state:**
+1. **Scan entire foundry directory:**
    - Read all flow definitions in `foundry/flows/*.md`
    - Read all cycle definitions in `foundry/cycles/*.md`
-   - Identify the format version by checking for presence/absence of new fields
+   - Read all artefact type definitions in `foundry/artefacts/*/definition.md`
+   - Read all artefact laws in `foundry/artefacts/*/laws.md`
+   - Read all artefact validation in `foundry/artefacts/*/validation.md`
+   - Read all global laws in `foundry/laws/*.md`
+   - Read all appraisers in `foundry/appraisers/*.md`
+   - Identify the format version by checking for presence/absence of expected fields
 
-2. **Detect what needs migration:**
-   - Flows with ordered `## Cycles` lists but no `starting-cycles` → needs DAG migration
-   - Cycles without `targets` field → needs target routing
-   - Cycles with `hitl` in their stages → needs human-appraise migration
-   - Cycles referencing `hitl:*` stage aliases → needs removal
+2. **Detect what needs migration across all config types:**
+   - **Flows:** ordered `## Cycles` lists but no `starting-cycles` → needs DAG migration
+   - **Cycles:** missing `targets` field → needs target routing; `hitl` in stages → needs human-appraise migration; missing `inputs` contract type → needs `any-of`/`all-of`
+   - **Artefact types:** missing or outdated frontmatter fields; validation commands with deprecated format
+   - **Appraisers:** missing required frontmatter fields; references to removed stage types (e.g., hitl)
+   - **Laws:** structural issues; references to deprecated concepts
+   - **Validation:** commands using deprecated format; scripts that could benefit from library recommendations
 
 3. **For each flow — migrate to DAG format:**
    - Present the current ordered cycle list to the user
@@ -234,20 +241,26 @@ After a user updates the `@really-knows-ai/foundry` package, their existing `fou
    - Remove `hitl` from the cycle's stage list
    - Remove any hitl-specific configuration
 
-6. **Present the migration plan:**
+6. **For artefact types, appraisers, laws, and validation:**
+   - Check each file against the current expected format
+   - Flag any issues or deprecated patterns
+   - Suggest fixes with explanations
+
+7. **Present the migration plan:**
    - Show a summary of all changes before writing anything
+   - Group by category (flows, cycles, artefact types, appraisers, laws, validation)
    - List each file that will be modified and what changes
    - Ask for confirmation
 
-7. **Apply changes:**
-   - Update flow and cycle definition files
+8. **Apply changes:**
+   - Update all affected files
    - Commit with message: `[foundry] upgrade: migrate to vX.Y format`
 
 ### What it does NOT do
 
-- It does not create new cycles or artefact types
+- It does not create new cycles, artefact types, or appraisers
 - It does not delete existing files without confirmation
-- It does not modify artefact content or laws
+- It does not modify artefact content (the produced artefacts, not config)
 - It does not run automatically — the user invokes it explicitly
 
 ## 6. Existing bugs to fix alongside
