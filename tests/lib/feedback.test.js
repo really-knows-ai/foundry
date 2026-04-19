@@ -8,6 +8,7 @@ import {
   wontfixFeedbackItem,
   resolveFeedbackItem,
   listFeedback,
+  detectDeadlocks,
 } from '../../scripts/lib/feedback.js';
 
 // ---------------------------------------------------------------------------
@@ -252,5 +253,58 @@ describe('listFeedback', () => {
     const r = listFeedback(text, 'c1', artefacts, 'b.md');
     assert.equal(r.length, 1);
     assert.equal(r[0].file, 'b.md');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectDeadlocks
+// ---------------------------------------------------------------------------
+
+describe('detectDeadlocks', () => {
+  it('returns empty when no feedback', () => {
+    assert.deepEqual(detectDeadlocks([], []), []);
+  });
+
+  it('detects feedback that has been rejected multiple times', () => {
+    const feedback = [
+      { file: 'haiku.md', index: 0, text: 'tone is wrong', tag: 'law:dark-moody-tone', state: 'rejected' },
+    ];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    const result = detectDeadlocks(feedback, history, 3);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].text, 'tone is wrong');
+  });
+
+  it('returns empty when under threshold', () => {
+    const feedback = [
+      { file: 'haiku.md', index: 0, text: 'tone is wrong', tag: 'law:dark-moody-tone', state: 'rejected' },
+    ];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    assert.deepEqual(detectDeadlocks(feedback, history, 3), []);
+  });
+
+  it('includes open items in deadlock', () => {
+    const feedback = [
+      { state: 'open', text: 'still open' },
+      { state: 'actioned', resolved: true, text: 'resolved' },
+    ];
+    const history = [
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    const result = detectDeadlocks(feedback, history, 3);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].text, 'still open');
   });
 });

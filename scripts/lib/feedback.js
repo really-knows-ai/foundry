@@ -237,6 +237,22 @@ export function listFeedback(text, cycle, artefacts, filterFile) {
   return results;
 }
 
+/**
+ * Detect feedback items stuck in a deadlock — rejected N or more times.
+ * A deadlock occurs when forge-appraise cycles keep rejecting the same item.
+ */
+export function detectDeadlocks(feedback, history, threshold = 3) {
+  // Count forge→appraise cycles (each pair = one iteration)
+  const forgeAppraiseCount = history.filter(
+    e => (e.stage || '').split(':')[0] === 'appraise'
+  ).length;
+
+  if (forgeAppraiseCount < threshold) return [];
+
+  // Items that are still rejected after threshold iterations are deadlocked
+  return feedback.filter(f => f.state === 'rejected' || f.state === 'open');
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
