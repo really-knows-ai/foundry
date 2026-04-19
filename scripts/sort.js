@@ -209,7 +209,7 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
 // Exported runSort — structured result for programmatic use
 // ---------------------------------------------------------------------------
 
-export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef } = {}, io = defaultIO) {
+export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef, agentsDir = '.opencode/agents' } = {}, io = defaultIO) {
   if (!io.exists(workPath)) {
     return { route: 'blocked', details: 'WORK.md not found' };
   }
@@ -255,7 +255,16 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
   const routeBase = baseStage(route);
   if (frontmatter.models && frontmatter.models[routeBase]) {
     const modelId = frontmatter.models[routeBase];
-    model = `foundry-${modelId.replace(/\//g, '-')}`;
+    model = `foundry-${modelId.replace(/[/.]/g, '-')}`;
+
+    // Fail-fast: required subagent file must exist
+    const agentPath = `${agentsDir}/${model}.md`;
+    if (!io.exists(agentPath)) {
+      return {
+        route: 'violation',
+        details: `Missing required subagent: ${model}.md is not present in ${agentsDir}/. Run the refresh-agents skill to regenerate agent files, then restart.`,
+      };
+    }
   }
 
   return { route, ...(model ? { model } : {}) };

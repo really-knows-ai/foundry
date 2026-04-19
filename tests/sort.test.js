@@ -621,4 +621,116 @@ describe('runSort', () => {
     const result = runSort({}, io);
     assert.equal(result.route, 'blocked');
   });
+
+  // -------------------------------------------------------------------------
+  // Model resolution + fail-fast on missing subagent
+  // -------------------------------------------------------------------------
+
+  const workWithModels = (modelsYaml) => [
+    '---',
+    'cycle: c1',
+    'stages:',
+    '  - forge:write',
+    '  - quench:review',
+    'models:',
+    ...modelsYaml,
+    '---',
+    '',
+  ].join('\n');
+
+  it('resolves model slug replacing both / and . with -', () => {
+    const workText = workWithModels(['  forge: github-copilot/claude-sonnet-4.6']);
+    const io = {
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md') return true;
+        return false;
+      },
+      readFile: (p) => {
+        if (p === 'WORK.md') return workText;
+        throw new Error(`unexpected read: ${p}`);
+      },
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, 'foundry-github-copilot-claude-sonnet-4-6');
+  });
+
+  it('resolves model slug for model without dots', () => {
+    const workText = workWithModels(['  forge: opencode/claude-sonnet-4']);
+    const io = {
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === '.opencode/agents/foundry-opencode-claude-sonnet-4.md') return true;
+        return false;
+      },
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, 'foundry-opencode-claude-sonnet-4');
+  });
+
+  it('returns violation when required subagent file is missing', () => {
+    const workText = workWithModels(['  forge: github-copilot/claude-sonnet-4.6']);
+    const io = {
+      exists: (p) => p === 'WORK.md',
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(result.route, 'violation');
+    assert.match(result.details, /missing required subagent/i);
+    assert.match(result.details, /foundry-github-copilot-claude-sonnet-4-6\.md/);
+  });
+
+  it('respects custom agentsDir option for fail-fast check', () => {
+    const workText = workWithModels(['  forge: opencode/claude-sonnet-4']);
+    const io = {
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === 'custom/agents/foundry-opencode-claude-sonnet-4.md') return true;
+        return false;
+      },
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml', agentsDir: 'custom/agents' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, 'foundry-opencode-claude-sonnet-4');
+  });
+
+  it('does not fail-fast when cycle has no models map', () => {
+    const workText = [
+      '---',
+      'cycle: c1',
+      'stages:',
+      '  - forge:write',
+      '---',
+      '',
+    ].join('\n');
+    const io = {
+      exists: (p) => p === 'WORK.md',
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, undefined);
+  });
+
+  it('does not fail-fast when models map has no entry for current stage base', () => {
+    const workText = workWithModels(['  quench: opencode/claude-sonnet-4']);
+    const io = {
+      exists: (p) => p === 'WORK.md',
+      readFile: () => workText,
+      exec: () => '',
+    };
+    // Fresh cycle routes to forge:write, but models map only defines quench
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, undefined);
+  });
 });
