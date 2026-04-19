@@ -263,3 +263,52 @@ describe('workfile tools preconditions', () => {
     assert.equal(res.cycle, 'c');
   });
 });
+
+// ── History tool ──
+
+describe('foundry_history_append preconditions', () => {
+  let dir, plugin;
+  beforeEach(async () => { dir = initRepo(); plugin = await FoundryPlugin({ directory: dir }); });
+
+  it('stage=sort is always allowed (with no active stage)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_history_append.execute(
+      { cycle: 'c', stage: 'sort', comment: 'routed', route: 'forge:c' }, makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+  });
+
+  it('stage=forge:c errors when no prior sort', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_history_append.execute(
+      { cycle: 'c', stage: 'forge:c', comment: 'started' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /does not match last sort route none/);
+  });
+
+  it('stage=forge:c errors when last sort routed elsewhere', async () => {
+    await plugin.tool.foundry_history_append.execute(
+      { cycle: 'c', stage: 'sort', comment: 'routed', route: 'quench:c' }, makeCtx(dir),
+    );
+    const res = JSON.parse(await plugin.tool.foundry_history_append.execute(
+      { cycle: 'c', stage: 'forge:c', comment: 'wrong' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /does not match last sort route quench:c/);
+  });
+
+  it('stage=forge:c ok when last sort routed to forge:c', async () => {
+    await plugin.tool.foundry_history_append.execute(
+      { cycle: 'c', stage: 'sort', comment: 'routed', route: 'forge:c' }, makeCtx(dir),
+    );
+    const res = JSON.parse(await plugin.tool.foundry_history_append.execute(
+      { cycle: 'c', stage: 'forge:c', comment: 'starting' }, makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+  });
+
+  it('requires no active stage', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_history_append.execute(
+      { cycle: 'c', stage: 'sort', comment: 'x' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+});

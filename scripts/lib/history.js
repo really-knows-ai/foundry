@@ -18,7 +18,7 @@ export function loadHistory(historyPath, cycle, io) {
 /**
  * Append a history entry with auto-generated ISO timestamp.
  */
-export function appendEntry(historyPath, { cycle, stage, iteration, comment }, io) {
+export function appendEntry(historyPath, { cycle, stage, iteration, comment, route }, io) {
   if (iteration == null) throw new Error('iteration is required');
   if (!comment) throw new Error('comment is required');
 
@@ -27,13 +27,15 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment }, i
     existing = yaml.load(io.readFile(historyPath)) || [];
   }
 
-  existing.push({
+  const entry = {
     cycle,
     stage,
     iteration,
     comment,
     timestamp: new Date().toISOString(),
-  });
+  };
+  if (route !== undefined) entry.route = route;
+  existing.push(entry);
 
   io.writeFile(historyPath, yaml.dump(existing));
 }
@@ -44,4 +46,14 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment }, i
 export function getIteration(historyPath, cycle, io) {
   const history = loadHistory(historyPath, cycle, io);
   return history.filter(e => (e.stage || '').split(':')[0] === 'forge').length;
+}
+
+/**
+ * Return the `route` field from the most recent `sort` history entry for a
+ * given cycle, or null if none exists.
+ */
+export function readLastSortRoute(historyPath, cycle, io) {
+  const entries = loadHistory(historyPath, cycle, io).filter(e => e.stage === 'sort');
+  if (!entries.length) return null;
+  return entries[entries.length - 1].route ?? null;
 }

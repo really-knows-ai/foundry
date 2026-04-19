@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
+import { loadHistory, appendEntry, getIteration, readLastSortRoute } from '../../scripts/lib/history.js';
 import yaml from 'js-yaml';
 
 function mockIO(fileContent = null) {
@@ -84,5 +84,50 @@ describe('getIteration', () => {
 
   it('returns 0 for no history', () => {
     assert.equal(getIteration('h.yaml', 'c1', mockIO(null)), 0);
+  });
+});
+
+describe('readLastSortRoute', () => {
+  it('returns null for empty history', () => {
+    assert.equal(readLastSortRoute('h.yaml', 'c1', mockIO(null)), null);
+  });
+
+  it('returns null when no sort entries', () => {
+    const data = yaml.dump([
+      { cycle: 'c1', stage: 'forge:a', timestamp: '2025-01-01T00:00:00Z' },
+    ]);
+    assert.equal(readLastSortRoute('h.yaml', 'c1', mockIO(data)), null);
+  });
+
+  it('returns route from most recent sort entry', () => {
+    const data = yaml.dump([
+      { cycle: 'c1', stage: 'sort', route: 'forge:a', timestamp: '2025-01-01T00:00:00Z' },
+      { cycle: 'c1', stage: 'forge:a', timestamp: '2025-01-02T00:00:00Z' },
+      { cycle: 'c1', stage: 'sort', route: 'quench:a', timestamp: '2025-01-03T00:00:00Z' },
+    ]);
+    assert.equal(readLastSortRoute('h.yaml', 'c1', mockIO(data)), 'quench:a');
+  });
+
+  it('returns null when last sort has no route field', () => {
+    const data = yaml.dump([
+      { cycle: 'c1', stage: 'sort', timestamp: '2025-01-01T00:00:00Z' },
+    ]);
+    assert.equal(readLastSortRoute('h.yaml', 'c1', mockIO(data)), null);
+  });
+});
+
+describe('appendEntry with route', () => {
+  it('persists route field when provided', () => {
+    const io = mockIO(null);
+    appendEntry('h.yaml', { cycle: 'c1', stage: 'sort', iteration: 1, comment: 'routed', route: 'forge:x' }, io);
+    const written = yaml.load(io.getWritten());
+    assert.equal(written[0].route, 'forge:x');
+  });
+
+  it('omits route field when not provided', () => {
+    const io = mockIO(null);
+    appendEntry('h.yaml', { cycle: 'c1', stage: 'forge', iteration: 1, comment: 'x' }, io);
+    const written = yaml.load(io.getWritten());
+    assert.equal(written[0].route, undefined);
   });
 });

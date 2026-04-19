@@ -12,7 +12,7 @@ import fs from 'fs';
 import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
-import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
+import { loadHistory, appendEntry, getIteration, readLastSortRoute } from '../../scripts/lib/history.js';
 import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField, enrichStages, parseStagesValue, parseModelsValue } from '../../scripts/lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../scripts/lib/feedback.js';
@@ -171,12 +171,25 @@ export const FoundryPlugin = async ({ directory }) => {
           cycle: tool.schema.string().describe('Cycle name'),
           stage: tool.schema.string().describe('Stage name'),
           comment: tool.schema.string().describe('Comment for this entry'),
+          route: tool.schema.string().optional().describe('When stage=sort, the stage alias the sort routed to'),
         },
         async execute(args, context) {
           const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_history_append ${guard.error}` });
           const historyPath = path.join(context.worktree, 'WORK.history.yaml');
+          // Sort-route alias check: if this entry is NOT a sort, it must match
+          // the most recent sort's `route` for this cycle.
+          if (args.stage !== 'sort') {
+            const expected = readLastSortRoute(historyPath, args.cycle, io);
+            if (args.stage !== expected) {
+              return JSON.stringify({
+                error: `foundry_history_append: stage ${args.stage} does not match last sort route ${expected ?? 'none'}`,
+              });
+            }
+          }
           const iteration = getIteration(historyPath, args.cycle, io);
-          appendEntry(historyPath, { cycle: args.cycle, stage: args.stage, iteration, comment: args.comment }, io);
+          appendEntry(historyPath, { cycle: args.cycle, stage: args.stage, iteration, comment: args.comment, route: args.route }, io);
           return JSON.stringify({ ok: true, iteration });
         },
       }),
