@@ -6,7 +6,7 @@ description: Creates a new foundry cycle within a foundry flow, specifying the o
 
 # Add Cycle
 
-You help the user create a new foundry cycle and add it to an existing foundry flow. A foundry cycle produces one artefact type (read-write) and optionally reads from artefact types produced by earlier foundry cycles (read-only).
+You help the user create a new foundry cycle and add it to an existing foundry flow. A foundry cycle produces one artefact type (read-write), declares its input contract, targets the next cycle(s), and optionally enables human-appraise as a quality gate.
 
 ## Prerequisites
 
@@ -28,7 +28,11 @@ From the user's prompt, establish:
 - `id` — lowercase, hyphenated identifier for the foundry cycle
 - `name` — human-readable name
 - `output` — the artefact type this foundry cycle produces (must exist in `foundry/artefacts/`)
-- `inputs` — artefact types from earlier foundry cycles that this foundry cycle reads (may be empty)
+- `inputs` — artefact types this cycle reads, with a contract type:
+  - `type`: `any-of` (at least one must exist) or `all-of` (all must exist)
+  - `artefacts`: list of artefact type IDs
+  - May be empty for starting cycles
+- `targets` — cycle(s) to route to after this cycle completes (may be empty for terminal cycles)
 - A prose description of what this foundry cycle does
 
 If any of these are missing, ask.
@@ -46,13 +50,22 @@ For each stage in the cycle (forge, quench, appraise), ask the user if they want
 
 Only stages with an explicitly specified model are included in the `models` frontmatter map.
 
-### 4. Validate artefact types
+### 4. Configure human appraise
+
+Ask the user:
+
+> Do you want a human quality gate on this cycle? If enabled, a human reviewer will check the artefact after LLM appraisers pass, and can break deadlocks between forge and appraisers.
+>
+> - Enable human-appraise? (yes/no)
+> - If yes, deadlock threshold (default: 3 — number of forge/appraise iterations before escalating to human)
+
+### 5. Validate artefact types
 
 For `output` and each entry in `inputs`:
 - Verify the artefact type exists in `foundry/artefacts/<type>/definition.md`
 - If it doesn't, tell the user and ask if they want to create it first (separate skill)
 
-### 5. Validate against the foundry flow
+### 6. Validate against the foundry flow
 
 Read the flow definition from `foundry/flows/<flow-id>.md`. Check:
 
@@ -66,13 +79,13 @@ Read the flow definition from `foundry/flows/<flow-id>.md`. Check:
 > 2. Remove `<type>` from inputs (this foundry cycle won't have that context)
 > 3. Proceed anyway (the artefact may exist from a previous foundry flow run)
 
-### 6. Check for id conflicts
+### 7. Check for id conflicts
 
 Read all existing cycle definitions in `foundry/cycles/*.md`.
 
 - Exact id match → hard conflict, must choose a different id
 
-### 7. Check for semantic overlap
+### 8. Check for semantic overlap
 
 For foundry cycles already in this foundry flow, check whether the new foundry cycle overlaps in purpose:
 - Does another foundry cycle already transform the same inputs into a similar output?
@@ -80,7 +93,7 @@ For foundry cycles already in this foundry flow, check whether the new foundry c
 
 If overlap is found, present it and ask the user to confirm the distinction is real.
 
-### 8. Draft the definition
+### 9. Draft the definition
 
 Present the foundry cycle definition to the user:
 
@@ -90,41 +103,42 @@ id: <id>
 name: <name>
 output: <artefact-type-id>
 inputs:
-  - <artefact-type-id>
+  type: <any-of|all-of>
+  artefacts:
+    - <artefact-type-id>
+targets:
+  - <cycle-id>
+human-appraise:
+  enabled: <true|false>
+  deadlock-threshold: <number>
 models:
-  appraise: <model-id>       # optional, only if specified
+  appraise: <model-id>
 ---
 
 # <Name>
 
-<description — what this foundry cycle does, what it reads, what it produces>
+<description>
 ```
 
 Ask: does this capture the foundry cycle correctly?
 
-### 9. Determine position in foundry flow
+### 10. Validate target routing
 
-The foundry cycle needs a position in the foundry flow's ordered cycle list. Based on its inputs:
-- If no inputs: it can go first (or early)
-- If it reads from other foundry cycles: it must come after those foundry cycles
+For each target cycle:
+- Verify the target cycle exists in `foundry/cycles/`
+- Verify this cycle's output type satisfies at least one of the target's input artefacts
+- If the target doesn't exist yet, note it as pending
 
-Propose a position and confirm with the user:
+For input validation:
+- Verify that at least one cycle in the flow has the input artefact type(s) as its output
+- If using `all-of`, verify all input types are producible
 
-> This foundry cycle reads from `<inputs>`, which are produced by `<cycle-ids>`. It should go after those foundry cycles.
->
-> Proposed order:
-> 1. <existing-cycle>
-> 2. <existing-cycle>
-> 3. <new-cycle> ← here
->
-> Does this look right?
+### 11. Write files
 
-### 10. Write files
+- Create `foundry/cycles/<id>.md` with the cycle definition
+- Update `foundry/flows/<flow-id>.md` to add the cycle to the `## Cycles` list (if not already present)
 
-- Create `foundry/cycles/<id>.md` with the foundry cycle definition
-- Update `foundry/flows/<flow-id>.md` to add the foundry cycle at the agreed position
-
-### 11. Confirm
+### 12. Confirm
 
 Show the user the created/modified files and their contents.
 
