@@ -27,11 +27,16 @@ Read all configuration files:
 - `foundry/laws/*.md` — global laws
 - `foundry/appraisers/*.md` — appraiser definitions
 
+Also scan `.opencode/agents/foundry-*.md` for agent-filename migration (see §2).
+
 For each file, parse the frontmatter and body content.
 
 ### 2. Detect what needs migration
 
 Check each file against the current expected format:
+
+**Agent files (v2.1 migration):**
+- Any `.opencode/agents/foundry-*.md` filename containing a `.` character? → needs renaming to all-dashes format. The v2.1 naming convention replaces both `/` and `.` in the model ID with `-`. For example, `foundry-github-copilot-claude-sonnet-4.6.md` must become `foundry-github-copilot-claude-sonnet-4-6.md`. The inner `model:` frontmatter field is **not** changed — only the filename.
 
 **Flows:**
 - Has `starting-cycles` field? If not → needs DAG migration
@@ -84,7 +89,16 @@ Present a grouped summary of all issues found:
 
 If nothing needs migration, say so and stop.
 
-### 4. Migrate flows
+### 4. Migrate agent files (v2.1)
+
+For each `.opencode/agents/foundry-*.md` file with a `.` in its filename:
+- Compute the new filename by replacing all `.` with `-` (keep the `.md` extension)
+- `git mv <old> <new>` to preserve history
+- Do **not** modify the file contents — the `model:` field inside retains its original dots
+
+After renaming, remind the user: **Restart OpenCode** for the new agent filenames to register.
+
+### 5. Migrate flows
 
 For each flow needing migration:
 - Show the current ordered cycle list
@@ -93,7 +107,7 @@ For each flow needing migration:
 - Present the proposed `starting-cycles` and confirm
 - Convert numbered `## Cycles` list to unordered
 
-### 5. Migrate cycles
+### 6. Migrate cycles
 
 For each cycle needing migration:
 
@@ -112,20 +126,20 @@ For each cycle needing migration:
 
 Remove `hitl` from stages and add `human-appraise` config if enabled.
 
-### 6. Migrate other config
+### 7. Migrate other config
 
 For artefact types, appraisers, laws, and validation with issues:
 - Present each issue with a suggested fix
 - Ask the user to confirm or adjust
 
-### 7. Present migration plan
+### 8. Present migration plan
 
 Before writing anything, show the complete list of changes:
 - Group by category
 - Show each file and the specific changes
 - Ask for confirmation
 
-### 8. Apply changes
+### 9. Apply changes
 
 - Update all affected files
 - Commit with message: `[foundry] upgrade: migrate to current format`
