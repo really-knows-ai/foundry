@@ -114,7 +114,7 @@ export async function getValidation(foundryDir, typeId, io) {
     } else if (currentId) {
       const cmdMatch = line.match(/^Command:\s*(.+)/);
       const failMatch = line.match(/^Failure means:\s*(.+)/);
-      if (cmdMatch) currentCommand = cmdMatch[1].trim();
+      if (cmdMatch) currentCommand = cmdMatch[1].trim().replace(/^`|`$/g, '');
       if (failMatch) currentFailure = failMatch[1].trim();
     }
   }

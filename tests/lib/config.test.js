@@ -118,6 +118,18 @@ describe('getValidation', () => {
     const result = await getValidation('foundry', 'code', io);
     assert.equal(result, null);
   });
+
+  it('strips backticks from Command values', async () => {
+    const io = mockIO({
+      'foundry/artefacts/haiku/validation.md': [
+        '## three-lines',
+        'Command: `node validate-three-lines.js {file}`',
+        'Failure means: Not 3 lines.',
+      ].join('\n'),
+    });
+    const result = await getValidation('foundry', 'haiku', io);
+    assert.equal(result[0].command, 'node validate-three-lines.js {file}');
+  });
 });
 
 describe('getAppraisers', () => {
