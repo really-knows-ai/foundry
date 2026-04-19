@@ -184,3 +184,82 @@ describe('foundry_artefacts_add removed', () => {
     assert.equal(plugin.tool.foundry_artefacts_add, undefined);
   });
 });
+
+// ── Workfile tools ──
+
+describe('workfile tools preconditions', () => {
+  let dir, plugin;
+  beforeEach(async () => { dir = initRepo(); plugin = await FoundryPlugin({ directory: dir }); });
+
+  it('workfile_set rejects unknown key', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_workfile_set.execute(
+      { key: 'foo', value: 'bar' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /key must be one of cycle\|stages\|max-iterations\|models/);
+  });
+
+  it('workfile_set accepts cycle', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_workfile_set.execute(
+      { key: 'cycle', value: 'c2' }, makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+  });
+
+  it('workfile_set requires no active stage', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_workfile_set.execute(
+      { key: 'cycle', value: 'c2' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+
+  it('workfile_delete requires {confirm:true}', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_workfile_delete.execute(
+      { confirm: false }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires \{confirm: true\}/);
+  });
+
+  it('workfile_delete requires no active stage', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_workfile_delete.execute(
+      { confirm: true }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+
+  it('workfile_delete succeeds with confirm:true and no active stage', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_workfile_delete.execute(
+      { confirm: true }, makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+    assert.equal(existsSync(join(dir, 'WORK.md')), false);
+  });
+
+  it('workfile_create errors when WORK.md exists', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_workfile_create.execute(
+      { flow: 'f', cycle: 'c', goal: 'g' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no WORK.md; current: exists/);
+  });
+
+  it('workfile_create requires no active stage', async () => {
+    // Delete WORK.md so the "exists" check doesn't short-circuit first — but
+    // we have to delete via the tool (which itself has the guard), so instead
+    // begin stage THEN assert workfile_create is blocked.
+    // Remove WORK.md directly from disk bypassing the tool.
+    rmSync(join(dir, 'WORK.md'));
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_workfile_create.execute(
+      { flow: 'f', cycle: 'c', goal: 'g' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+
+  it('workfile_get succeeds during active stage (read-only)', async () => {
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_workfile_get.execute({}, makeCtx(dir)));
+    assert.equal(res.error, undefined);
+    assert.equal(res.cycle, 'c');
+  });
+});

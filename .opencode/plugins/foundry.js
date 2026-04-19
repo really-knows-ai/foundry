@@ -319,9 +319,12 @@ export const FoundryPlugin = async ({ directory }) => {
           models: tool.schema.string().optional().describe('Per-stage model overrides as JSON object, e.g. \'{"forge":"openai/gpt-4o"}\''),
         },
         async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_create ${guard.error}` });
           const workPath = path.join(context.worktree, 'WORK.md');
           if (existsSync(workPath)) {
-            return JSON.stringify({ error: 'WORK.md already exists' });
+            return JSON.stringify({ error: 'foundry_workfile_create requires no WORK.md; current: exists' });
           }
           const fm = { flow: args.flow, cycle: args.cycle };
           if (args.stages) {
@@ -358,10 +361,17 @@ export const FoundryPlugin = async ({ directory }) => {
       foundry_workfile_set: tool({
         description: 'Update a single frontmatter field in WORK.md',
         args: {
-          key: tool.schema.string().describe('Frontmatter key'),
+          key: tool.schema.string().describe('Frontmatter key (cycle|stages|max-iterations|models)'),
           value: tool.schema.string().describe('Value to set (use JSON for arrays/objects, e.g. \'["forge:a","quench:b"]\' or \'{"forge":"openai/gpt-4o"}\')'),
         },
         async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_set ${guard.error}` });
+          const ALLOWED_KEYS = new Set(['cycle', 'stages', 'max-iterations', 'maxIterations', 'models']);
+          if (!ALLOWED_KEYS.has(args.key)) {
+            return JSON.stringify({ error: `foundry_workfile_set: key must be one of cycle|stages|max-iterations|models; got ${args.key}` });
+          }
           const workPath = path.join(context.worktree, 'WORK.md');
           if (!existsSync(workPath)) {
             return JSON.stringify({ error: 'WORK.md not found' });
@@ -399,9 +409,17 @@ export const FoundryPlugin = async ({ directory }) => {
       }),
 
       foundry_workfile_delete: tool({
-        description: 'Delete WORK.md and WORK.history.yaml',
-        args: {},
-        async execute(_args, context) {
+        description: 'Delete WORK.md and WORK.history.yaml (requires confirm:true)',
+        args: {
+          confirm: tool.schema.boolean().describe('Must be true to confirm deletion'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_delete ${guard.error}` });
+          if (args.confirm !== true) {
+            return JSON.stringify({ error: 'foundry_workfile_delete requires {confirm: true}' });
+          }
           const workPath = path.join(context.worktree, 'WORK.md');
           const historyPath = path.join(context.worktree, 'WORK.history.yaml');
           if (existsSync(workPath)) {
