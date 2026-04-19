@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
@@ -38,8 +38,8 @@ function makeRealIO(dir) {
 
 describe('state.js', () => {
   let dir;
-  before(() => { dir = mkdtempSync(join(tmpdir(), 'foundry-state-')); });
-  after(() => rmSync(dir, { recursive: true, force: true }));
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'foundry-state-')); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it('ensureFoundryDir is idempotent', () => {
     const io = makeRealIO(dir);
