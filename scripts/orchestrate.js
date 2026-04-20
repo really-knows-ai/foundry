@@ -9,6 +9,7 @@ import {
   getValidation,
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
+import { parseArtefactsTable } from './lib/artefacts.js';
 
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
   const lines = [
@@ -52,8 +53,22 @@ export function needsSetup(workMdContent) {
 // because the first-call dispatch prompt needs it.
 // ---------------------------------------------------------------------------
 
-export function findCycleOutputArtefact(_cycleId, _io) { return null; }
-export function readCycleTargets(_cycleId, _io) { return []; }
+export function findCycleOutputArtefact(cycleId, io) {
+  if (!io.exists('WORK.md')) return null;
+  const content = io.readFile('WORK.md');
+  const rows = parseArtefactsTable(content);
+  const match = rows.find(r => r.cycle === cycleId);
+  return match ? { file: match.file, type: match.type, status: match.status } : null;
+}
+
+export async function readCycleTargets(cycleId, io) {
+  try {
+    const cd = await getCycleDefinition('foundry', cycleId, io);
+    return cd.frontmatter?.targets ?? [];
+  } catch {
+    return [];
+  }
+}
 
 export async function readForgeFilePatterns(cycleId, io) {
   try {
@@ -92,7 +107,7 @@ async function handleSortResult(sortResult, { cycleId, cwd, io }) {
       action: 'done',
       cycle: cycleId,
       artefact_file: art?.file ?? null,
-      next_cycles: readCycleTargets(cycleId, io),
+      next_cycles: await readCycleTargets(cycleId, io),
     };
   }
 

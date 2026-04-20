@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { renderDispatchPrompt, synthesizeStages, runOrchestrate, needsSetup } from '../scripts/orchestrate.js';
+import {
+  renderDispatchPrompt,
+  synthesizeStages,
+  runOrchestrate,
+  needsSetup,
+  findCycleOutputArtefact,
+  readCycleTargets,
+  readForgeFilePatterns,
+} from '../scripts/orchestrate.js';
 
 function makeIo(files = {}) {
   const fs = new Map(Object.entries(files));
@@ -176,4 +184,76 @@ max-iterations: 3
 hello
 `;
   assert.strictEqual(needsSetup(workMd), false);
+});
+
+test('findCycleOutputArtefact: returns the artefact row matching cycle', () => {
+  const io = makeIo({
+    'WORK.md': `---
+cycle: create-haiku
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+| other/b.md | other | other-cycle | done |
+`,
+  });
+  const a = findCycleOutputArtefact('create-haiku', io);
+  assert.strictEqual(a.file, 'haikus/a.md');
+  assert.strictEqual(a.type, 'haiku');
+  assert.strictEqual(a.status, 'draft');
+});
+
+test('findCycleOutputArtefact: returns null when no match', () => {
+  const io = makeIo({
+    'WORK.md': `---
+cycle: create-haiku
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+`,
+  });
+  assert.strictEqual(findCycleOutputArtefact('create-haiku', io), null);
+});
+
+test('readCycleTargets: reads targets from cycle def', async () => {
+  const io = makeIo({
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+targets: [create-short-story, other]
+---
+`,
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+---
+`,
+  });
+  assert.deepStrictEqual(
+    await readCycleTargets('create-haiku', io),
+    ['create-short-story', 'other']
+  );
+});
+
+test('readForgeFilePatterns: reads via cycle.output → artefact-type', async () => {
+  const io = makeIo({
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md", "haikus/**/*.md"]
+---
+`,
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+---
+`,
+  });
+  assert.deepStrictEqual(
+    await readForgeFilePatterns('create-haiku', io),
+    ['haikus/*.md', 'haikus/**/*.md']
+  );
 });
