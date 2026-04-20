@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { renderDispatchPrompt, synthesizeStages, runOrchestrate } from '../scripts/orchestrate.js';
+import { renderDispatchPrompt, synthesizeStages, runOrchestrate, needsSetup } from '../scripts/orchestrate.js';
 
 function makeIo(files = {}) {
   const fs = new Map(Object.entries(files));
@@ -80,4 +80,31 @@ test('runOrchestrate: no WORK.md returns violation', () => {
   const result = runOrchestrate({}, io);
   assert.strictEqual(result.action, 'violation');
   assert.match(result.details, /no WORK\.md/i);
+});
+
+test('needsSetup: true when stages field missing from frontmatter', () => {
+  const workMd = `---
+flow: creative-flow
+cycle: create-haiku
+---
+# Goal
+
+hello
+`;
+  assert.strictEqual(needsSetup(workMd), true);
+});
+
+test('needsSetup: false when stages populated', () => {
+  const workMd = `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+max-iterations: 3
+---
+# Goal
+
+hello
+`;
+  assert.strictEqual(needsSetup(workMd), false);
 });

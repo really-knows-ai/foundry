@@ -44,3 +44,12 @@ export function runOrchestrate(args = {}, io) {
   // Stubbed — will be filled in by subsequent tasks
   throw new Error('runOrchestrate: not yet implemented beyond violation path');
 }
+
+export function needsSetup(workMdContent) {
+  // Parse just enough frontmatter to check for `stages:`
+  const match = workMdContent.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return true;
+  const fm = match[1];
+  // Look for a `stages:` key at top level (no leading whitespace)
+  return !/^stages:/m.test(fm);
+}
