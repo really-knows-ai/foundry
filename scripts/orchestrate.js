@@ -12,6 +12,7 @@ import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from './lib/artefacts.js';
 import { readActiveStage, readLastStage, clearActiveStage } from './lib/state.js';
 import { appendEntry, getIteration } from './lib/history.js';
+import { listFeedback } from './lib/feedback.js';
 
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
   const lines = [
@@ -84,7 +85,23 @@ export async function readForgeFilePatterns(cycleId, io) {
   }
 }
 
-function readRecentFeedback(_cycleId, _io) { return []; }
+function readRecentFeedback(cycleId, io, limit = 5) {
+  // Best-effort: surface recent deadlocked items (rejected or wont-fix) for
+  // the human-appraise checkpoint. Returns last `limit` matching entries.
+  // On any parse error, return [] rather than crashing the cycle.
+  try {
+    if (!io.exists('WORK.md')) return [];
+    const content = io.readFile('WORK.md');
+    const rows = parseArtefactsTable(content);
+    const items = listFeedback(content, cycleId, rows);
+    const deadlocked = items.filter(
+      it => it.state === 'wont-fix' || it.state === 'rejected'
+    );
+    return deadlocked.slice(-limit);
+  } catch {
+    return [];
+  }
+}
 
 function violation(details, affectedFiles = []) {
   return {
@@ -96,15 +113,19 @@ function violation(details, affectedFiles = []) {
 }
 
 function markArtefactBlocked(cycleId, io) {
-  if (!io.exists('WORK.md')) return;
+  if (!io.exists('WORK.md')) return { ok: true };
   const content = io.readFile('WORK.md');
   const rows = parseArtefactsTable(content);
   const row = rows.find(r => r.cycle === cycleId);
-  if (!row) return;
+  if (!row) return { ok: true };
   try {
     io.writeFile('WORK.md', setArtefactStatus(content, row.file, 'blocked'));
-  } catch {
-    // setArtefactStatus is strict; if row already blocked/done or invalid, ignore.
+    return { ok: true };
+  } catch (e) {
+    // Surface to caller: setArtefactStatus is strict (e.g. row already
+    // blocked/done, invalid status). Don't crash; let caller annotate
+    // the violation.
+    return { ok: false, error: e?.message || String(e) };
   }
 }
 
@@ -155,6 +176,14 @@ async function handleSortResult(sortResult, { cycleId, cwd, io }) {
   }
 
   // forge | quench | appraise
+  if (!model) {
+    const art = findCycleOutputArtefact(cycleId, io);
+    return violation(
+      `cycle ${cycleId} stage ${route} has no model declared in cycle definition (\`models:\` field) and no default available`,
+      [art?.file].filter(Boolean)
+    );
+  }
+
   const filePatterns = base === 'forge'
     ? await readForgeFilePatterns(cycleId, io)
     : null;
@@ -162,7 +191,7 @@ async function handleSortResult(sortResult, { cycleId, cwd, io }) {
   return {
     action: 'dispatch',
     stage: route,
-    subagent_type: model || 'general',
+    subagent_type: model,
     prompt: renderDispatchPrompt({
       stage: route,
       cycle: cycleId,
@@ -230,7 +259,14 @@ export async function runOrchestrate(args = {}, io) {
     const validation = await getValidation(foundryDir, outputType, io);
 
     let stages;
-    if (Array.isArray(cfm.stages) && cfm.stages.length > 0) {
+    if (Array.isArray(cfm.stages)) {
+      if (cfm.stages.length === 0) {
+        const art = findCycleOutputArtefact(cycleId, io);
+        return violation(
+          `cycle ${cycleId} has no stages declared in cycle definition`,
+          [art?.file, 'WORK.md'].filter(Boolean)
+        );
+      }
       stages = cfm.stages.map(s =>
         typeof s === 'string' && s.includes(':') ? s : `${s}:${cycleId}`
       );
@@ -282,11 +318,12 @@ export async function runOrchestrate(args = {}, io) {
       if (!failedStage) {
         return violation('lastResult.ok=false but no stage recorded — orphaned state');
       }
-      markArtefactBlocked(cycleId, io);
+      const blockResult = markArtefactBlocked(cycleId, io);
       if (activeStage) clearActiveStage(io);
       const art = findCycleOutputArtefact(cycleId, io);
+      const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
       return violation(
-        `subagent dispatch failed: ${lastResult.error || 'unknown error'}`,
+        `subagent dispatch failed: ${lastResult.error || 'unknown error'}${blockNote}`,
         [art?.file].filter(Boolean)
       );
     }
@@ -298,28 +335,31 @@ export async function runOrchestrate(args = {}, io) {
     }
 
     let finalizeResult;
-    if (finalize) {
-      finalizeResult = await finalize({
-        cycleId,
-        stage: lastStage.stage,
-        baseSha: lastStage.baseSha,
-        io,
-      });
-    } else {
-      // TODO(Task 10): wrap lib/finalize.finalizeStage here as the production default.
-      finalizeResult = { ok: true, artefacts: [] };
+    if (typeof finalize !== 'function') {
+      return violation(
+        'orchestrate caller must inject a `finalize` function when providing lastResult; ' +
+        'the plugin wires lib/finalize.finalizeStage; tests must pass a stub.',
+        []
+      );
     }
+    finalizeResult = await finalize({
+      cycleId,
+      stage: lastStage.stage,
+      baseSha: lastStage.baseSha,
+      io,
+    });
 
     if (!finalizeResult.ok) {
-      markArtefactBlocked(cycleId, io);
+      const blockResult = markArtefactBlocked(cycleId, io);
       if (activeStage) clearActiveStage(io);
+      const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
       if (finalizeResult.error === 'unexpected_files') {
         return violation(
-          `unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}`,
+          `unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}${blockNote}`,
           finalizeResult.files || []
         );
       }
-      return violation(`stage_finalize error: ${finalizeResult.error}`, []);
+      return violation(`stage_finalize error: ${finalizeResult.error}${blockNote}`, []);
     }
 
     for (const a of finalizeResult.artefacts ?? []) {

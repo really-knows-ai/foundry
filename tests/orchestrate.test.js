@@ -271,6 +271,10 @@ max-iterations: 3
 human-appraise: false
 deadlock-appraise: true
 deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  quench: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
 ---
 # Goal
 

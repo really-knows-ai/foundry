@@ -322,10 +322,9 @@ export const FoundryPlugin = async ({ directory }) => {
 
       // ── Orchestrate tool ──
       foundry_orchestrate: tool({
-        description: 'Run the next step of the current cycle. Call with no args on first invocation; call with lastResult={kind,ok} after a dispatch/human_appraise completes. Returns {action, ...} describing what the caller should do next.',
+        description: 'Run the next step of the current cycle. Call with no args on first invocation; call with lastResult={ok,error?} after a dispatch/human_appraise completes. Returns {action, ...} describing what the caller should do next.',
         args: {
           lastResult: tool.schema.object({
-            kind: tool.schema.string(),
             ok: tool.schema.boolean(),
             error: tool.schema.string().optional(),
           }).optional(),
