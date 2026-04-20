@@ -26,18 +26,21 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
 ## Protocol
 
 1. `foundry_stage_begin(...)`.
-2. `foundry_workfile_get` — identify the artefact and its type.
-3. `foundry_config_validation` with the artefact type ID. If it returns null, `foundry_stage_end({summary: 'SKIP: no validation for this type'})` and stop.
-4. `foundry_validate_run` with the type ID and artefact file path — executes all validation commands and returns results.
-5. For each failure: `foundry_feedback_add(file, text, tag: 'validation')`. Tag MUST be `validation` — the tool rejects other tags during quench.
-6. If all commands pass, add no new feedback.
+2. `foundry_workfile_get` — read the `cycle` from frontmatter.
+3. `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate the artefacts produced by **this** cycle. Always pass the `cycle` filter; omitting it returns rows from prior sessions and validates stale files. Skip rows whose status is `done` or `blocked`.
+4. For each remaining row:
+   a. `foundry_config_validation` with the row's type. If it returns null, skip this row.
+   b. `foundry_validate_run` with the type ID and the row's file path — executes all validation commands and returns results.
+   c. For each failure: `foundry_feedback_add(file, text, tag: 'validation')`. Tag MUST be `validation` — the tool rejects other tags during quench.
+5. If every command passes for every row, add no new feedback.
+6. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
 7. `foundry_stage_end({summary})`.
 
 ## Reviewing actioned feedback
 
 On subsequent passes, review previously actioned items:
 
-1. `foundry_feedback_list` — find `actioned` items tagged `validation` for this artefact.
+1. `foundry_feedback_list` — find `actioned` items tagged `validation` for artefacts in this cycle (use the file list from step 3 above).
 2. Re-run the relevant command via `foundry_validate_run`.
 3. If the check now passes: `foundry_feedback_resolve(file, index, resolution: 'approved')`.
 4. If it still fails: `foundry_feedback_resolve(file, index, resolution: 'rejected', reason)`.

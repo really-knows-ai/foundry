@@ -185,6 +185,42 @@ describe('foundry_artefacts_add removed', () => {
   });
 });
 
+describe('foundry_artefacts_list cycle filter', () => {
+  let dir, plugin;
+  beforeEach(async () => {
+    dir = initRepo();
+    plugin = await FoundryPlugin({ directory: dir });
+    const p = join(dir, 'WORK.md');
+    const t = readFileSync(p, 'utf-8').replace(
+      '|------|------|-------|--------|\n',
+      '|------|------|-------|--------|\n' +
+      '| stale.md | foo | old-cycle | done |\n' +
+      '| fresh.md | foo | c | draft |\n' +
+      '| also-fresh.md | bar | c | done |\n',
+    );
+    writeFileSync(p, t);
+  });
+
+  it('returns all rows when no cycle arg', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_artefacts_list.execute({}, makeCtx(dir)));
+    assert.equal(res.length, 3);
+  });
+
+  it('filters to matching cycle when cycle arg given', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_artefacts_list.execute({ cycle: 'c' }, makeCtx(dir)));
+    assert.equal(res.length, 2);
+    assert.ok(res.every(r => r.cycle === 'c'));
+    assert.ok(res.find(r => r.file === 'fresh.md'));
+    assert.ok(res.find(r => r.file === 'also-fresh.md'));
+    assert.ok(!res.find(r => r.file === 'stale.md'));
+  });
+
+  it('returns empty array when no rows match cycle', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_artefacts_list.execute({ cycle: 'nope' }, makeCtx(dir)));
+    assert.deepEqual(res, []);
+  });
+});
+
 // ── Workfile tools ──
 
 describe('workfile tools preconditions', () => {

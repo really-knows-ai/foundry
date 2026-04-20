@@ -27,12 +27,14 @@ Appraise makes **no disk writes**. All output flows through `foundry_feedback_ad
 
 1. `foundry_stage_begin(...)`.
 2. Gather context:
-   - `foundry_workfile_get` — identify the artefact to appraise and its type
-   - `foundry_config_laws` — get all applicable laws (global + type-specific)
-   - `foundry_config_artefact_type` with the type ID — get the artefact type definition
-   - `foundry_appraisers_select` with the type ID — returns selected appraiser personalities with their raw model IDs
+   - `foundry_workfile_get` — read the `cycle` from frontmatter
+   - `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate this cycle's artefacts. Always pass the `cycle` filter; omitting it returns stale rows from prior sessions. Skip rows whose status is `done` or `blocked`.
+   - For each remaining row, gather its type-specific context:
+     - `foundry_config_laws` with the row's type — applicable laws (global + type-specific)
+     - `foundry_config_artefact_type` with the type ID — the artefact type definition
+     - `foundry_appraisers_select` with the type ID — selected appraiser personalities with their raw model IDs
 
-3. Dispatch each appraiser as an independent sub-agent (see Dispatch below)
+3. Dispatch each appraiser as an independent sub-agent (see Dispatch below). If this cycle produced multiple artefacts, appraisers evaluate each.
 
 4. Collect results from all appraisers
 

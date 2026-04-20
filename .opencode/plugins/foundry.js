@@ -472,15 +472,19 @@ export const FoundryPlugin = async ({ directory }) => {
       }),
 
       foundry_artefacts_list: tool({
-        description: 'List all artefacts from the WORK.md table',
-        args: {},
-        async execute(_args, context) {
+        description: 'List artefacts from the WORK.md table. Optionally filter by cycle — callers should always pass the current cycle to avoid picking up stale rows from prior sessions.',
+        args: {
+          cycle: tool.schema.string().optional().describe('Only return rows whose Cycle column matches this value'),
+        },
+        async execute(args, context) {
           const workPath = path.join(context.worktree, 'WORK.md');
           if (!existsSync(workPath)) {
             return JSON.stringify({ error: 'WORK.md not found' });
           }
           const text = readFileSync(workPath, 'utf-8');
-          return JSON.stringify(parseArtefactsTable(text));
+          const rows = parseArtefactsTable(text);
+          const filtered = args.cycle ? rows.filter(r => r.cycle === args.cycle) : rows;
+          return JSON.stringify(filtered);
         },
       }),
 

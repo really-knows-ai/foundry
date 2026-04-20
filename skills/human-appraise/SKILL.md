@@ -27,8 +27,8 @@ Human-appraise makes **no disk writes**. All output flows through `foundry_feedb
 
 1. `foundry_stage_begin(...)`.
 2. Gather context by calling:
-   - `foundry_workfile_get` — current state, goal, artefacts
-   - `foundry_artefacts_list` — current artefact files and status
+   - `foundry_workfile_get` — current state, goal, cycle
+   - `foundry_artefacts_list({cycle: <current-cycle>})` — this cycle's artefact files and status (always pass the `cycle` filter; omitting it returns stale rows from prior sessions)
    - `foundry_feedback_list` — all existing feedback
    - `foundry_history_list` — what has happened so far
 
