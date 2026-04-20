@@ -263,6 +263,8 @@ export async function runOrchestrate(args = {}, io) {
   }
 
   const activeStage = readActiveStage(io);
+  const lastStage = readLastStage(io);
+
   if (activeStage && !lastResult) {
     return violation(
       `prior stage ${activeStage.stage} orphaned — no lastResult provided but active stage exists. ` +
@@ -272,13 +274,16 @@ export async function runOrchestrate(args = {}, io) {
   }
 
   if (lastResult) {
-    if (!activeStage) {
-      return violation('lastResult provided but no active stage recorded — orphaned state');
-    }
-
+    // Subagent crash path: stage_end may NOT have been called, so activeStage
+    // can still exist and lastStage may be stale or absent. Prefer activeStage
+    // (current dispatch) over lastStage (could be from a prior cycle).
     if (lastResult.ok === false) {
+      const failedStage = activeStage || lastStage;
+      if (!failedStage) {
+        return violation('lastResult.ok=false but no stage recorded — orphaned state');
+      }
       markArtefactBlocked(cycleId, io);
-      clearActiveStage(io);
+      if (activeStage) clearActiveStage(io);
       const art = findCycleOutputArtefact(cycleId, io);
       return violation(
         `subagent dispatch failed: ${lastResult.error || 'unknown error'}`,
@@ -286,12 +291,18 @@ export async function runOrchestrate(args = {}, io) {
       );
     }
 
+    // Happy path: foundry_stage_end has run, which writes lastStage and clears
+    // activeStage. lastStage is the canonical source of stage identity & baseSha.
+    if (!lastStage) {
+      return violation('lastResult provided but no last stage recorded — orphaned state');
+    }
+
     let finalizeResult;
     if (finalize) {
       finalizeResult = await finalize({
         cycleId,
-        stage: activeStage.stage,
-        baseSha: activeStage.baseSha,
+        stage: lastStage.stage,
+        baseSha: lastStage.baseSha,
         io,
       });
     } else {
@@ -301,7 +312,7 @@ export async function runOrchestrate(args = {}, io) {
 
     if (!finalizeResult.ok) {
       markArtefactBlocked(cycleId, io);
-      clearActiveStage(io);
+      if (activeStage) clearActiveStage(io);
       if (finalizeResult.error === 'unexpected_files') {
         return violation(
           `unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}`,
@@ -325,8 +336,7 @@ export async function runOrchestrate(args = {}, io) {
       }
     }
 
-    const lastStage = readLastStage(io);
-    const summary = lastStage?.summary || '(no summary)';
+    const summary = lastStage.summary || '(no summary)';
     const historyPath = 'WORK.history.yaml';
     const iteration = getIteration(historyPath, cycleId, io);
 
@@ -334,20 +344,22 @@ export async function runOrchestrate(args = {}, io) {
       cycle: cycleId,
       stage: 'sort',
       iteration,
-      route: activeStage.stage,
-      comment: `route ${activeStage.stage}`,
+      route: lastStage.stage,
+      comment: `route ${lastStage.stage}`,
     }, io);
     appendEntry(historyPath, {
       cycle: cycleId,
-      stage: activeStage.stage,
+      stage: lastStage.stage,
       iteration,
       comment: summary,
     }, io);
 
     if (git && typeof git.commit === 'function') {
-      git.commit(`[${cycleId}] ${activeStage.stage}: ${summary}`);
+      git.commit(`[${cycleId}] ${lastStage.stage}: ${summary}`);
     }
-    clearActiveStage(io);
+    // Defensive: stage_end clears activeStage already; this is a no-op in the
+    // normal lifecycle but cleans up if the subagent skipped stage_end.
+    if (activeStage) clearActiveStage(io);
   }
 
   const sortResult = runSort(

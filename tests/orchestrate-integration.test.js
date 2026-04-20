@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { runOrchestrate } from '../scripts/orchestrate.js';
-import { writeActiveStage, writeLastStage } from '../scripts/lib/state.js';
+import { writeActiveStage, clearActiveStage, writeLastStage } from '../scripts/lib/state.js';
 
 // In-memory IO that mimics tests/orchestrate.test.js but adds an `exec`
 // stub so sort.js's git invocations (dirty-tree check, modified-files
@@ -119,9 +119,10 @@ Command: \`echo ok\`
   );
   assert.strictEqual(finalizeCalls.length, 0, 'no finalize on first call');
 
-  // Simulate the dispatched forge agent: writes the artefact (already in
-  // fixture), records active-stage via foundry_stage_begin, and writes
-  // last-stage via foundry_stage_end with a summary.
+  // Simulate the dispatched forge agent's full lifecycle:
+  //   stage_begin → writeActiveStage
+  //   (subagent does work)
+  //   stage_end → writeLastStage + clearActiveStage
   io.writeFile('haikus/a.md', 'cup of coffee\nterminal delay\nthe rain returns');
   writeActiveStage(io, {
     cycle: 'create-haiku',
@@ -135,6 +136,7 @@ Command: \`echo ok\`
     baseSha: 'sha1',
     summary: 'wrote first draft',
   });
+  clearActiveStage(io);
 
   // ------------------------------------------------------------------
   // Call 2: finalize forge, append history, commit, dispatch quench.
@@ -166,7 +168,7 @@ Command: \`echo ok\`
     'active stage cleared after finalize'
   );
 
-  // Simulate quench agent
+  // Simulate quench agent (full lifecycle)
   writeActiveStage(io, {
     cycle: 'create-haiku',
     stage: 'quench:create-haiku',
@@ -179,6 +181,7 @@ Command: \`echo ok\`
     baseSha: 'sha2',
     summary: 'all checks passed',
   });
+  clearActiveStage(io);
 
   // ------------------------------------------------------------------
   // Call 3: finalize quench, dispatch appraise.
@@ -196,7 +199,7 @@ Command: \`echo ok\`
     `expected quench commit, got: ${commits.join(' | ')}`
   );
 
-  // Simulate appraise agent
+  // Simulate appraise agent (full lifecycle)
   writeActiveStage(io, {
     cycle: 'create-haiku',
     stage: 'appraise:create-haiku',
@@ -209,6 +212,7 @@ Command: \`echo ok\`
     baseSha: 'sha3',
     summary: 'unanimous approval',
   });
+  clearActiveStage(io);
 
   // ------------------------------------------------------------------
   // Call 4: finalize appraise -> sort returns 'done'.

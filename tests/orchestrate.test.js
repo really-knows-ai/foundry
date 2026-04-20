@@ -293,12 +293,6 @@ haiku
       baseSha: 'abc',
       summary: 'wrote haiku'
     }),
-    '.foundry/active-stage.json': JSON.stringify({
-      cycle: 'create-haiku',
-      stage: 'forge:create-haiku',
-      token: 'T',
-      baseSha: 'abc'
-    }),
     'haikus/a.md': 'cup of coffee / terminal delay / the rain returns',
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
