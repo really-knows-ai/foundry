@@ -395,3 +395,74 @@ max-iterations: 3
   assert.strictEqual(result.action, 'violation');
   assert.match(result.details, /orphaned|prior stage/i);
 });
+
+import * as orchestrate from '../scripts/orchestrate.js';
+
+test('handleSortResult: done route returns done action with next_cycles', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+flow: cf
+cycle: create-haiku
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output: haiku
+targets: [create-short-story]
+---
+`,
+  });
+  const result = await orchestrate.__handleSortResultForTest(
+    { route: 'done' },
+    { cycleId: 'create-haiku', cwd: '/tmp', io }
+  );
+  assert.strictEqual(result.action, 'done');
+  assert.strictEqual(result.artefact_file, 'haikus/a.md');
+  assert.deepStrictEqual(result.next_cycles, ['create-short-story']);
+});
+
+test('handleSortResult: blocked route returns blocked action', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+cycle: create-haiku
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+---
+`,
+  });
+  const result = await orchestrate.__handleSortResultForTest(
+    { route: 'blocked', details: 'iteration limit' },
+    { cycleId: 'create-haiku', cwd: '/tmp', io }
+  );
+  assert.strictEqual(result.action, 'blocked');
+  assert.match(result.reason, /iteration limit/);
+});
+
+test('handleSortResult: human-appraise route returns human_appraise action', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+cycle: create-haiku
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+  });
+  const result = await orchestrate.__handleSortResultForTest(
+    { route: 'human-appraise:create-haiku', token: 'HA_TOKEN' },
+    { cycleId: 'create-haiku', cwd: '/tmp', io }
+  );
+  assert.strictEqual(result.action, 'human_appraise');
+  assert.strictEqual(result.stage, 'human-appraise:create-haiku');
+  assert.strictEqual(result.token, 'HA_TOKEN');
+  assert.strictEqual(result.context.cycle, 'create-haiku');
+  assert.strictEqual(result.context.artefact_file, 'haikus/a.md');
+});

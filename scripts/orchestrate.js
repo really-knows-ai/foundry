@@ -361,3 +361,6 @@ export async function runOrchestrate(args = {}, io) {
 
   return handleSortResult(sortResult, { cycleId, cwd, io });
 }
+
+// Test-only export; keep underscored to discourage runtime use.
+export { handleSortResult as __handleSortResultForTest };
