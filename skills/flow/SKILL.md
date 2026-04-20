@@ -49,8 +49,8 @@ When a cycle completes (sort returns `done`):
    - Check input contracts for each
    - The user chooses which target to pursue (or which to pursue first)
 5. Set up the next cycle:
-   - Call `foundry_workfile_set` with `key: "cycle"`, `value: <next-cycle-id>`
-   - Reset stages and iteration count for the new cycle
+   - Call `foundry_workfile_delete` to clear the completed cycle's WORK.md
+   - Call `foundry_workfile_create` with **only** the flow ID, the next cycle ID, and the goal — do **not** pass `stages` or `maxIterations`. The orchestrate skill will detect `needsSetup` on its first call and bootstrap the rest of the frontmatter from the cycle definition.
    - Execute the cycle by invoking the orchestrate skill
 
 ## Completing a flow

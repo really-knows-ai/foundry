@@ -102,7 +102,7 @@ new skills). It does NOT apply to running an existing, defined flow.
 
 ## Available skills
 
-- **Pipeline:** forge, quench, appraise, cycle, flow, sort, human-appraise
+- **Pipeline:** forge, quench, appraise, orchestrate, flow, human-appraise
 - **Authoring:** add-artefact-type, add-law, add-appraiser, add-cycle, add-flow, init-foundry
 - **Maintenance:** upgrade-foundry, refresh-agents, list-agents
 

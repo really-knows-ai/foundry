@@ -6,7 +6,6 @@
 
 - **LLM orchestration replaced with deterministic `foundry_orchestrate` tool.** The `cycle` and `sort` skills are removed; replaced by a single thin `orchestrate` skill that drives a 3-line loop.
 - **Six tools deregistered** from the plugin (still exist as internal imports for tests): `foundry_sort`, `foundry_history_append`, `foundry_stage_finalize`, `foundry_git_commit`, `foundry_workfile_configure_from_cycle`, `foundry_workfile_set`.
-- **`foundry_artefacts_add` removed entirely.** `foundry_stage_finalize` (internal) registers forge outputs.
 - Upgrade requires clean main + no in-flight workfile (see `upgrade-foundry` skill).
 
 ### Added
