@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.3.1 — 2026-04-20
+
+### Changed
+
+- `flow` skill: any cycle in a flow may now be the starting cycle (previously limited to `starting-cycles`). The list becomes a hint for ambiguous requests. A cycle whose `inputs` contract cannot be satisfied from files on disk is not eligible to start.
+- `flow` skill: between-cycles logic no longer implies any carry-over ceremony. The next cycle's forge discovers the previous cycle's output via filesystem scan against its input types' `file-patterns`.
+- `forge` skill: input discovery now explicitly uses filesystem scan against each input type's `file-patterns`, with the goal guiding which candidates are relevant.
+- `forge` skill: the write invariant is restated accurately — forge may only write to files matching the output artefact type's `file-patterns` (plus the tool-managed files). All other files on disk are read-only. The previous "inputs are read-only" framing was a special case of this rule.
+
+### Notes
+
+- No tool, schema, or enforcement changes. Existing flows continue to work. `sort.js`'s `checkModifiedFiles` already enforces the write invariant.
+
 ## 2.3.0 — 2026-04-20
 
 ### Breaking
