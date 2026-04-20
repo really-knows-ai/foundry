@@ -1798,12 +1798,14 @@ Expected: `2.3.0`.
 
 **Scope check:** one spec, ~19 tasks, single plan feasible. No decomposition needed.
 
-## Execution Handoff
+## Execution Approach
 
-Plan complete and saved to `docs/plans/2026-04-20-orchestrate.md`. Two execution options:
+**Decided: Subagent-Driven Development** (via `superpowers:subagent-driven-development` skill).
 
-**1. Subagent-Driven (recommended)** — fresh subagent per task, review between tasks, fast iteration. Best for this plan because most tasks are TDD red/green/refactor cycles that benefit from clean context per task.
+Fresh subagent per task, review between tasks. Rationale: most tasks are TDD red/green/refactor cycles with contained scope — clean context per task avoids drift and produces cleaner commits than inline batching.
 
-**2. Inline Execution** — execute tasks in this session using executing-plans, batch execution with checkpoints.
-
-Which approach?
+When executing:
+- Load the `subagent-driven-development` skill at session start
+- Dispatch one subagent per Task (1 through 19), in order
+- Review each subagent's commit before dispatching the next
+- Tasks 5 and 7 require a pre-step to verify exact export names in `scripts/lib/config.js`, `scripts/lib/history.js`, `scripts/lib/finalize.js` — flag this to the subagent up front
