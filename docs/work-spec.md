@@ -25,8 +25,8 @@ The `stages` list is the happy path. Sort follows it but loops back to `forge` w
 
 - `flow` — set by the foundry flow skill at foundry flow start, never changes
 - `cycle` — set by the foundry flow skill when starting each foundry cycle
-- `stages` — set by the foundry cycle skill when starting each foundry cycle (reads artefact type to determine if quench is needed)
-- `max-iterations` — set by the foundry cycle skill (default 3, could be overridden in foundry cycle definition)
+- `stages` — set by the orchestrate skill when starting each foundry cycle (reads artefact type to determine if quench is needed)
+- `max-iterations` — set by the orchestrate skill (default 3, could be overridden in foundry cycle definition)
 
 ## Sections
 
@@ -96,9 +96,9 @@ Grouped by artefact file path. Each item is a checklist entry with a tag indicat
 | Section | Written by | Updated by |
 |---------|-----------|------------|
 | Frontmatter (`flow`) | `foundry_workfile_create` (flow skill) | nobody |
-| Frontmatter (`cycle`, `stages`, `max-iterations`) | `foundry_workfile_set` (cycle skill) | `foundry_workfile_set` (reset on each new cycle) |
+| Frontmatter (`cycle`, `stages`, `max-iterations`) | `foundry_workfile_set` (orchestrate skill) | `foundry_workfile_set` (reset on each new cycle) |
 | Goal | `foundry_workfile_create` (flow skill) | nobody |
-| Artefacts | `foundry_artefacts_add` (forge skill) | `foundry_artefacts_set_status` (cycle skill) |
+| Artefacts | `foundry_artefacts_add` (forge skill) | `foundry_artefacts_set_status` (orchestrate skill) |
 | Feedback | `foundry_feedback_add` (quench/appraise/hitl) | `foundry_feedback_action`/`foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (quench/appraise/hitl) |
 
 ## WORK.history.yaml
