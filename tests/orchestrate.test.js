@@ -1,6 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { renderDispatchPrompt, synthesizeStages } from '../scripts/orchestrate.js';
+import { renderDispatchPrompt, synthesizeStages, runOrchestrate } from '../scripts/orchestrate.js';
+
+function makeIo(files = {}) {
+  const fs = new Map(Object.entries(files));
+  return {
+    fs,
+    exists: (p) => fs.has(p),
+    readFile: (p) => {
+      if (!fs.has(p)) throw new Error(`ENOENT: ${p}`);
+      return fs.get(p);
+    },
+    writeFile: (p, c) => fs.set(p, c),
+    unlink: (p) => fs.delete(p),
+    mkdir: () => {},
+  };
+}
 
 test('renderDispatchPrompt includes stage, cycle, token, cwd, file-patterns', () => {
   const prompt = renderDispatchPrompt({
@@ -58,4 +73,11 @@ test('synthesizeStages: appends human-appraise when flag true', () => {
   assert.deepStrictEqual(stages, [
     'forge:c1', 'quench:c1', 'appraise:c1', 'human-appraise:c1'
   ]);
+});
+
+test('runOrchestrate: no WORK.md returns violation', () => {
+  const io = makeIo({});
+  const result = runOrchestrate({}, io);
+  assert.strictEqual(result.action, 'violation');
+  assert.match(result.details, /no WORK\.md/i);
 });

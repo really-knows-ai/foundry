@@ -31,3 +31,16 @@ export function synthesizeStages({ cycleId, hasValidation, humanAppraise }) {
   if (humanAppraise) stages.push(`human-appraise:${cycleId}`);
   return stages;
 }
+
+export function runOrchestrate(args = {}, io) {
+  if (!io.exists('WORK.md')) {
+    return {
+      action: 'violation',
+      details: 'no WORK.md; flow skill must create it first',
+      recoverable: false,
+      affected_files: []
+    };
+  }
+  // Stubbed — will be filled in by subsequent tasks
+  throw new Error('runOrchestrate: not yet implemented beyond violation path');
+}
