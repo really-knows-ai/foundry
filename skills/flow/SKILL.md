@@ -2,7 +2,7 @@
 name: flow
 type: composite
 description: Runs a defined foundry flow to produce artefacts. Use this whenever the user references a flow by id, name, or paraphrase (e.g. "use the creative flow", "run creative-flow"). Do not brainstorm — the flow's cycles already define the work. The user's request is the goal to pass in.
-composes: [cycle]
+composes: [orchestrate]
 ---
 
 # Flow
@@ -30,8 +30,8 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
       - **Resume** — keep the existing workfile and skip to step 6. **Only offer resume if the existing `flow` AND `cycle` match what the user just asked for.** If either differs, do not offer resume — running the wrong cycle against stale state corrupts the workflow.
       - **Discard** — call `foundry_workfile_delete`, then proceed to step 5.
       - **Abort** — stop the skill without modifying anything.
-5. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The `cycle` skill will read the cycle definition and populate those via `foundry_workfile_set` in the next step.
-6. Execute the cycle by invoking the cycle skill
+5. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The `orchestrate` skill will read the cycle definition and handle setup on its first call.
+6. Execute the cycle by invoking the orchestrate skill
 
 ## Between cycles
 
@@ -51,7 +51,7 @@ When a cycle completes (sort returns `done`):
 5. Set up the next cycle:
    - Call `foundry_workfile_set` with `key: "cycle"`, `value: <next-cycle-id>`
    - Reset stages and iteration count for the new cycle
-   - Execute the cycle by invoking the cycle skill
+   - Execute the cycle by invoking the orchestrate skill
 
 ## Completing a flow
 
