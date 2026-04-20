@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.3.0 — 2026-04-20
+
+### Breaking
+
+- **LLM orchestration replaced with deterministic `foundry_orchestrate` tool.** The `cycle` and `sort` skills are removed; replaced by a single thin `orchestrate` skill that drives a 3-line loop.
+- **Six tools deregistered** from the plugin (still exist as internal imports for tests): `foundry_sort`, `foundry_history_append`, `foundry_stage_finalize`, `foundry_git_commit`, `foundry_workfile_configure_from_cycle`, `foundry_workfile_set`.
+- **`foundry_artefacts_add` removed entirely.** `foundry_stage_finalize` (internal) registers forge outputs.
+- Upgrade requires clean main + no in-flight workfile (see `upgrade-foundry` skill).
+
+### Added
+
+- `foundry_orchestrate` — single tool that owns the sort → history → dispatch → finalize → history → commit loop. Atomic stage completion.
+- `scripts/orchestrate.js` — deterministic orchestration logic, composes existing internal functions.
+- Orphaned-stage detection: if orchestrate is called without `lastResult` but an active stage exists, returns `violation`. Fixes the ses_256c failure mode where an LLM skipped the post-dispatch history append and wedged the cycle.
+
+### Fixed
+
+- Root cause of all deferred HARDEN.md bugs (B, C, D, E, G) and the ses_256c bug: LLM misfollowing a deterministic protocol. Protocol now lives inside the plugin tool.
+
+### Migration
+
+See `skills/upgrade-foundry/SKILL.md` for v2.3.0 pre-flight checks. No automated state migration — complete or discard in-flight cycles on v2.2.x before upgrading.
+
 ## 2.2.1 — 2026-04-20
 
 Follow-up patch addressing the five bugs deferred from v2.2.0 (see `HARDEN.md` §Deferred).

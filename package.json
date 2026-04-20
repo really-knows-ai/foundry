@@ -1,6 +1,6 @@
 {
   "name": "@really-knows-ai/foundry",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "A structured framework for AI-driven artefact creation with deterministic routing, quality gates, and iterative refinement cycles.",
   "type": "module",
   "main": ".opencode/plugins/foundry.js",
