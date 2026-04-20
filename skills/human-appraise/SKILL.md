@@ -23,6 +23,18 @@ Human-appraise runs inside an enforced stage. Your **first** and **last** tool c
 
 Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` / `foundry_feedback_resolve` / `foundry_artefacts_set_status`. `foundry_stage_finalize` flags unexpected writes as a violation.
 
+## Input
+
+When invoked from orchestrate, you receive `{cycle, token, context}`:
+- `cycle` — the current cycle id
+- `token` — single-use token for `foundry_stage_begin`
+- `context.artefact_file` — the target artefact
+- `context.recent_feedback` — recent deadlocked feedback items to present to the user
+
+Your FIRST tool call must be `foundry_stage_begin({stage: 'human-appraise:<cycle>', cycle, token})`.
+
+Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence description of the user verdict>'})` — orchestrate reads this summary for the commit message.
+
 ## Protocol
 
 1. `foundry_stage_begin(...)`.
