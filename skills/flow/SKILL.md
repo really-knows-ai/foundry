@@ -20,9 +20,10 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 1. Call `foundry_config_flow` with the flow ID — get the flow definition
 2. Call `foundry_git_branch` with the flow ID and a short description — create the work branch
 3. Determine the starting cycle:
-   - If only one starting cycle, use it
-   - If multiple starting cycles, check whether the user's request makes the choice obvious (e.g., "write a haiku" clearly maps to `create-haiku`)
-   - If ambiguous, prompt the user to choose
+   - Any cycle listed in the flow can be the starting cycle. The flow's `starting-cycles` list is a hint for when the user's request is ambiguous.
+   - Map the user's goal to a cycle by matching the requested output (e.g. "write a short story from the tennis haiku" → `create-short-story`; "write a haiku" → `create-haiku`).
+   - If the goal is ambiguous, prompt the user to choose from the flow's cycles, defaulting the recommendation to entries in `starting-cycles`.
+   - A cycle whose `inputs` contract cannot be satisfied from files already on disk should not be chosen as the starting cycle. If no other cycle matches, inform the user which input types are missing and offer to run a cycle that produces them first.
 4. Pre-check for an existing workfile (prevents silent data loss from an aborted prior session):
    a. Call `foundry_workfile_get`.
    b. If it returns `{error: ...}` (no WORK.md), proceed to step 5.
@@ -49,9 +50,10 @@ When a cycle completes (sort returns `done`):
    - Check input contracts for each
    - The user chooses which target to pursue (or which to pursue first)
 5. Set up the next cycle:
-   - Call `foundry_workfile_delete` to clear the completed cycle's WORK.md
+   - Call `foundry_workfile_delete` to clear the completed cycle's WORK.md.
    - Call `foundry_workfile_create` with **only** the flow ID, the next cycle ID, and the goal — do **not** pass `stages` or `maxIterations`. The orchestrate skill will detect `needsSetup` on its first call and bootstrap the rest of the frontmatter from the cycle definition.
-   - Execute the cycle by invoking the orchestrate skill
+   - Do **not** register the completed cycle's output as an input to the next cycle. The output file is on disk and the next cycle's forge discovers it through the input type's `file-patterns` — see the forge skill's input-discovery protocol.
+   - Execute the cycle by invoking the orchestrate skill.
 
 ## Completing a flow
 
