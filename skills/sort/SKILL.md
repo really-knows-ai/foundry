@@ -34,7 +34,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 5. Call `foundry_history_append({cycle, stage: <dispatched-stage-alias>, comment})` summarizing what the subagent reported. The tool enforces that the stage alias matches the most recent sort's `route` — this is why step 2's `route` field matters.
 
-6. Call `foundry_git_commit({cycle, stage, description})` to record the stage's disk changes.
+6. Call `foundry_git_commit({cycle, stage, description})` to record the stage's disk changes. **This is mandatory.** The next `foundry_sort` call will return `{route: 'violation', details: 'Uncommitted tool-managed files...'}` if WORK.md, WORK.history.yaml, or anything under `.foundry/` is dirty — the tool enforces one commit per stage.
 
 7. Return to step 1. Repeat until `done`, `blocked`, or `violation`.
 
@@ -95,6 +95,13 @@ If `foundry_stage_finalize` returns `{error: 'unexpected_files', files}`:
 - Add a feedback item describing the offense: `foundry_feedback_add(file, text: 'unexpected files: …', tag: 'violation')` (if permitted by your stage), or log in the history comment.
 - Do NOT attempt to re-run the stage — the subagent already consumed the stage slot.
 - Return to the cycle skill so the operator can intervene.
+
+If `foundry_sort` returns `{route: 'violation', details: 'Uncommitted tool-managed files...'}`:
+
+- A prior stage skipped step 6 (the micro-commit). The work is not lost — it's still in the working tree.
+- Call `foundry_git_commit({cycle, stage: <the-stage-that-just-ran>, description})` to record it.
+- Then call `foundry_sort` again. It should route normally.
+- If you genuinely don't know which stage produced the dirty files, read `WORK.history.yaml` — the most recent non-sort entry is the culprit.
 
 ## What you do NOT do
 

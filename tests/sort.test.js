@@ -861,3 +861,82 @@ describe('runSort token minting', () => {
     assert.equal(res.token, undefined);
   });
 });
+
+describe('runSort micro-commit enforcement', () => {
+  const workText = [
+    '---',
+    'cycle: c1',
+    'stages:',
+    '  - forge:write',
+    '  - quench:review',
+    '---',
+    '',
+  ].join('\n');
+
+  function makeIo({ historyYaml = '', statusOutput = '' } = {}) {
+    return {
+      exists: (p) => p === 'WORK.md' || (p === 'history.yaml' && historyYaml !== ''),
+      readFile: (p) => {
+        if (p === 'WORK.md') return workText;
+        if (p === 'history.yaml') return historyYaml;
+        throw new Error(`unexpected read: ${p}`);
+      },
+      exec: (cmd) => {
+        if (cmd.startsWith('git status --porcelain')) return statusOutput;
+        if (cmd.startsWith('git log')) return '';
+        if (cmd.startsWith('git diff')) return '';
+        return '';
+      },
+    };
+  }
+
+  it('skips check when history is empty (first sort of cycle)', () => {
+    const io = makeIo({ historyYaml: '', statusOutput: ' M WORK.md\n' });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+
+  it('returns violation when tool-managed files are dirty and history has entries', () => {
+    const historyYaml = '- { cycle: c1, stage: sort, iteration: 1, comment: x }\n';
+    const io = makeIo({ historyYaml, statusOutput: ' M WORK.md\n' });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(res.route, 'violation');
+    assert.match(res.details, /Uncommitted tool-managed files/);
+    assert.match(res.details, /WORK\.md/);
+    assert.match(res.details, /foundry_git_commit/);
+  });
+
+  it('returns violation for untracked WORK.history.yaml', () => {
+    const historyYaml = '- { cycle: c1, stage: sort, iteration: 1, comment: x }\n';
+    const io = makeIo({ historyYaml, statusOutput: '?? WORK.history.yaml\n' });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(res.route, 'violation');
+    assert.match(res.details, /WORK\.history\.yaml/);
+  });
+
+  it('returns violation for dirty .foundry/ state files', () => {
+    const historyYaml = '- { cycle: c1, stage: sort, iteration: 1, comment: x }\n';
+    const io = makeIo({ historyYaml, statusOutput: ' M .foundry/state.json\n' });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(res.route, 'violation');
+    assert.match(res.details, /\.foundry\/state\.json/);
+  });
+
+  it('proceeds normally when tree is clean and history has entries', () => {
+    const historyYaml = '- { cycle: c1, stage: sort, iteration: 1, comment: x }\n';
+    const io = makeIo({ historyYaml, statusOutput: '' });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+
+  it('treats git failure as clean (graceful degrade)', () => {
+    const historyYaml = '- { cycle: c1, stage: sort, iteration: 1, comment: x }\n';
+    const io = {
+      exists: (p) => p === 'WORK.md' || p === 'history.yaml',
+      readFile: (p) => (p === 'WORK.md' ? workText : historyYaml),
+      exec: () => { throw new Error('git unavailable'); },
+    };
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+});

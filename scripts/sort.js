@@ -221,6 +221,34 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
 }
 
 // ---------------------------------------------------------------------------
+// Micro-commit enforcement
+// ---------------------------------------------------------------------------
+
+/**
+ * Return a list of tool-managed files that have uncommitted changes
+ * (modified, staged, or untracked) in the working tree.
+ *
+ * Tool-managed files are WORK.md, WORK.history.yaml, and anything under
+ * .foundry/. The sort skill is the sole writer of these between stages,
+ * and every stage must end with `foundry_git_commit`. If this function
+ * returns a non-empty list at the start of a sort invocation, a prior
+ * stage skipped the commit step.
+ */
+function getDirtyToolManagedFiles(io = defaultIO) {
+  try {
+    const output = io.exec('git status --porcelain -- WORK.md WORK.history.yaml .foundry');
+    return output
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => line.replace(/^[\sMADRCU?!]+/, '').trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exported runSort — structured result for programmatic use
 // ---------------------------------------------------------------------------
 
@@ -250,6 +278,20 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
   const artefacts = parseArtefactsTable(workText);
   const history = loadHistory(historyPath, cycle, io);
   const feedback = parseFeedback(workText, cycle, artefacts);
+
+  // Micro-commit enforcement: if any prior stage ran (history non-empty),
+  // all tool-managed files must be committed before the next sort call.
+  // The first sort of a cycle has empty history — WORK.md may be untracked
+  // or dirty at that point, which is fine.
+  if (history.length > 0) {
+    const dirty = getDirtyToolManagedFiles(io);
+    if (dirty.length > 0) {
+      return {
+        route: 'violation',
+        details: `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. Call foundry_git_commit for the prior stage before invoking sort again.`,
+      };
+    }
+  }
 
   // File modification enforcement
   const nonSortHistory = history.filter(e => baseStage(e.stage || '') !== 'sort');
@@ -322,6 +364,7 @@ export {
   getModifiedFiles,
   getAllowedPatterns,
   checkModifiedFiles,
+  getDirtyToolManagedFiles,
 };
 
 
