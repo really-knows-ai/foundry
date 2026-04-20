@@ -30,7 +30,11 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
 3. `foundry_config_cycle` — understand what to produce and what inputs are available.
 4. `foundry_config_artefact_type` with the output type ID — get the artefact type definition, especially its `file-patterns`.
 5. `foundry_config_laws` — get all applicable laws (global + type-specific).
-6. If the cycle has inputs, read the input artefacts (read-only context).
+6. If the cycle declares `inputs`, discover input files by filesystem scan:
+   - For each type listed in `inputs`, call `foundry_config_artefact_type` to get its `file-patterns`.
+   - Glob the working tree against those patterns to enumerate candidate input files.
+   - Read the goal (from `foundry_workfile_get`) and select the files that are relevant to this run. If the goal names specific files or slugs, use those; if it describes a category ("all the auth tests"), select the matching subset; if it's open-ended, you may consume all candidates or ask the user when the set is clearly ambiguous.
+   - Read the selected files for context.
 7. Produce the artefact, respecting all applicable laws from the start.
 8. Write the artefact file to a location that matches the artefact type's `file-patterns`.
 9. `foundry_stage_end({summary})`.
@@ -40,16 +44,22 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
 1. `foundry_stage_begin(...)`.
 2. `foundry_feedback_list` — find unresolved feedback for the artefact.
 3. Read the artefact file.
-4. If the cycle has inputs, read the input artefacts (read-only context).
+4. If the cycle declares `inputs`, discover them via filesystem scan against each input type's `file-patterns` (same protocol as first-generation step 6). Re-read the relevant files — they may have changed on disk since the previous iteration (nothing in this cycle wrote to them, but the user may have modified them between iterations).
 5. For each unresolved feedback item, either:
    - Address it and call `foundry_feedback_action` (marks item `actioned`), or
    - Call `foundry_feedback_wontfix` with a justification — available only for `law:` / `human` tags (validation feedback must be actioned).
 6. Update the artefact file.
 7. `foundry_stage_end({summary})`.
 
-## File-pattern hygiene
+## Write invariant
 
-Writes during forge must match the output artefact type's `file-patterns`. Writing to any other path causes `foundry_stage_finalize` to return `{error: 'unexpected_files'}` and the orchestrator will mark the cycle's target artefact `blocked`. You will not get a retry. Plus `WORK.md` and `WORK.history.yaml` (managed by tools). Nothing else.
+Forge may only write to:
+- Files matching the output artefact type's `file-patterns`.
+- `WORK.md` and `WORK.history.yaml` (tool-managed).
+
+Everything else on disk — including files of the cycle's input types, files of unrelated artefact types, and files outside any artefact type — is read-only for this stage. This is not an honor-system rule: `foundry_stage_finalize` returns `{error: 'unexpected_files'}` and `sort`'s `checkModifiedFiles` routes a violation on the next call. Either outcome marks the cycle's target artefact `blocked` and you do not get a retry.
+
+When a cycle's output type overlaps with one of its input types (e.g. a `refine-haiku` cycle with input `haiku` and output `haiku`), the overlap is intentional: the cycle's job is to modify existing files of that type. The write invariant still holds — you may only touch files matching the output type's patterns, which in this case includes the files you read as inputs.
 
 ## Unresolved feedback
 
@@ -75,4 +85,4 @@ Feedback tagged `human` (from the human-appraise stage) takes absolute priority:
 - You do not evaluate or score the artefact.
 - You do not mark feedback as actioned unless you actually changed the artefact to address it.
 - You do not wont-fix validation feedback.
-- You do not modify input artefacts — they are read-only.
+- You do not write to any file outside the output artefact type's `file-patterns` (plus `WORK.md` / `WORK.history.yaml`). Input files are read-only unless the output type's patterns happen to cover them.
