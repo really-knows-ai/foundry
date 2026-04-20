@@ -2,6 +2,14 @@
 // Composes internal functions (sort, finalize, history, commit, configure)
 // into a single entry point the LLM drives via a 3-line loop.
 
+import { runSort } from './sort.js';
+import {
+  getCycleDefinition,
+  getArtefactType,
+  getValidation,
+} from './lib/config.js';
+import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
+
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
   const lines = [
     `You are a Foundry stage agent. Invoke the ${stage.split(':')[0]} skill and follow its instructions exactly.`,
@@ -32,24 +40,205 @@ export function synthesizeStages({ cycleId, hasValidation, humanAppraise }) {
   return stages;
 }
 
-export function runOrchestrate(args = {}, io) {
-  if (!io.exists('WORK.md')) {
-    return {
-      action: 'violation',
-      details: 'no WORK.md; flow skill must create it first',
-      recoverable: false,
-      affected_files: []
-    };
-  }
-  // Stubbed — will be filled in by subsequent tasks
-  throw new Error('runOrchestrate: not yet implemented beyond violation path');
-}
-
 export function needsSetup(workMdContent) {
-  // Parse just enough frontmatter to check for `stages:`
   const match = workMdContent.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return true;
   const fm = match[1];
-  // Look for a `stages:` key at top level (no leading whitespace)
   return !/^stages:/m.test(fm);
+}
+
+// ---------------------------------------------------------------------------
+// Task-6 stub helpers (wired in later). readForgeFilePatterns is real now
+// because the first-call dispatch prompt needs it.
+// ---------------------------------------------------------------------------
+
+export function findCycleOutputArtefact(_cycleId, _io) { return null; }
+export function readCycleTargets(_cycleId, _io) { return []; }
+
+export async function readForgeFilePatterns(cycleId, io) {
+  try {
+    const cd = await getCycleDefinition('foundry', cycleId, io);
+    const output = cd.frontmatter?.output;
+    if (!output) return null;
+    const at = await getArtefactType('foundry', output, io);
+    return at.frontmatter?.['file-patterns'] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readRecentFeedback(_cycleId, _io) { return []; }
+
+function violation(details, affectedFiles = []) {
+  return {
+    action: 'violation',
+    details,
+    recoverable: false,
+    affected_files: affectedFiles,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sort result -> action shape
+// ---------------------------------------------------------------------------
+
+async function handleSortResult(sortResult, { cycleId, cwd, io }) {
+  const { route, model, token, details } = sortResult;
+  const base = typeof route === 'string' ? route.split(':')[0] : '';
+
+  if (route === 'done') {
+    const art = findCycleOutputArtefact(cycleId, io);
+    return {
+      action: 'done',
+      cycle: cycleId,
+      artefact_file: art?.file ?? null,
+      next_cycles: readCycleTargets(cycleId, io),
+    };
+  }
+
+  if (route === 'blocked') {
+    const art = findCycleOutputArtefact(cycleId, io);
+    return {
+      action: 'blocked',
+      cycle: cycleId,
+      artefact_file: art?.file ?? null,
+      reason: details ?? 'iteration limit reached with unresolved feedback',
+    };
+  }
+
+  if (route === 'violation') {
+    return violation(details ?? 'sort returned violation');
+  }
+
+  if (base === 'human-appraise') {
+    const art = findCycleOutputArtefact(cycleId, io);
+    return {
+      action: 'human_appraise',
+      stage: route,
+      token,
+      context: {
+        cycle: cycleId,
+        artefact_file: art?.file ?? null,
+        recent_feedback: readRecentFeedback(cycleId, io),
+      },
+    };
+  }
+
+  // forge | quench | appraise
+  const filePatterns = base === 'forge'
+    ? await readForgeFilePatterns(cycleId, io)
+    : null;
+
+  return {
+    action: 'dispatch',
+    stage: route,
+    subagent_type: model || 'general',
+    prompt: renderDispatchPrompt({
+      stage: route,
+      cycle: cycleId,
+      token,
+      cwd,
+      filePatterns,
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+
+export async function runOrchestrate(args = {}, io) {
+  const {
+    cwd = process.cwd(),
+    cycleDef: cycleDefOverride = null,
+    git,
+    mint,
+    now = Date.now,
+    lastResult = null,
+  } = args;
+
+  if (!io.exists('WORK.md')) {
+    return violation('no WORK.md; flow skill must create it first');
+  }
+
+  let workContent = io.readFile('WORK.md');
+  const fm = parseFrontmatter(workContent);
+  const cycleId = fm.cycle;
+  if (!cycleId) {
+    return violation('WORK.md frontmatter missing cycle field', ['WORK.md']);
+  }
+
+  if (needsSetup(workContent)) {
+    if (lastResult) {
+      return violation(
+        'inconsistent state: lastResult provided but WORK.md still needs setup',
+        ['WORK.md']
+      );
+    }
+
+    const foundryDir = 'foundry';
+    let cycleDefDoc;
+    try {
+      cycleDefDoc = await getCycleDefinition(foundryDir, cycleId, io);
+    } catch {
+      return violation(`cycle definition not found for id: ${cycleId}`, ['WORK.md']);
+    }
+    const cfm = cycleDefDoc.frontmatter || {};
+
+    const outputType = cfm.output;
+    if (!outputType) {
+      return violation(`cycle ${cycleId} missing output field`, ['WORK.md']);
+    }
+
+    try {
+      await getArtefactType(foundryDir, outputType, io);
+    } catch {
+      return violation(`artefact type not found: ${outputType}`, ['WORK.md']);
+    }
+
+    const validation = await getValidation(foundryDir, outputType, io);
+
+    let stages;
+    if (Array.isArray(cfm.stages) && cfm.stages.length > 0) {
+      stages = cfm.stages.map(s =>
+        typeof s === 'string' && s.includes(':') ? s : `${s}:${cycleId}`
+      );
+    } else {
+      stages = synthesizeStages({
+        cycleId,
+        hasValidation: !!validation && validation.length > 0,
+        humanAppraise: cfm['human-appraise'] === true,
+      });
+    }
+
+    const newFm = { ...fm };
+    newFm.stages = stages;
+    newFm['max-iterations'] = cfm['max-iterations'] ?? 3;
+    newFm['human-appraise'] = cfm['human-appraise'] === true;
+    newFm['deadlock-appraise'] = cfm['deadlock-appraise'] !== false;
+    newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? 5;
+    if (cfm.models) newFm.models = cfm.models;
+
+    const body = workContent.replace(/^---\n[\s\S]+?\n---\n?/, '');
+    const fmBlock = writeFrontmatter(newFm);
+    const newWork = body ? `${fmBlock}\n${body}` : fmBlock;
+    io.writeFile('WORK.md', newWork);
+
+    if (git && typeof git.commit === 'function') {
+      git.commit(`[${cycleId}] setup: configure stages and limits`);
+    }
+
+    workContent = io.readFile('WORK.md');
+  }
+
+  const sortResult = runSort(
+    {
+      cycleDef: cycleDefOverride,
+      mint,
+      now: typeof now === 'function' ? now() : now,
+    },
+    io
+  );
+
+  return handleSortResult(sortResult, { cycleId, cwd, io });
 }
