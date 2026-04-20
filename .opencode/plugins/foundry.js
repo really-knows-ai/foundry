@@ -126,6 +126,12 @@ function makeIO(directory) {
     readDir: (p) => readdirSync(resolve(p)),
     mkdir: (p) => mkdirSync(resolve(p), { recursive: true }),
     unlink: (p) => { if (existsSync(resolve(p))) unlinkSync(resolve(p)); },
+    // exec: run a shell command in the worktree and return stdout as a UTF-8 string.
+    // Used by sort.js (getDirtyToolManagedFiles, getModifiedFiles) for git enforcement.
+    // Call sites pass full shell strings (e.g. 'git status --porcelain ...'), so we
+    // must use execSync rather than execFileSync. Throws on non-zero exit; callers
+    // already wrap in try/catch.
+    exec: (cmd) => execSync(cmd, { cwd: directory, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }),
   };
 }
 
@@ -341,12 +347,12 @@ export const FoundryPlugin = async ({ directory }) => {
           // Git bridge: commit staged changes with a cycle-prefixed message.
           const git = {
             commit: (msg) => {
-              execSync('git add .', { cwd, encoding: 'utf8' });
-              execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd, encoding: 'utf8' });
-              return execSync('git rev-parse --short HEAD', { cwd, encoding: 'utf8' }).trim();
+              execFileSync('git', ['add', '.'], { cwd, encoding: 'utf8' });
+              execFileSync('git', ['commit', '-m', msg], { cwd, encoding: 'utf8' });
+              return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
             },
             status: () => {
-              const out = execSync('git status --porcelain', { cwd, encoding: 'utf8' }).trim();
+              const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
               return { clean: out === '', dirty: out.split('\n').filter(Boolean) };
             },
           };
@@ -600,7 +606,7 @@ export const FoundryPlugin = async ({ directory }) => {
           const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
 
           // Get current branch name
-          const workBranch = execSync('git branch --show-current', opts).trim();
+          const workBranch = execFileSync('git', ['branch', '--show-current'], opts).trim();
           if (workBranch === base) {
             return JSON.stringify({ error: `Already on ${base} — nothing to merge` });
           }
@@ -613,23 +619,22 @@ export const FoundryPlugin = async ({ directory }) => {
 
           // Commit cleanup if there are changes
           try {
-            execSync('git add -A', opts);
-            const status = execSync('git status --porcelain', opts).trim();
+            execFileSync('git', ['add', '-A'], opts);
+            const status = execFileSync('git', ['status', '--porcelain'], opts).trim();
             if (status) {
               const cleanupMsg = `[${workBranch.replace('work/', '')}] cleanup: remove work files`;
-              execSync(`git commit -m "${cleanupMsg.replace(/"/g, '\\"')}"`, opts);
+              execFileSync('git', ['commit', '-m', cleanupMsg], opts);
             }
           } catch { /* no changes to commit */ }
 
           // Switch to base and squash merge
-          execSync(`git checkout ${base}`, opts);
-          execSync(`git merge --squash ${workBranch}`, opts);
-          const msg = args.message.replace(/"/g, '\\"');
-          execSync(`git commit -m "${msg}"`, opts);
-          const hash = execSync('git rev-parse --short HEAD', opts).trim();
+          execFileSync('git', ['checkout', base], opts);
+          execFileSync('git', ['merge', '--squash', workBranch], opts);
+          execFileSync('git', ['commit', '-m', args.message], opts);
+          const hash = execFileSync('git', ['rev-parse', '--short', 'HEAD'], opts).trim();
 
           // Force-delete work branch (required after squash)
-          execSync(`git branch -D ${workBranch}`, opts);
+          execFileSync('git', ['branch', '-D', workBranch], opts);
 
           return JSON.stringify({ ok: true, hash, branch: base });
         },
