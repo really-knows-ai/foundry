@@ -23,8 +23,15 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
    - If only one starting cycle, use it
    - If multiple starting cycles, check whether the user's request makes the choice obvious (e.g., "write a haiku" clearly maps to `create-haiku`)
    - If ambiguous, prompt the user to choose
-4. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The `cycle` skill will read the cycle definition and populate those via `foundry_workfile_set` in the next step.
-5. Execute the cycle by invoking the cycle skill
+4. Pre-check for an existing workfile (prevents silent data loss from an aborted prior session):
+   a. Call `foundry_workfile_get`.
+   b. If it returns `{error: ...}` (no WORK.md), proceed to step 5.
+   c. If it returns an existing workfile, present its `flow`, `cycle`, and `goal` to the user alongside the values just requested, then prompt for one of:
+      - **Resume** — keep the existing workfile and skip to step 6. **Only offer resume if the existing `flow` AND `cycle` match what the user just asked for.** If either differs, do not offer resume — running the wrong cycle against stale state corrupts the workflow.
+      - **Discard** — call `foundry_workfile_delete`, then proceed to step 5.
+      - **Abort** — stop the skill without modifying anything.
+5. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The `cycle` skill will read the cycle definition and populate those via `foundry_workfile_set` in the next step.
+6. Execute the cycle by invoking the cycle skill
 
 ## Between cycles
 
