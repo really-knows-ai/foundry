@@ -300,6 +300,111 @@ describe('workfile tools preconditions', () => {
   });
 });
 
+describe('foundry_workfile_configure_from_cycle', () => {
+  let dir, plugin;
+  beforeEach(async () => {
+    dir = initRepo();
+    plugin = await FoundryPlugin({ directory: dir });
+    execSync(`mkdir -p ${dir}/foundry/cycles`, { env: GIT_ENV });
+  });
+
+  function writeCycleDef(cycleId, frontmatter) {
+    const lines = ['---'];
+    for (const [k, v] of Object.entries(frontmatter)) {
+      if (typeof v === 'object') {
+        lines.push(`${k}:`);
+        for (const [k2, v2] of Object.entries(v)) lines.push(`  ${k2}: ${v2}`);
+      } else {
+        lines.push(`${k}: ${v}`);
+      }
+    }
+    lines.push('---', 'body', '');
+    writeFileSync(join(dir, 'foundry/cycles', `${cycleId}.md`), lines.join('\n'));
+  }
+
+  it('applies defaults when cycle def omits fields', async () => {
+    writeCycleDef('c', { output: 'haiku' });
+    const res = JSON.parse(await plugin.tool.foundry_workfile_configure_from_cycle.execute(
+      { cycleId: 'c', stages: ['forge', 'appraise'] }, makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+    assert.equal(res.applied['max-iterations'], 3);
+    assert.equal(res.applied['human-appraise'], false);
+    assert.equal(res.applied['deadlock-appraise'], true);
+    assert.equal(res.applied['deadlock-iterations'], 5);
+    assert.deepEqual(res.applied.stages, ['forge:c', 'appraise:c']);
+    assert.equal(res.applied.models, undefined);
+
+    const text = readFileSync(join(dir, 'WORK.md'), 'utf-8');
+    assert.match(text, /cycle: c/);
+    assert.match(text, /max-iterations: 3/);
+    assert.match(text, /human-appraise: false/);
+    assert.match(text, /deadlock-appraise: true/);
+    assert.match(text, /deadlock-iterations: 5/);
+  });
+
+  it('copies values from cycle def when present', async () => {
+    writeCycleDef('c', {
+      output: 'haiku',
+      'max-iterations': 7,
+      'human-appraise': true,
+      'deadlock-appraise': false,
+      'deadlock-iterations': 2,
+    });
+    const res = JSON.parse(await plugin.tool.foundry_workfile_configure_from_cycle.execute(
+      { cycleId: 'c', stages: ['forge:c', 'quench:c', 'appraise:c', 'human-appraise:c'] }, makeCtx(dir),
+    ));
+    assert.equal(res.applied['max-iterations'], 7);
+    assert.equal(res.applied['human-appraise'], true);
+    assert.equal(res.applied['deadlock-appraise'], false);
+    assert.equal(res.applied['deadlock-iterations'], 2);
+  });
+
+  it('writes models map when cycle def has one', async () => {
+    writeCycleDef('c', { output: 'haiku', models: { forge: 'openai/gpt-4o' } });
+    const res = JSON.parse(await plugin.tool.foundry_workfile_configure_from_cycle.execute(
+      { cycleId: 'c', stages: ['forge'] }, makeCtx(dir),
+    ));
+    assert.deepEqual(res.applied.models, { forge: 'openai/gpt-4o' });
+    const text = readFileSync(join(dir, 'WORK.md'), 'utf-8');
+    assert.match(text, /models:/);
+    assert.match(text, /forge: openai\/gpt-4o/);
+  });
+
+  it('enriches bare stage names with cycle alias', async () => {
+    writeCycleDef('c', { output: 'haiku' });
+    const res = JSON.parse(await plugin.tool.foundry_workfile_configure_from_cycle.execute(
+      { cycleId: 'c', stages: ['forge', 'quench:custom-alias', 'appraise'] }, makeCtx(dir),
+    ));
+    assert.deepEqual(res.applied.stages, ['forge:c', 'quench:custom-alias', 'appraise:c']);
+  });
+
+  it('errors when WORK.md missing', async () => {
+    writeCycleDef('c', { output: 'haiku' });
+    rmSync(join(dir, 'WORK.md'));
+    const res = JSON.parse(await plugin.tool.foundry_workfile_configure_from_cycle.execute(
+      { cycleId: 'c', stages: ['forge'] }, makeCtx(dir),
+    ));
+    assert.match(res.error, /WORK.md not found/);
+  });
+
+  it('errors when cycle def missing', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_workfile_configure_from_cycle.execute(
+      { cycleId: 'nope', stages: ['forge'] }, makeCtx(dir),
+    ));
+    assert.match(res.error, /Cycle not found/);
+  });
+
+  it('requires no active stage', async () => {
+    writeCycleDef('c', { output: 'haiku' });
+    await beginStage(plugin, dir, 'forge:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_workfile_configure_from_cycle.execute(
+      { cycleId: 'c', stages: ['forge'] }, makeCtx(dir),
+    ));
+    assert.match(res.error, /requires no active stage/);
+  });
+});
+
 // ── History tool ──
 
 describe('foundry_history_append preconditions', () => {

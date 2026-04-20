@@ -421,6 +421,66 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
 
+      foundry_workfile_configure_from_cycle: tool({
+        description: 'Populate WORK.md frontmatter from a cycle definition in one pass. Reads the cycle def for max-iterations, human-appraise, deadlock-appraise, deadlock-iterations, and models; applies defaults for anything missing. Caller must supply the synthesized stages list (the skill owns stage synthesis).',
+        args: {
+          cycleId: tool.schema.string().describe('Cycle ID — used to locate foundry/cycles/<cycleId>.md'),
+          stages: tool.schema.array(tool.schema.string()).describe('Ordered stage aliases (bare names will be enriched with :<cycleId>)'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireNoActiveStage(io);
+          if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_configure_from_cycle ${guard.error}` });
+
+          const workPath = path.join(context.worktree, 'WORK.md');
+          if (!existsSync(workPath)) {
+            return JSON.stringify({ error: 'WORK.md not found' });
+          }
+
+          let cycleDoc;
+          try {
+            cycleDoc = await getCycleDefinition('foundry', args.cycleId, io);
+          } catch (e) {
+            return JSON.stringify({ error: `foundry_workfile_configure_from_cycle: ${e.message}` });
+          }
+          const fm = cycleDoc.frontmatter || {};
+
+          const stages = enrichStages(args.stages, args.cycleId);
+
+          // Apply defaults for each cycle-def-backed field.
+          const maxIterations = fm['max-iterations'] ?? 3;
+          const humanAppraise = fm['human-appraise'] === true;
+          const deadlockAppraise = fm['deadlock-appraise'] !== false; // default true
+          const deadlockIterations = fm['deadlock-iterations'] ?? 5;
+          const models = fm.models ?? null;
+
+          let text = readFileSync(workPath, 'utf-8');
+          text = setFrontmatterField(text, 'cycle', args.cycleId);
+          text = setFrontmatterField(text, 'stages', stages);
+          text = setFrontmatterField(text, 'max-iterations', maxIterations);
+          text = setFrontmatterField(text, 'human-appraise', humanAppraise);
+          text = setFrontmatterField(text, 'deadlock-appraise', deadlockAppraise);
+          text = setFrontmatterField(text, 'deadlock-iterations', deadlockIterations);
+          if (models && typeof models === 'object' && Object.keys(models).length > 0) {
+            text = setFrontmatterField(text, 'models', models);
+          }
+          writeFileSync(workPath, text, 'utf-8');
+
+          return JSON.stringify({
+            ok: true,
+            applied: {
+              cycle: args.cycleId,
+              stages,
+              'max-iterations': maxIterations,
+              'human-appraise': humanAppraise,
+              'deadlock-appraise': deadlockAppraise,
+              'deadlock-iterations': deadlockIterations,
+              ...(models ? { models } : {}),
+            },
+          });
+        },
+      }),
+
       foundry_workfile_delete: tool({
         description: 'Delete WORK.md and WORK.history.yaml (requires confirm:true)',
         args: {

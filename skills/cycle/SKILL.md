@@ -24,14 +24,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
    - Otherwise generate defaults: always `forge`, add `quench` if `foundry_config_validation` returns non-null for the type, always `appraise`
    - If the cycle definition has `human-appraise: true`, append `human-appraise` as the final stage (runs every iteration). If `human-appraise: false` (default), do NOT include it in `stages` — sort will synthesize `human-appraise:<cycle>` on deadlock when needed.
    - Stages should use `base:alias` format (e.g. `forge:write-haiku`, `quench:check-syllables`). If you pass bare names, the tool will auto-append the cycle ID as the alias.
-4. Call `foundry_workfile_set` to configure the work file:
-   - `key: "cycle"`, `value: <cycle-id>`
-   - `key: "stages"`, `value: <determined stages list>`
-   - `key: "max-iterations"`, `value: <default 3 or from cycle definition>`
-   - `key: "human-appraise"`, `value: <true|false from cycle def, default false>`
-   - `key: "deadlock-appraise"`, `value: <true|false from cycle def, default true>`
-   - `key: "deadlock-iterations"`, `value: <number from cycle def, default 5>`
-   - If the cycle definition has a `models` map: `key: "models"`, `value: <models map>`
+4. Call `foundry_workfile_configure_from_cycle({cycleId, stages})` with the cycle ID and the stages list from step 3. The tool reads the cycle definition and writes `cycle`, `stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, and (if present) `models` into WORK.md in a single call, applying defaults for anything the cycle def omits. Do **not** use `foundry_workfile_set` for this — the configure tool is the authoritative cycle-def → WORK.md translator.
 5. Invoke the sort skill
 
 ## Sort drives everything
