@@ -262,8 +262,16 @@ export async function runOrchestrate(args = {}, io) {
     workContent = io.readFile('WORK.md');
   }
 
+  const activeStage = readActiveStage(io);
+  if (activeStage && !lastResult) {
+    return violation(
+      `prior stage ${activeStage.stage} orphaned — no lastResult provided but active stage exists. ` +
+      `Likely cause: previous orchestrate call returned dispatch but caller did not follow up.`,
+      []
+    );
+  }
+
   if (lastResult) {
-    const activeStage = readActiveStage(io);
     if (!activeStage) {
       return violation('lastResult provided but no active stage recorded — orphaned state');
     }

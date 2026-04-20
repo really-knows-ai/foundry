@@ -371,3 +371,27 @@ max-iterations: 3
   const work = io.readFile('WORK.md');
   assert.match(work, /\| haikus\/a\.md \| haiku \| create-haiku \| blocked \|/);
 });
+
+test('runOrchestrate: active stage with no lastResult returns violation (orphaned)', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+cycle: create-haiku
+stages: [forge:create-haiku]
+max-iterations: 3
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    '.foundry/active-stage.json': JSON.stringify({
+      cycle: 'create-haiku', stage: 'forge:create-haiku', token: 'T', baseSha: 'abc'
+    }),
+  });
+  const git = { commit: () => 'x', status: () => ({ clean: true }) };
+  const result = await runOrchestrate({
+    git, mint: () => 'T', now: () => 1,
+    // no lastResult
+  }, io);
+  assert.strictEqual(result.action, 'violation');
+  assert.match(result.details, /orphaned|prior stage/i);
+});
