@@ -130,6 +130,37 @@ For each `foundry/cycles/*.md` whose frontmatter has the old nested form, migrat
 
 The old nested form is no longer read. After migration, verify by asking: "cycle `<id>`: human-appraise every iteration? deadlock-appraise on? deadlock-iterations = N?".
 
+### 4c. v2.2.x → v2.3.0
+
+v2.3.0 replaces the LLM-driven sort orchestrator with the `foundry_orchestrate` plugin tool. The `cycle` and `sort` skills are removed. Six tools are deregistered: `foundry_sort`, `foundry_history_append`, `foundry_stage_finalize`, `foundry_git_commit`, `foundry_workfile_configure_from_cycle`, `foundry_workfile_set`. `foundry_artefacts_add` is removed entirely.
+
+#### Pre-flight checks
+
+Before upgrading, verify a clean base state. Abort the upgrade if any of these fail:
+
+1. **Branch**: must be on `main` (or the user's configured default base branch).
+   - Check: `git rev-parse --abbrev-ref HEAD` — must match expected default.
+   - If on `work/*`: abort with "You're on a work branch. Switch to main and complete or discard any in-flight flow before upgrading."
+
+2. **Working tree**: must be clean.
+   - Check: `git status --porcelain` — must be empty.
+   - If dirty: abort with "Uncommitted changes. Commit or stash before upgrading."
+
+3. **In-flight workfile**: `WORK.md` must not exist.
+   - Check: is `WORK.md` present in the repo root?
+   - If yes: abort with "In-flight workfile detected. Delete it (`foundry_workfile_delete`) or complete the cycle before upgrading."
+
+Only when all three pass, proceed with the plugin swap.
+
+#### Upgrade steps
+
+1. Install the new plugin package version: `npm install @really-knows-ai/foundry@2.3.0 --save-dev`.
+2. Swap `.opencode/plugins/foundry.js` with the new version from `node_modules/@really-knows-ai/foundry/.opencode/plugins/foundry.js`.
+3. Remove `skills/cycle/` and `skills/sort/` directories from the project if they exist locally (they shouldn't — skills live in the package).
+4. Commit the upgrade: `chore: upgrade foundry to 2.3.0`.
+
+No state migration is performed. In-flight cycles from v2.2.x must be completed or discarded before upgrading.
+
 ### 5. Migrate flows
 
 For each flow needing migration:
