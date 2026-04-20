@@ -257,3 +257,117 @@ cycle: create-haiku
     ['haikus/*.md', 'haikus/**/*.md']
   );
 });
+
+test('runOrchestrate subsequent call: finalizes, writes history, commits, routes next', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - quench:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+---
+# Goal
+
+haiku
+
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'WORK.history.yaml': `- cycle: create-haiku
+  stage: sort
+  iteration: 0
+  route: forge:create-haiku
+  comment: initial sort
+  timestamp: 2026-01-01T00:00:00.000Z
+`,
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      baseSha: 'abc',
+      summary: 'wrote haiku'
+    }),
+    '.foundry/active-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      token: 'T',
+      baseSha: 'abc'
+    }),
+    'haikus/a.md': 'cup of coffee / terminal delay / the rain returns',
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output: haiku
+stages: [forge, quench, appraise]
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  quench: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/gpt-5.4
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    'foundry/artefacts/haiku/validation.md': `## compile
+Command: \`echo ok\`
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+  const commits = [];
+  const git = {
+    commit: (msg) => { commits.push(msg); return 'def5678'; },
+    status: () => ({ clean: true, dirty: [] }),
+  };
+  const result = await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'TOKEN_2',
+    now: () => 2000000,
+    lastResult: { kind: 'dispatch', ok: true },
+    finalize: async () => ({ ok: true, artefacts: [] }),
+  }, io);
+
+  assert.ok(commits.some(m => m.includes('[create-haiku] forge')),
+    `expected forge commit, got: ${commits.join(', ')}`);
+  assert.strictEqual(result.action, 'dispatch');
+  assert.strictEqual(result.stage, 'quench:create-haiku');
+  const history = io.readFile('WORK.history.yaml');
+  assert.match(history, /stage: forge:create-haiku/);
+});
+
+test('runOrchestrate subsequent call with lastResult.ok=false marks artefact blocked', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages: [forge:create-haiku]
+max-iterations: 3
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    '.foundry/active-stage.json': JSON.stringify({
+      cycle: 'create-haiku', stage: 'forge:create-haiku', token: 'T', baseSha: 'abc'
+    }),
+  });
+  const git = { commit: () => 'x', status: () => ({ clean: true }) };
+  const result = await runOrchestrate({
+    git, mint: () => 'T', now: () => 1,
+    lastResult: { kind: 'dispatch', ok: false, error: 'subagent crashed' },
+    finalize: async () => ({ ok: true, artefacts: [] }),
+  }, io);
+  assert.strictEqual(result.action, 'violation');
+  const work = io.readFile('WORK.md');
+  assert.match(work, /\| haikus\/a\.md \| haiku \| create-haiku \| blocked \|/);
+});

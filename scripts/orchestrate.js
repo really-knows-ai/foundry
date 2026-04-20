@@ -9,7 +9,9 @@ import {
   getValidation,
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
-import { parseArtefactsTable } from './lib/artefacts.js';
+import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from './lib/artefacts.js';
+import { readActiveStage, readLastStage, clearActiveStage } from './lib/state.js';
+import { appendEntry, getIteration } from './lib/history.js';
 
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
   const lines = [
@@ -93,6 +95,19 @@ function violation(details, affectedFiles = []) {
   };
 }
 
+function markArtefactBlocked(cycleId, io) {
+  if (!io.exists('WORK.md')) return;
+  const content = io.readFile('WORK.md');
+  const rows = parseArtefactsTable(content);
+  const row = rows.find(r => r.cycle === cycleId);
+  if (!row) return;
+  try {
+    io.writeFile('WORK.md', setArtefactStatus(content, row.file, 'blocked'));
+  } catch {
+    // setArtefactStatus is strict; if row already blocked/done or invalid, ignore.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Sort result -> action shape
 // ---------------------------------------------------------------------------
@@ -170,6 +185,7 @@ export async function runOrchestrate(args = {}, io) {
     mint,
     now = Date.now,
     lastResult = null,
+    finalize = null,
   } = args;
 
   if (!io.exists('WORK.md')) {
@@ -244,6 +260,86 @@ export async function runOrchestrate(args = {}, io) {
     }
 
     workContent = io.readFile('WORK.md');
+  }
+
+  if (lastResult) {
+    const activeStage = readActiveStage(io);
+    if (!activeStage) {
+      return violation('lastResult provided but no active stage recorded — orphaned state');
+    }
+
+    if (lastResult.ok === false) {
+      markArtefactBlocked(cycleId, io);
+      clearActiveStage(io);
+      const art = findCycleOutputArtefact(cycleId, io);
+      return violation(
+        `subagent dispatch failed: ${lastResult.error || 'unknown error'}`,
+        [art?.file].filter(Boolean)
+      );
+    }
+
+    let finalizeResult;
+    if (finalize) {
+      finalizeResult = await finalize({
+        cycleId,
+        stage: activeStage.stage,
+        baseSha: activeStage.baseSha,
+        io,
+      });
+    } else {
+      // TODO(Task 10): wrap lib/finalize.finalizeStage here as the production default.
+      finalizeResult = { ok: true, artefacts: [] };
+    }
+
+    if (!finalizeResult.ok) {
+      markArtefactBlocked(cycleId, io);
+      clearActiveStage(io);
+      if (finalizeResult.error === 'unexpected_files') {
+        return violation(
+          `unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}`,
+          finalizeResult.files || []
+        );
+      }
+      return violation(`stage_finalize error: ${finalizeResult.error}`, []);
+    }
+
+    for (const a of finalizeResult.artefacts ?? []) {
+      let wm = io.readFile('WORK.md');
+      const rows = parseArtefactsTable(wm);
+      if (!rows.some(r => r.file === a.file)) {
+        wm = addArtefactRow(wm, {
+          file: a.file,
+          type: a.type,
+          cycle: cycleId,
+          status: a.status ?? 'draft',
+        });
+        io.writeFile('WORK.md', wm);
+      }
+    }
+
+    const lastStage = readLastStage(io);
+    const summary = lastStage?.summary || '(no summary)';
+    const historyPath = 'WORK.history.yaml';
+    const iteration = getIteration(historyPath, cycleId, io);
+
+    appendEntry(historyPath, {
+      cycle: cycleId,
+      stage: 'sort',
+      iteration,
+      route: activeStage.stage,
+      comment: `route ${activeStage.stage}`,
+    }, io);
+    appendEntry(historyPath, {
+      cycle: cycleId,
+      stage: activeStage.stage,
+      iteration,
+      comment: summary,
+    }, io);
+
+    if (git && typeof git.commit === 'function') {
+      git.commit(`[${cycleId}] ${activeStage.stage}: ${summary}`);
+    }
+    clearActiveStage(io);
   }
 
   const sortResult = runSort(
