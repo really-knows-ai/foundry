@@ -10,23 +10,31 @@ flow: <flow-id>
 cycle: <current-cycle-id>
 stages: [forge:write-haiku, quench:check-syllables, appraise:evaluate-quality]
 max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 5
+models:
+  forge: anthropic/claude-opus-4.7
+  appraise: openai/gpt-5
 ---
 ```
 
 Fields:
-- `flow` — the foundry flow being executed
-- `cycle` — the current foundry cycle id
-- `stages` — the ordered route for this foundry cycle, set when the foundry cycle starts. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, or `hitl`) and `alias` is a human-readable name for what that stage does in this cycle. Determined from the artefact type: if `validation.md` exists, include `quench`; always include `forge` and `appraise`. A `hitl` stage can be included for human-in-the-loop checkpoints.
-- `max-iterations` — how many forge passes before the foundry cycle is blocked (default: 3)
+- `flow` — the foundry flow being executed.
+- `cycle` — the current cycle id.
+- `stages` — the ordered route for this cycle. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, or `human-appraise`) and `alias` is a human-readable name for what that stage does in this cycle. Derived from the cycle and artefact type: `forge` + `appraise` are always included, `quench` is included iff the artefact type has `validation.md`, `human-appraise` is included iff the cycle sets `human-appraise: true`.
+- `max-iterations` — how many forge passes before the cycle is blocked (default: 3).
+- `human-appraise` — run human-appraise every iteration (default: `false`).
+- `deadlock-appraise` — route to human-appraise when LLM appraisers deadlock (default: `true`).
+- `deadlock-iterations` — deadlock threshold (default: 5).
+- `models` — optional per-stage model overrides; individual appraisers may further override via their own `model` field.
 
-The `stages` list is the happy path. Sort follows it but loops back to `forge` when unresolved feedback demands it.
+The `stages` list is the happy path. Sort follows it but loops back to `forge` when unresolved feedback demands it, and inserts a `human-appraise` stage on deadlock.
 
 ### Who sets what
 
-- `flow` — set by the foundry flow skill at foundry flow start, never changes
-- `cycle` — set by the foundry flow skill when starting each foundry cycle
-- `stages` — set by the orchestrate skill when starting each foundry cycle (reads artefact type to determine if quench is needed)
-- `max-iterations` — set by the orchestrate skill (default 3, could be overridden in foundry cycle definition)
+- `flow`, `cycle`, `goal` — set by the `flow` skill via `foundry_workfile_create` at flow/cycle boundaries.
+- `stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models` — set by `foundry_orchestrate` on the first call of each cycle (via internal `workfile_configure_from_cycle`, reading the cycle definition).
 
 ## Sections
 
@@ -70,7 +78,7 @@ Grouped by artefact file path. Each item is a checklist entry with a tag indicat
 
 - `#validation` — from a deterministic quench command
 - `#law:<law-id>` — from subjective appraise, tied to a specific law
-- `#hitl` — from human-provided feedback at a hitl checkpoint
+- `#human` — from human-provided feedback at a human-appraise checkpoint
 
 #### Lifecycle states
 
@@ -86,20 +94,23 @@ Grouped by artefact file path. Each item is a checklist entry with a tag indicat
 
 #### Rules
 
-- Validation feedback (`#validation`) cannot be wont-fixed
-- Feedback is never deleted — it stays as a record of the iteration history
-- New feedback is appended, not inserted
-- Items are grouped under the artefact they relate to
+- Validation feedback (`#validation`) cannot be wont-fixed — deterministic rules are not negotiable.
+- Human feedback (`#human`) cannot be wont-fixed — it takes absolute priority over LLM feedback.
+- Feedback is never deleted — it stays as a record of the iteration history.
+- New feedback is appended, not inserted.
+- Items are grouped under the artefact they relate to.
 
 ## Who writes what
 
 | Section | Written by | Updated by |
 |---------|-----------|------------|
-| Frontmatter (`flow`) | `foundry_workfile_create` (flow skill) | nobody |
-| Frontmatter (`cycle`, `stages`, `max-iterations`) | `foundry_workfile_set` (orchestrate skill) | `foundry_workfile_set` (reset on each new cycle) |
+| Frontmatter (`flow`, `cycle`, `goal`) | `foundry_workfile_create` (flow skill) | `foundry_workfile_delete` + re-create between cycles |
+| Frontmatter (`stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models`) | `foundry_orchestrate` (first call of each cycle, internally) | reset on each new cycle |
 | Goal | `foundry_workfile_create` (flow skill) | nobody |
-| Artefacts | `foundry_artefacts_add` (forge skill) | `foundry_artefacts_set_status` (orchestrate skill) |
-| Feedback | `foundry_feedback_add` (quench/appraise/hitl) | `foundry_feedback_action`/`foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (quench/appraise/hitl) |
+| Artefacts | `foundry_stage_finalize` (orchestrator, after forge closes) | `foundry_artefacts_set_status` (orchestrator → `done`/`blocked`) |
+| Feedback | `foundry_feedback_add` (quench / appraise / human-appraise) | `foundry_feedback_action` / `foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (quench / appraise / human-appraise) |
+
+Note: `foundry_artefacts_add` no longer exists as a public tool — artefact registration is automatic via `stage_finalize`, which scans the git diff and registers files matching the output type's `file-patterns` as `draft`.
 
 ## WORK.history.yaml
 
@@ -141,20 +152,20 @@ A separate file (`WORK.history.yaml`) alongside WORK.md. Append-only log of ever
 
 - `timestamp` — ISO 8601 UTC
 - `cycle` — which foundry cycle this entry belongs to
-- `stage` — which stage just completed, in `base:alias` format (e.g. `forge:draft-petition`, `quench:validate-petition`, `appraise:review-petition`, `hitl:human-review`)
+- `stage` — which stage just completed, in `base:alias` format (e.g. `forge:draft-petition`, `quench:validate-petition`, `appraise:review-petition`, `human-appraise:human-review`)
 - `iteration` — the current iteration number (increments each time forge runs within a cycle)
 - `comment` — brief description of what happened
 
 ### Rules
 
-- Append-only — never edit or delete entries
-- Every stage skill appends an entry when it completes
-- The sort tool reads this to determine what has happened in the current foundry cycle
-- Iteration is derived from counting forge entries for the current foundry cycle
+- Append-only — never edit or delete entries.
+- Every stage produces an entry when it completes.
+- Sort reads this to determine what has happened in the current cycle.
+- Iteration is derived from counting forge entries for the current cycle.
 
 ### Who writes
 
-Every stage skill (forge, quench, appraise, hitl) appends an entry when it finishes via the `foundry_history_append` tool.
+History entries are written by `foundry_orchestrate` after each stage closes (via its internal `foundry_history_append` — the tool is not registered publicly). Sub-agents never append history directly.
 
 ## Example
 
@@ -166,6 +177,9 @@ flow: make-haiku
 cycle: haiku-creation
 stages: [forge:write-haiku, quench:check-syllables, appraise:evaluate-quality]
 max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 5
 ---
 
 # Goal

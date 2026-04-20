@@ -1,59 +1,122 @@
 # Concepts
 
-Core concepts and how they relate.
+This is the glossary. Every term here has a single definition and links out to the spec document that elaborates it. Concepts are arranged roughly top-down: flows contain cycles, cycles contain stages, stages operate on artefacts, artefacts are governed by laws and evaluated by appraisers.
 
-## Foundry Flow
+---
 
-A foundry flow is the top-level unit of work. It is defined in `foundry/flows/` and lists the foundry cycles to execute in order. Starting a foundry flow creates a work branch and a WORK.md file. A foundry flow is complete when all its foundry cycles are done.
+## Flow
 
-## Foundry Cycle
+The top-level unit of work. Defined in `foundry/flows/*.md`. A flow declares:
 
-A foundry cycle is an iterative loop that produces a single artefact type. It is defined in `foundry/cycles/` and specifies:
-- An output artefact type (read-write)
-- Zero or more input artefact types (read-only, from previous foundry cycles)
+- A `starting-cycles` list — hints about which cycles can be entered first when the flow begins.
+- A set of cycles (listed under `## Cycles`). Order is not implied — routing between cycles is owned by cycles themselves via their `targets` field.
 
-A foundry cycle runs: forge → quench → appraise, repeating until all feedback is resolved or the iteration limit is hit.
+Running a flow creates a work branch and a `WORK.md`. The flow completes when no more reachable cycles remain to run, or when the user decides to stop.
+
+## Cycle
+
+An iterative loop that produces a single artefact type. Defined in `foundry/cycles/*.md`. A cycle declares:
+
+- `output` — the artefact type it produces (read-write).
+- `inputs` — a contract (`any-of` / `all-of`) over other artefact types. Inputs are discovered on disk; they are read-only unless the output type's patterns happen to cover them.
+- `targets` — the cycle(s) that may run after this one. May be empty (terminal cycle).
+- `human-appraise` — whether a human quality gate runs every iteration (default: `false`).
+- `deadlock-appraise` — whether a human is pulled in when LLM appraisers deadlock (default: `true`).
+- `deadlock-iterations` — deadlock threshold (default: `5`).
+- `models` — optional per-stage model overrides.
+
+A cycle runs **forge → quench → appraise** (and optionally **human-appraise**), looping until all feedback is resolved or `max-iterations` is hit.
 
 ## Stage
 
-The steps within a foundry cycle. Each stage is referenced using a `base:alias` format (e.g. `forge:write-haiku`) where the base is the stage type and the alias describes its role in that cycle.
+A single step within a cycle. Every stage is referenced as `base:alias` (e.g. `forge:write-haiku`, `quench:check-syllables`) — the base is the stage type; the alias makes the stage's role self-documenting in WORK.md.
 
-- Forge — produce or revise the artefact
-- Quench — run deterministic CLI checks
-- Appraise — subjective evaluation by multiple appraisers
-- HITL — human-in-the-loop checkpoint (see below)
+Stage bases:
+
+- **forge** — produce or revise the artefact.
+- **quench** — run deterministic CLI checks (skipped if the artefact type has no `validation.md`).
+- **appraise** — subjective evaluation by multiple appraiser sub-agents.
+- **human-appraise** — human quality gate. Can run every iteration, only on deadlock, or both.
+
+Every stage runs inside a token-gated lifecycle (`foundry_stage_begin` / `foundry_stage_end` / `foundry_stage_finalize`). Mutation tools are stage-locked: a forge stage can't add feedback, a quench stage can't register artefacts. See the enforcement section of the [README](../README.md#enforcement-model).
 
 ## Artefact type
 
-A definition of what kind of thing is being produced. Lives in `foundry/artefacts/<type>/` with:
-- `definition.md` — identity, file patterns, output location, prose description
-- `laws.md` — type-specific subjective evaluation criteria
-- `validation.md` — CLI commands for deterministic quench checks
+A definition of what is being produced. Lives in `foundry/artefacts/<type>/`:
+
+- `definition.md` — identity, file patterns, output directory, appraiser config, prose description.
+- `laws.md` *(optional)* — type-specific subjective criteria.
+- `validation.md` *(optional)* — CLI commands for deterministic quench checks.
+
+File patterns must not overlap with any other artefact type's patterns — the write-invariant enforcer needs to know which type owns a given file.
 
 ## Law
 
-A subjective pass/fail criterion. Global laws live in `foundry/laws/` (all files concatenated). Type-specific laws live in `foundry/artefacts/<type>/laws.md`. Each law has an identifier (its heading), used in feedback tags.
+A subjective pass/fail criterion. Two scopes:
+
+- **Global** — `foundry/laws/*.md`, all files concatenated, applies to every artefact.
+- **Type-specific** — `foundry/artefacts/<type>/laws.md`.
+
+Each law is a `## heading` (its identifier, used in feedback tags as `#law:<id>`) with a description, passing criteria, and failing criteria.
 
 ## Appraiser
 
-An independent evaluator with a defined personality. Lives in `foundry/appraisers/`. Each appraiser can optionally specify a `model` to override the cycle-level appraise model. Model diversity is configured at the cycle level (via the `models` frontmatter map) and optionally per-appraiser. They can be assigned to specific artefact types or appraise everything.
+An independent evaluator with a defined personality. Lives in `foundry/appraisers/*.md`. Appraisers may specify a `model` field to override the cycle-level appraise model. Each artefact type picks which appraisers may evaluate it (`appraisers.allowed`) and how many run per iteration (`appraisers.count`). Selection distributes evenly across allowed personalities.
 
 ## WORK.md
 
-The transient shared state for a foundry flow. Created on the work branch, it tracks: where the foundry flow is (frontmatter cursor), what artefacts exist, and all feedback with its full lifecycle. See [work-spec.md](work-spec.md) for the full spec.
+The transient shared state for a flow. Created on the work branch by the flow skill, it tracks:
+
+- Current position (flow, cycle, stage list, iteration limits) in frontmatter.
+- The goal (prose — written once).
+- An artefact registry (file, type, cycle, status).
+- All feedback with its full lifecycle.
+
+See [work-spec.md](work-spec.md) for the full spec.
+
+## WORK.history.yaml
+
+Append-only log of every stage execution, sitting next to WORK.md. Used by sort to reconstruct what has happened in the current cycle. See [work-spec.md](work-spec.md).
 
 ## Feedback
 
-The communication mechanism between stages. Written as markdown checklist items in WORK.md with tags (`#validation` or `#law:<id>`). Follows a lifecycle: open → actioned/wont-fix → approved/rejected. See [work-spec.md](work-spec.md) for details.
+The communication mechanism between stages. Written as markdown checklist items in WORK.md, grouped by artefact file, tagged by source:
 
-## HITL
+- `#validation` — from a deterministic quench command. Cannot be wont-fixed.
+- `#law:<law-id>` — from an appraiser, tied to a specific law. May be wont-fixed with justification.
+- `#human` — from a human-appraise stage. Takes absolute priority; cannot be wont-fixed.
 
-Human-in-the-loop checkpoint. A stage type that pauses the foundry cycle and requests human input before continuing. Configured per cycle by including a `hitl:alias` entry in the `stages` list. When a hitl stage runs, it presents the current artefact state to the human and collects feedback tagged `#hitl`. Like other feedback, hitl feedback follows the standard lifecycle (open → actioned → approved/rejected).
+Lifecycle: `open` → `actioned` / `wont-fix` → `approved` / `rejected`. `approved` is terminal; `rejected` re-opens. Items are never deleted.
 
-## Micro commit
+## HITL / human-appraise
 
-Every stage ends with a commit (via the `foundry_git_commit` tool). This enables file modification enforcement — the sort tool checks the git diff to ensure each stage only touched files it was allowed to.
+Human-in-the-loop checkpoint. A stage where Foundry pauses and asks a human for input. Two triggers:
+
+1. **Every-iteration** — the cycle declares `human-appraise: true`. The `human-appraise` stage runs after LLM appraise each iteration.
+2. **Deadlock** — the cycle declares `deadlock-appraise: true` (default). If forge and appraisers ping-pong on the same items for `deadlock-iterations` (default 5) iterations, sort inserts a `human-appraise` stage to break the tie.
+
+Human feedback is tagged `#human` and takes priority over LLM feedback on the same topic.
+
+## Micro-commit
+
+Every stage ends with a commit made by the orchestrator. This enables two things: file-modification enforcement (the write-invariant check compares the stage's diff to its allowed patterns) and recoverability (a crash mid-flow leaves a clean commit boundary to resume from). Orchestration refuses to proceed if uncommitted work is lingering in `WORK.md`, `WORK.history.yaml`, or `.foundry/`.
+
+## Stage token
+
+A single-use HMAC-signed string, minted by `foundry_orchestrate` when a stage is dispatched. The sub-agent must redeem the token via `foundry_stage_begin`; mutation tools then check the active stage matches their role. Keys live in `.foundry/.secret` (mode 0600, gitignored, one per worktree). This prevents out-of-band mutations, replayed stages, and sub-agents skipping the lifecycle.
+
+## `.foundry/` state directory
+
+A gitignored directory created on first plugin boot, holding runtime state:
+
+- `.secret` — the HMAC key.
+- `active-stage.json` — present only during an active stage.
+- `last-stage.json` — used by `foundry_stage_finalize` after `stage_end`.
 
 ## Custom tools
 
-All deterministic pipeline operations are exposed as custom tools via the Foundry plugin. Skills call tools instead of manipulating files directly. The tools are backed by shared library modules in `scripts/lib/` with injectable I/O for testability. This separation ensures that file format parsing, state transitions, and routing logic are handled by tested code rather than LLM interpretation.
+All deterministic pipeline operations are exposed as custom tools by the Foundry plugin. Skills call these tools instead of manipulating files directly. Tools are backed by shared library modules in `scripts/lib/` with injectable I/O so they can be unit-tested. This separation ensures state transitions and routing logic are tested code, not LLM interpretation. See the [README](../README.md#custom-tools) for the full catalogue.
+
+## Skill
+
+A self-contained workflow written as markdown with YAML frontmatter. Foundry ships pipeline skills (`flow`, `orchestrate`, `forge`, `quench`, `appraise`, `human-appraise`), authoring skills (`add-*`, `init-foundry`), and utility skills (`list-agents`, `refresh-agents`, `upgrade-foundry`). Skills are either **atomic** (do one thing) or **composite** (orchestrate other skills).
