@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { renderDispatchPrompt } from '../scripts/orchestrate.js';
+import { renderDispatchPrompt, synthesizeStages } from '../scripts/orchestrate.js';
 
 test('renderDispatchPrompt includes stage, cycle, token, cwd, file-patterns', () => {
   const prompt = renderDispatchPrompt({
@@ -29,4 +29,33 @@ test('renderDispatchPrompt omits file-patterns line for non-forge stages', () =>
     filePatterns: null
   });
   assert.doesNotMatch(prompt, /File patterns/);
+});
+
+test('synthesizeStages: forge + quench + appraise when validation exists', () => {
+  const stages = synthesizeStages({
+    cycleId: 'c1',
+    hasValidation: true,
+    humanAppraise: false
+  });
+  assert.deepStrictEqual(stages, ['forge:c1', 'quench:c1', 'appraise:c1']);
+});
+
+test('synthesizeStages: forge + appraise when no validation', () => {
+  const stages = synthesizeStages({
+    cycleId: 'c1',
+    hasValidation: false,
+    humanAppraise: false
+  });
+  assert.deepStrictEqual(stages, ['forge:c1', 'appraise:c1']);
+});
+
+test('synthesizeStages: appends human-appraise when flag true', () => {
+  const stages = synthesizeStages({
+    cycleId: 'c1',
+    hasValidation: true,
+    humanAppraise: true
+  });
+  assert.deepStrictEqual(stages, [
+    'forge:c1', 'quench:c1', 'appraise:c1', 'human-appraise:c1'
+  ]);
 });

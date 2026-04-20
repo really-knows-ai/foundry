@@ -23,3 +23,11 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns })
   );
   return lines.join('\n');
 }
+
+export function synthesizeStages({ cycleId, hasValidation, humanAppraise }) {
+  const stages = [`forge:${cycleId}`];
+  if (hasValidation) stages.push(`quench:${cycleId}`);
+  stages.push(`appraise:${cycleId}`);
+  if (humanAppraise) stages.push(`human-appraise:${cycleId}`);
+  return stages;
+}
