@@ -12,13 +12,12 @@ import fs from 'fs';
 import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
-import { loadHistory, appendEntry, getIteration, readLastSortRoute } from '../../scripts/lib/history.js';
-import { parseFrontmatter, createWorkfile, setFrontmatterField, getFrontmatterField, enrichStages, parseStagesValue, parseModelsValue } from '../../scripts/lib/workfile.js';
+import { loadHistory } from '../../scripts/lib/history.js';
+import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../scripts/lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../scripts/lib/feedback.js';
 import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow, selectAppraisers } from '../../scripts/lib/config.js';
 import { slugify } from '../../scripts/lib/slug.js';
-import { runSort } from '../../scripts/sort.js';
 import { execSync, execFileSync } from 'child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { readOrCreateSecret } from '../../scripts/lib/secret.js';
@@ -165,35 +164,6 @@ export const FoundryPlugin = async ({ directory }) => {
 
     tool: {
       // ── History tools ──
-      foundry_history_append: tool({
-        description: 'Append an entry to the cycle history (WORK.history.yaml)',
-        args: {
-          cycle: tool.schema.string().describe('Cycle name'),
-          stage: tool.schema.string().describe('Stage name'),
-          comment: tool.schema.string().describe('Comment for this entry'),
-          route: tool.schema.string().optional().describe('When stage=sort, the stage alias the sort routed to'),
-        },
-        async execute(args, context) {
-          const io = makeIO(context.worktree);
-          const guard = requireNoActiveStage(io);
-          if (!guard.ok) return JSON.stringify({ error: `foundry_history_append ${guard.error}` });
-          const historyPath = path.join(context.worktree, 'WORK.history.yaml');
-          // Sort-route alias check: if this entry is NOT a sort, it must match
-          // the most recent sort's `route` for this cycle.
-          if (args.stage !== 'sort') {
-            const expected = readLastSortRoute(historyPath, args.cycle, io);
-            if (args.stage !== expected) {
-              return JSON.stringify({
-                error: `foundry_history_append: stage ${args.stage} does not match last sort route ${expected ?? 'none'}`,
-              });
-            }
-          }
-          const iteration = getIteration(historyPath, args.cycle, io);
-          appendEntry(historyPath, { cycle: args.cycle, stage: args.stage, iteration, comment: args.comment, route: args.route }, io);
-          return JSON.stringify({ ok: true, iteration });
-        },
-      }),
-
       foundry_history_list: tool({
         description: 'List history entries for a cycle',
         args: {
@@ -269,57 +239,6 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
 
-      foundry_stage_finalize: tool({
-        description: 'Verify stage output matches allowed file patterns; register artefacts as drafts.',
-        args: {
-          cycle: tool.schema.string().describe('Cycle name'),
-        },
-        async execute(args, context) {
-          const io = makeIO(context.worktree);
-          const guard = requireNoActiveStage(io);
-          if (!guard.ok) return JSON.stringify({ error: guard.error });
-          const last = readLastStage(io);
-          if (!last) return JSON.stringify({ error: 'foundry_stage_finalize: no last stage recorded; call stage_end first' });
-          if (last.cycle !== args.cycle) {
-            return JSON.stringify({ error: `foundry_stage_finalize: cycle mismatch (last=${last.cycle}, got=${args.cycle})` });
-          }
-
-          // Load on-disk definitions and translate to finalizeStage's camelCase contract.
-          let cycleDoc;
-          try {
-            cycleDoc = await getCycleDefinition('foundry', args.cycle, io);
-          } catch (e) {
-            return JSON.stringify({ error: `foundry_stage_finalize: ${e.message}` });
-          }
-          const outputType = cycleDoc.frontmatter.output;
-          const cycleDef = { outputArtefactType: outputType };
-          const artefactTypes = {};
-          if (outputType) {
-            try {
-              const artDoc = await getArtefactType('foundry', outputType, io);
-              artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
-            } catch {
-              artefactTypes[outputType] = { filePatterns: [] };
-            }
-          }
-
-          const workPath = path.join(context.worktree, 'WORK.md');
-          const result = finalizeStage({
-            cwd: context.worktree,
-            baseSha: last.baseSha,
-            stageBase: stageBaseOf(last.stage),
-            cycleDef,
-            artefactTypes,
-            registerArtefact: ({ file, type, status }) => {
-              const text = readFileSync(workPath, 'utf-8');
-              const updated = addArtefactRow(text, { file, type, cycle: args.cycle, status });
-              writeFileSync(workPath, updated, 'utf-8');
-            },
-          });
-          return JSON.stringify(result);
-        },
-      }),
-
       // ── Workfile tools ──
       foundry_workfile_create: tool({
         description: 'Create WORK.md with frontmatter and goal',
@@ -371,116 +290,6 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
 
-      foundry_workfile_set: tool({
-        description: 'Update a single frontmatter field in WORK.md',
-        args: {
-          key: tool.schema.string().describe('Frontmatter key (cycle|stages|max-iterations|models)'),
-          value: tool.schema.string().describe('Value to set (use JSON for arrays/objects, e.g. \'["forge:a","quench:b"]\' or \'{"forge":"openai/gpt-4o"}\')'),
-        },
-        async execute(args, context) {
-          const io = makeIO(context.worktree);
-          const guard = requireNoActiveStage(io);
-          if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_set ${guard.error}` });
-          const ALLOWED_KEYS = new Set(['cycle', 'stages', 'max-iterations', 'maxIterations', 'models', 'human-appraise', 'deadlock-appraise', 'deadlock-iterations']);
-          if (!ALLOWED_KEYS.has(args.key)) {
-            return JSON.stringify({ error: `foundry_workfile_set: key must be one of cycle|stages|max-iterations|models; got ${args.key}` });
-          }
-          const workPath = path.join(context.worktree, 'WORK.md');
-          if (!existsSync(workPath)) {
-            return JSON.stringify({ error: 'WORK.md not found' });
-          }
-          const text = readFileSync(workPath, 'utf-8');
-          // Parse JSON values for arrays/objects, keep strings as-is
-          let value = args.value;
-          if (args.key === 'stages') {
-            // Always parse stages into an array (handles JSON arrays and comma-separated strings)
-            value = parseStagesValue(args.value);
-          } else if (args.key === 'models') {
-            // Always parse models into an object (handles JSON objects and "key: value" strings)
-            value = parseModelsValue(args.value);
-          } else {
-            try {
-              const parsed = JSON.parse(args.value);
-              if (typeof parsed === 'object' || Array.isArray(parsed) || typeof parsed === 'number') {
-                value = parsed;
-              }
-            } catch {
-              // Not JSON, use as plain string
-            }
-          }
-          // Auto-enrich bare stage names with cycle ID alias
-          if (args.key === 'stages' && Array.isArray(value)) {
-            const fm = parseFrontmatter(text);
-            if (fm.cycle) {
-              value = enrichStages(value, fm.cycle);
-            }
-          }
-          const updated = setFrontmatterField(text, args.key, value);
-          writeFileSync(workPath, updated, 'utf-8');
-          return JSON.stringify({ ok: true });
-        },
-      }),
-
-      foundry_workfile_configure_from_cycle: tool({
-        description: 'Populate WORK.md frontmatter from a cycle definition in one pass. Reads the cycle def for max-iterations, human-appraise, deadlock-appraise, deadlock-iterations, and models; applies defaults for anything missing. Caller must supply the synthesized stages list (the skill owns stage synthesis).',
-        args: {
-          cycleId: tool.schema.string().describe('Cycle ID — used to locate foundry/cycles/<cycleId>.md'),
-          stages: tool.schema.array(tool.schema.string()).describe('Ordered stage aliases (bare names will be enriched with :<cycleId>)'),
-        },
-        async execute(args, context) {
-          const io = makeIO(context.worktree);
-          const guard = requireNoActiveStage(io);
-          if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_configure_from_cycle ${guard.error}` });
-
-          const workPath = path.join(context.worktree, 'WORK.md');
-          if (!existsSync(workPath)) {
-            return JSON.stringify({ error: 'WORK.md not found' });
-          }
-
-          let cycleDoc;
-          try {
-            cycleDoc = await getCycleDefinition('foundry', args.cycleId, io);
-          } catch (e) {
-            return JSON.stringify({ error: `foundry_workfile_configure_from_cycle: ${e.message}` });
-          }
-          const fm = cycleDoc.frontmatter || {};
-
-          const stages = enrichStages(args.stages, args.cycleId);
-
-          // Apply defaults for each cycle-def-backed field.
-          const maxIterations = fm['max-iterations'] ?? 3;
-          const humanAppraise = fm['human-appraise'] === true;
-          const deadlockAppraise = fm['deadlock-appraise'] !== false; // default true
-          const deadlockIterations = fm['deadlock-iterations'] ?? 5;
-          const models = fm.models ?? null;
-
-          let text = readFileSync(workPath, 'utf-8');
-          text = setFrontmatterField(text, 'cycle', args.cycleId);
-          text = setFrontmatterField(text, 'stages', stages);
-          text = setFrontmatterField(text, 'max-iterations', maxIterations);
-          text = setFrontmatterField(text, 'human-appraise', humanAppraise);
-          text = setFrontmatterField(text, 'deadlock-appraise', deadlockAppraise);
-          text = setFrontmatterField(text, 'deadlock-iterations', deadlockIterations);
-          if (models && typeof models === 'object' && Object.keys(models).length > 0) {
-            text = setFrontmatterField(text, 'models', models);
-          }
-          writeFileSync(workPath, text, 'utf-8');
-
-          return JSON.stringify({
-            ok: true,
-            applied: {
-              cycle: args.cycleId,
-              stages,
-              'max-iterations': maxIterations,
-              'human-appraise': humanAppraise,
-              'deadlock-appraise': deadlockAppraise,
-              'deadlock-iterations': deadlockIterations,
-              ...(models ? { models } : {}),
-            },
-          });
-        },
-      }),
-
       foundry_workfile_delete: tool({
         description: 'Delete WORK.md and WORK.history.yaml (requires confirm:true)',
         args: {
@@ -502,6 +311,91 @@ export const FoundryPlugin = async ({ directory }) => {
             unlinkSync(historyPath);
           }
           return JSON.stringify({ ok: true });
+        },
+      }),
+
+      // ── Orchestrate tool ──
+      foundry_orchestrate: tool({
+        description: 'Run the next step of the current cycle. Call with no args on first invocation; call with lastResult={kind,ok} after a dispatch/human_appraise completes. Returns {action, ...} describing what the caller should do next.',
+        args: {
+          lastResult: tool.schema.object({
+            kind: tool.schema.string(),
+            ok: tool.schema.boolean(),
+            error: tool.schema.string().optional(),
+          }).optional(),
+          cycleDef: tool.schema.string().optional().describe('Test-mode cycle definition override (path to cycle file)'),
+        },
+        async execute(args, context) {
+          const { runOrchestrate } = await import('../../scripts/orchestrate.js');
+          const io = makeIO(context.worktree);
+          const cwd = context.worktree;
+
+          // Mint: same pattern as removed foundry_sort.
+          const mint = ({ route, cycle, exp }) => {
+            const nonce = randomUUID();
+            const payload = { route, cycle, nonce, exp };
+            pending.add(nonce, payload);
+            return signToken(payload, secret);
+          };
+
+          // Git bridge: commit staged changes with a cycle-prefixed message.
+          const git = {
+            commit: (msg) => {
+              execSync('git add .', { cwd, encoding: 'utf8' });
+              execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd, encoding: 'utf8' });
+              return execSync('git rev-parse --short HEAD', { cwd, encoding: 'utf8' }).trim();
+            },
+            status: () => {
+              const out = execSync('git status --porcelain', { cwd, encoding: 'utf8' }).trim();
+              return { clean: out === '', dirty: out.split('\n').filter(Boolean) };
+            },
+          };
+
+          // Finalize bridge: mimics the deleted foundry_stage_finalize body.
+          const finalize = async ({ cycleId, stage, baseSha }) => {
+            let cycleDoc;
+            try {
+              cycleDoc = await getCycleDefinition('foundry', cycleId, io);
+            } catch (e) {
+              return { ok: false, error: e.message };
+            }
+            const outputType = cycleDoc.frontmatter.output;
+            const cycleDef = { outputArtefactType: outputType };
+            const artefactTypes = {};
+            if (outputType) {
+              try {
+                const artDoc = await getArtefactType('foundry', outputType, io);
+                artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
+              } catch {
+                artefactTypes[outputType] = { filePatterns: [] };
+              }
+            }
+            const workPath = path.join(cwd, 'WORK.md');
+            const result = finalizeStage({
+              cwd,
+              baseSha,
+              stageBase: stageBaseOf(stage),
+              cycleDef,
+              artefactTypes,
+              registerArtefact: ({ file, type, status }) => {
+                const text = readFileSync(workPath, 'utf-8');
+                const updated = addArtefactRow(text, { file, type, cycle: cycleId, status });
+                writeFileSync(workPath, updated, 'utf-8');
+              },
+            });
+            return result;
+          };
+
+          try {
+            const result = await runOrchestrate({
+              cwd, cycleDef: args.cycleDef, git, mint, finalize,
+              now: () => Date.now(),
+              lastResult: args.lastResult ?? null,
+            }, io);
+            return JSON.stringify(result);
+          } catch (e) {
+            return JSON.stringify({ action: 'violation', details: `orchestrate threw: ${e.message}`, recoverable: false, affected_files: [] });
+          }
         },
       }),
 
@@ -672,27 +566,6 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
 
-      // ── Sort tool ──
-      foundry_sort: tool({
-        description: 'Determine the next stage for the current cycle and (if dispatchable) mint a single-use token.',
-        args: {
-          cycleDef: tool.schema.string().optional().describe('Path to cycle definition file'),
-        },
-        async execute(args, context) {
-          const io = makeIO(context.worktree);
-          const guard = requireNoActiveStage(io);
-          if (!guard.ok) return JSON.stringify({ error: `foundry_sort ${guard.error}` });
-          const mint = ({ route, cycle, exp }) => {
-            const nonce = randomUUID();
-            const payload = { route, cycle, nonce, exp };
-            pending.add(nonce, payload);
-            return signToken(payload, secret);
-          };
-          const result = runSort({ cycleDef: args.cycleDef, mint }, io);
-          return JSON.stringify(result);
-        },
-      }),
-
       // ── Git tools ──
       foundry_git_branch: tool({
         description: 'Create and checkout a work branch for a flow',
@@ -709,25 +582,6 @@ export const FoundryPlugin = async ({ directory }) => {
           const branch = `work/${flowSlug}-${descSlug}`;
           execFileSync('git', ['checkout', '-b', branch], { cwd: context.worktree, encoding: 'utf8', stdio: 'pipe' });
           return JSON.stringify({ ok: true, branch });
-        },
-      }),
-
-      foundry_git_commit: tool({
-        description: 'Stage all changes and commit with a cycle-prefixed message',
-        args: {
-          cycle: tool.schema.string().describe('Cycle name'),
-          stage: tool.schema.string().describe('Stage name'),
-          description: tool.schema.string().describe('Commit description'),
-        },
-        async execute(args, context) {
-          const io = makeIO(context.worktree);
-          const guard = requireNoActiveStage(io);
-          if (!guard.ok) return JSON.stringify({ error: `foundry_git_commit ${guard.error}` });
-          execSync('git add .', { cwd: context.worktree, encoding: 'utf8' });
-          const msg = `[${args.cycle}] ${args.stage}: ${args.description}`;
-          execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: context.worktree, encoding: 'utf8' });
-          const hash = execSync('git rev-parse --short HEAD', { cwd: context.worktree, encoding: 'utf8' }).trim();
-          return JSON.stringify({ ok: true, hash });
         },
       }),
 
