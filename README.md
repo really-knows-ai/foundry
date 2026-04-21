@@ -54,9 +54,8 @@ Add `@really-knows-ai/foundry` to your OpenCode config:
 ```json
 // opencode.json
 {
-  "packages": {
-    "@really-knows-ai/foundry": "latest"
-  }
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@really-knows-ai/foundry"]
 }
 ```
 
