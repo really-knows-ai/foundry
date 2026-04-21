@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.2 — 2026-04-21
+
+### Changed
+
+- Config-modifying skills (`add-flow`, `add-cycle`, `add-law`, `add-appraiser`, `add-artefact-type`) now refuse to run on a work branch. They require the current branch to not start with `work/`, directing the user to complete or discard the in-flight flow before changing foundry configuration. Structural changes belong on the base branch, not alongside transient flow state.
+
+### Removed
+
+- Historical planning docs (`docs/plans/`, `docs/specs/`, `docs/superpowers/`) and `HARDEN.md`. All described features that shipped in v2.2.0–v2.3.1; git history preserves the full record.
+
 ## 2.3.1 — 2026-04-20
 
 ### Changed
