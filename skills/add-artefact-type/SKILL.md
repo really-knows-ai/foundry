@@ -10,9 +10,15 @@ You help the user create a new artefact type. You ensure it doesn't conflict wit
 
 ## Prerequisites
 
-Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+Before running this skill, verify both of the following:
 
-> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+1. The `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+
+   > Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+
+2. The current git branch is not a work branch. Run `git rev-parse --abbrev-ref HEAD` — if it starts with `work/`, stop and tell the user:
+
+   > You're on a work branch (`<branch>`). Foundry configuration changes must be made on the base branch (usually `main`). Complete or discard the in-flight flow (`foundry_git_finish`, or switch branches and delete it), then re-run this skill from the base branch.
 
 ## Protocol
 
