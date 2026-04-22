@@ -5,13 +5,25 @@ function esc(s) {
   return String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
 }
 function lit(s) { return `"${esc(s)}"`; }
+function vecLit(v) {
+  return `vec([${v.map((n) => Number(n).toString()).join(', ')}])`;
+}
 
-export async function putEntity(store, { type, name, value }, vocabulary) {
+export async function putEntity(store, { type, name, value }, vocabulary, { embedder } = {}) {
   validateEntityWrite({ type, name, value }, vocabulary);
   const rel = entRelName(type);
-  await store.db.run(
-    `?[name, value] <- [[${lit(name)}, ${lit(value)}]]\n:put ${rel} { name => value }`,
-  );
+  if (embedder) {
+    const vectors = await embedder([value]);
+    const vec = vectors && vectors[0];
+    if (!Array.isArray(vec)) throw new Error('embedder did not return a vector');
+    await store.db.run(
+      `?[name, value, embedding] <- [[${lit(name)}, ${lit(value)}, ${vecLit(vec)}]]\n:put ${rel} { name => value, embedding }`,
+    );
+  } else {
+    await store.db.run(
+      `?[name, value] <- [[${lit(name)}, ${lit(value)}]]\n:put ${rel} { name => value }`,
+    );
+  }
 }
 
 export async function relate(store, { edge_type, from_type, from_name, to_type, to_name }, vocabulary) {

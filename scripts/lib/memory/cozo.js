@@ -23,10 +23,17 @@ export async function listRelations(db) {
   return res.rows.map((r) => r[0]);
 }
 
-export async function createEntityRelation(db, type) {
+export async function createEntityRelation(db, type, opts = {}) {
   const name = entRelName(type);
   if (await relationExists(db, name)) return;
-  await db.run(`:create ${name} { name: String => value: String, embedding: [Float]? default null }`);
+  const { dim } = opts;
+  // Cozo 0.7 requires a typed vector (<F32; N>) for HNSW indexing. When no
+  // embeddings are configured we keep the flexible [Float]? column so the
+  // relation can still be created and written to without embeddings.
+  const embeddingCol = Number.isInteger(dim) && dim > 0
+    ? `embedding: <F32; ${dim}>? default null`
+    : `embedding: [Float]? default null`;
+  await db.run(`:create ${name} { name: String => value: String, ${embeddingCol} }`);
 }
 
 export async function createEdgeRelation(db, type) {
@@ -37,6 +44,27 @@ export async function createEdgeRelation(db, type) {
 
 export async function dropRelation(db, relationName) {
   await db.run(`::remove ${relationName}`);
+}
+
+export async function createHnswIndex(db, relationName, { dim, ef = 50, m = 16 } = {}) {
+  if (!Number.isInteger(dim) || dim <= 0) throw new Error('createHnswIndex: dim must be positive integer');
+  try {
+    await db.run(`::hnsw create ${relationName}:vec { fields: [embedding], dim: ${dim}, ef: ${ef}, m: ${m} }`);
+  } catch (err) {
+    const msg = String(err && (err.display || err.message || err));
+    if (/already exists|already created/i.test(msg)) return;
+    throw err;
+  }
+}
+
+export async function dropHnswIndex(db, relationName) {
+  try {
+    await db.run(`::hnsw drop ${relationName}:vec`);
+  } catch (err) {
+    const msg = String(err && (err.display || err.message || err));
+    if (/not found|does not exist|no such/i.test(msg)) return;
+    throw err;
+  }
 }
 
 export async function checkpoint(db) {
