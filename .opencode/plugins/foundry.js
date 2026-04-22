@@ -29,6 +29,12 @@ import {
 } from '../../scripts/lib/state.js';
 import { requireNoActiveStage, requireActiveStage, stageBaseOf } from '../../scripts/lib/stage-guard.js';
 import { finalizeStage } from '../../scripts/lib/finalize.js';
+// Memory tools (Plan 02)
+import { getOrOpenStore, getContext } from '../../scripts/lib/memory/singleton.js';
+import { syncStore } from '../../scripts/lib/memory/store.js';
+import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../scripts/lib/memory/writes.js';
+import { getEntity, listEntities, neighbours as memNeighbours } from '../../scripts/lib/memory/reads.js';
+import { runQuery } from '../../scripts/lib/memory/query.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -132,6 +138,34 @@ function makeIO(directory) {
     // must use execSync rather than execFileSync. Throws on non-zero exit; callers
     // already wrap in try/catch.
     exec: (cmd) => execSync(cmd, { cwd: directory, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }),
+  };
+}
+
+function makeMemoryIO(directory) {
+  // Memory modules use await on every I/O op. Wrap sync fs calls in Promise-returning shims.
+  const sync = makeIO(directory);
+  return {
+    exists: async (p) => sync.exists(p),
+    readFile: async (p) => sync.readFile(p),
+    writeFile: async (p, c) => sync.writeFile(p, c),
+    readDir: async (p) => { try { return sync.readDir(p); } catch { return []; } },
+    mkdir: async (p) => sync.mkdir(p),
+  };
+}
+
+function errorJson(err) {
+  return JSON.stringify({ error: err.message ?? String(err) });
+}
+
+async function withStore(context) {
+  const io = makeMemoryIO(context.worktree);
+  const store = await getOrOpenStore({ worktreeRoot: context.worktree, io });
+  const ctx = getContext(context.worktree);
+  return {
+    io,
+    store,
+    vocabulary: ctx.vocabulary,
+    syncIfOutOfCycle: async () => { if (!context.cycle) await syncStore({ store, io }); },
   };
 }
 
@@ -746,10 +780,123 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           const io = makeIO(context.worktree);
-          const result = args.count
-            ? await selectAppraisers('foundry', args.typeId, args.count, io)
-            : await selectAppraisers('foundry', args.typeId, io);
           return JSON.stringify(result);
+        },
+      }),
+
+      // ── Memory tools ──
+      foundry_memory_put: tool({
+        description: 'Upsert an entity into flow memory. Value must be ≤4KB.',
+        args: {
+          type: tool.schema.string().describe('Entity type (must be declared)'),
+          name: tool.schema.string().describe('Entity name (unique within type)'),
+          value: tool.schema.string().describe('Free-text intrinsic description (≤4KB)'),
+        },
+        async execute(args, context) {
+          try {
+            const { store, vocabulary, syncIfOutOfCycle } = await withStore(context);
+            await putEntity(store, args, vocabulary);
+            await syncIfOutOfCycle();
+            return JSON.stringify({ ok: true });
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+
+      foundry_memory_relate: tool({
+        description: 'Upsert an edge between two entities.',
+        args: {
+          from_type: tool.schema.string(),
+          from_name: tool.schema.string(),
+          edge_type: tool.schema.string(),
+          to_type: tool.schema.string(),
+          to_name: tool.schema.string(),
+        },
+        async execute(args, context) {
+          try {
+            const { store, vocabulary, syncIfOutOfCycle } = await withStore(context);
+            await memRelate(store, args, vocabulary);
+            await syncIfOutOfCycle();
+            return JSON.stringify({ ok: true });
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+
+      foundry_memory_unrelate: tool({
+        description: 'Delete an edge between two entities.',
+        args: {
+          from_type: tool.schema.string(),
+          from_name: tool.schema.string(),
+          edge_type: tool.schema.string(),
+          to_type: tool.schema.string(),
+          to_name: tool.schema.string(),
+        },
+        async execute(args, context) {
+          try {
+            const { store, vocabulary, syncIfOutOfCycle } = await withStore(context);
+            await memUnrelate(store, args, vocabulary);
+            await syncIfOutOfCycle();
+            return JSON.stringify({ ok: true });
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+
+      foundry_memory_get: tool({
+        description: 'Fetch a single entity by composite key (type, name).',
+        args: {
+          type: tool.schema.string(),
+          name: tool.schema.string(),
+        },
+        async execute(args, context) {
+          try {
+            const { store } = await withStore(context);
+            const ent = await getEntity(store, args);
+            return JSON.stringify(ent);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+
+      foundry_memory_list: tool({
+        description: 'List all entities of a given type.',
+        args: {
+          type: tool.schema.string(),
+        },
+        async execute(args, context) {
+          try {
+            const { store } = await withStore(context);
+            const out = await listEntities(store, args);
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+
+      foundry_memory_neighbours: tool({
+        description: 'Bounded graph traversal from an entity. Returns entities and edges within `depth` hops.',
+        args: {
+          type: tool.schema.string(),
+          name: tool.schema.string(),
+          depth: tool.schema.number().optional().describe('Default 1'),
+          edge_types: tool.schema.array(tool.schema.string()).optional().describe('Restrict traversal to named edges'),
+        },
+        async execute(args, context) {
+          try {
+            const { store, vocabulary } = await withStore(context);
+            const out = await memNeighbours(store, args, vocabulary);
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+
+      foundry_memory_query: tool({
+        description: 'Arbitrary read-only Cozo Datalog query. Rejects :put, :rm, :create, ::remove. Returns {headers, rows}.',
+        args: {
+          datalog: tool.schema.string().describe('Cozo Datalog query (read-only)'),
+        },
+        async execute(args, context) {
+          try {
+            const { store } = await withStore(context);
+            const out = await runQuery(store, args.datalog);
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
         },
       }),
     },
