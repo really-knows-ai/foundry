@@ -36,6 +36,7 @@ import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../s
 import { getEntity, listEntities, neighbours as memNeighbours } from '../../scripts/lib/memory/reads.js';
 import { runQuery } from '../../scripts/lib/memory/query.js';
 import { resolvePermissions, checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../scripts/lib/memory/permissions.js';
+import { renderMemoryPrompt } from '../../scripts/lib/memory/prompt.js';
 import { createEntityType as admCreateEntity } from '../../scripts/lib/memory/admin/create-entity-type.js';
 import { createEdgeType as admCreateEdge } from '../../scripts/lib/memory/admin/create-edge-type.js';
 import { renameEntityType as admRenameEntity } from '../../scripts/lib/memory/admin/rename-entity-type.js';
@@ -189,6 +190,26 @@ async function withStore(context) {
     permissions,
     syncIfOutOfCycle: async () => { if (!context.cycle) await syncStore({ store, io }); },
   };
+}
+
+/**
+ * Build the memory-vocabulary block for a cycle's dispatch prompt.
+ * Returns '' on any error (memory not initialised, drifted, etc.) so that
+ * flow dispatch never fails due to memory.
+ */
+export async function buildCyclePromptExtras({ worktree, cycleId }) {
+  if (!cycleId) return '';
+  try {
+    const io = makeMemoryIO(worktree);
+    await getOrOpenStore({ worktreeRoot: worktree, io });
+    const ctx = getContext(worktree);
+    if (!ctx) return '';
+    const cycleDef = await getCycleDefinition('foundry', cycleId, io);
+    const perms = resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary: ctx.vocabulary });
+    return renderMemoryPrompt({ permissions: perms });
+  } catch {
+    return '';
+  }
 }
 
 export const FoundryPlugin = async ({ directory }) => {
@@ -453,6 +474,14 @@ export const FoundryPlugin = async ({ directory }) => {
               now: () => Date.now(),
               lastResult: args.lastResult ?? null,
             }, io);
+            // Inject memory vocabulary block into dispatch prompt, if any.
+            if (result && result.action === 'dispatch' && typeof result.prompt === 'string') {
+              const cycleId = result.cycle ?? (typeof result.stage === 'string' ? result.stage.split(':')[1] : null);
+              const extras = await buildCyclePromptExtras({ worktree: cwd, cycleId });
+              if (extras) {
+                result.prompt = `${result.prompt}\n\n${extras}`;
+              }
+            }
             return JSON.stringify(result);
           } catch (e) {
             return JSON.stringify({ action: 'violation', details: `orchestrate threw: ${e.message}`, recoverable: false, affected_files: [] });
