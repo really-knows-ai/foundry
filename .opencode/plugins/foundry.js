@@ -31,6 +31,7 @@ import { requireNoActiveStage, requireActiveStage, stageBaseOf } from '../../scr
 import { finalizeStage } from '../../scripts/lib/finalize.js';
 // Memory tools (Plan 02)
 import { getOrOpenStore, getContext } from '../../scripts/lib/memory/singleton.js';
+import { loadMemoryConfig } from '../../scripts/lib/memory/config.js';
 import { syncStore } from '../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../scripts/lib/memory/writes.js';
 import { getEntity, listEntities, neighbours as memNeighbours } from '../../scripts/lib/memory/reads.js';
@@ -179,11 +180,16 @@ async function withStore(context) {
   const ctx = getContext(context.worktree);
   const embeddingsCfg = ctx?.config?.embeddings;
   const schemaEmbeddings = ctx?.schema?.embeddings;
-  // Only activate the embedder when both the config enables embeddings AND the
-  // schema declares dimensions (i.e. init-memory has provisioned the typed
-  // vector column). Otherwise put paths stay embedding-free.
-  const embedder = embeddingsCfg && embeddingsCfg.enabled && schemaEmbeddings && schemaEmbeddings.dimensions
+  // `embedder` follows the provider config (enabled → available for queries
+  // like search/probe). `writeEmbedder` additionally requires that the schema
+  // declare vector dimensions (i.e. init-memory has provisioned the typed
+  // column); otherwise put paths stay embedding-free to keep the relation
+  // compatible with the non-HNSW column type.
+  const embedder = embeddingsCfg && embeddingsCfg.enabled
     ? (inputs) => memEmbed({ config: embeddingsCfg, inputs })
+    : null;
+  const writeEmbedder = embedder && schemaEmbeddings && schemaEmbeddings.dimensions
+    ? embedder
     : null;
   let permissions = null;
   if (context.cycle) {
@@ -200,6 +206,7 @@ async function withStore(context) {
     vocabulary: ctx.vocabulary,
     permissions,
     embedder,
+    writeEmbedder,
     syncIfOutOfCycle: async () => { if (!context.cycle) await syncStore({ store, io }); },
   };
 }
@@ -868,11 +875,11 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store, vocabulary, permissions, embedder, syncIfOutOfCycle } = await withStore(context);
+            const { store, vocabulary, permissions, writeEmbedder, syncIfOutOfCycle } = await withStore(context);
             if (permissions && !checkEntityWrite(permissions, args.type)) {
               return errorJson(new Error(`cycle '${context.cycle}' does not have write permission on entity type '${args.type}'`));
             }
-            await putEntity(store, args, vocabulary, { embedder });
+            await putEntity(store, args, vocabulary, { embedder: writeEmbedder });
             await syncIfOutOfCycle();
             return JSON.stringify({ ok: true });
           } catch (err) { return errorJson(err); }
@@ -1174,8 +1181,10 @@ export const FoundryPlugin = async ({ directory }) => {
         async execute(args, context) {
           try {
             const io = makeMemoryIO(context.worktree);
-            const ctx = getContext(context.worktree);
-            const baseConfig = ctx?.config?.embeddings ?? {};
+            // Load config fresh from disk: the singleton context is only
+            // populated once a store is opened, which isn't guaranteed here.
+            const currentConfig = await loadMemoryConfig('foundry', io);
+            const baseConfig = currentConfig.embeddings;
             const newConfig = {
               ...baseConfig,
               enabled: true,
