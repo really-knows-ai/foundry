@@ -35,6 +35,7 @@ import { syncStore } from '../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../scripts/lib/memory/writes.js';
 import { getEntity, listEntities, neighbours as memNeighbours } from '../../scripts/lib/memory/reads.js';
 import { runQuery } from '../../scripts/lib/memory/query.js';
+import { resolvePermissions, checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../scripts/lib/memory/permissions.js';
 import { createEntityType as admCreateEntity } from '../../scripts/lib/memory/admin/create-entity-type.js';
 import { createEdgeType as admCreateEdge } from '../../scripts/lib/memory/admin/create-edge-type.js';
 import { renameEntityType as admRenameEntity } from '../../scripts/lib/memory/admin/rename-entity-type.js';
@@ -172,10 +173,20 @@ async function withStore(context) {
   const io = makeMemoryIO(context.worktree);
   const store = await getOrOpenStore({ worktreeRoot: context.worktree, io });
   const ctx = getContext(context.worktree);
+  let permissions = null;
+  if (context.cycle) {
+    try {
+      const cycleDef = await getCycleDefinition('foundry', context.cycle, io);
+      permissions = resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary: ctx.vocabulary });
+    } catch {
+      permissions = null;
+    }
+  }
   return {
     io,
     store,
     vocabulary: ctx.vocabulary,
+    permissions,
     syncIfOutOfCycle: async () => { if (!context.cycle) await syncStore({ store, io }); },
   };
 }
@@ -805,7 +816,10 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store, vocabulary, syncIfOutOfCycle } = await withStore(context);
+            const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
+            if (permissions && !checkEntityWrite(permissions, args.type)) {
+              return errorJson(new Error(`cycle '${context.cycle}' does not have write permission on entity type '${args.type}'`));
+            }
             await putEntity(store, args, vocabulary);
             await syncIfOutOfCycle();
             return JSON.stringify({ ok: true });
@@ -824,7 +838,10 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store, vocabulary, syncIfOutOfCycle } = await withStore(context);
+            const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
+            if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {
+              return errorJson(new Error(`cycle '${context.cycle}' does not have write permission on edge type '${args.edge_type}'`));
+            }
             await memRelate(store, args, vocabulary);
             await syncIfOutOfCycle();
             return JSON.stringify({ ok: true });
@@ -843,7 +860,10 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store, vocabulary, syncIfOutOfCycle } = await withStore(context);
+            const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
+            if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {
+              return errorJson(new Error(`cycle '${context.cycle}' does not have write permission on edge type '${args.edge_type}'`));
+            }
             await memUnrelate(store, args, vocabulary);
             await syncIfOutOfCycle();
             return JSON.stringify({ ok: true });
@@ -859,7 +879,10 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store } = await withStore(context);
+            const { store, permissions } = await withStore(context);
+            if (permissions && !checkEntityRead(permissions, args.type)) {
+              return JSON.stringify(null);
+            }
             const ent = await getEntity(store, args);
             return JSON.stringify(ent);
           } catch (err) { return errorJson(err); }
@@ -873,7 +896,10 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store } = await withStore(context);
+            const { store, permissions } = await withStore(context);
+            if (permissions && !checkEntityRead(permissions, args.type)) {
+              return JSON.stringify([]);
+            }
             const out = await listEntities(store, args);
             return JSON.stringify(out);
           } catch (err) { return errorJson(err); }
@@ -890,9 +916,24 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store, vocabulary } = await withStore(context);
-            const out = await memNeighbours(store, args, vocabulary);
-            return JSON.stringify(out);
+            const { store, vocabulary, permissions } = await withStore(context);
+            if (permissions && !checkEntityRead(permissions, args.type)) {
+              return JSON.stringify({ entities: [], edges: [] });
+            }
+            const edgeTypesInput = args.edge_types ?? Object.keys(vocabulary.edges);
+            const filteredEdgeTypes = permissions
+              ? edgeTypesInput.filter((e) => checkEdgeRead(permissions, e))
+              : edgeTypesInput;
+            const result = await memNeighbours(store, { ...args, edge_types: filteredEdgeTypes }, vocabulary);
+            const filtered = permissions
+              ? {
+                  entities: result.entities.filter((e) => checkEntityRead(permissions, e.type)),
+                  edges: result.edges.filter((e) =>
+                    checkEntityRead(permissions, e.from_type) && checkEntityRead(permissions, e.to_type),
+                  ),
+                }
+              : result;
+            return JSON.stringify(filtered);
           } catch (err) { return errorJson(err); }
         },
       }),
@@ -904,7 +945,19 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store } = await withStore(context);
+            const { store, vocabulary, permissions } = await withStore(context);
+            if (permissions) {
+              const allowed = new Set([
+                ...[...permissions.readTypes].map((t) => `ent_${t}`),
+                ...Object.keys(vocabulary.edges).filter((e) => checkEdgeRead(permissions, e)).map((e) => `edge_${e}`),
+              ]);
+              const referenced = Array.from(args.datalog.matchAll(/\bent_[a-z0-9_]+\b|\bedge_[a-z0-9_]+\b/g)).map((m) => m[0]);
+              for (const r of referenced) {
+                if (!allowed.has(r)) {
+                  return errorJson(new Error(`cycle '${context.cycle}' cannot query relation '${r}' (not in read permissions)`));
+                }
+              }
+            }
             const out = await runQuery(store, args.datalog);
             return JSON.stringify(out);
           } catch (err) { return errorJson(err); }
