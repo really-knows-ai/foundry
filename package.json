@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.4.0",
+    "cozo-node": "^0.7.6",
     "js-yaml": "^4.1.0",
     "minimatch": "^10.2.5"
   },
