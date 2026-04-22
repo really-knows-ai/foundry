@@ -35,6 +35,16 @@ import { syncStore } from '../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../scripts/lib/memory/writes.js';
 import { getEntity, listEntities, neighbours as memNeighbours } from '../../scripts/lib/memory/reads.js';
 import { runQuery } from '../../scripts/lib/memory/query.js';
+import { createEntityType as admCreateEntity } from '../../scripts/lib/memory/admin/create-entity-type.js';
+import { createEdgeType as admCreateEdge } from '../../scripts/lib/memory/admin/create-edge-type.js';
+import { renameEntityType as admRenameEntity } from '../../scripts/lib/memory/admin/rename-entity-type.js';
+import { renameEdgeType as admRenameEdge } from '../../scripts/lib/memory/admin/rename-edge-type.js';
+import { dropEntityType as admDropEntity } from '../../scripts/lib/memory/admin/drop-entity-type.js';
+import { dropEdgeType as admDropEdge } from '../../scripts/lib/memory/admin/drop-edge-type.js';
+import { resetMemory as admReset } from '../../scripts/lib/memory/admin/reset.js';
+import { validateMemory as admValidate } from '../../scripts/lib/memory/admin/validate.js';
+import { dumpMemory as admDump } from '../../scripts/lib/memory/admin/dump.js';
+import { vacuumMemory as admVacuum } from '../../scripts/lib/memory/admin/vacuum.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -150,6 +160,7 @@ function makeMemoryIO(directory) {
     writeFile: async (p, c) => sync.writeFile(p, c),
     readDir: async (p) => { try { return sync.readDir(p); } catch { return []; } },
     mkdir: async (p) => sync.mkdir(p),
+    unlink: async (p) => sync.unlink(p),
   };
 }
 
@@ -896,6 +907,126 @@ export const FoundryPlugin = async ({ directory }) => {
             const { store } = await withStore(context);
             const out = await runQuery(store, args.datalog);
             return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+
+      foundry_memory_create_entity_type: tool({
+        description: 'Create a new entity type with a prose body brief.',
+        args: {
+          name: tool.schema.string(),
+          body: tool.schema.string(),
+        },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admCreateEntity({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_create_edge_type: tool({
+        description: 'Create a new edge type.',
+        args: {
+          name: tool.schema.string(),
+          sources: tool.schema.union([tool.schema.literal('any'), tool.schema.array(tool.schema.string())]),
+          targets: tool.schema.union([tool.schema.literal('any'), tool.schema.array(tool.schema.string())]),
+          body: tool.schema.string(),
+        },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admCreateEdge({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_rename_entity_type: tool({
+        description: 'Rename an entity type and cascade updates to edges and rows.',
+        args: { from: tool.schema.string(), to: tool.schema.string() },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admRenameEntity({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_rename_edge_type: tool({
+        description: 'Rename an edge type.',
+        args: { from: tool.schema.string(), to: tool.schema.string() },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admRenameEdge({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_drop_entity_type: tool({
+        description: 'Destructive. Delete an entity type and cascade to affected edges. Requires confirm: true.',
+        args: { name: tool.schema.string(), confirm: tool.schema.boolean() },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admDropEntity({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_drop_edge_type: tool({
+        description: 'Destructive. Delete an edge type. Requires confirm: true.',
+        args: { name: tool.schema.string(), confirm: tool.schema.boolean() },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admDropEdge({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_reset: tool({
+        description: 'Destructive. Purge all memory data (keeps type definitions). Requires confirm: true.',
+        args: { confirm: tool.schema.boolean() },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admReset({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_validate: tool({
+        description: 'Run load-time and drift checks; returns a report.',
+        args: {},
+        async execute(_args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            return JSON.stringify(await admValidate({ io }));
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_dump: tool({
+        description: 'Human-readable snapshot of memory. Optional type + name.',
+        args: {
+          type: tool.schema.string().optional(),
+          name: tool.schema.string().optional(),
+          depth: tool.schema.number().optional(),
+        },
+        async execute(args, context) {
+          try {
+            const { store, vocabulary } = await withStore(context);
+            return await admDump({ store, vocabulary, ...args });
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_vacuum: tool({
+        description: 'Compact the Cozo database.',
+        args: {},
+        async execute(_args, context) {
+          try {
+            const { store } = await withStore(context);
+            return JSON.stringify(await admVacuum({ store }));
           } catch (err) { return errorJson(err); }
         },
       }),
