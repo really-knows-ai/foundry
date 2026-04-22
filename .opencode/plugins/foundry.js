@@ -47,6 +47,9 @@ import { resetMemory as admReset } from '../../scripts/lib/memory/admin/reset.js
 import { validateMemory as admValidate } from '../../scripts/lib/memory/admin/validate.js';
 import { dumpMemory as admDump } from '../../scripts/lib/memory/admin/dump.js';
 import { vacuumMemory as admVacuum } from '../../scripts/lib/memory/admin/vacuum.js';
+import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../scripts/lib/memory/embeddings.js';
+import { search as memSearch } from '../../scripts/lib/memory/search.js';
+import { reembed as admReembed } from '../../scripts/lib/memory/admin/reembed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -174,6 +177,14 @@ async function withStore(context) {
   const io = makeMemoryIO(context.worktree);
   const store = await getOrOpenStore({ worktreeRoot: context.worktree, io });
   const ctx = getContext(context.worktree);
+  const embeddingsCfg = ctx?.config?.embeddings;
+  const schemaEmbeddings = ctx?.schema?.embeddings;
+  // Only activate the embedder when both the config enables embeddings AND the
+  // schema declares dimensions (i.e. init-memory has provisioned the typed
+  // vector column). Otherwise put paths stay embedding-free.
+  const embedder = embeddingsCfg && embeddingsCfg.enabled && schemaEmbeddings && schemaEmbeddings.dimensions
+    ? (inputs) => memEmbed({ config: embeddingsCfg, inputs })
+    : null;
   let permissions = null;
   if (context.cycle) {
     try {
@@ -188,6 +199,7 @@ async function withStore(context) {
     store,
     vocabulary: ctx.vocabulary,
     permissions,
+    embedder,
     syncIfOutOfCycle: async () => { if (!context.cycle) await syncStore({ store, io }); },
   };
 }
@@ -856,11 +868,11 @@ export const FoundryPlugin = async ({ directory }) => {
         },
         async execute(args, context) {
           try {
-            const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
+            const { store, vocabulary, permissions, embedder, syncIfOutOfCycle } = await withStore(context);
             if (permissions && !checkEntityWrite(permissions, args.type)) {
               return errorJson(new Error(`cycle '${context.cycle}' does not have write permission on entity type '${args.type}'`));
             }
-            await putEntity(store, args, vocabulary);
+            await putEntity(store, args, vocabulary, { embedder });
             await syncIfOutOfCycle();
             return JSON.stringify({ ok: true });
           } catch (err) { return errorJson(err); }
@@ -1120,6 +1132,73 @@ export const FoundryPlugin = async ({ directory }) => {
           try {
             const { store } = await withStore(context);
             return JSON.stringify(await admVacuum({ store }));
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_search: tool({
+        description: 'Semantic nearest-neighbour search over entity values. Requires embeddings enabled.',
+        args: {
+          query_text: tool.schema.string(),
+          k: tool.schema.number().optional().describe('Default 5'),
+          type_filter: tool.schema.array(tool.schema.string()).optional(),
+        },
+        async execute(args, context) {
+          try {
+            const { store, permissions, embedder, vocabulary } = await withStore(context);
+            if (!embedder) return errorJson(new Error('embeddings are disabled in memory config'));
+
+            let types = args.type_filter && args.type_filter.length > 0
+              ? args.type_filter
+              : Object.keys(vocabulary.entities);
+            if (permissions) types = types.filter((t) => checkEntityRead(permissions, t));
+
+            const out = await memSearch({
+              store,
+              query_text: args.query_text,
+              k: args.k ?? 5,
+              type_filter: types,
+              embedder,
+            });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_change_embedding_model: tool({
+        description: 'Swap the embedding model and re-embed all existing entities.',
+        args: {
+          model: tool.schema.string(),
+          dimensions: tool.schema.number(),
+          baseURL: tool.schema.string().optional(),
+          apiKey: tool.schema.string().optional(),
+        },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const ctx = getContext(context.worktree);
+            const baseConfig = ctx?.config?.embeddings ?? {};
+            const newConfig = {
+              ...baseConfig,
+              enabled: true,
+              model: args.model,
+              dimensions: args.dimensions,
+              baseURL: args.baseURL ?? baseConfig.baseURL,
+              apiKey: args.apiKey ?? baseConfig.apiKey,
+            };
+            const probe = await memProbeEmbeddings({ config: newConfig });
+            if (!probe.ok) return errorJson(new Error(`probe failed: ${probe.error}`));
+            if (probe.dimensions !== args.dimensions) {
+              return errorJson(new Error(`provider returned ${probe.dimensions}-dim vectors, config declares ${args.dimensions}`));
+            }
+            const dbAbsolutePath = path.join(context.worktree, 'foundry/memory/memory.db');
+            const embedder = (inputs) => memEmbed({ config: newConfig, inputs });
+            const out = await admReembed({
+              worktreeRoot: context.worktree,
+              io, dbAbsolutePath,
+              newModel: args.model,
+              newDimensions: args.dimensions,
+              embedder,
+            });
+            return JSON.stringify(out);
           } catch (err) { return errorJson(err); }
         },
       }),
