@@ -318,6 +318,17 @@ export const FoundryPlugin = async ({ directory }) => {
           if (!active) return JSON.stringify({ error: 'foundry_stage_end requires active stage; current: none' });
           writeLastStage(io, { cycle: active.cycle, stage: active.stage, baseSha: active.baseSha, summary: args.summary });
           clearActiveStage(io);
+          // End-of-flow memory sync: flush any pending cycle-scoped writes.
+          // Non-fatal: flow completion must not fail due to memory sync.
+          try {
+            const memIo = makeMemoryIO(context.worktree);
+            const ctx = getContext(context.worktree);
+            if (ctx && ctx.store) {
+              await syncStore({ store: ctx.store, io: memIo });
+            }
+          } catch (err) {
+            console.error(`memory sync at flow end failed: ${err.message ?? err}`);
+          }
           return JSON.stringify({ ok: true, summary: args.summary });
         },
       }),
