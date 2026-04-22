@@ -39,3 +39,11 @@ export function disposeStores() {
   for (const [, ctx] of stores) closeStore(ctx.store);
   stores.clear();
 }
+
+export function invalidateStore(worktreeRoot) {
+  const ctx = stores.get(worktreeRoot);
+  if (ctx) {
+    try { closeStore(ctx.store); } catch { /* ignore */ }
+    stores.delete(worktreeRoot);
+  }
+}

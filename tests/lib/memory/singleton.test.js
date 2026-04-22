@@ -41,4 +41,17 @@ describe('singleton store', () => {
     await assert.rejects(() => getOrOpenStore({ worktreeRoot: r2, io: diskIO(r2) }), /not enabled/i);
     rmSync(r2, { recursive: true, force: true });
   });
+
+  it('invalidateStore clears and reopens fresh', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'inv-'));
+    mkdirSync(join(r, 'foundry/memory'), { recursive: true });
+    writeFileSync(join(r, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
+    writeFileSync(join(r, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
+    const { invalidateStore } = await import('../../../scripts/lib/memory/singleton.js');
+    const s1 = await getOrOpenStore({ worktreeRoot: r, io: diskIO(r) });
+    invalidateStore(r);
+    const s2 = await getOrOpenStore({ worktreeRoot: r, io: diskIO(r) });
+    assert.notStrictEqual(s1, s2);
+    rmSync(r, { recursive: true, force: true });
+  });
 });
