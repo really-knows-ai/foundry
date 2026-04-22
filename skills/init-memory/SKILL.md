@@ -61,13 +61,26 @@ entity types, edge types, committed NDJSON relations, and a gitignored Cozo data
      "version": 1,
      "entities": {},
      "edges": {},
-     "embeddings": null
+     "embeddings": {
+       "model": "nomic-embed-text",
+       "dimensions": 768
+     }
    }
    ```
 
    Note: no trailing whitespace, Unix newlines, trailing newline at end of file.
+   If `embeddings.enabled` is set to `false` in `config.md`, write `"embeddings": null` instead.
 
-5. **Append `.gitignore` entries** (create `.gitignore` if missing; otherwise append only if entries are not already present):
+5. **Probe the embedding provider**
+
+   Invoke `foundry_memory_validate`. Then:
+
+   - If `embeddings.enabled` is true in the freshly-written config, invoke a probe using `foundry_memory_search` with `{ query_text: "probe", k: 1 }`. If it returns an error indicating the provider is unreachable or the dimension does not match, stop and show the user these options:
+     1. Install and start Ollama, then run `ollama pull nomic-embed-text`, then retry `init-memory`.
+     2. Edit `foundry/memory/config.md` to point at a different OpenAI-compatible endpoint (or set `embeddings.enabled: false`), then retry `init-memory`.
+   - If the probe succeeds, continue.
+
+6. **Append `.gitignore` entries** (create `.gitignore` if missing; otherwise append only if entries are not already present):
 
    ```
    foundry/memory/memory.db
@@ -75,14 +88,14 @@ entity types, edge types, committed NDJSON relations, and a gitignored Cozo data
    foundry/memory/memory.db-shm
    ```
 
-6. **Commit the scaffold**
+7. **Commit the scaffold**
 
    ```bash
    git add foundry/memory/ .gitignore
    git commit -m "feat: initialise flow memory"
    ```
 
-7. **Tell the user what is next**
+8. **Tell the user what is next**
 
    > Flow memory is scaffolded. Next steps:
    >
