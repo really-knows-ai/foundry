@@ -10,17 +10,8 @@ import { createEntityType } from '../../../../scripts/lib/memory/admin/create-en
 import { createEdgeType } from '../../../../scripts/lib/memory/admin/create-edge-type.js';
 import { dropEntityType } from '../../../../scripts/lib/memory/admin/drop-entity-type.js';
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => existsSync(abs(p)),
-    readFile: async (p) => readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { mkdirSync(join(abs(p), '..'), { recursive: true }); writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => mkdirSync(abs(p), { recursive: true }),
-    unlink: async (p) => { if (existsSync(abs(p))) unlinkSync(abs(p)); },
-  };
-}
+
+import { diskIO } from '../_helpers.js';
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'drop-e-'));
@@ -33,11 +24,44 @@ function setup() {
 }
 
 describe('dropEntityType', () => {
-  it('requires confirm: true', async () => {
+  it('returns a preview (no mutation) when confirm is not true', async () => {
     const root = setup();
     const io = diskIO(root);
     await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
-    await assert.rejects(() => dropEntityType({ worktreeRoot: root, io, name: 'class', confirm: false }), /confirm/);
+    await createEntityType({ worktreeRoot: root, io, name: 'method', body: 'b' });
+    await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class', 'method'], targets: ['class', 'method'], body: 'b' });
+    await createEdgeType({ worktreeRoot: root, io, name: 'writes', sources: ['class'], targets: ['method'], body: 'b' });
+    writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'),
+      '{"name":"a","value":"v"}\n{"name":"b","value":"v"}\n');
+    writeFileSync(join(root, 'foundry/memory/relations/calls.ndjson'),
+      '{"from_name":"a","from_type":"class","to_name":"b","to_type":"method"}\n' +
+      '{"from_name":"a","from_type":"method","to_name":"b","to_type":"method"}\n');
+
+    const out = await dropEntityType({ worktreeRoot: root, io, name: 'class', confirm: false });
+    assert.equal(out.requiresConfirm, true);
+    assert.equal(out.preview.type, 'entity');
+    assert.equal(out.preview.name, 'class');
+    assert.equal(out.preview.entityRows, 2);
+    // `writes` cascades (class is the only source → empty after filter).
+    // `calls` prunes (one of two rows references class).
+    const byName = Object.fromEntries(out.preview.affectedEdges.map((e) => [e.name, e]));
+    assert.equal(byName.writes.action, 'cascadeDrop');
+    assert.equal(byName.calls.action, 'prune');
+    assert.equal(byName.calls.rowsAffected, 1);
+
+    // Nothing was mutated.
+    assert.ok(existsSync(join(root, 'foundry/memory/entities/class.md')));
+    assert.ok(existsSync(join(root, 'foundry/memory/edges/writes.md')));
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('omitted confirm also returns preview (no mutation)', async () => {
+    const root = setup();
+    const io = diskIO(root);
+    await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
+    const out = await dropEntityType({ worktreeRoot: root, io, name: 'class' });
+    assert.equal(out.requiresConfirm, true);
+    assert.ok(existsSync(join(root, 'foundry/memory/entities/class.md')));
     rmSync(root, { recursive: true, force: true });
   });
 

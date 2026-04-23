@@ -7,19 +7,11 @@ import { openStore, closeStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity } from '../../../scripts/lib/memory/writes.js';
 import { runQuery } from '../../../scripts/lib/memory/query.js';
 
+import { diskIO } from './_helpers.js';
+
 const vocab = { entities: { class: {} }, edges: {} };
 const schema = { version: 1, entities: { class: {} }, edges: {}, embeddings: null };
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => existsSync(abs(p)),
-    readFile: async (p) => readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { mkdirSync(join(abs(p), '..'), { recursive: true }); writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => mkdirSync(abs(p), { recursive: true }),
-  };
-}
 
 describe('query', () => {
   let root, store;
@@ -41,6 +33,20 @@ describe('query', () => {
     await assert.rejects(() => runQuery(store, ':put ent_class { name => value } [["x", "y"]]'), /read-only/i);
     await assert.rejects(() => runQuery(store, ':rm ent_class { name } [["com.A"]]'), /read-only/i);
     await assert.rejects(() => runQuery(store, ':create bad { a: Int }'), /read-only/i);
+  });
+
+  it('rejects destructive system ops not on the allowlist', async () => {
+    await assert.rejects(() => runQuery(store, '::remove ent_class'), /read-only.*::remove/i);
+    await assert.rejects(() => runQuery(store, '::hnsw drop ent_class:vec'), /read-only.*::hnsw/i);
+    await assert.rejects(() => runQuery(store, '::hnsw create ent_class:vec {...}'), /read-only.*::hnsw/i);
+    await assert.rejects(() => runQuery(store, '::index drop ent_class:idx'), /read-only.*::index/i);
+    await assert.rejects(() => runQuery(store, '::fts create ent_class:ft {...}'), /read-only.*::fts/i);
+    await assert.rejects(() => runQuery(store, '::kill 1'), /read-only.*::kill/i);
+  });
+
+  it('allows read-only system ops on the allowlist', async () => {
+    const out = await runQuery(store, '::relations');
+    assert.ok(Array.isArray(out.rows));
   });
 
   it('surfaces cozo errors clearly', async () => {

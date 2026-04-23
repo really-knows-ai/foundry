@@ -5,16 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getOrOpenStore, disposeStores } from '../../../scripts/lib/memory/singleton.js';
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => existsSync(abs(p)),
-    readFile: async (p) => readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { mkdirSync(join(abs(p), '..'), { recursive: true }); writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => mkdirSync(abs(p), { recursive: true }),
-  };
-}
+
+import { diskIO } from './_helpers.js';
 
 describe('singleton store', () => {
   let root;

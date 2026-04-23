@@ -8,17 +8,8 @@ import { openStore, closeStore } from '../../../../scripts/lib/memory/store.js';
 import { putEntity } from '../../../../scripts/lib/memory/writes.js';
 import { reembed } from '../../../../scripts/lib/memory/admin/reembed.js';
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => fs.existsSync(abs(p)),
-    readFile: async (p) => fs.readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { fs.mkdirSync(join(abs(p), '..'), { recursive: true }); fs.writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return fs.readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => fs.mkdirSync(abs(p), { recursive: true }),
-    unlink: async (p) => { if (fs.existsSync(abs(p))) fs.unlinkSync(abs(p)); },
-  };
-}
+
+import { diskIO } from '../_helpers.js';
 
 function fakeEmbedder(dim, signature) {
   return async (inputs) => inputs.map((s) => {

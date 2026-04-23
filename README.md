@@ -19,6 +19,7 @@
 - [Feedback lifecycle](#feedback-lifecycle)
 - [Enforcement model](#enforcement-model)
 - [Multi-model routing](#multi-model-routing)
+- [Flow memory](#flow-memory)
 - [Skills](#skills)
 - [Custom tools](#custom-tools)
 - [Project layout](#project-layout)
@@ -277,6 +278,65 @@ Run `list-agents` to see what's available.
 
 ---
 
+## Flow memory
+
+Foundry ships an optional, typed, graph-shaped memory store that persists across cycles in a project. Strictly opt-in — a project without `foundry/memory/` behaves exactly as it did before, and memory-less cycles are unaffected. When memory is initialised and a cycle declares permissions, its dispatched stage prompt is augmented with a vocabulary block (entity/edge types it can read and write) and the memory tools for those permissions.
+
+Scaffold it with the `init-memory` skill:
+
+```
+foundry/memory/
+├── config.md                 # frontmatter: enabled, validation, embeddings
+├── schema.json               # canonicalised derivation of the vocabulary
+├── entities/<type>.md        # prose brief per entity type (LLM-facing)
+├── edges/<name>.md           # frontmatter (sources/targets) + prose brief
+├── relations/<type>.ndjson   # committed row data
+├── memory.db                 # live Cozo 0.7 store (gitignored)
+├── memory.db-wal             # (gitignored)
+└── memory.db-shm             # (gitignored)
+```
+
+### Model
+
+- **Entity** — `{ type, name, value }`, where `value` (≤ 4 KB) is free text describing intrinsic characteristics only. Relationships belong in edges.
+- **Entity type** — a named bucket with a prose body describing naming convention, what `value` should contain, and likely related edges. The body is injected into the prompt of every cycle that touches this type.
+- **Edge** — a directed row `{ from_type, from_name, edge_type, to_type, to_name }`.
+- **Edge type** — declares `sources` and `targets` (a list of entity types or the literal `any`) and a prose body describing when the edge holds and what it does not cover.
+
+### Per-cycle permissions
+
+Each cycle opts in to memory via its frontmatter:
+
+```yaml
+memory:
+  read:  [class, method]
+  write: [method]
+```
+
+- `read` types appear in the prompt vocabulary and expose `foundry_memory_{get,list,neighbours,query}` (plus `foundry_memory_search` when embeddings are enabled).
+- `write` types additionally expose `foundry_memory_{put,relate,unrelate}`.
+- Edge permissions are derived: an edge is readable when either endpoint type is readable, writable when either endpoint type is writable.
+- `foundry_memory_query` rejects Datalog that references `ent_*` / `edge_*` relations outside the read set.
+- A cycle with no `memory:` block sees no memory tools — injection no-ops.
+
+Writes are persisted to `relations/<type>.ndjson` so knowledge is committed alongside artefacts and survives across flows.
+
+### Semantic search (optional)
+
+When `embeddings.enabled: true` in `config.md`, entity values are embedded on write against an OpenAI-compatible endpoint (default: local Ollama `nomic-embed-text`, 768 dims) and stored in a typed `<F32; N>?` column with an HNSW index. `foundry_memory_search` exposes nearest-neighbour search; `change-embedding-model` re-embeds the entire store atomically (nothing is written on failure). With embeddings disabled, graph and query APIs still work.
+
+### Operational guarantees
+
+- **Deterministic scaffolding.** `foundry_memory_init` creates directories, config, schema, and gitignore entries in one call — no multi-step skill prose that an LLM could botch.
+- **Self-healing reopen.** On store open, orphan relations left by drops/renames are reconciled (`::relations` filtered to `^(ent|edge)_[^:]+$`, HNSW indices dropped before `::remove`). The live `memory.db` is always rebuildable from the committed NDJSON.
+- **Preview-then-confirm for destructive ops.** Drop tools called without `confirm: true` return an impact report (row counts, affected edges with `cascadeDrop` vs `prune`) instead of deleting anything.
+- **Canonical schema.** `schema.json` is fully key-sorted at every nesting level, making it a diff-friendly artefact of the vocabulary.
+- **Prompt-injection guard.** If memory is misconfigured or drifted, dispatch still succeeds with no vocabulary block rather than failing the cycle.
+
+See [docs/memory-maintenance.md](docs/memory-maintenance.md) for the Cozo 0.7 adaptations (string-literal quote rules, `::compact`, typed vector columns, `?[...] <- [[...]]` syntax) that cost us time to derive.
+
+---
+
 ## Skills
 
 Foundry is a collection of skills. Skills are either **atomic** (do one thing) or **composite** (orchestrate other skills).
@@ -311,13 +371,29 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 | `refresh-agents` | Regenerate `foundry-*` agent files from the currently available models. |
 | `upgrade-foundry` | Analyse and migrate `foundry/` config to the current version. |
 
+### Memory
+
+| Skill | Purpose |
+|-------|---------|
+| `init-memory` | Scaffold `foundry/memory/`; ask about embeddings; probe the provider. |
+| `add-memory-entity-type` | Declare a new entity type with a prose brief for the LLM. |
+| `add-memory-edge-type` | Declare a new edge type with allowed sources/targets. |
+| `rename-memory-entity-type` | Rename an entity type; cascade through edges, relations, schema. |
+| `rename-memory-edge-type` | Rename an edge type. |
+| `drop-memory-entity-type` | Preview-then-confirm delete of an entity type; cascades to affected edges. |
+| `drop-memory-edge-type` | Preview-then-confirm delete of an edge type. |
+| `reset-memory` | Purge all row data while keeping type definitions. |
+| `change-embedding-model` | Probe, re-embed, then swap embedding provider/model atomically. |
+
 All authoring skills are interactive and conflict-aware — they explain what they're about to write and ask before writing.
 
 ---
 
 ## Custom tools
 
-The plugin registers **24 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
+The plugin registers **44 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
+
+### Pipeline tools
 
 | Category | Tools |
 |----------|-------|
@@ -331,9 +407,20 @@ The plugin registers **24 custom tools**. Skills call these rather than manipula
 | **Validation** | `foundry_validate_run`, `foundry_appraisers_select` |
 | **Git** | `foundry_git_branch`, `foundry_git_finish` |
 
+### Memory tools
+
+| Category | Tools |
+|----------|-------|
+| **Entity read** | `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, `foundry_memory_search` |
+| **Entity write** | `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate` |
+| **Vocabulary** | `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type` |
+| **Admin** | `foundry_memory_init`, `foundry_memory_validate`, `foundry_memory_reset`, `foundry_memory_dump`, `foundry_memory_vacuum`, `foundry_memory_change_embedding_model` |
+
+`foundry_memory_drop_entity_type` and `foundry_memory_drop_edge_type` take an optional `confirm`. Without it (the skill-driven first call) they return a preview of what would be deleted; only `confirm: true` performs the drop. Read/write tools enforce the cycle's `memory:` permissions; `foundry_memory_query` additionally rejects Datalog that references relations outside the read set.
+
 A handful of internal tools (`foundry_sort`, `foundry_history_append`, `foundry_stage_finalize`, `foundry_git_commit`, `foundry_workfile_set`, `foundry_workfile_configure_from_cycle`) are intentionally *not* registered — they exist only inside `foundry_orchestrate` so they cannot be called out of band.
 
-Tools are backed by shared modules in `scripts/lib/` with injectable I/O for testability (see `tests/`).
+Tools are backed by shared modules in `scripts/lib/` (pipeline) and `scripts/lib/memory/` (memory) with injectable I/O for testability (see `tests/`).
 
 ---
 
@@ -361,7 +448,16 @@ Tools are backed by shared modules in `scripts/lib/` with injectable I/O for tes
 │   ├── add-flow/
 │   ├── list-agents/            # utility
 │   ├── refresh-agents/
-│   └── upgrade-foundry/
+│   ├── upgrade-foundry/
+│   ├── init-memory/            # memory
+│   ├── add-memory-entity-type/
+│   ├── add-memory-edge-type/
+│   ├── rename-memory-entity-type/
+│   ├── rename-memory-edge-type/
+│   ├── drop-memory-entity-type/
+│   ├── drop-memory-edge-type/
+│   ├── reset-memory/
+│   └── change-embedding-model/
 ├── scripts/
 │   ├── lib/                    # shared libraries (injectable I/O)
 │   │   ├── workfile.js         # WORK.md frontmatter
@@ -377,7 +473,27 @@ Tools are backed by shared modules in `scripts/lib/` with injectable I/O for tes
 │   │   ├── state.js            # .foundry state dir
 │   │   ├── config.js           # foundry/ config readers
 │   │   ├── tags.js             # feedback tag extraction
-│   │   └── slug.js
+│   │   ├── slug.js
+│   │   └── memory/             # flow memory (Cozo 0.7)
+│   │       ├── config.js       # config.md frontmatter
+│   │       ├── schema.js       # canonical schema.json
+│   │       ├── paths.js        # layout resolver
+│   │       ├── frontmatter.js  # shared YAML+body parser
+│   │       ├── cozo.js         # cozoStringLit + helpers
+│   │       ├── store.js        # openStore, reconciliation
+│   │       ├── singleton.js    # session-scoped context
+│   │       ├── reads.js        # get/list/neighbours/query
+│   │       ├── writes.js       # put/relate/unrelate
+│   │       ├── search.js       # embedding search
+│   │       ├── embeddings.js   # provider client + probe
+│   │       ├── ndjson.js       # relations file I/O
+│   │       ├── types.js        # entity/edge type files
+│   │       ├── validate.js     # load + drift checks
+│   │       ├── permissions.js  # per-cycle read/write
+│   │       ├── prompt.js       # vocabulary block renderer
+│   │       ├── drift.js        # schema drift detection
+│   │       ├── query.js        # Datalog read-only guard
+│   │       └── admin/          # init, reset, drop/rename, reembed, dump, vacuum
 │   ├── orchestrate.js          # orchestration loop (exports runOrchestrate)
 │   └── sort.js                 # routing engine (exports runSort)
 ├── tests/                      # node:test suite
@@ -399,7 +515,14 @@ your-project/
 │   │       ├── laws.md         # optional
 │   │       └── validation.md   # optional
 │   ├── laws/                   # global laws
-│   └── appraisers/             # appraiser personalities
+│   ├── appraisers/             # appraiser personalities
+│   └── memory/                 # optional flow memory (init-memory)
+│       ├── config.md
+│       ├── schema.json
+│       ├── entities/<type>.md
+│       ├── edges/<name>.md
+│       ├── relations/<type>.ndjson
+│       └── memory.db*          # gitignored
 ├── .foundry/                   # runtime state (gitignored)
 │   └── .secret                 # per-worktree HMAC key (mode 0600)
 ├── .opencode/
@@ -451,13 +574,18 @@ When a cycle reads from another cycle's output, those files cannot be modified. 
 
 Two artefact types cannot have file patterns that match the same files. Hard-blocked at creation time; the file-ownership rule doesn't have a meaningful answer otherwise.
 
+### Flow memory is strictly opt-in and per-cycle
+
+Memory is a separate, optional subsystem — no `foundry/memory/` means no memory, no prompt injection, no tools exposed. Even with memory initialised, a cycle sees it only by declaring a `memory: { read, write }` block in its frontmatter. The live Cozo database is gitignored and rebuildable from committed NDJSON; vocabulary (`entities/<type>.md`, `edges/<name>.md`) and row data (`relations/*.ndjson`) are the durable source of truth. Destructive operations preview before they mutate.
+
 ---
 
 ## Further reading
 
 - [docs/concepts.md](docs/concepts.md) — every concept defined concisely.
-- [docs/getting-started.md](docs/getting-started.md) — end-to-end walkthrough.
+- [docs/getting-started.md](docs/getting-started.md) — end-to-end walkthrough (including flow memory).
 - [docs/work-spec.md](docs/work-spec.md) — the full WORK.md + WORK.history.yaml spec.
+- [docs/memory-maintenance.md](docs/memory-maintenance.md) — contributor notes on Cozo 0.7 and memory session lifecycle.
 - [CHANGELOG.md](CHANGELOG.md) — version history and migration notes.
 
 ---

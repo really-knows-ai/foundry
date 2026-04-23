@@ -1,12 +1,10 @@
-import yaml from 'js-yaml';
-import { join, basename, extname } from 'path';
+import { join, basename, extname } from 'node:path';
 import { memoryPaths } from './paths.js';
+import { parseFrontmatter } from './frontmatter.js';
 
-function splitFrontmatter(text) {
-  const m = text.match(/^---\n([\s\S]*?)\n---\r?\n?([\s\S]*)$/);
-  if (!m) return { frontmatter: {}, body: text.trim() };
-  const fm = yaml.load(m[1]);
-  return { frontmatter: fm && typeof fm === 'object' ? fm : {}, body: (m[2] ?? '').trim() };
+function splitFrontmatter(text, filename) {
+  const parsed = parseFrontmatter(text, { filename });
+  return { frontmatter: parsed.frontmatter, body: parsed.body.trim() };
 }
 
 function validateEntity(filename, parsed) {
@@ -56,21 +54,23 @@ export async function loadVocabulary(foundryDir, io) {
   const vocab = { entities: {}, edges: {} };
 
   for (const file of await loadDir(p.entitiesDir, io)) {
-    const text = await io.readFile(join(p.entitiesDir, file));
-    const parsed = splitFrontmatter(text);
+    const fullPath = join(p.entitiesDir, file);
+    const text = await io.readFile(fullPath);
+    const parsed = splitFrontmatter(text, fullPath);
     validateEntity(file, parsed);
     const { type } = parsed.frontmatter;
     vocab.entities[type] = {
       type,
       body: parsed.body,
       frontmatter: parsed.frontmatter,
-      file: join(p.entitiesDir, file),
+      file: fullPath,
     };
   }
 
   for (const file of await loadDir(p.edgesDir, io)) {
-    const text = await io.readFile(join(p.edgesDir, file));
-    const parsed = splitFrontmatter(text);
+    const fullPath = join(p.edgesDir, file);
+    const text = await io.readFile(fullPath);
+    const parsed = splitFrontmatter(text, fullPath);
     validateEdge(file, parsed);
     const { type, sources, targets } = parsed.frontmatter;
     vocab.edges[type] = {
@@ -79,7 +79,7 @@ export async function loadVocabulary(foundryDir, io) {
       targets,
       body: parsed.body,
       frontmatter: parsed.frontmatter,
-      file: join(p.edgesDir, file),
+      file: fullPath,
     };
   }
 

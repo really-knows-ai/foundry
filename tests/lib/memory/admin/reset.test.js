@@ -9,17 +9,8 @@ import { join } from 'node:path';
 import { createEntityType } from '../../../../scripts/lib/memory/admin/create-entity-type.js';
 import { resetMemory } from '../../../../scripts/lib/memory/admin/reset.js';
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => existsSync(abs(p)),
-    readFile: async (p) => readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { mkdirSync(join(abs(p), '..'), { recursive: true }); writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => mkdirSync(abs(p), { recursive: true }),
-    unlink: async (p) => { if (existsSync(abs(p))) unlinkSync(abs(p)); },
-  };
-}
+
+import { diskIO } from '../_helpers.js';
 
 describe('resetMemory', () => {
   it('empties relation files and keeps types', async () => {

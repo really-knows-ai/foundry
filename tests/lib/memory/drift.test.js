@@ -25,7 +25,10 @@ describe('detectDrift', () => {
     assert.equal(report.items[0].kind, 'frontmatter-mismatch');
     assert.equal(report.items[0].typeFamily, 'entity');
     assert.equal(report.items[0].typeName, 'class');
-    assert.match(report.items[0].suggestedSkill, /rename-memory-entity-type|drop-memory-entity-type/);
+    assert.deepEqual(report.items[0].suggestedSkills, [
+      'rename-memory-entity-type',
+      'drop-memory-entity-type',
+    ]);
   });
 
   it('reports unknown-type for on-disk types not in schema', () => {
@@ -35,7 +38,7 @@ describe('detectDrift', () => {
     });
     assert.equal(report.items[0].kind, 'unknown-type');
     assert.equal(report.items[0].typeName, 'ghost');
-    assert.match(report.items[0].suggestedSkill, /add-memory-entity-type/);
+    assert.deepEqual(report.items[0].suggestedSkills, ['add-memory-entity-type']);
   });
 
   it('reports missing-file for schema types with no file on disk', () => {
@@ -45,7 +48,10 @@ describe('detectDrift', () => {
     });
     assert.equal(report.items[0].kind, 'missing-file');
     assert.equal(report.items[0].typeName, 'class');
-    assert.match(report.items[0].suggestedSkill, /drop-memory-entity-type|rename-memory-entity-type/);
+    assert.deepEqual(report.items[0].suggestedSkills, [
+      'drop-memory-entity-type',
+      'rename-memory-entity-type',
+    ]);
   });
 
   it('checks edges the same way', () => {

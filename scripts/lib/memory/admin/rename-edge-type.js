@@ -1,7 +1,7 @@
-import yaml from 'js-yaml';
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { invalidateStore } from '../singleton.js';
+import { parseFrontmatter } from '../frontmatter.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
 
@@ -25,11 +25,11 @@ export async function renameEdgeType({ worktreeRoot, io, from, to }) {
 
   const oldFile = p.edgeTypeFile(from);
   const text = await io.readFile(oldFile);
-  const m = text.match(/^---\n([\s\S]*?)\n---/);
-  if (!m) throw new Error(`edge type file lacks frontmatter`);
-  const fm = yaml.load(m[1]) ?? {};
+  const parsed = parseFrontmatter(text, { filename: oldFile });
+  if (!parsed.hasFrontmatter) throw new Error(`edge type file lacks frontmatter`);
+  const fm = parsed.frontmatter;
   fm.type = to;
-  const body = text.replace(/^---\n[\s\S]*?\n---\r?\n?/, '');
+  const body = parsed.body;
   await io.writeFile(p.edgeTypeFile(to), `---\n${renderEdgeFrontmatter(fm)}\n---\n${body.startsWith('\n') ? '' : '\n'}${body}`);
   await io.unlink(oldFile);
 

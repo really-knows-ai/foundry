@@ -31,7 +31,7 @@ import { requireNoActiveStage, requireActiveStage, stageBaseOf } from '../../scr
 import { finalizeStage } from '../../scripts/lib/finalize.js';
 // Memory tools (Plan 02)
 import { getOrOpenStore, getContext } from '../../scripts/lib/memory/singleton.js';
-import { loadMemoryConfig } from '../../scripts/lib/memory/config.js';
+import { loadMemoryConfig, writeMemoryConfig } from '../../scripts/lib/memory/config.js';
 import { syncStore } from '../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../scripts/lib/memory/writes.js';
 import { getEntity, listEntities, neighbours as memNeighbours } from '../../scripts/lib/memory/reads.js';
@@ -51,6 +51,7 @@ import { vacuumMemory as admVacuum } from '../../scripts/lib/memory/admin/vacuum
 import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../scripts/lib/memory/embeddings.js';
 import { search as memSearch } from '../../scripts/lib/memory/search.js';
 import { reembed as admReembed } from '../../scripts/lib/memory/admin/reembed.js';
+import { initMemory as admInitMemory } from '../../scripts/lib/memory/admin/init.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -220,12 +221,12 @@ export async function buildCyclePromptExtras({ worktree, cycleId }) {
   if (!cycleId) return '';
   try {
     const io = makeMemoryIO(worktree);
-    await getOrOpenStore({ worktreeRoot: worktree, io });
+    const store = await getOrOpenStore({ worktreeRoot: worktree, io });
     const ctx = getContext(worktree);
     if (!ctx) return '';
     const cycleDef = await getCycleDefinition('foundry', cycleId, io);
     const perms = resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary: ctx.vocabulary });
-    return renderMemoryPrompt({ permissions: perms });
+    return renderMemoryPrompt({ permissions: perms, schema: store?.schema });
   } catch {
     return '';
   }
@@ -1076,8 +1077,9 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
       foundry_memory_drop_entity_type: tool({
-        description: 'Destructive. Delete an entity type and cascade to affected edges. Requires confirm: true.',
-        args: { name: tool.schema.string(), confirm: tool.schema.boolean() },
+        description:
+          'Destructive. Delete an entity type and cascade to affected edges. Call without confirm (or confirm:false) to get a preview of what would be deleted. Pass confirm:true to actually drop.',
+        args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
         async execute(args, context) {
           try {
             const io = makeMemoryIO(context.worktree);
@@ -1087,8 +1089,9 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
       foundry_memory_drop_edge_type: tool({
-        description: 'Destructive. Delete an edge type. Requires confirm: true.',
-        args: { name: tool.schema.string(), confirm: tool.schema.boolean() },
+        description:
+          'Destructive. Delete an edge type. Call without confirm (or confirm:false) to preview row count. Pass confirm:true to actually drop.',
+        args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
         async execute(args, context) {
           try {
             const io = makeMemoryIO(context.worktree);
@@ -1115,6 +1118,25 @@ export const FoundryPlugin = async ({ directory }) => {
           try {
             const io = makeMemoryIO(context.worktree);
             return JSON.stringify(await admValidate({ io }));
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_memory_init: tool({
+        description:
+          'Scaffold foundry/memory/: creates entities/edges/relations dirs with .gitkeep, writes config.md and schema.json, appends .gitignore entries, and optionally probes the embedding provider. Fails if foundry/memory/ already exists.',
+        args: {
+          embeddings_enabled: tool.schema.boolean().optional(),
+          probe: tool.schema.boolean().optional(),
+        },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admInitMemory({
+              io,
+              embeddingsEnabled: args.embeddings_enabled ?? true,
+              probe: args.probe ?? true,
+            });
+            return JSON.stringify(out);
           } catch (err) { return errorJson(err); }
         },
       }),
@@ -1207,6 +1229,10 @@ export const FoundryPlugin = async ({ directory }) => {
               newDimensions: args.dimensions,
               embedder,
             });
+            // Persist the new embeddings block to config.md so a subsequent
+            // session (which re-reads config from disk) stays in sync with
+            // schema.json. Only runs on successful reembed.
+            await writeMemoryConfig('foundry', { embeddings: newConfig }, io);
             return JSON.stringify(out);
           } catch (err) { return errorJson(err); }
         },

@@ -1,8 +1,4 @@
-import { entRelName, edgeRelName } from './cozo.js';
-
-function cozoLit(s) {
-  return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-}
+import { entRelName, edgeRelName, cozoStringLit as cozoLit } from './cozo.js';
 
 export async function getEntity(store, { type, name }) {
   const rel = entRelName(type);

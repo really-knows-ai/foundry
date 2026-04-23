@@ -6,16 +6,8 @@ import { join } from 'node:path';
 import { openStore, syncStore, closeStore } from '../../../scripts/lib/memory/store.js';
 import { hashFrontmatter } from '../../../scripts/lib/memory/schema.js';
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => existsSync(abs(p)),
-    readFile: async (p) => readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { mkdirSync(join(abs(p), '..'), { recursive: true }); writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => { mkdirSync(abs(p), { recursive: true }); },
-  };
-}
+
+import { diskIO } from './_helpers.js';
 
 describe('store lifecycle', () => {
   let root;
@@ -76,6 +68,44 @@ describe('store lifecycle', () => {
       // Sorted by name: Aaa before Bar.
       assert.match(ndjson, /^{"name":"com.Aaa","value":"First"}\n{"name":"com.Bar","value":"Another"}\n$/);
       closeStore(store);
+    } finally {
+      rmSync(localRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('drops orphan ent_/edge_ relations not present in the schema on reopen', async () => {
+    const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-orphan-'));
+    try {
+      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      const io = diskIO(localRoot);
+      const dbPath = join(localRoot, 'foundry/memory/memory.db');
+
+      // First open: schema declares `class` and an edge `calls`.
+      const schemaA = {
+        version: 1,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: { calls: { frontmatterHash: hashFrontmatter({ type: 'calls', sources: ['class'], targets: ['class'] }) } },
+        embeddings: null,
+      };
+      const storeA = await openStore({ foundryDir: 'foundry', schema: schemaA, io, dbAbsolutePath: dbPath });
+      const beforeA = (await storeA.db.run('::relations')).rows.map((r) => r[0]).sort();
+      assert.ok(beforeA.includes('ent_class'));
+      assert.ok(beforeA.includes('edge_calls'));
+      closeStore(storeA);
+
+      // Second open: admin dropped `calls` — schema no longer lists it, but
+      // edge_calls still exists in the live db. Reconcile must drop it.
+      const schemaB = {
+        version: 2,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: {},
+        embeddings: null,
+      };
+      const storeB = await openStore({ foundryDir: 'foundry', schema: schemaB, io, dbAbsolutePath: dbPath });
+      const afterB = (await storeB.db.run('::relations')).rows.map((r) => r[0]);
+      assert.ok(afterB.includes('ent_class'), 'declared relation preserved');
+      assert.ok(!afterB.includes('edge_calls'), 'orphan relation dropped');
+      closeStore(storeB);
     } finally {
       rmSync(localRoot, { recursive: true, force: true });
     }

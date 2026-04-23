@@ -18,19 +18,18 @@ export async function loadSchema(foundryDir, io) {
   };
 }
 
-function sortedKeys(obj) {
-  const out = {};
-  for (const k of Object.keys(obj).sort()) out[k] = obj[k];
-  return out;
-}
-
 function normaliseForWrite(schema) {
-  return {
+  // Full deep canonicalisation: sorts keys at every level so nested objects
+  // (e.g. `entities.<type> = { frontmatterHash: ..., other: ... }`) also
+  // stabilise. Previously only top-level `entities` and `edges` keys were
+  // sorted, leaving any per-type record order dependent on insertion order —
+  // which produced meaningless diffs across runs.
+  return canonicalise({
     version: schema.version,
-    entities: sortedKeys(schema.entities),
-    edges: sortedKeys(schema.edges),
+    entities: schema.entities,
+    edges: schema.edges,
     embeddings: schema.embeddings,
-  };
+  });
 }
 
 export async function writeSchema(foundryDir, schema, io) {

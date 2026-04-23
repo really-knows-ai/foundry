@@ -20,10 +20,11 @@ function edgeBlock(name, edgeDef, canWrite) {
   ].join('\n');
 }
 
-export function renderMemoryPrompt({ permissions }) {
+export function renderMemoryPrompt({ permissions, schema }) {
   if (!permissions.enabled) return '';
 
   const { readTypes, writeTypes, vocabulary } = permissions;
+  const embeddingsEnabled = Boolean(schema?.embeddings?.dimensions);
   const allTypes = new Set([...readTypes, ...writeTypes]);
 
   const lines = [
@@ -57,6 +58,9 @@ export function renderMemoryPrompt({ permissions }) {
   lines.push('- `foundry_memory_list(type)` — list all entities of a type.');
   lines.push('- `foundry_memory_neighbours(type, name, depth?, edge_types?)` — bounded graph traversal.');
   lines.push('- `foundry_memory_query(datalog)` — arbitrary read-only Cozo Datalog.');
+  if (embeddingsEnabled) {
+    lines.push('- `foundry_memory_search(type, query, limit?)` — semantic (vector) search over entities of a type.');
+  }
   if (writeTypes.size > 0) {
     lines.push('- `foundry_memory_put(type, name, value)` — upsert an entity (≤4KB value).');
     lines.push('- `foundry_memory_relate(from_type, from_name, edge_type, to_type, to_name)` — upsert an edge.');

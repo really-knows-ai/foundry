@@ -16,8 +16,7 @@ decides what the LLM writes into memory.
 ## Steps
 
 1. **Ask the user for the type name** (lowercase snake_case, e.g. `class`, `stored_proc`).
-2. **Check for conflicts**: invoke `foundry_memory_validate`. If an entity or edge type with this name already exists, stop and tell the user.
-3. **Propose a prose body template** for the user to edit. Sections required: Name (naming convention for this type), Value (what goes in the value field, must state that relationships belong in edges), Relationships (informational list of likely edges). Example:
+2. **Propose a prose body template** for the user to edit. Sections required: Name (naming convention for this type), Value (what goes in the value field, must state that relationships belong in edges), Relationships (informational list of likely edges). Example:
 
    ```markdown
    # <type>
@@ -35,13 +34,13 @@ decides what the LLM writes into memory.
    - `<edge>` to `<type>`: brief semantic note
    ```
 
-4. **Confirm the body with the user.** Short bodies (≤100 chars) are a red flag; push back.
-5. **Create the type** by invoking `foundry_memory_create_entity_type` with `{ name, body }`.
-6. **Commit**:
+3. **Confirm the body with the user.** Short bodies (≤100 chars) are a red flag; push back.
+4. **Create the type** by invoking `foundry_memory_create_entity_type` with `{ name, body }`. The tool rejects duplicate names (entity or edge) — surface the error to the user if it fires and stop.
+5. **Commit**:
 
    ```bash
    git add foundry/memory/entities/<name>.md foundry/memory/relations/<name>.ndjson foundry/memory/schema.json
    git commit -m "feat(memory): add entity type <name>"
    ```
 
-7. **Guidance to the user**: suggest they also add relevant edge types using `add-memory-edge-type`.
+6. **Guidance to the user**: suggest they also add relevant edge types using `add-memory-edge-type`.

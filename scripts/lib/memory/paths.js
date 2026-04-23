@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { join } from 'node:path';
 
 export function memoryPaths(foundryDir) {
   const root = join(foundryDir, 'memory');

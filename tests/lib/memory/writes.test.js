@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { openStore, closeStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate, unrelate } from '../../../scripts/lib/memory/writes.js';
 
+import { diskIO } from './_helpers.js';
+
 const vocab = {
   entities: { class: {}, method: {} },
   edges: { calls: { sources: ['class'], targets: ['class', 'method'] } },
@@ -17,16 +19,6 @@ const schema = {
   embeddings: null,
 };
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => existsSync(abs(p)),
-    readFile: async (p) => readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { mkdirSync(join(abs(p), '..'), { recursive: true }); writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => mkdirSync(abs(p), { recursive: true }),
-  };
-}
 
 describe('writes', () => {
   let root, store;

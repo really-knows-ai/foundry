@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { join } from 'node:path';
 import { loadMemoryConfig } from './config.js';
 import { loadSchema } from './schema.js';
 import { loadVocabulary } from './types.js';
@@ -20,7 +20,7 @@ export async function getOrOpenStore({ worktreeRoot, io }) {
   const drift = detectDrift({ vocabulary, schema });
   if (drift.hasDrift) {
     const msg = drift.items
-      .map((d) => `  - [${d.typeFamily}] ${d.typeName}: ${d.message} → use skill: ${d.suggestedSkill}`)
+      .map((d) => `  - [${d.typeFamily}] ${d.typeName}: ${d.message} → use skill: ${d.suggestedSkills.join(' or ')}`)
       .join('\n');
     throw new Error(`memory schema drift detected; refusing to open store:\n${msg}`);
   }

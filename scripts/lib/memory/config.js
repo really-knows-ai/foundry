@@ -1,5 +1,5 @@
-import yaml from 'js-yaml';
 import { memoryPaths } from './paths.js';
+import { parseFrontmatter, renderMarkdown } from './frontmatter.js';
 
 export const DEFAULT_CONFIG = Object.freeze({
   enabled: false,
@@ -15,13 +15,6 @@ export const DEFAULT_CONFIG = Object.freeze({
     timeoutMs: 30000,
   }),
 });
-
-function parseFrontmatter(text) {
-  const m = text.match(/^---\n([\s\S]*?)\n---/);
-  if (!m) return {};
-  const parsed = yaml.load(m[1]);
-  return parsed && typeof parsed === 'object' ? parsed : {};
-}
 
 function mergeEmbeddings(userE) {
   const base = { ...DEFAULT_CONFIG.embeddings };
@@ -52,13 +45,68 @@ export async function loadMemoryConfig(foundryDir, io) {
     return { ...DEFAULT_CONFIG, embeddings: { ...DEFAULT_CONFIG.embeddings } };
   }
   const text = await io.readFile(p.config);
-  const fm = parseFrontmatter(text);
+  const { frontmatter: fm } = parseFrontmatter(text, { filename: p.config });
+  // `enabled` must be a real YAML boolean. YAML's `true` / `false` parse as
+  // booleans; `"true"` (quoted) parses as a string and would previously have
+  // silently disabled memory via the `=== true` check. Throw with a
+  // filename-prefixed message so the user fixes config.md rather than
+  // debugging a phantom "memory off" state.
+  if (fm.enabled !== undefined && typeof fm.enabled !== 'boolean') {
+    throw new Error(
+      `memory config (${p.config}): enabled must be a YAML boolean (true/false), got ${JSON.stringify(fm.enabled)}`,
+    );
+  }
   const cfg = {
     present: true,
     enabled: fm.enabled === true,
     validation: fm.validation ?? DEFAULT_CONFIG.validation,
     embeddings: mergeEmbeddings(fm.embeddings),
   };
+  // Gate embeddings on the outer switch: if memory is disabled, embeddings are
+  // disabled too — regardless of what DEFAULT_CONFIG.embeddings.enabled says or
+  // what leaked through a partial user-supplied embeddings block. This prevents
+  // validate() from enforcing baseURL/model/dimensions against a provider the
+  // user never configured, and prevents the init-memory probe from firing for
+  // a memory install that was explicitly turned off.
+  if (!cfg.enabled) {
+    cfg.embeddings = { ...cfg.embeddings, enabled: false };
+  }
   validate(cfg);
   return cfg;
+}
+
+/**
+ * Rewrite foundry/memory/config.md with updated embeddings settings.
+ * Preserves any existing markdown body after the frontmatter. If config.md
+ * is missing, creates a minimal one with no body.
+ *
+ * `updates.embeddings` is merged into existing embeddings frontmatter; other
+ * top-level keys in `updates` (enabled, validation) overwrite if provided.
+ */
+export async function writeMemoryConfig(foundryDir, updates, io) {
+  const p = memoryPaths(foundryDir);
+  let existingFm = {};
+  let body = '';
+  if (await io.exists(p.config)) {
+    const text = await io.readFile(p.config);
+    const parsed = parseFrontmatter(text, { filename: p.config });
+    if (parsed.hasFrontmatter) {
+      existingFm = parsed.frontmatter;
+      body = parsed.body;
+    } else {
+      body = text;
+    }
+  }
+
+  const nextFm = { ...existingFm };
+  if ('enabled' in updates) nextFm.enabled = updates.enabled;
+  if ('validation' in updates) nextFm.validation = updates.validation;
+  if (updates.embeddings && typeof updates.embeddings === 'object') {
+    const baseE = (existingFm.embeddings && typeof existingFm.embeddings === 'object')
+      ? existingFm.embeddings
+      : {};
+    nextFm.embeddings = { ...baseE, ...updates.embeddings };
+  }
+
+  await io.writeFile(p.config, renderMarkdown(nextFm, body));
 }

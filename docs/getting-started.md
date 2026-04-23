@@ -179,6 +179,64 @@ If you used `foundry_git_finish`, it handles this for you.
 
 ---
 
+## Optional: flow memory
+
+Foundry ships a typed, graph-shaped memory store that persists across cycles. It's strictly opt-in — skip this section if your project doesn't need shared state across flows.
+
+### Initialize
+
+Run the `init-memory` skill. It asks whether to enable embeddings (default: yes, targeting local Ollama `nomic-embed-text` on `http://localhost:11434/v1`) and then invokes `foundry_memory_init`, which deterministically:
+
+- creates `foundry/memory/entities/`, `edges/`, and `relations/` (each with `.gitkeep`),
+- writes `foundry/memory/config.md` (frontmatter driven by your embeddings choice) and `foundry/memory/schema.json`,
+- appends `foundry/memory/memory.db*` entries to `.gitignore` (idempotent),
+- probes the embedding provider if enabled; if the probe fails, the skill offers three remedies (install/start Ollama, point at a different OpenAI-compatible endpoint, or disable embeddings).
+
+### Declare vocabulary
+
+Two concepts: **entity types** (things memory knows about, e.g. `class`, `method`) and **edge types** (directed relationships, e.g. `calls`, `references`).
+
+- `add-memory-entity-type` — name + prose body (naming convention, what `value` should contain, likely related edges). The body is injected into the prompt of every cycle that reads/writes this type, so write it for an LLM reader.
+- `add-memory-edge-type` — name, `sources` (list of entity types or `any`), `targets` (list or `any`), and a prose body that describes **when** the edge holds and **what it does not cover**.
+
+Both skills commit their work. The vocabulary lives in `foundry/memory/entities/` and `foundry/memory/edges/`; committed row data lives in `foundry/memory/relations/<name>.ndjson`.
+
+### Give cycles memory permissions
+
+Memory is per-cycle opt-in. Add a `memory:` block to any cycle that should see it:
+
+```yaml
+---
+id: extract-methods
+output: method-notes
+memory:
+  read:  [class]
+  write: [method]
+---
+```
+
+- Types in `read` become visible (the cycle's dispatched prompt lists them along with `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, and — if embeddings are on — `foundry_memory_search`).
+- Types in `write` additionally expose `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`.
+- Edges are visible when either endpoint type is readable, writable when either endpoint type is writable.
+- A cycle with no `memory:` block sees no memory tools — same as before.
+
+During a flow, forge stages write into memory; subsequent cycles read what previous cycles learned. All writes flush to `relations/*.ndjson` so the knowledge is committed alongside the artefacts.
+
+### Maintenance
+
+- **Destructive operations** (`drop-memory-entity-type`, `drop-memory-edge-type`) call their tool first with `confirm: false` (the default) to get a preview (`entityRows`, affected edges with `cascadeDrop` vs `prune`), ask for explicit confirmation, then call again with `confirm: true`.
+- **Renames** (`rename-memory-entity-type`, `rename-memory-edge-type`) cascade through entity/edge files, relations, and schema.
+- **`reset-memory`** purges all row data but preserves type definitions.
+- **`change-embedding-model`** probes the new provider, re-embeds every entity, rewrites `schema.json` and `config.md`. Nothing is written on failure.
+- The live `memory.db` is gitignored and always rebuildable from `relations/*.ndjson` on store open. Orphan relations from interrupted drops/renames are reconciled automatically.
+
+### Further reading
+
+- [docs/concepts.md](concepts.md) — the glossary entries for flow memory, entity/edge, permissions, embeddings.
+- [docs/memory-maintenance.md](memory-maintenance.md) — Cozo 0.7 adaptations and session lifecycle constraints (contributor-facing).
+
+---
+
 ## Next steps
 
 - [docs/concepts.md](concepts.md) — concise glossary.

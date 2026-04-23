@@ -10,6 +10,29 @@ export function closeMemoryDb(db) {
   if (db && typeof db.close === 'function') db.close();
 }
 
+/**
+ * Canonical Cozo string literal encoder.
+ *
+ * Emits a **single-quoted** literal because Cozo's `"..."` form is raw
+ * (backslash escapes, including `\"`, are not recognised — a `"` embedded in
+ * a value produces a parse error, and `\n` stores as literal backslash+n).
+ * Single-quoted literals honour standard escape sequences, giving a safe
+ * round-trip for values containing `"`, `\`, newlines, CR, tabs, etc.
+ *
+ * Used by every query builder in this package so read and write paths never
+ * diverge on what they consider a safe literal. NUL and other control chars
+ * are rejected at validation time (see validate.js).
+ */
+export function cozoStringLit(s) {
+  const escaped = String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+  return `'${escaped}'`;
+}
+
 function entRelName(type) { return `ent_${type}`; }
 function edgeRelName(type) { return `edge_${type}`; }
 

@@ -11,9 +11,10 @@ description: Delete an edge type and all its rows
 ## Steps
 
 1. Ask the user for the edge type name.
-2. Confirm.
-3. Invoke `foundry_memory_drop_edge_type` with `{ name, confirm: true }`.
-4. Commit:
+2. Invoke `foundry_memory_drop_edge_type` with `{ name, confirm: false }` (or omit `confirm`). This returns `{ requiresConfirm: true, preview: { rows } }` — show the user the row count that will be deleted.
+3. Require explicit "yes, delete it" confirmation.
+4. Invoke `foundry_memory_drop_edge_type` again with `{ name, confirm: true }`.
+5. Commit:
 
    ```bash
    git add -A foundry/memory/

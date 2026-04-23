@@ -1,10 +1,7 @@
-import { entRelName, edgeRelName } from './cozo.js';
+import { entRelName, edgeRelName, cozoStringLit } from './cozo.js';
 import { validateEntityWrite, validateEdgeWrite } from './validate.js';
 
-function esc(s) {
-  return String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
-}
-function lit(s) { return `"${esc(s)}"`; }
+const lit = cozoStringLit;
 function vecLit(v) {
   return `vec([${v.map((n) => Number(n).toString()).join(', ')}])`;
 }

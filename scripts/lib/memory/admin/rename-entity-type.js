@@ -1,8 +1,8 @@
-import yaml from 'js-yaml';
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { parseEdgeRows, serialiseEdgeRows, parseEntityRows, serialiseEntityRows } from '../ndjson.js';
 import { invalidateStore } from '../singleton.js';
+import { parseFrontmatter } from '../frontmatter.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
 
@@ -24,10 +24,11 @@ export async function renameEntityType({ worktreeRoot, io, from, to }) {
   if (!schema.entities[from]) throw new Error(`entity type '${from}' not declared`);
   if (schema.entities[to] || schema.edges[to]) throw new Error(`'${to}' already exists`);
 
-  // Rewrite entity type file.
+  // Rewrite entity type file. Use a targeted regex replace to preserve
+  // key order, comments, and any additional user frontmatter fields.
   const oldFile = p.entityTypeFile(from);
   const text = await io.readFile(oldFile);
-  const newText = text.replace(/^---\n([\s\S]*?)\n---/, (_, fm) => {
+  const newText = text.replace(/^---\r?\n([\s\S]*?)\r?\n---/, (_, fm) => {
     const replaced = fm.replace(/^type:\s*.+$/m, `type: ${to}`);
     return `---\n${replaced}\n---`;
   });
@@ -48,9 +49,9 @@ export async function renameEntityType({ worktreeRoot, io, from, to }) {
   for (const edgeName of Object.keys(schema.edges)) {
     const edgeFile = p.edgeTypeFile(edgeName);
     const edgeText = await io.readFile(edgeFile);
-    const m = edgeText.match(/^---\n([\s\S]*?)\n---/);
-    if (!m) continue;
-    const fm = yaml.load(m[1]) ?? {};
+    const parsed = parseFrontmatter(edgeText, { filename: edgeFile });
+    if (!parsed.hasFrontmatter) continue;
+    const fm = parsed.frontmatter;
     let changed = false;
     for (const key of ['sources', 'targets']) {
       if (fm[key] === 'any') continue;
@@ -60,7 +61,7 @@ export async function renameEntityType({ worktreeRoot, io, from, to }) {
       }
     }
     if (changed) {
-      const body = edgeText.replace(/^---\n[\s\S]*?\n---\r?\n?/, '');
+      const body = parsed.body;
       await io.writeFile(edgeFile, `---\n${renderEdgeFrontmatter(fm)}\n---\n${body.startsWith('\n') ? '' : '\n'}${body}`);
       schema.edges[edgeName].frontmatterHash = hashFrontmatter({ type: edgeName, sources: fm.sources, targets: fm.targets });
     }

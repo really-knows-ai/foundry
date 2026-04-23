@@ -1,16 +1,29 @@
 export const MAX_VALUE_BYTES = 4096;
 
+// Names are the primary key, get embedded in NDJSON serialisation and Cozo
+// query literals, and appear in error messages. Reject newline, CR, tab, and
+// NUL so round-trips stay lossless and users can't craft names that would
+// split across lines in the relation files.
+const CONTROL_CHARS = /[\u0000\n\r\t]/;
+
 function byteLen(s) {
   return Buffer.byteLength(s, 'utf8');
+}
+
+function assertValidName(label, v) {
+  if (typeof v !== 'string' || v.length === 0) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  if (CONTROL_CHARS.test(v)) {
+    throw new Error(`${label} must not contain newline, carriage return, tab, or NUL`);
+  }
 }
 
 export function validateEntityWrite({ type, name, value }, vocabulary) {
   if (!vocabulary.entities[type]) {
     throw new Error(`entity type '${type}' is not declared`);
   }
-  if (typeof name !== 'string' || name.length === 0) {
-    throw new Error(`entity name must be a non-empty string`);
-  }
+  assertValidName('entity name', name);
   if (typeof value !== 'string') {
     throw new Error(`entity value must be a string`);
   }
@@ -40,7 +53,6 @@ export function validateEdgeWrite({ edge_type, from_type, from_name, to_type, to
       throw new Error(`edge '${edge_type}' does not permit target type '${to_type}' (allowed: ${edge.targets.join(', ')})`);
     }
   }
-  for (const [k, v] of Object.entries({ from_name, to_name })) {
-    if (typeof v !== 'string' || v.length === 0) throw new Error(`${k} must be a non-empty string`);
-  }
+  assertValidName('from_name', from_name);
+  assertValidName('to_name', to_name);
 }

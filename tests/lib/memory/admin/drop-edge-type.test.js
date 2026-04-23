@@ -10,17 +10,8 @@ import { createEntityType } from '../../../../scripts/lib/memory/admin/create-en
 import { createEdgeType } from '../../../../scripts/lib/memory/admin/create-edge-type.js';
 import { dropEdgeType } from '../../../../scripts/lib/memory/admin/drop-edge-type.js';
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => existsSync(abs(p)),
-    readFile: async (p) => readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { mkdirSync(join(abs(p), '..'), { recursive: true }); writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => mkdirSync(abs(p), { recursive: true }),
-    unlink: async (p) => { if (existsSync(abs(p))) unlinkSync(abs(p)); },
-  };
-}
+
+import { diskIO } from '../_helpers.js';
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'drop-ed-'));
@@ -33,12 +24,28 @@ function setup() {
 }
 
 describe('dropEdgeType', () => {
-  it('requires confirm', async () => {
+  it('returns a preview (no mutation) when confirm is not true', async () => {
     const root = setup();
     const io = diskIO(root);
     await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
     await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class'], targets: ['class'], body: 'b' });
-    await assert.rejects(() => dropEdgeType({ worktreeRoot: root, io, name: 'calls', confirm: false }), /confirm/);
+    writeFileSync(join(root, 'foundry/memory/relations/calls.ndjson'),
+      '{"from_name":"a","from_type":"class","to_name":"b","to_type":"class"}\n' +
+      '{"from_name":"c","from_type":"class","to_name":"d","to_type":"class"}\n');
+    const out = await dropEdgeType({ worktreeRoot: root, io, name: 'calls', confirm: false });
+    assert.equal(out.requiresConfirm, true);
+    assert.deepEqual(out.preview, { type: 'edge', name: 'calls', rows: 2 });
+    assert.ok(existsSync(join(root, 'foundry/memory/edges/calls.md')));
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('omitted confirm also returns preview', async () => {
+    const root = setup();
+    const io = diskIO(root);
+    await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
+    await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class'], targets: ['class'], body: 'b' });
+    const out = await dropEdgeType({ worktreeRoot: root, io, name: 'calls' });
+    assert.equal(out.requiresConfirm, true);
     rmSync(root, { recursive: true, force: true });
   });
 

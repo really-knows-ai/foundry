@@ -61,6 +61,36 @@ describe('writeSchema', () => {
     const reparsed = JSON.parse(written);
     assert.deepEqual(Object.keys(reparsed.entities), ['alpha', 'zeta']);
   });
+
+  it('deep-canonicalises nested keys (stable across insertion order)', async () => {
+    const io1 = mockIO();
+    const io2 = mockIO();
+    // Same logical schema, different insertion order at every nesting level.
+    const a = {
+      version: 2,
+      entities: {
+        zeta: { z: 1, a: 2 },
+        alpha: { frontmatterHash: 'a', meta: { y: 1, x: 2 } },
+      },
+      edges: { calls: { frontmatterHash: 'c' } },
+      embeddings: { model: 'm', dimensions: 8 },
+    };
+    const b = {
+      version: 2,
+      entities: {
+        alpha: { meta: { x: 2, y: 1 }, frontmatterHash: 'a' },
+        zeta: { a: 2, z: 1 },
+      },
+      edges: { calls: { frontmatterHash: 'c' } },
+      embeddings: { dimensions: 8, model: 'm' },
+    };
+    await writeSchema('foundry', a, io1);
+    await writeSchema('foundry', b, io2);
+    assert.equal(
+      io1.store['foundry/memory/schema.json'],
+      io2.store['foundry/memory/schema.json'],
+    );
+  });
 });
 
 describe('bumpVersion', () => {

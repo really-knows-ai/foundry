@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0 — 2026-04-23
+
+### Added
+
+- **Flow memory** — a typed, graph-shaped knowledge store that persists across cycles. Entity types, edge types, and their prose briefs live in `foundry/memory/`; entity rows and edge rows are committed as NDJSON under `foundry/memory/relations/`; the live Cozo 0.7 database (`foundry/memory/memory.db*`) is gitignored and rebuilt on demand from the NDJSON files. Each cycle declares read/write permissions in its frontmatter (`memory: { read: [...], write: [...] }`); the dispatched stage prompt is augmented with a vocabulary block listing the entity/edge types visible to that cycle and the memory tools available to it.
+- **Optional semantic search.** When `embeddings.enabled` is true in `foundry/memory/config.md`, entities are embedded on write against an OpenAI-compatible endpoint (default: local Ollama `nomic-embed-text`, 768 dims) and exposed via `foundry_memory_search`. Embeddings can be disabled; the graph still works.
+- **20 memory tools** registered by the plugin: `foundry_memory_{put,relate,unrelate,get,list,neighbours,query,search}` for read/write, `foundry_memory_{create,rename,drop}_{entity,edge}_type` for vocabulary management, `foundry_memory_{init,validate,reset,dump,vacuum,change_embedding_model}` for admin. Destructive operations (`drop_*`) take an optional `confirm` — without it they return a preview of affected rows.
+- **9 memory skills**: `init-memory`, `add-memory-entity-type`, `add-memory-edge-type`, `rename-memory-entity-type`, `rename-memory-edge-type`, `drop-memory-entity-type`, `drop-memory-edge-type`, `reset-memory`, `change-embedding-model`. All wrap the deterministic admin tools with the usual conflict-checking, preview-then-confirm, and commit discipline.
+- `docs/memory-maintenance.md` — contributor notes on Cozo 0.7 adaptations (`::compact`, typed `<F32;N>?` vector columns, `?[...] <- [[...]]` put syntax, single-vs-double-quote string literal semantics, `::relations` HNSW filtering) and the session-singleton lifecycle constraint.
+
+### Notes
+
+- Memory is strictly opt-in. A project without `foundry/memory/` behaves exactly as before; the prompt-extras injection no-ops, and cycles that don't declare a `memory:` block see no vocabulary and no memory tools in their prompt.
+- On store open, orphan relations left behind by drops/renames are reconciled automatically (`::relations` filtered to `^(ent|edge)_[^:]+$`, HNSW indices dropped before `::remove`).
+- Memory prompt injection is wrapped in a swallow-errors guard: if memory is misconfigured or drifted, dispatch still succeeds with no vocabulary block rather than failing the cycle.
+
 ## 2.3.2 — 2026-04-21
 
 ### Changed

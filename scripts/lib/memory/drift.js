@@ -12,7 +12,7 @@ function compareFamily({ family, loaded, recorded }) {
         typeFamily: family,
         typeName: name,
         message: `${family} type '${name}' exists on disk but is not recorded in schema.json`,
-        suggestedSkill: `add-memory-${family}-type`,
+        suggestedSkills: [`add-memory-${family}-type`],
       });
       continue;
     }
@@ -23,7 +23,7 @@ function compareFamily({ family, loaded, recorded }) {
         typeFamily: family,
         typeName: name,
         message: `${family} type '${name}' frontmatter was modified outside of a skill`,
-        suggestedSkill: `rename-memory-${family}-type or drop-memory-${family}-type`,
+        suggestedSkills: [`rename-memory-${family}-type`, `drop-memory-${family}-type`],
       });
     }
   }
@@ -35,7 +35,7 @@ function compareFamily({ family, loaded, recorded }) {
         typeFamily: family,
         typeName: name,
         message: `${family} type '${name}' is recorded in schema.json but its file is missing on disk`,
-        suggestedSkill: `drop-memory-${family}-type or rename-memory-${family}-type`,
+        suggestedSkills: [`drop-memory-${family}-type`, `rename-memory-${family}-type`],
       });
     }
   }

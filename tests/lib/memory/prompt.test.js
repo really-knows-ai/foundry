@@ -55,4 +55,27 @@ describe('renderMemoryPrompt', () => {
     assert.doesNotMatch(out, /foundry_memory_put/);
     assert.doesNotMatch(out, /foundry_memory_relate/);
   });
+
+  it('omits foundry_memory_search when embeddings are disabled', () => {
+    const perms = resolvePermissions({
+      cycleFrontmatter: { memory: { read: ['class'] } },
+      vocabulary: vocab,
+    });
+    const noSchema = renderMemoryPrompt({ permissions: perms });
+    assert.doesNotMatch(noSchema, /foundry_memory_search/);
+    const nullEmb = renderMemoryPrompt({ permissions: perms, schema: { embeddings: null } });
+    assert.doesNotMatch(nullEmb, /foundry_memory_search/);
+  });
+
+  it('includes foundry_memory_search when schema.embeddings.dimensions is set', () => {
+    const perms = resolvePermissions({
+      cycleFrontmatter: { memory: { read: ['class'] } },
+      vocabulary: vocab,
+    });
+    const out = renderMemoryPrompt({
+      permissions: perms,
+      schema: { embeddings: { dimensions: 1024 } },
+    });
+    assert.match(out, /foundry_memory_search/);
+  });
 });

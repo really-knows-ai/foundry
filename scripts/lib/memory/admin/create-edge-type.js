@@ -9,7 +9,16 @@ function normaliseList(v, key) {
   if (!Array.isArray(v) || v.length === 0 || !v.every((s) => typeof s === 'string' && s)) {
     throw new Error(`'${key}' must be 'any' or a non-empty list of entity type names`);
   }
-  return [...v];
+  // Deduplicate while preserving first-occurrence order. `[class, class]` is a
+  // user mistake, not a meaningful declaration.
+  const seen = new Set();
+  const out = [];
+  for (const name of v) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
 }
 
 function renderFrontmatter(fm) {

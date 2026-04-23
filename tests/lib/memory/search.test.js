@@ -8,19 +8,10 @@ import { openStore, closeStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity } from '../../../scripts/lib/memory/writes.js';
 import { search } from '../../../scripts/lib/memory/search.js';
 
+import { diskIO } from './_helpers.js';
+
 const vocab = { entities: { class: {}, table: {} }, edges: {} };
 
-function diskIO(root) {
-  const abs = (p) => join(root, p);
-  return {
-    exists: async (p) => fs.existsSync(abs(p)),
-    readFile: async (p) => fs.readFileSync(abs(p), 'utf-8'),
-    writeFile: async (p, c) => { fs.mkdirSync(join(abs(p), '..'), { recursive: true }); fs.writeFileSync(abs(p), c, 'utf-8'); },
-    readDir: async (p) => { try { return fs.readdirSync(abs(p)); } catch { return []; } },
-    mkdir: async (p) => fs.mkdirSync(abs(p), { recursive: true }),
-    unlink: async (p) => { if (fs.existsSync(abs(p))) fs.unlinkSync(abs(p)); },
-  };
-}
 
 // Deterministic fake embedder: vector depends only on the first char of value.
 function charEmbedder(dim) {
