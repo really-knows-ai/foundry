@@ -1,9 +1,29 @@
-import { openStore, closeStore } from '../store.js';
+import { openStore, closeStore, syncStore } from '../store.js';
 import { loadSchema, writeSchema, bumpVersion } from '../schema.js';
-import { entRelName, dropHnswIndex, dropRelation } from '../cozo.js';
+import { entRelName } from '../cozo.js';
 import { putEntity } from '../writes.js';
 import { invalidateStore } from '../singleton.js';
+import { existsSync, renameSync, unlinkSync } from 'node:fs';
 
+/**
+ * Atomic re-embedding via a staging DB.
+ *
+ * The previous implementation was in-place: Phase 1 harvested old rows and
+ * dropped the existing relations/HNSW indexes from the live DB, Phase 2
+ * reopened at the new dimensionality and re-embedded, and the schema was
+ * written last. If the embedder (provider call) failed mid-flight, the live
+ * DB, NDJSON, and on-disk schema could drift out of sync and the NDJSON
+ * reimport on the next process start would fail coercion against the new
+ * column type, leaving the store unusable.
+ *
+ * This rewrite builds the new state in a sibling staging DB. The original
+ * `memory.db` and on-disk schema remain untouched until every entity has been
+ * re-embedded successfully, at which point we swap atomically: rename the
+ * staging DB over the live DB, write the new schema, and refresh NDJSON.
+ *
+ * On any failure — provider error, unexpected vector length, Cozo error —
+ * the staging DB is closed and unlinked and the original state is preserved.
+ */
 export async function reembed({
   worktreeRoot,
   io,
@@ -17,12 +37,13 @@ export async function reembed({
   if (!Number.isInteger(newDimensions) || newDimensions <= 0) {
     throw new Error('newDimensions must be positive integer');
   }
+  if (!dbAbsolutePath) throw new Error('reembed requires dbAbsolutePath');
 
   const oldSchema = await loadSchema('foundry', io);
   const entityTypes = Object.keys(oldSchema.entities);
 
-  // Phase 1: harvest existing rows under OLD schema, then drop vector index +
-  // relation so we can recreate with a new typed column width.
+  // Phase 1: harvest existing rows from the live store. Non-destructive —
+  // the live DB is only read, not mutated.
   const oldStore = await openStore({
     foundryDir: 'foundry',
     schema: oldSchema,
@@ -35,25 +56,32 @@ export async function reembed({
       const rel = entRelName(type);
       const res = await oldStore.db.run(`?[name, value] := *${rel}{name, value}`);
       rowsByType[type] = res.rows.map(([name, value]) => ({ name, value }));
-      await dropHnswIndex(oldStore.db, rel);
-      await dropRelation(oldStore.db, rel);
     }
   } finally {
     closeStore(oldStore);
   }
 
-  // Phase 2: install new schema, reopen to create fresh relations/indices at
-  // the new dimensionality, re-embed each value, and write rows back.
-  const newSchema = { ...oldSchema, embeddings: { model: newModel, dimensions: newDimensions } };
+  // Phase 2: build the new state in a staging DB sibling to the live one.
+  // Nothing durable is mutated until the embedding loop completes cleanly.
+  const stagingPath = `${dbAbsolutePath}.reembed-tmp`;
+  unlinkDbFiles(stagingPath); // clean up any stale prior run
+
+  const newSchema = {
+    ...oldSchema,
+    embeddings: { model: newModel, dimensions: newDimensions },
+  };
   bumpVersion(newSchema);
   const vocabulary = { entities: newSchema.entities, edges: newSchema.edges };
-  const newStore = await openStore({
-    foundryDir: 'foundry',
-    schema: newSchema,
-    io,
-    dbAbsolutePath,
-  });
+
+  let stagingStore;
   try {
+    stagingStore = await openStore({
+      foundryDir: 'foundry',
+      schema: newSchema,
+      io,
+      dbAbsolutePath: stagingPath,
+    });
+
     for (const type of entityTypes) {
       const rows = rowsByType[type] ?? [];
       for (let i = 0; i < rows.length; i += batchSize) {
@@ -67,7 +95,7 @@ export async function reembed({
             );
           }
           await putEntity(
-            newStore,
+            stagingStore,
             { type, name: chunk[j].name, value: chunk[j].value },
             vocabulary,
             { embedder: async () => [v] },
@@ -75,11 +103,89 @@ export async function reembed({
         }
       }
     }
-  } finally {
-    closeStore(newStore);
+  } catch (err) {
+    // Failure before swap: close and unlink the staging DB, preserve
+    // original state.
+    if (stagingStore) {
+      try { closeStore(stagingStore); } catch { /* closing best effort */ }
+    }
+    unlinkDbFiles(stagingPath);
+    throw err;
   }
 
-  await writeSchema('foundry', newSchema, io);
+  // Phase 3: atomic swap. Close the staging DB so sqlite flushes WAL, then
+  // rename the files over the live paths. `writeSchema` is last so that if
+  // the rename fails the on-disk schema still matches the live DB.
+  closeStore(stagingStore);
+
+  try {
+    renameDbFiles(stagingPath, dbAbsolutePath);
+    await writeSchema('foundry', newSchema, io);
+  } catch (err) {
+    // Rename failed — original files may be partially replaced. Best-effort
+    // cleanup of staging siblings; surface the error.
+    unlinkDbFiles(stagingPath);
+    throw err;
+  }
+
   invalidateStore(worktreeRoot);
+
+  // Phase 4: refresh NDJSON from the newly-swapped DB so the on-disk source
+  // of truth reflects the new vectors.
+  const reopened = await openStore({
+    foundryDir: 'foundry',
+    schema: newSchema,
+    io,
+    dbAbsolutePath,
+  });
+  try {
+    await syncStore({ store: reopened, io });
+  } finally {
+    closeStore(reopened);
+  }
+
   return { model: newModel, dimensions: newDimensions, types: entityTypes.length };
+}
+
+/**
+ * Remove a Cozo sqlite DB file and its WAL/SHM sidecars if present.
+ * Operates on absolute filesystem paths (reembed works outside the IO
+ * shim's foundry-relative tree).
+ */
+function unlinkDbFiles(dbPath) {
+  for (const suffix of ['', '-wal', '-shm']) {
+    const p = dbPath + suffix;
+    try {
+      if (existsSync(p)) unlinkSync(p);
+    } catch {
+      // best-effort cleanup
+    }
+  }
+}
+
+/**
+ * Atomically move a Cozo sqlite DB plus its WAL/SHM sidecars into place.
+ *
+ * Sqlite treats the main DB file as the authoritative name; WAL/SHM files
+ * are recreated on next open. We still move them when present so that a
+ * subsequent open picks up any pending state.
+ */
+function renameDbFiles(fromPath, toPath) {
+  // Remove target sidecars first; the main file is overwritten by rename.
+  for (const suffix of ['-wal', '-shm']) {
+    const t = toPath + suffix;
+    try { if (existsSync(t)) unlinkSync(t); } catch { /* ignore */ }
+  }
+  renameSync(fromPath, toPath);
+  for (const suffix of ['-wal', '-shm']) {
+    const src = fromPath + suffix;
+    if (existsSync(src)) {
+      try {
+        renameSync(src, toPath + suffix);
+      } catch {
+        // non-critical; sqlite will recreate these
+        try { unlinkSync(src); } catch { /* ignore */ }
+      }
+    }
+  }
 }
