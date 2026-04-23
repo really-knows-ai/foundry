@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.1 — 2026-04-23
+
+### Fixed
+
+- `docs/getting-started.md` install snippet used a `packages` key that doesn't exist in OpenCode's config schema. Corrected to the `plugin: ["@really-knows-ai/foundry"]` form already shown in `README.md`.
+
 ## 2.4.0 — 2026-04-23
 
 ### Added
