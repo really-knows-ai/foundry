@@ -42,42 +42,11 @@ export function parseFeedback(text, cycle, artefacts) {
   const filterByFile = cycleFiles.size > 0;
 
   const items = [];
-  let currentFile = null;
-  let inFeedback = false;
-  let feedbackLevel = 0;
-
-  for (const line of text.split('\n')) {
-    const stripped = line.trim();
-
-    if (stripped === '# Feedback' || stripped === '## Feedback') {
-      inFeedback = true;
-      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
-      continue;
-    }
-
-    // Exit feedback on a heading at the same or higher level
-    if (inFeedback && /^#{1,2} /.test(stripped)) {
-      const level = stripped.startsWith('## ') ? 2 : 1;
-      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
-        inFeedback = false;
-        continue;
-      }
-    }
-
-    if (!inFeedback) continue;
-
-    // File sub-headings are one level below the Feedback heading
-    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
-    if (stripped.startsWith(fileHeadingPrefix)) {
-      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
-      continue;
-    }
-
-    if ((!filterByFile || cycleFiles.has(currentFile)) && /^- \[/.test(stripped)) {
-      items.push(parseFeedbackItem(stripped));
+  for (const it of walkFeedbackItems(text)) {
+    if (!filterByFile || cycleFiles.has(it.file)) {
+      items.push(parseFeedbackItem(it.trimmed));
     }
   }
-
   return items;
 }
 
@@ -198,53 +167,19 @@ export function listFeedback(text, cycle, artefacts, filterFile) {
   const filterByCycle = cycleFiles.size > 0;
 
   const results = [];
-  let currentFile = null;
-  let fileIndex = 0;
-  let inFeedback = false;
-  let feedbackLevel = 0;
-
-  for (const line of text.split('\n')) {
-    const stripped = line.trim();
-
-    if (stripped === '# Feedback' || stripped === '## Feedback') {
-      inFeedback = true;
-      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
-      continue;
-    }
-
-    if (inFeedback && /^#{1,2} /.test(stripped)) {
-      const level = stripped.startsWith('## ') ? 2 : 1;
-      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
-        inFeedback = false;
-        continue;
-      }
-    }
-
-    if (!inFeedback) continue;
-
-    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
-    if (stripped.startsWith(fileHeadingPrefix)) {
-      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
-      fileIndex = 0;
-      continue;
-    }
-
-    if ((!filterByCycle || cycleFiles.has(currentFile)) && /^- \[/.test(stripped)) {
-      if (!filterFile || filterFile === currentFile) {
-        const item = parseFeedbackItem(stripped);
-        results.push({
-          file: currentFile,
-          index: fileIndex,
-          text: item.raw,
-          state: item.state,
-          tags: item.tags,
-          resolved: item.resolved,
-        });
-      }
-      fileIndex++;
-    }
+  for (const it of walkFeedbackItems(text)) {
+    if (filterByCycle && !cycleFiles.has(it.file)) continue;
+    if (filterFile && filterFile !== it.file) continue;
+    const parsed = parseFeedbackItem(it.trimmed);
+    results.push({
+      file: it.file,
+      index: it.fileIndex,
+      text: parsed.raw,
+      state: parsed.state,
+      tags: parsed.tags,
+      resolved: parsed.resolved,
+    });
   }
-
   return results;
 }
 
@@ -275,50 +210,19 @@ export function detectDeadlocks(feedback, history, threshold = 3) {
  */
 function collectItemsForFile(text, file) {
   const items = [];
-  const lines = text.split('\n');
-  let inFeedback = false;
-  let feedbackLevel = 0;
-  let currentFile = null;
-
-  for (const line of lines) {
-    const stripped = line.trim();
-
-    if (stripped === '# Feedback' || stripped === '## Feedback') {
-      inFeedback = true;
-      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
-      continue;
+  for (const it of walkFeedbackItems(text)) {
+    if (it.file !== file) continue;
+    const parsed = parseFeedbackItem(it.trimmed);
+    // Strip checkbox, tags, and trailing `| approved` / `| rejected: ...` /
+    // `| wont-fix: ...` to get the core author-supplied text for dedup.
+    let core = it.trimmed.replace(/^- \[[ x~]\]\s*/, '');
+    core = core.replace(/\s*\|\s*(approved|rejected[^|]*|wont-fix[^|]*)\s*$/, '');
+    for (const t of parsed.tags) {
+      core = core.replace(t, '');
     }
-
-    if (inFeedback && /^#{1,2} /.test(stripped)) {
-      const level = stripped.startsWith('## ') ? 2 : 1;
-      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
-        inFeedback = false;
-        continue;
-      }
-    }
-
-    if (!inFeedback) continue;
-
-    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
-    if (stripped.startsWith(fileHeadingPrefix)) {
-      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
-      continue;
-    }
-
-    if (currentFile === file && /^- \[/.test(stripped)) {
-      const parsed = parseFeedbackItem(stripped);
-      // Strip checkbox, tags, and trailing `| approved` / `| rejected: ...` /
-      // `| wont-fix: ...` to get the core author-supplied text for dedup.
-      let core = stripped.replace(/^- \[[ x~]\]\s*/, '');
-      core = core.replace(/\s*\|\s*(approved|rejected[^|]*|wont-fix[^|]*)\s*$/, '');
-      for (const t of parsed.tags) {
-        core = core.replace(t, '');
-      }
-      core = core.trim();
-      items.push({ line: stripped, state: parsed.state, tags: parsed.tags, coreText: core });
-    }
+    core = core.trim();
+    items.push({ line: it.trimmed, state: parsed.state, tags: parsed.tags, coreText: core });
   }
-
   return items;
 }
 
@@ -327,52 +231,18 @@ function collectItemsForFile(text, file) {
  * (or null if not found).
  */
 function readItemState(text, file, index) {
-  const lines = text.split('\n');
-  let inFeedback = false;
-  let feedbackLevel = 0;
-  let currentFile = null;
-  let fileIndex = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const stripped = lines[i].trim();
-
-    if (stripped === '# Feedback' || stripped === '## Feedback') {
-      inFeedback = true;
-      feedbackLevel = stripped.startsWith('## ') ? 2 : 1;
-      continue;
-    }
-
-    if (inFeedback && /^#{1,2} /.test(stripped)) {
-      const level = stripped.startsWith('## ') ? 2 : 1;
-      if (level <= feedbackLevel && stripped !== '# Feedback' && stripped !== '## Feedback') {
-        inFeedback = false;
-        continue;
-      }
-    }
-
-    if (!inFeedback) continue;
-
-    const fileHeadingPrefix = feedbackLevel === 1 ? '## ' : '### ';
-    if (stripped.startsWith(fileHeadingPrefix)) {
-      currentFile = stripped.slice(fileHeadingPrefix.length).trim();
-      fileIndex = 0;
-      continue;
-    }
-
-    if (currentFile === file && /^- \[/.test(stripped)) {
-      if (fileIndex === index) {
-        const parsed = parseFeedbackItem(stripped);
-        // Map parseFeedbackItem's (state, resolved) pair onto state-machine states:
-        // - `| approved` → terminal "approved"
-        // - `| rejected` → "rejected" (parseFeedbackItem already sets this)
-        // - bare `[x]`   → "actioned"
-        // - bare `[~]`   → "wont-fix"
-        // - bare `[ ]`   → "open"
-        if (parsed.resolved) return 'approved';
-        return parsed.state;
-      }
-      fileIndex++;
-    }
+  for (const it of walkFeedbackItems(text)) {
+    if (it.file !== file) continue;
+    if (it.fileIndex !== index) continue;
+    const parsed = parseFeedbackItem(it.trimmed);
+    // Map parseFeedbackItem's (state, resolved) pair onto state-machine states:
+    // - `| approved` → terminal "approved"
+    // - `| rejected` → "rejected" (parseFeedbackItem already sets this)
+    // - bare `[x]`   → "actioned"
+    // - bare `[~]`   → "wont-fix"
+    // - bare `[ ]`   → "open"
+    if (parsed.resolved) return 'approved';
+    return parsed.state;
   }
   return null;
 }
@@ -396,13 +266,45 @@ function transformFeedbackItemWithValidation(text, file, index, target, stageBas
 
 function transformFeedbackItem(text, file, index, transform) {
   const lines = text.split('\n');
+  for (const it of walkFeedbackItems(text, lines)) {
+    if (it.file !== file) continue;
+    if (it.fileIndex !== index) continue;
+    lines[it.lineIndex] = transform(lines[it.lineIndex]);
+    return lines.join('\n');
+  }
+  return text;
+}
+
+/**
+ * Walk every feedback item in `text`, yielding one record per checkbox line.
+ *
+ * Section-scope rules:
+ *   - A `# Feedback` or `## Feedback` heading opens the section; its level
+ *     (1 or 2) determines `feedbackLevel`.
+ *   - File sub-headings are exactly one level deeper than the feedback heading
+ *     (`## ` when level=1, `### ` when level=2). Entering a new file heading
+ *     resets the per-file index to 0.
+ *   - The section ends at any heading of level ≤ `feedbackLevel` that is not
+ *     itself a `# Feedback` / `## Feedback` heading (guard against false exits
+ *     when a nested doc re-uses the title).
+ *
+ * Yields: { trimmed, lineIndex, file, fileIndex } for each `- [ ]` / `- [x]` /
+ *   `- [~]` line inside the section. `file` is `null` if no file heading has
+ *   been seen yet. `lineIndex` is the 0-based position in the split input so
+ *   callers can mutate `lines[lineIndex]` in place.
+ *
+ * Optional `lines` parameter lets the caller share the split array (avoids
+ * re-splitting when the caller already holds one for mutation).
+ */
+function* walkFeedbackItems(text, lines) {
+  const arr = lines || text.split('\n');
   let inFeedback = false;
   let feedbackLevel = 0;
   let currentFile = null;
   let fileIndex = 0;
 
-  for (let i = 0; i < lines.length; i++) {
-    const stripped = lines[i].trim();
+  for (let i = 0; i < arr.length; i++) {
+    const stripped = arr[i].trim();
 
     if (stripped === '# Feedback' || stripped === '## Feedback') {
       inFeedback = true;
@@ -427,14 +329,9 @@ function transformFeedbackItem(text, file, index, transform) {
       continue;
     }
 
-    if (currentFile === file && /^- \[/.test(stripped)) {
-      if (fileIndex === index) {
-        lines[i] = transform(lines[i]);
-        return lines.join('\n');
-      }
+    if (/^- \[/.test(stripped)) {
+      yield { trimmed: stripped, lineIndex: i, file: currentFile, fileIndex };
       fileIndex++;
     }
   }
-
-  return text;
 }
