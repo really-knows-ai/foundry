@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, describe, it } from 'node:test';
 import assert from 'node:assert';
 import {
   renderDispatchPrompt,
@@ -81,6 +81,23 @@ test('synthesizeStages: appends human-appraise when flag true', () => {
   assert.deepStrictEqual(stages, [
     'forge:c1', 'quench:c1', 'appraise:c1', 'human-appraise:c1'
   ]);
+});
+
+describe('synthesizeStages with assay', () => {
+  it('prepends assay:<cycleId> when assay is true', () => {
+    const out = synthesizeStages({ cycleId: 'c', hasValidation: true, humanAppraise: false, assay: true });
+    assert.deepEqual(out, ['assay:c', 'forge:c', 'quench:c', 'appraise:c']);
+  });
+
+  it('omits assay by default', () => {
+    const out = synthesizeStages({ cycleId: 'c', hasValidation: false, humanAppraise: false });
+    assert.deepEqual(out, ['forge:c', 'appraise:c']);
+  });
+
+  it('works alongside human-appraise', () => {
+    const out = synthesizeStages({ cycleId: 'c', hasValidation: false, humanAppraise: true, assay: true });
+    assert.deepEqual(out, ['assay:c', 'forge:c', 'appraise:c', 'human-appraise:c']);
+  });
 });
 
 test('runOrchestrate: no WORK.md returns violation', async () => {
