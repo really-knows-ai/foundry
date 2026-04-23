@@ -15,6 +15,7 @@ export async function runAssay({
   vocabulary,
   putEntity,
   relate,
+  writeEmbedder,
   spawn = defaultSpawn,
 }) {
   const perExtractor = [];
@@ -71,7 +72,12 @@ export async function runAssay({
     for (const row of rows) {
       try {
         if (row.kind === 'entity') {
-          await putEntity(store, { type: row.type, name: row.name, value: row.value }, vocabulary);
+          await putEntity(
+            store,
+            { type: row.type, name: row.name, value: row.value },
+            vocabulary,
+            writeEmbedder ? { embedder: writeEmbedder } : undefined,
+          );
         } else {
           await relate(store, {
             edge_type: row.edge_type,

@@ -152,6 +152,57 @@ describe('runAssay', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('threads writeEmbedder through to putEntity so extractor-written entities get embeddings', async () => {
+    const root = setupProject();
+    writeExtractor(root, 'emb', { command: 'x', write: ['class'] });
+    const putCalls = [];
+    const putEntity = async (_store, row, _vocab, opts) => { putCalls.push({ row, opts }); };
+    const relate = async () => {};
+    const writeEmbedder = async (inputs) => inputs.map(() => [0.1, 0.2, 0.3]);
+    const res = await runAssay({
+      foundryDir: 'foundry', cwd: root, io: diskIO(root),
+      extractors: ['emb'], store: {}, vocabulary,
+      putEntity, relate, writeEmbedder,
+      spawn: async () => ({
+        ok: true, exitCode: 0, timedOut: false,
+        stdout: '{"kind":"entity","type":"class","name":"C1","value":"v1"}\n',
+        stderr: '',
+      }),
+    });
+    assert.equal(res.ok, true);
+    assert.equal(putCalls.length, 1);
+    // The fix: runAssay must forward writeEmbedder to putEntity as { embedder }.
+    assert.ok(putCalls[0].opts, 'putEntity must be called with an options bag');
+    assert.equal(putCalls[0].opts.embedder, writeEmbedder,
+      'writeEmbedder must be threaded through as opts.embedder');
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('omits opts.embedder when writeEmbedder is not provided (embeddings disabled)', async () => {
+    const root = setupProject();
+    writeExtractor(root, 'plain', { command: 'x', write: ['class'] });
+    const putCalls = [];
+    const putEntity = async (_store, row, _vocab, opts) => { putCalls.push({ row, opts }); };
+    const relate = async () => {};
+    const res = await runAssay({
+      foundryDir: 'foundry', cwd: root, io: diskIO(root),
+      extractors: ['plain'], store: {}, vocabulary,
+      putEntity, relate,
+      spawn: async () => ({
+        ok: true, exitCode: 0, timedOut: false,
+        stdout: '{"kind":"entity","type":"class","name":"C1","value":"v"}\n',
+        stderr: '',
+      }),
+    });
+    assert.equal(res.ok, true);
+    assert.equal(putCalls.length, 1);
+    // Either no opts or opts with no embedder is fine; what matters is writes.js
+    // sees no embedder and takes the non-vector branch.
+    const embedder = putCalls[0].opts?.embedder;
+    assert.ok(!embedder, 'no embedder should be passed when writeEmbedder is undefined');
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it('preserves prior extractors writes when a later one fails', async () => {
     const root = setupProject();
     writeExtractor(root, 'good', { command: 'g', write: ['class'] });

@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
@@ -116,6 +116,36 @@ echo '{"kind":"entity","type":"class","name":"com.Hello","value":"hi"}'
     assert.match(work, /#validation/);
     assert.match(work, /assay/);
     assert.match(work, /bad/);
+  });
+
+  it('flushes NDJSON immediately after a successful assay run (defence-in-depth, before stage_end)', async () => {
+    writeScript(root, 'scripts/emit-flush.sh', `#!/bin/sh
+echo '{"kind":"entity","type":"class","name":"com.Flushed","value":"durable"}'
+`);
+    writeExtractor(root, 'flush-ext', { command: 'scripts/emit-flush.sh', write: ['class'] });
+    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
+
+    const ndPath = join(root, 'foundry/memory/relations/class.ndjson');
+    // Baseline: the relation file must not already contain the marker.
+    const before = existsSync(ndPath) ? readFileSync(ndPath, 'utf-8') : '';
+    assert.doesNotMatch(before, /com\.Flushed/);
+
+    await beginAssay(plugin, root);
+    try {
+      const res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['flush-ext'] }, { worktree: root }));
+      assert.equal(res.ok, true);
+
+      // Assert BEFORE stage_end: NDJSON must already contain the row.
+      // Without the post-assay flush, this only happens at stage_end. Extractor
+      // writes would be unrecoverable if the stage is killed before end.
+      assert.ok(existsSync(ndPath), 'class.ndjson should exist after assay');
+      const after = readFileSync(ndPath, 'utf-8');
+      assert.match(after, /com\.Flushed/,
+        'assay must flush extractor writes to NDJSON immediately, not defer to stage_end');
+    } finally {
+      await endStage(plugin, root);
+    }
   });
 
   it('refuses to run outside an assay stage', async () => {

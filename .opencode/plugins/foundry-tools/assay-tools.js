@@ -1,9 +1,10 @@
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { addFeedbackItem } from '../../../scripts/lib/feedback.js';
 import { runAssay } from '../../../scripts/lib/assay/run.js';
-import { getOrOpenStore, getContext } from '../../../scripts/lib/memory/singleton.js';
+import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../../scripts/lib/memory/writes.js';
-import { makeIO, makeMemoryIO, errorJson } from './helpers.js';
+import { withStore } from './memory-helpers.js';
+import { makeIO, errorJson } from './helpers.js';
 
 export function createAssayTools({ tool }) {
   return {
@@ -18,20 +19,32 @@ export function createAssayTools({ tool }) {
         const guard = requireActiveStage(io, { stageBase: 'assay', cycle: args.cycle });
         if (!guard.ok) return JSON.stringify({ error: `foundry_assay_run requires active assay stage for cycle '${args.cycle}'; ${guard.error}` });
         try {
-          const memIo = makeMemoryIO(context.worktree);
-          const store = await getOrOpenStore({ worktreeRoot: context.worktree, io: memIo });
-          const ctx = getContext(context.worktree);
+          // withStore resolves store + vocabulary + writeEmbedder the same way
+          // the memory-* tools do, so extractor writes behave identically to
+          // in-cycle foundry_memory_put calls.
+          const { store, vocabulary, writeEmbedder, io: memIo } = await withStore(context);
           const res = await runAssay({
             foundryDir: 'foundry',
             cwd: context.worktree,
             io: memIo,
             extractors: args.extractors,
             store,
-            vocabulary: ctx.vocabulary,
+            vocabulary,
             putEntity,
             relate: memRelate,
+            writeEmbedder,
           });
-          if (!res.ok) {
+          if (res.ok) {
+            // Defence-in-depth: flush extractor writes to NDJSON immediately
+            // rather than deferring to stage_end. A stage killed before
+            // stage_end would otherwise lose every extractor-written row on
+            // the next process start.
+            try {
+              await syncStore({ store, io: memIo });
+            } catch (err) {
+              console.error(`assay post-run memory sync failed: ${err.message ?? err}`);
+            }
+          } else {
             try {
               const workPath = 'WORK.md';
               if (await memIo.exists(workPath)) {
