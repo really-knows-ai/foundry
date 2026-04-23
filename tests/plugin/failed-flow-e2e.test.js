@@ -1,0 +1,71 @@
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, chmodSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { disposeStores } from '../../scripts/lib/memory/singleton.js';
+import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
+
+function setup() {
+  const root = mkdtempSync(join(tmpdir(), 'e2e-failed-'));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['config', 'user.email', 't@e.com'], { cwd: root });
+  execFileSync('git', ['config', 'user.name', 'T'], { cwd: root });
+  mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
+  mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
+  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry/cycles'), { recursive: true });
+  mkdirSync(join(root, '.foundry'), { recursive: true });
+  writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
+  writeFileSync(join(root, 'foundry/memory/entities/finding.md'),
+    '---\ntype: finding\n---\n\nA finding.\n');
+  writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify({
+    version: 1,
+    entities: { finding: { frontmatterHash: hashFrontmatter({ type: 'finding' }) } },
+    edges: {}, embeddings: null,
+  }, null, 2) + '\n');
+  writeFileSync(join(root, 'foundry/cycles/observe.md'),
+    `---\noutput: report\nmemory:\n  write: [finding]\n---\n\nCycle body.\n`);
+  writeFileSync(join(root, 'WORK.md'),
+    `---\nflow: f\ncycle: observe\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n\n## Feedback\n`);
+  return root;
+}
+
+describe('failed-flow e2e', () => {
+  let root, plugin;
+  before(async () => { root = setup(); plugin = await FoundryPlugin({ directory: root }); });
+  after(() => {
+    try { chmodSync(join(root, 'foundry/memory/relations'), 0o755); } catch {}
+    disposeStores();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('memory put → stage_end sync fails → flow failed → next tool refuses → delete escapes', async () => {
+    const ctx = { worktree: root, cycle: 'observe' };
+
+    const p = JSON.parse(await plugin.tool.foundry_memory_put.execute(
+      { type: 'finding', name: 'f1', value: 'v1' }, ctx));
+    assert.equal(p.ok, true);
+
+    writeFileSync(join(root, '.foundry/active-stage.json'),
+      JSON.stringify({ cycle: 'observe', stage: 'forge:observe', baseSha: 'abc' }));
+
+    chmodSync(join(root, 'foundry/memory/relations'), 0o555);
+
+    const end = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 's' }, ctx));
+    assert.equal(end.flow_failed, true);
+    assert.match(readFileSync(join(root, 'WORK.md'), 'utf-8'), /status: failed/);
+
+    const m = JSON.parse(await plugin.tool.foundry_memory_put.execute(
+      { type: 'finding', name: 'f2', value: 'v2' }, ctx));
+    assert.match(m.error, /flow is in failed state/i);
+
+    chmodSync(join(root, 'foundry/memory/relations'), 0o755);
+
+    const d = JSON.parse(await plugin.tool.foundry_workfile_delete.execute({ confirm: true }, ctx));
+    assert.equal(d.ok, true);
+    assert.equal(existsSync(join(root, 'WORK.md')), false);
+  });
+});

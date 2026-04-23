@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Stage-end memory sync failure is now a hard flow failure.** When `foundry_stage_end` cannot flush the in-memory memory DB to the NDJSON source of truth, WORK.md is marked `status: failed` with the sync error as `reason`, and every mutating tool (`stage_begin`, `orchestrate`, `assay_run`, `forge`/`quench`/`appraise`/`human-appraise` helpers, `memory_put` / `_relate` / `_unrelate`, `feedback_*`, `artefacts_set_status`, `workfile_create`) refuses until the cycle is abandoned via `foundry_workfile_delete`. Read-only tools and the escape hatches (`workfile_delete`, `git_finish`) remain callable. Skills driving each stage (`forge`, `quench`, `appraise`, `human-appraise`, `orchestrate`, `assay`, `flow`) were updated to check for the failed state at the top of their procedure and hand control back to the user. Previously, sync failures were silently swallowed (`console.error` + `{ok:true}`) and the Cozo DB was allowed to drift ahead of on-disk NDJSON. See REVIEW.md P0 #3.
+
 ## 2.5.0 — 2026-04-23
 
 ### Added
