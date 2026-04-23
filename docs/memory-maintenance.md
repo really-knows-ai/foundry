@@ -90,3 +90,9 @@ const currentConfig = await loadMemoryConfig('foundry', io);
 Any new admin tool that (a) may be the first call of a session and (b) needs
 config should follow the same pattern. Opening a store inside the tool
 handler is fine; *reading through a possibly-uninitialised singleton* is not.
+
+## Runtime population via extractors
+
+Beyond hand-authored `relations/<type>.ndjson` seed data, flow memory can be populated at runtime by **extractors** — project-authored CLI scripts that emit JSONL describing entities and edges. An extractor runs inside the `assay` stage of a cycle that opts in via its frontmatter.
+
+Extractors are defined at `foundry/memory/extractors/<name>.md` with a `command`, a `memory.write` scope, and a prose brief. Create them with the `add-extractor` skill; reference them from a cycle via `assay: { extractors: [name, ...] }`. See [docs/concepts.md](concepts.md#extractor) for the full spec.
