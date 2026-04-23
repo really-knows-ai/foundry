@@ -78,4 +78,34 @@ describe('renderMemoryPrompt', () => {
     });
     assert.match(out, /foundry_memory_search/);
   });
+
+  it('renders an ## Extractors section with each extractor body when provided', () => {
+    const perms = resolvePermissions({
+      cycleFrontmatter: { memory: { read: ['class'] } },
+      vocabulary: vocab,
+    });
+    const out = renderMemoryPrompt({
+      permissions: perms,
+      extractors: [
+        { name: 'java-syms', body: '# java-syms\n\nEmits classes and methods from Java source.' },
+        { name: 'java-imports', body: 'Emits import edges between classes.' },
+      ],
+    });
+    assert.match(out, /## Extractors/);
+    assert.match(out, /extractor: `java-syms`/);
+    assert.match(out, /Emits classes and methods from Java source\./);
+    assert.match(out, /extractor: `java-imports`/);
+    assert.match(out, /Emits import edges between classes\./);
+  });
+
+  it('omits the ## Extractors section when extractors is absent or empty', () => {
+    const perms = resolvePermissions({
+      cycleFrontmatter: { memory: { read: ['class'] } },
+      vocabulary: vocab,
+    });
+    const noneOut = renderMemoryPrompt({ permissions: perms });
+    assert.doesNotMatch(noneOut, /## Extractors/);
+    const emptyOut = renderMemoryPrompt({ permissions: perms, extractors: [] });
+    assert.doesNotMatch(emptyOut, /## Extractors/);
+  });
 });

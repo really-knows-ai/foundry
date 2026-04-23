@@ -157,6 +157,12 @@ describe('assay end-to-end: happy path', () => {
       { lastResult: { ok: true } }, ctx));
     assert.equal(dispatch2.action, 'dispatch');
     assert.equal(dispatch2.stage, 'forge:doc-java');
+
+    // 5. The forge prompt includes the extractor's prose brief so the agent
+    // knows what's in memory and where it came from.
+    assert.match(dispatch2.prompt, /## Extractors/);
+    assert.match(dispatch2.prompt, /extractor: `java-syms`/);
+    assert.match(dispatch2.prompt, /Emits one class, one method, and a defined-in edge\./);
   });
 });
 
