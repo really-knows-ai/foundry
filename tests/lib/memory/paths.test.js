@@ -20,4 +20,14 @@ describe('memoryPaths', () => {
     assert.equal(p.edgeTypeFile('calls'), 'foundry/memory/edges/calls.md');
     assert.equal(p.relationFile('class'), 'foundry/memory/relations/class.ndjson');
   });
+
+  it('returns the extractors directory', () => {
+    const p = memoryPaths('foundry');
+    assert.equal(p.extractorsDir, 'foundry/memory/extractors');
+  });
+
+  it('returns the extractor file for a given name', () => {
+    const p = memoryPaths('foundry');
+    assert.equal(p.extractorFile('java-symbols'), 'foundry/memory/extractors/java-symbols.md');
+  });
 });
