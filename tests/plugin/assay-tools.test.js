@@ -126,3 +126,31 @@ echo '{"kind":"entity","type":"class","name":"com.Hello","value":"hi"}'
     assert.match(res.error, /requires active assay stage/);
   });
 });
+
+describe('foundry_extractor_create', () => {
+  let root, plugin;
+  before(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
+  after(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
+
+  it('creates an extractor file via the admin helper', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_extractor_create.execute({
+      name: 'java-symbols',
+      command: 'scripts/x.sh',
+      memoryWrite: ['class'],
+      body: 'brief',
+    }, { worktree: root }));
+    assert.equal(out.path, 'foundry/memory/extractors/java-symbols.md');
+    const text = readFileSync(join(root, out.path), 'utf-8');
+    assert.match(text, /command: scripts\/x\.sh/);
+  });
+
+  it('returns a structured error for bad input', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_extractor_create.execute({
+      name: 'Bad',
+      command: 'x',
+      memoryWrite: ['class'],
+      body: 'b',
+    }, { worktree: root }));
+    assert.match(out.error, /invalid identifier/);
+  });
+});

@@ -39,6 +39,7 @@ import { runQuery } from '../../scripts/lib/memory/query.js';
 import { resolvePermissions, checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../scripts/lib/memory/permissions.js';
 import { renderMemoryPrompt } from '../../scripts/lib/memory/prompt.js';
 import { createEntityType as admCreateEntity } from '../../scripts/lib/memory/admin/create-entity-type.js';
+import { createExtractor as admCreateExtractor } from '../../scripts/lib/memory/admin/create-extractor.js';
 import { createEdgeType as admCreateEdge } from '../../scripts/lib/memory/admin/create-edge-type.js';
 import { renameEntityType as admRenameEntity } from '../../scripts/lib/memory/admin/rename-entity-type.js';
 import { renameEdgeType as admRenameEdge } from '../../scripts/lib/memory/admin/rename-edge-type.js';
@@ -1081,6 +1082,23 @@ export const FoundryPlugin = async ({ directory }) => {
           try {
             const io = makeMemoryIO(context.worktree);
             const out = await admCreateEntity({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_extractor_create: tool({
+        description: 'Create a new extractor definition under foundry/memory/extractors/.',
+        args: {
+          name: tool.schema.string(),
+          command: tool.schema.string(),
+          memoryWrite: tool.schema.array(tool.schema.string()),
+          body: tool.schema.string(),
+          timeout: tool.schema.string().optional(),
+        },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admCreateExtractor({ worktreeRoot: context.worktree, io, ...args });
             return JSON.stringify(out);
           } catch (err) { return errorJson(err); }
         },
