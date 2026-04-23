@@ -24,7 +24,9 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
   const files = changedFiles(cwd, baseSha).filter(f => !isToolManaged(f));
   const allowedPatterns = stageBase === 'forge'
     ? (artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [])
-    : [];
+    : stageBase === 'assay'
+      ? ['foundry/memory/**']
+      : [];
   const unexpected = [];
   const matched = [];
   for (const f of files) {
@@ -33,6 +35,9 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
     else unexpected.push(f);
   }
   if (unexpected.length) return { ok: false, error: 'unexpected_files', files: unexpected };
+  // For non-forge stages, matched files are tool-managed side effects (e.g.
+  // assay's memory writes) that should not become artefacts.
+  if (stageBase !== 'forge') return { ok: true, artefacts: [] };
   const artefacts = matched.map(file => {
     registerArtefact({ file, type: cycleDef.outputArtefactType, status: 'draft' });
     return { file, type: cycleDef.outputArtefactType, status: 'draft' };

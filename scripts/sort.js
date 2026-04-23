@@ -186,6 +186,10 @@ function globMatch(filePath, pattern) {
 function getAllowedPatterns(lastBase, foundryDir, cycleDef, io = defaultIO) {
   const always = ['WORK.md', 'WORK.history.yaml'];
 
+  if (lastBase === 'assay') {
+    return [...always, '.foundry/**', 'foundry/memory/**'];
+  }
+
   if (lastBase !== 'forge') {
     return always;
   }
