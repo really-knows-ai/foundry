@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.2 — 2026-04-23
+
+### Changed
+
+- README: new hero-style "Governed work for AI" section before the TOC — names the discipline problem, lists what developers get, speaks to teams under a "structural, not cultural" framing.
+- README: old "Why Foundry?" section removed; the five bullets it contained now live under a renamed "Design principles" section (was "Design decisions"), prefaced with the governing rule (*trust the tool, not the LLM*) and extended with a new principle entry on human-in-the-loop gates.
+
 ## 2.4.1 — 2026-04-23
 
 ### Fixed

@@ -7,9 +7,29 @@
 
 ---
 
+## Governed work for AI
+
+**AI coding tools are great at producing work and terrible at governing it.** They skip checks. They silently drop feedback. They rationalize past constraints because the next token is more interesting than the last one. Run a long agent task and you know the feeling: it declares done, and now *you* have to go verify any of it actually happened.
+
+Foundry is an opinionated framework for **governed artefact generation** — you get confidence that the things that need to happen actually did. You define what's produced (artefact types), what "good" means (laws), and how work flows (cycles). Foundry enforces the pipeline — routing, commits, write invariants, feedback lifecycle, stage tokens — in tested plugin code. The LLM does the creative work; the framework makes the process non-optional.
+
+### What you get
+
+- **Stop babysitting the agent.** Stage transitions, commits, write invariants, and feedback state live in deterministic tools. The LLM can't skip a step, forge a token, or quietly write outside its lane.
+- **Written quality criteria, not vibes.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is non-negotiable.
+- **Multi-model diversity by default.** Forge on one model, appraise on another, or run every appraiser on a different model. Different blind spots — one flag is enough to raise an issue.
+- **Full audit trail in git.** One commit per stage. WORK.md + WORK.history.yaml record exactly what happened, why, and which model said it. Crashes leave clean boundaries to resume from.
+- **Bring your own pipeline.** Artefact types are yours. Works for code, specs, docs, data, contracts, creative writing — anything you can describe as files with pass/fail criteria.
+- **Shared memory across cycles.** Optional typed graph store with semantic search, so cycles can build on what earlier cycles learned.
+
+### For teams
+
+When AI output has to hold up under review — code merging to main, specs going to customers, policy drafts going to counsel — Foundry makes the checks **structural, not cultural**. Point at a commit log and show exactly which quality gate produced this artefact. Change a law, regenerate. Replay a flow under a different model. The discipline doesn't depend on whoever happens to be reviewing today.
+
+---
+
 ## Table of contents
 
-- [Why Foundry?](#why-foundry)
 - [Compatibility](#compatibility)
 - [Installation](#installation)
 - [Quick start](#quick-start)
@@ -23,21 +43,9 @@
 - [Skills](#skills)
 - [Custom tools](#custom-tools)
 - [Project layout](#project-layout)
-- [Design decisions](#design-decisions)
+- [Design principles](#design-principles)
 - [Further reading](#further-reading)
 - [License](#license)
-
----
-
-## Why Foundry?
-
-LLMs are excellent at producing artefacts — code, specs, docs, tests — but they are erratic about *governing* that production. They skip checks, silently ignore feedback, drift from constraints, and forget what stage they're in. Foundry is an opinionated framework that separates **creative work** (handled by LLMs via skills) from **process work** (handled by deterministic tools):
-
-- **The pipeline is code, not prose.** Routing, state transitions, commit discipline, and write invariants live inside tested plugin tools. LLMs can't rationalise their way past them.
-- **Every artefact is governed by laws.** Global and per-type pass/fail criteria are evaluated by a panel of independent appraisers before anything is considered done.
-- **Nothing is silent.** Feedback has a full lifecycle (open → actioned/wont-fix → approved/rejected). Wont-fix requires appraiser approval. Validation is non-negotiable.
-- **Writes are enforced.** Each stage is allowed to modify a specific, narrow set of files. Violations halt the cycle.
-- **Humans can step in.** Human-in-the-loop gates can run every iteration or only when LLM appraisers deadlock.
 
 ---
 
@@ -536,7 +544,9 @@ During a flow, a work branch also contains `WORK.md` and `WORK.history.yaml` at 
 
 ---
 
-## Design decisions
+## Design principles
+
+Foundry's guiding rule is **trust the tool, not the LLM**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code that an LLM can't reason its way past. What follows is how that rule plays out in practice.
 
 ### Everything is markdown
 
@@ -556,11 +566,15 @@ A flow declares starting points; individual cycles declare `targets` and input c
 
 ### Feedback as checklists
 
-Markdown checkboxes with `#validation`, `#law:<id>`, or `#human` tags. Human-readable, trivially parseable, lifecycle encoded inline. Feedback is append-only; history is part of the artefact's story.
+Markdown checkboxes with `#validation`, `#law:<id>`, or `#human` tags. Human-readable, trivially parseable, lifecycle encoded inline. Feedback is append-only; history is part of the artefact's story. Nothing is silent — every issue is raised, every decision is recorded, every resolution is auditable.
 
 ### Wont-fix requires approval
 
 A forge sub-agent can decline subjective feedback with a justification, but an appraiser must approve or reject that decision on the next iteration. Validation and human feedback cannot be wont-fixed.
+
+### Humans can step in at known points
+
+Human-in-the-loop gates are first-class stages, not afterthoughts. A cycle can declare `human-appraise: true` to run a human quality gate every iteration, or rely on `deadlock-appraise: true` (the default) to pull a human in only when LLM appraisers and forge ping-pong on the same items. Human feedback takes absolute priority — it cannot be wont-fixed.
 
 ### Multi-model diversity
 
