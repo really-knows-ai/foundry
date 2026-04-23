@@ -5,6 +5,7 @@ import { verifyToken } from '../../../scripts/lib/token.js';
 import { getContext } from '../../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO } from './helpers.js';
+import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 
 export function createStageTools({ tool, secret, pending }) {
   return {
@@ -66,7 +67,10 @@ export function createStageTools({ tool, secret, pending }) {
         writeLastStage(io, { cycle: active.cycle, stage: active.stage, baseSha: active.baseSha, summary: args.summary });
         clearActiveStage(io);
         // End-of-flow memory sync: flush any pending cycle-scoped writes.
-        // Non-fatal: flow completion must not fail due to memory sync.
+        // If this fails, the in-memory DB is ahead of the on-disk NDJSON
+        // source of truth — a data-loss risk. Mark the flow failed so no
+        // further mutating tool will run until the user abandons the cycle
+        // (foundry_workfile_delete) or manually resolves the divergence.
         try {
           const memIo = makeMemoryIO(context.worktree);
           const ctx = getContext(context.worktree);
@@ -74,7 +78,9 @@ export function createStageTools({ tool, secret, pending }) {
             await syncStore({ store: ctx.store, io: memIo });
           }
         } catch (err) {
-          console.error(`memory sync at flow end failed: ${err.message ?? err}`);
+          const msg = `memory sync at stage end failed: ${err?.message ?? err}`;
+          try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone? nothing we can do */ }
+          return JSON.stringify({ error: msg, flow_failed: true });
         }
         return JSON.stringify({ ok: true, summary: args.summary });
       },
