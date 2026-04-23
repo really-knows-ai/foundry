@@ -940,3 +940,35 @@ describe('runSort micro-commit enforcement', () => {
     assert.equal(res.route, 'forge:write');
   });
 });
+
+describe('determineRoute with assay', () => {
+  const stages = ['assay:c', 'forge:c', 'quench:c', 'appraise:c'];
+
+  it('dispatches assay as the first stage when no history exists', () => {
+    const route = determineRoute(stages, [], [], 3);
+    assert.equal(route, 'assay:c');
+  });
+
+  it('dispatches forge after assay completes', () => {
+    const history = [{ stage: 'assay:c' }];
+    const route = determineRoute(stages, history, [], 3);
+    assert.equal(route, 'forge:c');
+  });
+
+  it('on a loop-back from appraise, skips assay and dispatches forge', () => {
+    const history = [
+      { stage: 'assay:c' },
+      { stage: 'forge:c' },
+      { stage: 'quench:c' },
+      { stage: 'appraise:c' },
+    ];
+    const feedback = [{ state: 'rejected' }];
+    const route = determineRoute(stages, history, feedback, 3);
+    assert.equal(route, 'forge:c');
+  });
+
+  it('without any assay in stages, behaves exactly as before', () => {
+    const base = ['forge:c', 'appraise:c'];
+    assert.equal(determineRoute(base, [], [], 3), 'forge:c');
+  });
+});

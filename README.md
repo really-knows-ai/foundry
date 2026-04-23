@@ -143,6 +143,7 @@ A single step within a cycle. Stages are identified as `base:alias` (e.g. `forge
 - **quench** — run deterministic CLI checks (skipped if the artefact type has no `validation.md`).
 - **appraise** — subjective evaluation by multiple independent appraiser sub-agents.
 - **human-appraise** — human quality gate, either every iteration or only on deadlock.
+- **assay** — deterministic population of flow memory by running project-authored extractor scripts (iteration 0 only, opt-in per cycle).
 
 ### Artefact type
 
@@ -210,6 +211,7 @@ Per-stage write rules:
 | `quench` | `WORK.md` / `WORK.history.yaml` only (feedback) |
 | `appraise` | `WORK.md` / `WORK.history.yaml` only (feedback) |
 | `human-appraise` | `WORK.md` / `WORK.history.yaml` only (feedback) |
+| `assay` | Flow memory (via `foundry_assay_run` only — not direct `foundry_memory_put`); `WORK.md` / `WORK.history.yaml` for `#validation` feedback on abort |
 
 Input artefacts are read-only. Files outside any artefact type's patterns are read-only. Violations hard-stop the cycle.
 
@@ -399,7 +401,7 @@ All authoring skills are interactive and conflict-aware — they explain what th
 
 ## Custom tools
 
-The plugin registers **44 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
+The plugin registers **46 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
 
 ### Pipeline tools
 
@@ -413,6 +415,7 @@ The plugin registers **44 custom tools**. Skills call these rather than manipula
 | **History** | `foundry_history_list` |
 | **Config** | `foundry_config_cycle`, `foundry_config_artefact_type`, `foundry_config_laws`, `foundry_config_validation`, `foundry_config_appraisers`, `foundry_config_flow` |
 | **Validation** | `foundry_validate_run`, `foundry_appraisers_select` |
+| **Assay** | `foundry_assay_run` (runs extractors for the active assay stage; writes `#validation` feedback on abort), `foundry_extractor_create` (authors a new extractor definition) |
 | **Git** | `foundry_git_branch`, `foundry_git_finish` |
 
 ### Memory tools

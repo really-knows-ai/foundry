@@ -37,8 +37,24 @@ Stage bases:
 - **quench** — run deterministic CLI checks (skipped if the artefact type has no `validation.md`).
 - **appraise** — subjective evaluation by multiple appraiser sub-agents.
 - **human-appraise** — human quality gate. Can run every iteration, only on deadlock, or both.
+- **assay** — deterministic population of flow memory by running project-authored extractor scripts (iteration 0 only, opt-in per cycle). See the [Assay](#assay) and [Extractor](#extractor) entries below.
 
 Every stage runs inside a token-gated lifecycle (`foundry_stage_begin` / `foundry_stage_end` / `foundry_stage_finalize`). Mutation tools are stage-locked: a forge stage can't add feedback, a quench stage can't register artefacts. See the enforcement section of the [README](../README.md#enforcement-model).
+
+## Assay
+
+A deterministic stage that runs before the first `forge` of a cycle. For each extractor listed in the cycle's `assay.extractors` frontmatter, it runs the extractor's `command`, parses the JSONL output, and upserts rows into flow memory via the existing memory write tools.
+
+In metallurgy, to *assay* an ore or alloy is to determine its composition before working it. The stage plays the same role for a codebase: it determines what is there so forge can plan against reality instead of guessing.
+
+Properties:
+
+- **Opt-in per cycle.** A cycle declares `assay: { extractors: [name, ...] }`. Cycles without this block behave exactly as they always have.
+- **Iteration 0 only.** Runs once, before the first forge. Re-extraction on later iterations is out of scope for v1.
+- **Requires memory.** A cycle with `assay:` but no `foundry/memory/` fails to load with a clear error.
+- **Strict failure.** Any non-zero exit, parse error, permission violation, or timeout aborts the cycle and writes a `#validation` feedback row against `WORK.md`.
+
+See also: [Extractor](#extractor).
 
 ## Artefact type
 
@@ -129,6 +145,8 @@ A typed, graph-shaped knowledge store shared across cycles in a project. Strictl
 
 When present, memory is populated and consulted by cycles that declare read/write permissions in their frontmatter. Its vocabulary is injected into the dispatched stage's prompt, and its contents survive across flows as long as the NDJSON relations stay committed.
 
+Memory can be populated at runtime by the [Assay](#assay) stage via [Extractors](#extractor), which run project-authored CLI scripts before the first forge of an opted-in cycle.
+
 See also: [docs/memory-maintenance.md](memory-maintenance.md) for contributor-facing notes on Cozo 0.7 and session lifecycle.
 
 ## Entity / entity type
@@ -142,6 +160,18 @@ An **entity type** is declared once per project in `foundry/memory/entities/<typ
 An **edge** is one row relating two entities: `{ from_type, from_name, edge_type, to_type, to_name }`. Edges are directed.
 
 An **edge type** declares allowed endpoints — `sources` and `targets` are either a list of entity types or the literal `any` — and a prose body describing when the edge holds. Declared in `foundry/memory/edges/<name>.md`. Create with `add-memory-edge-type`.
+
+## Extractor
+
+A project-authored CLI that emits JSONL describing entities and edges to upsert into flow memory. Defined in `foundry/memory/extractors/<name>.md`:
+
+- `command` — path to the executable (or shell command) to run. Stdout is parsed as JSONL.
+- `memory.write` — entity types the extractor is permitted to populate. Edge permissions are derived: an edge is permitted if either endpoint's entity type is in this list (mirroring the cycle-level rule).
+- `timeout` (optional, default 60s) — hard kill if the script exceeds it.
+
+The markdown body is a prose brief injected into the `forge` prompt of any cycle that uses this extractor, so the LLM knows what is in memory and where it came from. Extractors are run by the [Assay](#assay) stage.
+
+Create with `add-extractor`.
 
 ## Memory permissions
 

@@ -254,3 +254,122 @@ Command: \`echo ok\`
     `expected >=4 commits (setup + forge + quench + appraise), got ${commits.length}: ${commits.join(' | ')}`
   );
 });
+
+// ---------------------------------------------------------------------------
+// runOrchestrate setup block: cycle `assay:` frontmatter validation
+// ---------------------------------------------------------------------------
+
+function makeAssayIo({ withMemory, cycleFm, extractorFm } = {}) {
+  const files = {
+    'WORK.md': `---\nflow: f\ncycle: c\n---\n\n# Goal\n\ntest\n`,
+    'foundry/cycles/c.md': `---\n${cycleFm}\n---\n\n# c\n`,
+    'foundry/artefacts/doc/definition.md':
+      `---\ntype: doc\nfile-patterns: ["out/**"]\n---\n\n# doc\n`,
+  };
+  if (withMemory) {
+    files['foundry/memory/config.md'] = '---\nenabled: true\n---\n';
+    files['foundry/memory/schema.json'] = JSON.stringify({
+      version: 1,
+      entities: { class: {} },
+      edges: {},
+      embeddings: null,
+    });
+    files['foundry/memory/entities/class.md'] = '---\ntype: class\n---\n';
+    files['foundry/memory/extractors/java.md'] =
+      extractorFm ??
+      `---\ncommand: scripts/x.sh\nmemory:\n  write: [class]\n---\n\n# java\n`;
+  }
+  return makeIo(files);
+}
+
+function baseArgs(io) {
+  const commits = [];
+  const git = {
+    commit: (msg) => { commits.push(msg); return `sha${commits.length}`; },
+    status: () => ({ clean: true, dirty: [] }),
+  };
+  let n = 0;
+  const mint = () => `T${++n}`;
+  const finalize = async () => ({ ok: true, artefacts: [] });
+  return {
+    args: {
+      cwd: '/tmp/project',
+      git,
+      mint,
+      now: () => 1700000000000,
+      finalize,
+    },
+    commits,
+  };
+}
+
+test('runOrchestrate assay: synthesises assay:<cycle> when opted in', async () => {
+  const io = makeAssayIo({
+    withMemory: true,
+    cycleFm: `id: c\noutput: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [java]\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n  assay: github-copilot/claude-sonnet-4.6`,
+  });
+  // Agent file so sort.js can resolve the model for assay dispatch
+  io.fs.set(
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md',
+    '# agent'
+  );
+
+  const { args } = baseArgs(io);
+  const r = await runOrchestrate(args, io);
+
+  const work = io.readFile('WORK.md');
+  assert.match(work, /- assay:c/, 'stages list includes assay:c');
+  assert.match(work, /- forge:c/);
+  assert.match(work, /^assay:/m, 'WORK.md frontmatter echoes assay block');
+  assert.match(work, /extractors:/);
+
+  assert.strictEqual(r.action, 'dispatch');
+  assert.strictEqual(r.stage, 'assay:c');
+});
+
+test('runOrchestrate assay: rejects when memory is not enabled', async () => {
+  const io = makeAssayIo({
+    withMemory: false,
+    cycleFm: `id: c\noutput: doc\nassay:\n  extractors: [java]`,
+  });
+  const { args } = baseArgs(io);
+  const r = await runOrchestrate(args, io);
+  assert.strictEqual(r.action, 'violation');
+  assert.match(r.details, /memory to be enabled/);
+  assert.match(r.details, /init-memory/);
+});
+
+test("runOrchestrate assay: rejects extractor writing types not in cycle's memory.write", async () => {
+  const io = makeAssayIo({
+    withMemory: true,
+    cycleFm: `id: c\noutput: doc\nmemory:\n  read: [class]\n  write: [other]\nassay:\n  extractors: [java]`,
+  });
+  const { args } = baseArgs(io);
+  const r = await runOrchestrate(args, io);
+  assert.strictEqual(r.action, 'violation');
+  assert.match(r.details, /java/);
+  assert.match(r.details, /class/);
+});
+
+test('runOrchestrate assay: rejects when an extractor does not exist', async () => {
+  const io = makeAssayIo({
+    withMemory: true,
+    cycleFm: `id: c\noutput: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [missing]`,
+  });
+  const { args } = baseArgs(io);
+  const r = await runOrchestrate(args, io);
+  assert.strictEqual(r.action, 'violation');
+  assert.match(r.details, /missing/);
+  assert.match(r.details, /extractor not found/);
+});
+
+test('runOrchestrate assay: rejects when cycle has no memory.write', async () => {
+  const io = makeAssayIo({
+    withMemory: true,
+    cycleFm: `id: c\noutput: doc\nassay:\n  extractors: [java]`,
+  });
+  const { args } = baseArgs(io);
+  const r = await runOrchestrate(args, io);
+  assert.strictEqual(r.action, 'violation');
+  assert.match(r.details, /memory\.write/);
+});

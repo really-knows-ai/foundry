@@ -39,6 +39,7 @@ import { runQuery } from '../../scripts/lib/memory/query.js';
 import { resolvePermissions, checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../scripts/lib/memory/permissions.js';
 import { renderMemoryPrompt } from '../../scripts/lib/memory/prompt.js';
 import { createEntityType as admCreateEntity } from '../../scripts/lib/memory/admin/create-entity-type.js';
+import { createExtractor as admCreateExtractor } from '../../scripts/lib/memory/admin/create-extractor.js';
 import { createEdgeType as admCreateEdge } from '../../scripts/lib/memory/admin/create-edge-type.js';
 import { renameEntityType as admRenameEntity } from '../../scripts/lib/memory/admin/rename-entity-type.js';
 import { renameEdgeType as admRenameEdge } from '../../scripts/lib/memory/admin/rename-edge-type.js';
@@ -52,6 +53,8 @@ import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../
 import { search as memSearch } from '../../scripts/lib/memory/search.js';
 import { reembed as admReembed } from '../../scripts/lib/memory/admin/reembed.js';
 import { initMemory as admInitMemory } from '../../scripts/lib/memory/admin/init.js';
+import { runAssay } from '../../scripts/lib/assay/run.js';
+import { loadExtractor } from '../../scripts/lib/assay/loader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -217,7 +220,7 @@ async function withStore(context) {
  * Returns '' on any error (memory not initialised, drifted, etc.) so that
  * flow dispatch never fails due to memory.
  */
-export async function buildCyclePromptExtras({ worktree, cycleId }) {
+export async function buildCyclePromptExtras({ worktree, cycleId, stage }) {
   if (!cycleId) return '';
   try {
     const io = makeMemoryIO(worktree);
@@ -226,7 +229,29 @@ export async function buildCyclePromptExtras({ worktree, cycleId }) {
     if (!ctx) return '';
     const cycleDef = await getCycleDefinition('foundry', cycleId, io);
     const perms = resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary: ctx.vocabulary });
-    return renderMemoryPrompt({ permissions: perms, schema: store?.schema });
+
+    // Load extractor prose briefs only for the forge stage of assay-enabled cycles.
+    // Forge is the consumer that reads the populated memory; the assay stage itself
+    // doesn't need the briefs (it just runs commands).
+    let extractors;
+    const stageBase = typeof stage === 'string' ? stage.split(':')[0] : '';
+    const assayBlock = cycleDef?.frontmatter?.assay;
+    const extractorNames = Array.isArray(assayBlock?.extractors) ? assayBlock.extractors : [];
+    if (stageBase === 'forge' && extractorNames.length > 0) {
+      extractors = [];
+      const foundryDir = path.join(worktree, 'foundry');
+      for (const name of extractorNames) {
+        try {
+          const ex = await loadExtractor(foundryDir, name, io);
+          extractors.push({ name: ex.name, body: ex.body });
+        } catch {
+          // Skip extractors that fail to load; never block prompt rendering.
+        }
+      }
+      if (extractors.length === 0) extractors = undefined;
+    }
+
+    return renderMemoryPrompt({ permissions: perms, schema: store?.schema, extractors });
   } catch {
     return '';
   }
@@ -508,7 +533,7 @@ export const FoundryPlugin = async ({ directory }) => {
             // Inject memory vocabulary block into dispatch prompt, if any.
             if (result && result.action === 'dispatch' && typeof result.prompt === 'string') {
               const cycleId = result.cycle ?? (typeof result.stage === 'string' ? result.stage.split(':')[1] : null);
-              const extras = await buildCyclePromptExtras({ worktree: cwd, cycleId });
+              const extras = await buildCyclePromptExtras({ worktree: cwd, cycleId, stage: result.stage });
               if (extras) {
                 result.prompt = `${result.prompt}\n\n${extras}`;
               }
@@ -588,6 +613,9 @@ export const FoundryPlugin = async ({ directory }) => {
           }
           if (stageBase === 'human-appraise' && args.tag !== 'human') {
             return JSON.stringify({ error: `foundry_feedback_add: human-appraise may only add tag "human"; got "${args.tag}"` });
+          }
+          if (stageBase === 'assay' && args.tag !== 'validation') {
+            return JSON.stringify({ error: `foundry_feedback_add: assay may only add tag "validation"; got "${args.tag}"` });
           }
           const workPath = path.join(context.worktree, 'WORK.md');
           const content = readFileSync(workPath, 'utf-8');
@@ -853,6 +881,49 @@ export const FoundryPlugin = async ({ directory }) => {
         },
       }),
 
+      foundry_assay_run: tool({
+        description: 'Run extractors to populate flow memory. Only callable during an active assay stage. Aborts on first failure; writes #validation feedback against WORK.md on abort.',
+        args: {
+          cycle: tool.schema.string().describe('Cycle name'),
+          extractors: tool.schema.array(tool.schema.string()).describe('Extractor names, executed in order'),
+        },
+        async execute(args, context) {
+          const io = makeIO(context.worktree);
+          const guard = requireActiveStage(io, { stageBase: 'assay', cycle: args.cycle });
+          if (!guard.ok) return JSON.stringify({ error: `foundry_assay_run requires active assay stage for cycle '${args.cycle}'; ${guard.error}` });
+          try {
+            const memIo = makeMemoryIO(context.worktree);
+            const store = await getOrOpenStore({ worktreeRoot: context.worktree, io: memIo });
+            const ctx = getContext(context.worktree);
+            const res = await runAssay({
+              foundryDir: 'foundry',
+              cwd: context.worktree,
+              io: memIo,
+              extractors: args.extractors,
+              store,
+              vocabulary: ctx.vocabulary,
+              putEntity,
+              relate: memRelate,
+            });
+            if (!res.ok) {
+              try {
+                const workPath = 'WORK.md';
+                if (await memIo.exists(workPath)) {
+                  const text = await memIo.readFile(workPath);
+                  const msg = `assay aborted on extractor \`${res.failedExtractor}\`: ${res.reason}` +
+                    (res.stderr ? ` (stderr: ${res.stderr.trim().slice(0, 500)})` : '');
+                  const out = addFeedbackItem(text, 'WORK.md', msg, 'validation');
+                  await memIo.writeFile(workPath, out.text);
+                }
+              } catch (_err) { /* best effort */ }
+            }
+            return JSON.stringify(res);
+          } catch (err) {
+            return errorJson(err);
+          }
+        },
+      }),
+
       // ── Appraiser selection tool ──
       foundry_appraisers_select: tool({
         description: 'Select appraisers for an artefact type',
@@ -1034,6 +1105,23 @@ export const FoundryPlugin = async ({ directory }) => {
           try {
             const io = makeMemoryIO(context.worktree);
             const out = await admCreateEntity({ worktreeRoot: context.worktree, io, ...args });
+            return JSON.stringify(out);
+          } catch (err) { return errorJson(err); }
+        },
+      }),
+      foundry_extractor_create: tool({
+        description: 'Create a new extractor definition under foundry/memory/extractors/.',
+        args: {
+          name: tool.schema.string(),
+          command: tool.schema.string(),
+          memoryWrite: tool.schema.array(tool.schema.string()),
+          body: tool.schema.string(),
+          timeout: tool.schema.string().optional(),
+        },
+        async execute(args, context) {
+          try {
+            const io = makeMemoryIO(context.worktree);
+            const out = await admCreateExtractor({ worktreeRoot: context.worktree, io, ...args });
             return JSON.stringify(out);
           } catch (err) { return errorJson(err); }
         },

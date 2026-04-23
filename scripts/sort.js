@@ -73,6 +73,10 @@ function determineRoute(stages, history, feedback, maxIterations, opts = {}) {
 
   if (lastBase === null) return stages[0];
 
+  if (lastBase === 'assay') {
+    return findFirst(stages, 'forge') ?? 'blocked';
+  }
+
   if (lastBase === 'forge') {
     const next = nextInRoute(stages, lastEntry);
     return next ?? 'done';
@@ -182,6 +186,10 @@ function globMatch(filePath, pattern) {
 function getAllowedPatterns(lastBase, foundryDir, cycleDef, io = defaultIO) {
   const always = ['WORK.md', 'WORK.history.yaml'];
 
+  if (lastBase === 'assay') {
+    return [...always, '.foundry/**', 'foundry/memory/**'];
+  }
+
   if (lastBase !== 'forge') {
     return always;
   }
@@ -253,7 +261,7 @@ function getDirtyToolManagedFiles(io = defaultIO) {
 // ---------------------------------------------------------------------------
 
 function isDispatchableRoute(route) {
-  return typeof route === 'string' && /^(forge|quench|appraise|human-appraise):/.test(route);
+  return typeof route === 'string' && /^(assay|forge|quench|appraise|human-appraise):/.test(route);
 }
 
 export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef, agentsDir = '.opencode/agents', mint, now = Date.now() } = {}, io = defaultIO) {

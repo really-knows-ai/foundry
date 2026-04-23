@@ -20,7 +20,16 @@ function edgeBlock(name, edgeDef, canWrite) {
   ].join('\n');
 }
 
-export function renderMemoryPrompt({ permissions, schema }) {
+function extractorBlock({ name, body }) {
+  return [
+    `### extractor: \`${name}\``,
+    '',
+    (body && body.trim()) ? body.trim() : '(no description)',
+    '',
+  ].join('\n');
+}
+
+export function renderMemoryPrompt({ permissions, schema, extractors }) {
   if (!permissions.enabled) return '';
 
   const { readTypes, writeTypes, vocabulary } = permissions;
@@ -69,5 +78,16 @@ export function renderMemoryPrompt({ permissions, schema }) {
   lines.push('');
   lines.push('Writes to types outside your permissions are rejected.');
   lines.push('');
+
+  if (Array.isArray(extractors) && extractors.length > 0) {
+    lines.push('## Extractors');
+    lines.push('');
+    lines.push('The following extractors populate this cycle\'s memory during the assay stage. Their prose briefs describe what gets captured:');
+    lines.push('');
+    for (const ex of extractors) {
+      lines.push(extractorBlock(ex));
+    }
+  }
+
   return lines.join('\n');
 }

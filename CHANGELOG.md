@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.0 — 2026-04-23
+
+### Added
+
+- **Assay stage** (`assay`) — deterministic pre-forge stage that runs project-authored extractor scripts to populate flow memory. Opt-in per cycle via `assay: { extractors: [...] }`. Iteration-0-only. Strict failure semantics: any non-zero exit, parse error, permission violation, or timeout aborts the cycle with `#validation` feedback. See [docs/concepts.md](docs/concepts.md#assay).
+- **Extractor** authoring skill (`add-extractor`) and plugin tool (`foundry_extractor_create`). Extractors live at `foundry/memory/extractors/<name>.md` and emit JSONL rows typed by a `kind` discriminator.
+- **`foundry_assay_run`** plugin tool for running extractors inside an active assay stage.
+
 ## 2.4.2 — 2026-04-23
 
 ### Changed
