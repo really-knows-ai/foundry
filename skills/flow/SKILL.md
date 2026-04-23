@@ -31,6 +31,17 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
       - **Resume** — keep the existing workfile and skip to step 6. **Only offer resume if the existing `flow` AND `cycle` match what the user just asked for.** If either differs, do not offer resume — running the wrong cycle against stale state corrupts the workflow.
       - **Discard** — call `foundry_workfile_delete`, then proceed to step 5.
       - **Abort** — stop the skill without modifying anything.
+   d. Check for failed flow state. If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+
+      > The flow is in a failed state. Reason: `<reason>`.
+      >
+      > No further work is permitted. To recover:
+      >
+      >   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
+      >   2. Back out to main (`git checkout main`) and delete the work branch.
+      >   3. Investigate and fix the root cause of the failure before restarting.
+
+      Then return control to the user and stop.
 5. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The `orchestrate` skill will read the cycle definition and handle setup on its first call.
 6. Execute the cycle by invoking the orchestrate skill
 

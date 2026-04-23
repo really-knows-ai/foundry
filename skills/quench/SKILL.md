@@ -27,6 +27,18 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
 
 1. `foundry_stage_begin(...)`.
 2. `foundry_workfile_get` — read the `cycle` from frontmatter.
+
+   **Check for failed flow state.** If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+
+   > The flow is in a failed state. Reason: `<reason>`.
+   >
+   > No further work is permitted. To recover:
+   >
+   >   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
+   >   2. Back out to main (`git checkout main`) and delete the work branch.
+   >   3. Investigate and fix the root cause of the failure before restarting.
+
+   Then return control to the user and stop.
 3. `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate the artefacts produced by **this** cycle. Always pass the `cycle` filter; omitting it returns rows from prior sessions and validates stale files. Skip rows whose status is `done` or `blocked`.
 4. For each remaining row:
    a. `foundry_config_validation` with the row's type. If it returns null, skip this row.

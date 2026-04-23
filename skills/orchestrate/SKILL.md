@@ -11,6 +11,20 @@ You drive a foundry cycle by calling `foundry_orchestrate` repeatedly and acting
 
 Before running this skill, verify that `foundry/` exists in the project root and `WORK.md` has been created by the flow skill (with `flow`, `cycle`, and `goal` fields). If not, stop and tell the user to run the flow skill first.
 
+### Check for failed flow state
+
+Before iterating, call `foundry_workfile_get` once. If it returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+
+> The flow is in a failed state. Reason: `<reason>`.
+>
+> No further work is permitted. To recover:
+>
+>   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
+>   2. Back out to main (`git checkout main`) and delete the work branch.
+>   3. Investigate and fix the root cause of the failure before restarting.
+
+Then return control to the user and stop.
+
 ## Protocol
 
 Loop until `foundry_orchestrate` returns a terminal action (`done`, `blocked`, or `violation`):

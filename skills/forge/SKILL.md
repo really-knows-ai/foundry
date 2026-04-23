@@ -27,6 +27,18 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
 
 1. `foundry_stage_begin(...)` with the token from the dispatch prompt.
 2. `foundry_workfile_get` — understand the goal.
+
+   **Check for failed flow state.** If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+
+   > The flow is in a failed state. Reason: `<reason>`.
+   >
+   > No further work is permitted. To recover:
+   >
+   >   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
+   >   2. Back out to main (`git checkout main`) and delete the work branch.
+   >   3. Investigate and fix the root cause of the failure before restarting.
+
+   Then return control to the user and stop.
 3. `foundry_config_cycle` — understand what to produce and what inputs are available.
 4. `foundry_config_artefact_type` with the output type ID — get the artefact type definition, especially its `file-patterns`.
 5. `foundry_config_laws` — get all applicable laws (global + type-specific).

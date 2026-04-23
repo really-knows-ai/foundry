@@ -24,6 +24,20 @@ Call `foundry_stage_begin({ stage, cycle, token })` with the values from the dis
 
 Call `foundry_workfile_get()`. Read `frontmatter.assay.extractors`. This is an ordered array of extractor names. If it is missing or empty, this is a routing bug — return to step 5 with an error summary.
 
+### Check for failed flow state
+
+If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+
+> The flow is in a failed state. Reason: `<reason>`.
+>
+> No further work is permitted. To recover:
+>
+>   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
+>   2. Back out to main (`git checkout main`) and delete the work branch.
+>   3. Investigate and fix the root cause of the failure before restarting.
+
+Then return control to the user and stop.
+
 ### 3. Run the extractors
 
 Call `foundry_assay_run({ cycle, extractors })` passing exactly those values. Do not modify the list. Do not split it into multiple calls. The tool returns one of:

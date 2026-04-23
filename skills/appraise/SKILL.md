@@ -28,6 +28,18 @@ Appraise makes **no disk writes**. All output flows through `foundry_feedback_ad
 1. `foundry_stage_begin(...)`.
 2. Gather context:
    - `foundry_workfile_get` — read the `cycle` from frontmatter
+
+     **Check for failed flow state.** If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+
+     > The flow is in a failed state. Reason: `<reason>`.
+     >
+     > No further work is permitted. To recover:
+     >
+     >   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
+     >   2. Back out to main (`git checkout main`) and delete the work branch.
+     >   3. Investigate and fix the root cause of the failure before restarting.
+
+     Then return control to the user and stop.
    - `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate this cycle's artefacts. Always pass the `cycle` filter; omitting it returns stale rows from prior sessions. Skip rows whose status is `done` or `blocked`.
    - For each remaining row, gather its type-specific context:
      - `foundry_config_laws` with the row's type — applicable laws (global + type-specific)
