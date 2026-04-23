@@ -16,9 +16,8 @@ Add Foundry to `opencode.json`:
 
 ```json
 {
-  "packages": {
-    "@really-knows-ai/foundry": "latest"
-  }
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@really-knows-ai/foundry"]
 }
 ```
 
