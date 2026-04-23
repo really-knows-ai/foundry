@@ -4,6 +4,7 @@ import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedba
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { parseArtefactsTable } from '../../../scripts/lib/artefacts.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
+import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { makeIO } from './helpers.js';
 
 export function createFeedbackTools({ tool }) {
@@ -17,6 +18,8 @@ export function createFeedbackTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_add: ${failedGuard.error}` });
         const guard = requireActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_add requires active stage; ${guard.error}` });
         const stageBase = stageBaseOf(guard.active.stage);
@@ -52,6 +55,8 @@ export function createFeedbackTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_action: ${failedGuard.error}` });
         const guard = requireActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_action requires active stage; ${guard.error}` });
         const stageBase = stageBaseOf(guard.active.stage);
@@ -76,6 +81,8 @@ export function createFeedbackTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_wontfix: ${failedGuard.error}` });
         const guard = requireActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_wontfix requires active stage; ${guard.error}` });
         const stageBase = stageBaseOf(guard.active.stage);
@@ -101,6 +108,8 @@ export function createFeedbackTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_resolve: ${failedGuard.error}` });
         const guard = requireActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_resolve requires active stage; ${guard.error}` });
         const stageBase = stageBaseOf(guard.active.stage);

@@ -1,4 +1,5 @@
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
+import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { addFeedbackItem } from '../../../scripts/lib/feedback.js';
 import { runAssay } from '../../../scripts/lib/assay/run.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
@@ -16,6 +17,8 @@ export function createAssayTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_assay_run: ${failedGuard.error}` });
         const guard = requireActiveStage(io, { stageBase: 'assay', cycle: args.cycle });
         if (!guard.ok) return JSON.stringify({ error: `foundry_assay_run requires active assay stage for cycle '${args.cycle}'; ${guard.error}` });
         try {

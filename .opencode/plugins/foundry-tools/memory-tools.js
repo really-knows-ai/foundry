@@ -4,7 +4,8 @@ import { runQuery } from '../../../scripts/lib/memory/query.js';
 import { checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../../scripts/lib/memory/permissions.js';
 import { search as memSearch } from '../../../scripts/lib/memory/search.js';
 import { withStore } from './memory-helpers.js';
-import { errorJson } from './helpers.js';
+import { errorJson, makeIO } from './helpers.js';
+import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 
 export function createMemoryTools({ tool }) {
   return {
@@ -16,6 +17,9 @@ export function createMemoryTools({ tool }) {
         value: tool.schema.string().describe('Free-text intrinsic description (≤4KB)'),
       },
       async execute(args, context) {
+        const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_memory_put: ${failedGuard.error}` });
         try {
           const { store, vocabulary, permissions, writeEmbedder, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEntityWrite(permissions, args.type)) {
@@ -38,6 +42,9 @@ export function createMemoryTools({ tool }) {
         to_name: tool.schema.string(),
       },
       async execute(args, context) {
+        const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_memory_relate: ${failedGuard.error}` });
         try {
           const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {
@@ -60,6 +67,9 @@ export function createMemoryTools({ tool }) {
         to_name: tool.schema.string(),
       },
       async execute(args, context) {
+        const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_memory_unrelate: ${failedGuard.error}` });
         try {
           const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {

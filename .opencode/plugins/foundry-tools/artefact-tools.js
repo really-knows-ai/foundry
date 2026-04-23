@@ -1,6 +1,7 @@
 import path from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
+import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { parseArtefactsTable, setArtefactStatus } from '../../../scripts/lib/artefacts.js';
 import { makeIO } from './helpers.js';
 
@@ -17,6 +18,8 @@ export function createArtefactTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_artefacts_set_status: ${failedGuard.error}` });
         const guard = requireNoActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_artefacts_set_status ${guard.error}` });
         const workPath = path.join(context.worktree, 'WORK.md');

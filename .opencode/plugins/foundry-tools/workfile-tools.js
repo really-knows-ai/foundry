@@ -1,6 +1,7 @@
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
+import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../../scripts/lib/workfile.js';
 import { makeIO } from './helpers.js';
 
@@ -18,6 +19,8 @@ export function createWorkfileTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_workfile_create: ${failedGuard.error}` });
         const guard = requireNoActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_create ${guard.error}` });
         const workPath = path.join(context.worktree, 'WORK.md');

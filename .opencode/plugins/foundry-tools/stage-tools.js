@@ -5,7 +5,7 @@ import { verifyToken } from '../../../scripts/lib/token.js';
 import { getContext } from '../../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO } from './helpers.js';
-import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
+import { markWorkfileFailed, requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 
 export function createStageTools({ tool, secret, pending }) {
   return {
@@ -18,6 +18,8 @@ export function createStageTools({ tool, secret, pending }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_stage_begin: ${failedGuard.error}` });
         // Precondition: no active stage.
         const current = readActiveStage(io);
         if (current) {

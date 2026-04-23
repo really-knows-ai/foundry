@@ -8,6 +8,7 @@ import { addArtefactRow } from '../../../scripts/lib/artefacts.js';
 import { stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { finalizeStage } from '../../../scripts/lib/finalize.js';
 import { makeIO, buildCyclePromptExtras } from './helpers.js';
+import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 
 export function createOrchestrateTool({ tool, secret, pending }) {
   return {
@@ -23,6 +24,8 @@ export function createOrchestrateTool({ tool, secret, pending }) {
       async execute(args, context) {
         const { runOrchestrate } = await import('../../../scripts/orchestrate.js');
         const io = makeIO(context.worktree);
+        const failedGuard = requireNotFailed(io);
+        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${failedGuard.error}` });
         const cwd = context.worktree;
 
         // Mint: same pattern as removed foundry_sort.
