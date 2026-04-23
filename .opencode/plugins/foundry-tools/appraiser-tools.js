@@ -1,3 +1,4 @@
+import { selectAppraisers } from '../../../scripts/lib/config.js';
 import { makeIO } from './helpers.js';
 
 export function createAppraiserTools({ tool }) {
@@ -10,6 +11,9 @@ export function createAppraiserTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
+        const result = args.count
+          ? await selectAppraisers('foundry', args.typeId, args.count, io)
+          : await selectAppraisers('foundry', args.typeId, io);
         return JSON.stringify(result);
       },
     }),
