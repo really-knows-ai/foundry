@@ -1,33 +1,39 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync } from 'node:fs';
+import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
 
-const PLUGIN = readFileSync('.opencode/plugins/foundry.js', 'utf8');
+// These tests exercise the plugin's public surface: instantiate it and
+// check which tools are registered. After the v2.5.x plugin-file split,
+// tool registrations live in `.opencode/plugins/foundry-tools/*` modules
+// rather than inline in `foundry.js`, so grepping the entry file text no
+// longer reflects what's registered.
+const plugin = await FoundryPlugin({ directory: process.cwd() });
+const toolNames = new Set(Object.keys(plugin.tool));
 
 test('plugin registers foundry_orchestrate', () => {
-  assert.match(PLUGIN, /foundry_orchestrate:\s*tool/);
+  assert.ok(toolNames.has('foundry_orchestrate'));
 });
 
 test('plugin does NOT register foundry_sort', () => {
-  assert.doesNotMatch(PLUGIN, /foundry_sort:\s*tool/);
+  assert.ok(!toolNames.has('foundry_sort'));
 });
 
 test('plugin does NOT register foundry_history_append', () => {
-  assert.doesNotMatch(PLUGIN, /foundry_history_append:\s*tool/);
+  assert.ok(!toolNames.has('foundry_history_append'));
 });
 
 test('plugin does NOT register foundry_stage_finalize', () => {
-  assert.doesNotMatch(PLUGIN, /foundry_stage_finalize:\s*tool/);
+  assert.ok(!toolNames.has('foundry_stage_finalize'));
 });
 
 test('plugin does NOT register foundry_git_commit', () => {
-  assert.doesNotMatch(PLUGIN, /foundry_git_commit:\s*tool/);
+  assert.ok(!toolNames.has('foundry_git_commit'));
 });
 
 test('plugin does NOT register foundry_workfile_configure_from_cycle', () => {
-  assert.doesNotMatch(PLUGIN, /foundry_workfile_configure_from_cycle:\s*tool/);
+  assert.ok(!toolNames.has('foundry_workfile_configure_from_cycle'));
 });
 
 test('plugin does NOT register foundry_workfile_set', () => {
-  assert.doesNotMatch(PLUGIN, /foundry_workfile_set:\s*tool/);
+  assert.ok(!toolNames.has('foundry_workfile_set'));
 });
