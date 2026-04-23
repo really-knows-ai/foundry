@@ -13,6 +13,7 @@ import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from './lib/ar
 import { readActiveStage, readLastStage, clearActiveStage } from './lib/state.js';
 import { appendEntry, getIteration } from './lib/history.js';
 import { listFeedback } from './lib/feedback.js';
+import { loadExtractor } from './lib/assay/loader.js';
 
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
   const lines = [
@@ -260,6 +261,47 @@ export async function runOrchestrate(args = {}, io) {
 
     const validation = await getValidation(foundryDir, outputType, io);
 
+    // Validate and normalise the cycle's `assay:` opt-in, if present.
+    const assayBlock = cfm.assay;
+    let assayExtractors = null;
+    if (assayBlock !== undefined && assayBlock !== null) {
+      if (typeof assayBlock !== 'object' || Array.isArray(assayBlock)) {
+        return violation(`cycle ${cycleId}: 'assay' must be a mapping (got ${typeof assayBlock})`, ['WORK.md']);
+      }
+      const list = assayBlock.extractors;
+      if (!Array.isArray(list) || list.length === 0) {
+        return violation(`cycle ${cycleId}: 'assay.extractors' must be a non-empty array`, ['WORK.md']);
+      }
+
+      // Memory must be enabled.
+      const memoryEnabled = await io.exists('foundry/memory/config.md');
+      if (!memoryEnabled) {
+        return violation(`cycle ${cycleId}: 'assay:' requires memory to be enabled (run the init-memory skill first)`, ['WORK.md']);
+      }
+
+      // Build the cycle's write-types set.
+      const cycleWrite = cfm.memory?.write;
+      if (!Array.isArray(cycleWrite)) {
+        return violation(`cycle ${cycleId}: 'assay:' requires the cycle to declare memory.write`, ['WORK.md']);
+      }
+      const cycleWriteSet = new Set(cycleWrite);
+
+      // Load each extractor and check its memory.write ⊆ cycle.memory.write.
+      for (const name of list) {
+        let ext;
+        try { ext = await loadExtractor(foundryDir, name, io); }
+        catch (err) { return violation(`cycle ${cycleId}: ${err.message}`, ['WORK.md']); }
+        const missing = ext.memoryWrite.filter((t) => !cycleWriteSet.has(t));
+        if (missing.length > 0) {
+          return violation(
+            `cycle ${cycleId}: extractor '${name}' writes types not permitted by the cycle's memory.write: ${missing.join(', ')}`,
+            ['WORK.md'],
+          );
+        }
+      }
+      assayExtractors = list;
+    }
+
     let stages;
     if (Array.isArray(cfm.stages)) {
       if (cfm.stages.length === 0) {
@@ -277,6 +319,7 @@ export async function runOrchestrate(args = {}, io) {
         cycleId,
         hasValidation: !!validation && validation.length > 0,
         humanAppraise: cfm['human-appraise'] === true,
+        assay: !!assayExtractors,
       });
     }
 
@@ -287,6 +330,7 @@ export async function runOrchestrate(args = {}, io) {
     newFm['deadlock-appraise'] = cfm['deadlock-appraise'] !== false;
     newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? 5;
     if (cfm.models) newFm.models = cfm.models;
+    if (assayExtractors) newFm.assay = { extractors: assayExtractors };
 
     const body = workContent.replace(/^---\n[\s\S]+?\n---\n?/, '');
     const fmBlock = writeFrontmatter(newFm);
