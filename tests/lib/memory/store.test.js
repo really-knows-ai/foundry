@@ -73,6 +73,151 @@ describe('store lifecycle', () => {
     }
   });
 
+  it('closes the db handle when an NDJSON import throws mid-init (entity)', async () => {
+    const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-crash-ent-'));
+    try {
+      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      const dbPath = join(localRoot, 'foundry/memory/memory.db');
+      const schema = {
+        version: 1,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: {},
+        embeddings: null,
+      };
+      // NDJSON file exists so importRelation is reached.
+      writeFileSync(join(localRoot, 'foundry/memory/relations/class.ndjson'),
+        '{"name":"com.Foo","value":"A class"}\n');
+
+      // Wrap diskIO so readFile throws specifically for the entity NDJSON.
+      // This fires AFTER openMemoryDb has created the sqlite handle but
+      // BEFORE openStore returns — the exact hazard window.
+      const baseIO = diskIO(localRoot);
+      const faultyIO = {
+        ...baseIO,
+        readFile: async (p) => {
+          if (p.endsWith('relations/class.ndjson')) {
+            throw new Error('simulated disk failure (entity)');
+          }
+          return baseIO.readFile(p);
+        },
+      };
+
+      // Spy on the Cozo module so we can assert the db handle was closed
+      // after the failure. In-process cozo-node tolerates concurrent handles
+      // on the same sqlite file, so resource cleanup cannot be observed via
+      // a second open — we have to observe the close call directly.
+      const realCozo = await import('../../../scripts/lib/memory/cozo.js');
+      const closed = [];
+      const cozoSpy = {
+        ...realCozo,
+        closeMemoryDb: (db) => {
+          closed.push(db);
+          realCozo.closeMemoryDb(db);
+        },
+      };
+
+      let err;
+      try {
+        await openStore({ foundryDir: 'foundry', schema, io: faultyIO, dbAbsolutePath: dbPath, cozo: cozoSpy });
+      } catch (e) {
+        err = e;
+      }
+      assert.ok(err, 'openStore should have thrown');
+      assert.equal(closed.length, 1, 'closeMemoryDb called exactly once on failure');
+      assert.ok(closed[0] && typeof closed[0].close === 'function', 'closed the db handle, not something else');
+
+      // Sanity check: reopening the same path with clean io still works.
+      const store2 = await openStore({ foundryDir: 'foundry', schema, io: diskIO(localRoot), dbAbsolutePath: dbPath });
+      closeStore(store2);
+    } finally {
+      rmSync(localRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('closes the db handle when an NDJSON import throws mid-init (edge)', async () => {
+    const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-crash-edge-'));
+    try {
+      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      const dbPath = join(localRoot, 'foundry/memory/memory.db');
+      const schema = {
+        version: 1,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: { calls: { frontmatterHash: hashFrontmatter({ type: 'calls', sources: ['class'], targets: ['class'] }) } },
+        embeddings: null,
+      };
+      writeFileSync(join(localRoot, 'foundry/memory/relations/calls.ndjson'),
+        '{"from_type":"class","from_name":"A","to_type":"class","to_name":"B"}\n');
+
+      const baseIO = diskIO(localRoot);
+      const faultyIO = {
+        ...baseIO,
+        readFile: async (p) => {
+          if (p.endsWith('relations/calls.ndjson')) {
+            throw new Error('simulated disk failure (edge)');
+          }
+          return baseIO.readFile(p);
+        },
+      };
+
+      const realCozo = await import('../../../scripts/lib/memory/cozo.js');
+      const closed = [];
+      const cozoSpy = {
+        ...realCozo,
+        closeMemoryDb: (db) => {
+          closed.push(db);
+          realCozo.closeMemoryDb(db);
+        },
+      };
+
+      let err;
+      try {
+        await openStore({ foundryDir: 'foundry', schema, io: faultyIO, dbAbsolutePath: dbPath, cozo: cozoSpy });
+      } catch (e) {
+        err = e;
+      }
+      assert.ok(err, 'openStore should have thrown');
+      assert.equal(closed.length, 1, 'closeMemoryDb called exactly once on failure');
+    } finally {
+      rmSync(localRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not double-close on the happy path', async () => {
+    const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-happy-'));
+    try {
+      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      const schema = {
+        version: 1,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: {},
+        embeddings: null,
+      };
+
+      const realCozo = await import('../../../scripts/lib/memory/cozo.js');
+      const closed = [];
+      const cozoSpy = {
+        ...realCozo,
+        closeMemoryDb: (db) => {
+          closed.push(db);
+          realCozo.closeMemoryDb(db);
+        },
+      };
+
+      // Successful open must NOT invoke the failure-path close.
+      const store = await openStore({
+        foundryDir: 'foundry',
+        schema,
+        io: diskIO(localRoot),
+        dbAbsolutePath: join(localRoot, 'foundry/memory/memory.db'),
+        cozo: cozoSpy,
+      });
+      assert.equal(closed.length, 0, 'no failure-path close on successful open');
+      closeStore(store);
+    } finally {
+      rmSync(localRoot, { recursive: true, force: true });
+    }
+  });
+
   it('drops orphan ent_/edge_ relations not present in the schema on reopen', async () => {
     const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-orphan-'));
     try {

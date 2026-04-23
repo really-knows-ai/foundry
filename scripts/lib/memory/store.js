@@ -1,17 +1,14 @@
 import { memoryPaths } from './paths.js';
+import * as cozoModule from './cozo.js';
 import {
-  openMemoryDb,
-  closeMemoryDb,
-  createEntityRelation,
-  createEdgeRelation,
-  createHnswIndex,
-  checkpoint,
   entRelName,
   edgeRelName,
   listRelations,
   dropRelation,
   dropHnswIndex,
   cozoStringLit,
+  checkpoint,
+  closeMemoryDb,
 } from './cozo.js';
 import { serialiseEntityRows, serialiseEdgeRows, parseEntityRows, parseEdgeRows } from './ndjson.js';
 
@@ -56,43 +53,56 @@ async function exportEdgeRelation(db, type) {
   return res.rows.map(([ft, fn, tt, tn]) => ({ from_type: ft, from_name: fn, to_type: tt, to_name: tn }));
 }
 
-export async function openStore({ foundryDir, schema, io, dbAbsolutePath }) {
+export async function openStore({ foundryDir, schema, io, dbAbsolutePath, cozo = cozoModule }) {
   const p = memoryPaths(foundryDir);
   if (!(await io.exists(p.root))) await io.mkdir(p.root);
   if (!(await io.exists(p.relationsDir))) await io.mkdir(p.relationsDir);
 
-  const db = openMemoryDb(dbAbsolutePath);
+  const db = cozo.openMemoryDb(dbAbsolutePath);
 
-  // Reconcile the on-disk Cozo database with the declared schema. Admin
-  // operations (drop-*, rename-*) update the schema + type files + NDJSON on
-  // disk and invalidate the singleton, but they don't touch the live .db (the
-  // process has typically closed the handle by then). On reopen, any
-  // `ent_<t>` or `edge_<t>` relation not in `schema` is orphan cruft — drop
-  // it here so `::relations` stays consistent and disk footprint doesn't grow
-  // unboundedly.
-  await reconcileRelations(db, schema);
+  // Schema setup and NDJSON import can throw (disk error, corrupt NDJSON,
+  // Cozo parse error, etc). If anything after openMemoryDb fails, the handle
+  // is otherwise unreachable — close it before rethrowing so its native
+  // resources (file descriptors, WAL lock across processes) are released.
+  try {
+    // Reconcile the on-disk Cozo database with the declared schema. Admin
+    // operations (drop-*, rename-*) update the schema + type files + NDJSON on
+    // disk and invalidate the singleton, but they don't touch the live .db (the
+    // process has typically closed the handle by then). On reopen, any
+    // `ent_<t>` or `edge_<t>` relation not in `schema` is orphan cruft — drop
+    // it here so `::relations` stays consistent and disk footprint doesn't grow
+    // unboundedly.
+    await reconcileRelations(db, schema);
 
-  const embeddingsDim = schema.embeddings && schema.embeddings.dimensions;
-  for (const type of Object.keys(schema.entities)) {
-    await createEntityRelation(db, type, embeddingsDim ? { dim: embeddingsDim } : {});
-    if (embeddingsDim) {
-      await createHnswIndex(db, entRelName(type), { dim: embeddingsDim });
+    const embeddingsDim = schema.embeddings && schema.embeddings.dimensions;
+    for (const type of Object.keys(schema.entities)) {
+      await cozo.createEntityRelation(db, type, embeddingsDim ? { dim: embeddingsDim } : {});
+      if (embeddingsDim) {
+        await cozo.createHnswIndex(db, entRelName(type), { dim: embeddingsDim });
+      }
+      const file = p.relationFile(type);
+      if (await io.exists(file)) {
+        const text = await io.readFile(file);
+        const rows = parseEntityRows(text);
+        await importRelation(db, entRelName(type), rows, 'entity');
+      }
     }
-    const file = p.relationFile(type);
-    if (await io.exists(file)) {
-      const text = await io.readFile(file);
-      const rows = parseEntityRows(text);
-      await importRelation(db, entRelName(type), rows, 'entity');
+    for (const type of Object.keys(schema.edges)) {
+      await cozo.createEdgeRelation(db, type);
+      const file = p.relationFile(type);
+      if (await io.exists(file)) {
+        const text = await io.readFile(file);
+        const rows = parseEdgeRows(text);
+        await importRelation(db, edgeRelName(type), rows, 'edge');
+      }
     }
-  }
-  for (const type of Object.keys(schema.edges)) {
-    await createEdgeRelation(db, type);
-    const file = p.relationFile(type);
-    if (await io.exists(file)) {
-      const text = await io.readFile(file);
-      const rows = parseEdgeRows(text);
-      await importRelation(db, edgeRelName(type), rows, 'edge');
+  } catch (err) {
+    try {
+      cozo.closeMemoryDb(db);
+    } catch {
+      // Best-effort cleanup; propagate the original error.
     }
+    throw err;
   }
 
   return { db, foundryDir, schema, paths: p };
