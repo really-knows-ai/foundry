@@ -72,3 +72,201 @@ describe('openFeedbackStore — add + list round-trip', () => {
     assert.equal(s2.list().length, 1);
   });
 });
+
+describe('store.transition — forge path', () => {
+  test('open → actioned is persisted as a prepended snapshot', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    const r = store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    assert.equal(r.ok, true);
+    const item = store.get(id);
+    assert.equal(item.history.length, 2);
+    assert.equal(item.history[0].state, 'actioned');
+    assert.equal(item.history[0].stage, 'forge:write');
+    assert.equal(item.history[1].state, 'open');
+  });
+
+  test('wont-fix transition requires a reason', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    const r = store.transition({ id, target: 'wont-fix', stage: 'forge:write', cycle: 'c' });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /reason is required/);
+  });
+
+  test('wont-fix with reason persists reason on the snapshot', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    const r = store.transition({ id, target: 'wont-fix', stage: 'forge:write', cycle: 'c', reason: 'out of scope' });
+    assert.equal(r.ok, true);
+    assert.equal(store.get(id).history[0].reason, 'out of scope');
+  });
+
+  test('forge cannot transition from actioned', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const r = store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    assert.equal(r.ok, false);
+  });
+});
+
+describe('store.transition — source-stage authorship', () => {
+  test('appraise can resolve when its stage matches item.source', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const r = store.transition({ id, target: 'resolved', stage: 'appraise:write-check', cycle: 'c', reason: 'addressed' });
+    assert.equal(r.ok, true);
+    assert.equal(store.get(id).history[0].state, 'resolved');
+    assert.equal(store.get(id).history[0].reason, 'addressed');
+  });
+
+  test('resolved transition requires a reason (spec §4.3, REVISION-CONTRACT §A1)', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const r = store.transition({ id, target: 'resolved', stage: 'appraise:write-check', cycle: 'c' });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /reason is required/);
+  });
+
+  test('appraise of a different stage id cannot resolve', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const r = store.transition({ id, target: 'resolved', stage: 'appraise:other-check', cycle: 'c', reason: 'fine' });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /source/);
+  });
+
+  test('rejection requires a reason', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const bad = store.transition({ id, target: 'rejected', stage: 'appraise:write-check', cycle: 'c' });
+    assert.equal(bad.ok, false);
+    assert.match(bad.error, /reason is required/);
+  });
+});
+
+describe('store.transition — human-appraise universal authority (A3)', () => {
+  // Per REVISION-CONTRACT §A3 / spec §5.1 rule 5: human-appraise may override
+  // ANY non-resolved item, not only deadlocked items. These tests exercise
+  // the non-deadlocked override path that A3 locks in.
+
+  test('human-appraise can resolve an actioned item it did NOT source', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:other', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const r = store.transition({
+      id,
+      target: 'resolved',
+      stage: 'human-appraise:review',
+      cycle: 'c',
+      reason: 'approved on review',
+    });
+    assert.equal(r.ok, true);
+    assert.equal(store.get(id).history[0].state, 'resolved');
+  });
+
+  test('human-appraise can reject a wont-fix item it did NOT source', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:other', cycle: 'c' });
+    store.transition({ id, target: 'wont-fix', stage: 'forge:write', cycle: 'c', reason: 'scope' });
+    const r = store.transition({
+      id,
+      target: 'rejected',
+      stage: 'human-appraise:review',
+      cycle: 'c',
+      reason: 'please fix after all',
+    });
+    assert.equal(r.ok, true);
+  });
+
+  test('human-appraise override on non-deadlocked items still requires a reason when target needs one', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:other', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const r = store.transition({ id, target: 'resolved', stage: 'human-appraise:review', cycle: 'c' });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /reason is required/);
+  });
+});
+
+describe('store.transition — deadlock override', () => {
+  test('human-appraise can resolve deadlocked even with non-matching source', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
+    // Force the item into deadlocked state via the internal writer used by sort.
+    store.writeDeadlockedSnapshot({ id, cycle: 'c', reason: 'depth=3' });
+    const r = store.transition({
+      id,
+      target: 'resolved',
+      stage: 'human-appraise:review',
+      cycle: 'c',
+      reason: 'accepting as-is',
+    });
+    assert.equal(r.ok, true);
+    assert.equal(store.get(id).history[0].state, 'resolved');
+  });
+
+  test('deadlock override requires a reason', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
+    store.writeDeadlockedSnapshot({ id, cycle: 'c', reason: 'depth=3' });
+    const r = store.transition({ id, target: 'resolved', stage: 'human-appraise:review', cycle: 'c' });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /reason is required/);
+  });
+
+  test('appraise CANNOT override a deadlocked item', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
+    store.writeDeadlockedSnapshot({ id, cycle: 'c', reason: 'depth=3' });
+    const r = store.transition({
+      id,
+      target: 'resolved',
+      stage: 'appraise:write-check',
+      cycle: 'c',
+      reason: 'trying',
+    });
+    assert.equal(r.ok, false);
+  });
+});
+
+describe('store.transition — terminal resolved', () => {
+  test('no transitions from resolved', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    store.transition({ id, target: 'resolved', stage: 'appraise:a', cycle: 'c', reason: 'ok' });
+    const r = store.transition({ id, target: 'rejected', stage: 'appraise:a', cycle: 'c', reason: 'x' });
+    assert.equal(r.ok, false);
+  });
+});
+
+describe('store.transition — unknown id', () => {
+  test('returns ok:false with a clear error', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const r = store.transition({ id: 'DOES_NOT_EXIST', target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /not found/);
+  });
+});
