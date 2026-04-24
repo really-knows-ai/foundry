@@ -41,6 +41,11 @@ async function getPlugin(dir) {
   return FoundryPlugin({ directory: dir });
 }
 
+async function tools(dir) {
+  const plugin = await getPlugin(dir);
+  return plugin.tool;
+}
+
 function parseResult(raw) {
   return JSON.parse(raw);
 }
@@ -124,5 +129,47 @@ describe('foundry_feedback_add — id-based API', () => {
     );
     const res = parseResult(raw);
     assert.match(res.error, /quench.*validation/);
+  });
+});
+
+describe('foundry_feedback_list — new response shape', () => {
+  test('returns items with {id, file, tag, text, source, state, depth} fields', async () => {
+    worktree = makeWorktree();
+    const t = await tools(worktree);
+    const addRes = parseResult(await t.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'too cheerful', tag: 'law:dark' },
+      { worktree },
+    ));
+
+    const listRaw = await t.foundry_feedback_list.execute({}, { worktree });
+    const items = parseResult(listRaw);
+    assert.equal(Array.isArray(items), true);
+    assert.equal(items.length, 1);
+    const it = items[0];
+    assert.equal(it.id, addRes.id);
+    assert.equal(it.file, 'haiku.md');
+    assert.equal(it.tag, 'law:dark');
+    assert.equal(it.text, 'too cheerful');
+    assert.equal(it.source, 'appraise:write-check');
+    assert.equal(it.state, 'open');
+    assert.equal(it.depth, 1);
+    assert.equal(it.reason, undefined);
+  });
+
+  test('filters by file when `file` argument is supplied', async () => {
+    worktree = makeWorktree();
+    const t = await tools(worktree);
+    await t.foundry_feedback_add.execute({ file: 'a.md', text: 't1', tag: 'law:x' }, { worktree });
+    await t.foundry_feedback_add.execute({ file: 'b.md', text: 't2', tag: 'law:x' }, { worktree });
+    const items = parseResult(await t.foundry_feedback_list.execute({ file: 'a.md' }, { worktree }));
+    assert.equal(items.length, 1);
+    assert.equal(items[0].file, 'a.md');
+  });
+
+  test('returns an empty array when WORK.feedback.yaml is absent', async () => {
+    worktree = makeWorktree();
+    const t = await tools(worktree);
+    const items = parseResult(await t.foundry_feedback_list.execute({}, { worktree }));
+    assert.deepEqual(items, []);
   });
 });

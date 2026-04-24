@@ -155,15 +155,32 @@ export function createFeedbackTools({ tool }) {
         file: tool.schema.string().optional().describe('Filter by artefact file path'),
       },
       async execute(args, context) {
-        const workPath = path.join(context.worktree, 'WORK.md');
-        if (!existsSync(workPath)) {
+        const io = makeIO(context.worktree);
+        if (!io.exists('WORK.md')) {
           return JSON.stringify({ error: 'WORK.md not found' });
         }
-        const text = readFileSync(workPath, 'utf-8');
-        const fm = parseFrontmatter(text);
-        const artefacts = parseArtefactsTable(text);
-        const cycle = fm.cycle || '';
-        return JSON.stringify(listFeedback(text, cycle, artefacts, args.file));
+        try {
+          const store = openFeedbackStore('WORK.feedback.yaml', io);
+          const items = store.list()
+            .filter(it => !args.file || it.file === args.file)
+            .map(it => {
+              const head = it.history[0];
+              const base = {
+                id: it.id,
+                file: it.file,
+                tag: it.tag,
+                text: it.text,
+                source: it.source,
+                state: head.state,
+                depth: head.state === 'resolved' ? 0 : it.history.length,
+              };
+              if (head.reason) base.reason = head.reason;
+              return base;
+            });
+          return JSON.stringify(items);
+        } catch (err) {
+          return JSON.stringify({ error: `foundry_feedback_list: ${err.message}` });
+        }
       },
     }),
   };
