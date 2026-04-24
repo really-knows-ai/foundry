@@ -251,6 +251,44 @@ describe('appendEntry — atomic write', () => {
   });
 });
 
+describe('appendEntry — open_feedback parameter', () => {
+  it('stamps the provided open_feedback value onto the entry', () => {
+    const io = mockIO(null);
+    appendEntry(
+      'h.yaml',
+      { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'x', openFeedback: 7 },
+      io,
+    );
+    const data = yaml.load(io.getWritten());
+    assert.equal(data[0].open_feedback, 7);
+  });
+});
+
+describe('appendEntry — open_feedback coercion', () => {
+  it('undefined openFeedback coerces to 0 (field always present)', () => {
+    const io = mockIO(null);
+    appendEntry(
+      'h.yaml',
+      { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'x' },
+      io,
+    );
+    const data = yaml.load(io.getWritten());
+    assert.ok('open_feedback' in data[0], 'open_feedback field must be present');
+    assert.strictEqual(data[0].open_feedback, 0);
+  });
+
+  it('explicit zero is preserved', () => {
+    const io = mockIO(null);
+    appendEntry(
+      'h.yaml',
+      { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'x', openFeedback: 0 },
+      io,
+    );
+    const data = yaml.load(io.getWritten());
+    assert.strictEqual(data[0].open_feedback, 0);
+  });
+});
+
 describe('loadHistory — malformed yaml', () => {
   it('parse failure throws and marks the flow failed', () => {
     const io = mockIO(':::not-yaml:::');

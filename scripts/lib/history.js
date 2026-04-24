@@ -33,7 +33,7 @@ export function loadHistory(historyPath, cycle, io) {
 /**
  * Append a history entry with auto-generated ISO timestamp.
  */
-export function appendEntry(historyPath, { cycle, stage, iteration, comment, route }, io) {
+export function appendEntry(historyPath, { cycle, stage, iteration, comment, route, openFeedback }, io) {
   if (iteration == null) throw new Error('iteration is required');
   if (!comment) throw new Error('comment is required');
   if (route !== undefined && stage !== 'sort') {
@@ -52,6 +52,7 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment, rou
     comment,
     timestamp: new Date().toISOString(),
     seq: existing.length,
+    open_feedback: openFeedback ?? 0,
   };
   if (route !== undefined) entry.route = route;
   existing.push(entry);
