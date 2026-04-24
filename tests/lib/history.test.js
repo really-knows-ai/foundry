@@ -309,3 +309,24 @@ describe('loadHistory — malformed yaml', () => {
     );
   });
 });
+
+describe('appendEntry — malformed existing yaml', () => {
+  it('parse failure throws and marks the flow failed', () => {
+    const io = mockIO(':::not-yaml:::');
+    io.writeFile('WORK.md', '---\nflow: f\ncycle: c1\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n');
+    assert.throws(
+      () => appendEntry('h.yaml', { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'x' }, io),
+      /history\.yaml malformed/i,
+    );
+    assert.match(io.readFile('WORK.md'), /status:\s*failed/);
+  });
+
+  it('non-array root is treated as malformed', () => {
+    const io = mockIO(yaml.dump({ not: 'an array' }));
+    io.writeFile('WORK.md', '---\nflow: f\ncycle: c1\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n');
+    assert.throws(
+      () => appendEntry('h.yaml', { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'x' }, io),
+      /history\.yaml malformed/i,
+    );
+  });
+});

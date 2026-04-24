@@ -2,11 +2,11 @@ import yaml from 'js-yaml';
 import { markWorkfileFailed } from './failed-flow.js';
 
 /**
- * Load history entries for a cycle, sorted by timestamp ascending.
+ * Parse WORK.history.yaml text into an array of entries.
+ * Throws `WORK.history.yaml malformed: ...` on parse failure or non-array root.
+ * Empty/null/undefined input yields [].
  */
-export function loadHistory(historyPath, cycle, io) {
-  if (!io.exists(historyPath)) return [];
-  const text = io.readFile(historyPath);
+function parseHistory(text) {
   let data;
   try {
     data = yaml.load(text) || [];
@@ -14,9 +14,26 @@ export function loadHistory(historyPath, cycle, io) {
       throw new Error('root is not an array');
     }
   } catch (err) {
-    const msg = `WORK.history.yaml malformed: ${err.message}`;
-    try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone; nothing to mark */ }
-    throw new Error(msg);
+    throw new Error(`WORK.history.yaml malformed: ${err.message}`);
+  }
+  return data;
+}
+
+function markFailedDefensive(io, msg) {
+  try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone; nothing to mark */ }
+}
+
+/**
+ * Load history entries for a cycle, sorted by timestamp ascending.
+ */
+export function loadHistory(historyPath, cycle, io) {
+  if (!io.exists(historyPath)) return [];
+  let data;
+  try {
+    data = parseHistory(io.readFile(historyPath));
+  } catch (err) {
+    markFailedDefensive(io, err.message);
+    throw err;
   }
   const filtered = data.filter(e => e.cycle === cycle);
   filtered.sort((a, b) => {
@@ -42,7 +59,12 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment, rou
 
   let existing = [];
   if (io.exists(historyPath)) {
-    existing = yaml.load(io.readFile(historyPath)) || [];
+    try {
+      existing = parseHistory(io.readFile(historyPath));
+    } catch (err) {
+      markFailedDefensive(io, err.message);
+      throw err;
+    }
   }
 
   const entry = {
