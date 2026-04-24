@@ -6,6 +6,11 @@
 **Supersedes:** REVIEW.md P1 `[feedback M1]`
 **Related:** REVIEW.md P1 `[feedback M3]`, P2 `[feedback M2]`, P2 `[memory M1-M2]`, P3 testing gaps
 
+> **Revision 2026-04-24 (during implementation planning):** Three ambiguities resolved against reviewer feedback. See `new-feedback/reviews/REVISION-CONTRACT.md` §A. Summary:
+> - **§4.3 `reason` field:** required on `rejected`, `wont-fix`, `deadlocked`, `resolved`; forbidden on `open`; optional on `actioned`.
+> - **§5.1 rule 5 (human-appraise):** universal override authority, not deadlock-only. Preserves today's behaviour.
+> - **§5.1 rule 7 (new) forge wont-fix scope:** forge may `wont-fix` only when `item.source` base is `appraise`. Replaces the old tag-based restriction.
+
 ## 1. Motivation
 
 Today, feedback lives as markdown checklist lines in the `## Feedback` section of `WORK.md`. The `detectDeadlocks` function (`scripts/lib/feedback.js:190`) flags every `open` item as deadlocked once a global forge-appraise iteration counter hits its threshold. Brand-new feedback added during the threshold-th iteration is routed straight to human-appraise or blocked without ever being seen by forge.
@@ -94,7 +99,7 @@ Rationale for ULID: monotonically-sortable, 26 chars, no dependencies (implement
 | `stage` | string (`base:alias`) or literal `sort` | yes | Who performed the transition |
 | `cycle` | string | yes | Cycle id at the time of the transition |
 | `timestamp` | ISO-8601 UTC with ms | yes | `new Date().toISOString()` |
-| `reason` | string | conditional | Required on `rejected`, `wont-fix`, `deadlocked`; forbidden on `open`, `actioned`, `resolved` |
+| `reason` | string | conditional | Required on `rejected`, `wont-fix`, `deadlocked`, `resolved`; forbidden on `open`; optional on `actioned` (the code change is the reason) |
 
 ### 4.4 Snapshot ordering
 
@@ -123,8 +128,14 @@ resolved    —                         —                                     
    - the caller's `stageId === item.source`.
    Produce `resolved` or `rejected`. `rejected` requires a `reason`.
 4. **Sort transitions.** Sort (and only sort) transitions items into `deadlocked`. See §6.
-5. **Deadlock override.** Human-appraise can transition `deadlocked` items to any of `{resolved, wont-fix, rejected}` **regardless of `item.source`**. This is the deadlock override. `reason` is always required on a deadlocked-item resolution (documents the override).
+5. **Human-appraise authority.** Human-appraise may transition **any** non-resolved item to any legal target state, regardless of `item.source` or `history[0].state`, with the standard target-set constraints:
+   - From `{open, rejected}`: to `{actioned, wont-fix}`
+   - From `{actioned, wont-fix}`: to `{resolved, rejected}`
+   - From `deadlocked`: to `{resolved, wont-fix, rejected}`
+
+   `reason` is required on all transitions that require `reason` per §4.3. **Reachability note:** under default sort routing, human-appraise only sees non-deadlocked items when the cycle is configured to surface them pre-sort — a future feature (see §17). In practice most human-appraise operations today are on deadlocked items, but the authority is universal, not conditional on the deadlocked state.
 6. **Terminal state.** `resolved` is terminal. No snapshots are ever appended to an item whose `history[0].state === 'resolved'`.
+7. **Forge wont-fix scope.** Forge may transition to `wont-fix` only when `item.source` base is `appraise`. When `item.source` base is `quench` or `human-appraise`, forge's only legal transitions from `{open, rejected}` are to `actioned`. Rationale: `quench` feedback records objective validation failures (not opt-out-able); `human-appraise` feedback records direct user instructions (forge must address, not decline). Enforced by `feedback-transitions.js` via a `canForgeWontFix(item, callerStageBase)` predicate; surfaces to the tool layer as a source-authorship-adjacent error. This rule replaces the previous tag-based restriction on `#validation` and `#human` tags; tags are now categorical/display-only and not consulted by the state machine.
 
 ### 5.2 Depth and deadlocks
 
@@ -398,9 +409,11 @@ New test at `tests/plugin/workfiles-consistency.test.js`: end-to-end scenario ex
 - **Test volume.** `tests/lib/feedback.test.js` and `tests/sort.test.js` together account for ~1500 lines. Rewriting both at once risks churn-related bugs. Mitigation: implement in phases (store first, tools next, sort integration last); each phase lands green tests before the next begins.
 - **Deadlocked snapshot on sort write-failure.** If sort writes deadlock snapshots but then the subsequent stage entry fails, the yaml has deadlocked items for the next run to react to without the corresponding history entry. Mitigation: the atomic rename and the invariant test (§14.6) catch this class of issue; the spec accepts it as an acceptable edge (yaml is source of truth; history is debug log).
 
-## 17. Open questions
+## 17. Future work
 
-None remaining after the brainstorming session. All design decisions are captured above.
+No open questions remain for v2.6.0. Items deferred beyond this redesign:
+
+- **Pre-sort human-appraise surfacing.** A cycle-level mode flag that lets human-appraise see all unresolved feedback (not just deadlocked items) before sort routes. The §5.1 rule 5 authority is already universal; this feature would make non-deadlocked items reachable by default when enabled. Out of scope for v2.6.0.
 
 ## 18. Summary of files touched
 
