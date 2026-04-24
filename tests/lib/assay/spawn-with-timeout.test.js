@@ -47,7 +47,7 @@ describe('spawnWithTimeout', () => {
     const elapsed = Date.now() - start;
     assert.equal(r.ok, false);
     assert.equal(r.timedOut, true);
-    assert.ok(elapsed < 3000, `took too long: ${elapsed}ms`);
+    assert.ok(elapsed < 1500, `took too long: ${elapsed}ms`);
     rmSync(d, { recursive: true, force: true });
   });
 
