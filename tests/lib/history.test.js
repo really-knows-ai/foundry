@@ -102,3 +102,44 @@ describe('appendEntry with route', () => {
     assert.equal(written[0].route, undefined);
   });
 });
+
+describe('appendEntry — route/stage invariant', () => {
+  it('throws when route is supplied on a non-sort stage', () => {
+    const io = mockIO(null);
+    assert.throws(
+      () => appendEntry('h.yaml', {
+        cycle: 'c1',
+        stage: 'forge:write',
+        iteration: 1,
+        comment: 'x',
+        route: 'quench:a',
+      }, io),
+      /route.*sort/i,
+    );
+  });
+
+  it('accepts route when stage is sort', () => {
+    const io = mockIO(null);
+    assert.doesNotThrow(() =>
+      appendEntry('h.yaml', {
+        cycle: 'c1',
+        stage: 'sort',
+        iteration: 1,
+        comment: 'sort → forge:x',
+        route: 'forge:x',
+      }, io),
+    );
+  });
+
+  it('accepts entries without route on non-sort stages', () => {
+    const io = mockIO(null);
+    assert.doesNotThrow(() =>
+      appendEntry('h.yaml', {
+        cycle: 'c1',
+        stage: 'forge:write',
+        iteration: 1,
+        comment: 'done',
+      }, io),
+    );
+  });
+});

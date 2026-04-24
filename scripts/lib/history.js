@@ -21,6 +21,9 @@ export function loadHistory(historyPath, cycle, io) {
 export function appendEntry(historyPath, { cycle, stage, iteration, comment, route }, io) {
   if (iteration == null) throw new Error('iteration is required');
   if (!comment) throw new Error('comment is required');
+  if (route !== undefined && stage !== 'sort') {
+    throw new Error(`route is only valid on stage='sort' entries; got stage='${stage}'`);
+  }
 
   let existing = [];
   if (io.exists(historyPath)) {
