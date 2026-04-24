@@ -63,7 +63,10 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment, rou
 }
 
 /**
- * Count forge entries for a cycle.
+ * Count COMPLETED forge stages for a cycle. This includes forges that ran to
+ * completion but whose downstream appraise deadlocked or blocked the cycle —
+ * completion here means "stage_end was called", not "cycle progressed".
+ * Used by sort for max-iterations enforcement.
  */
 export function getIteration(historyPath, cycle, io) {
   const history = loadHistory(historyPath, cycle, io);
