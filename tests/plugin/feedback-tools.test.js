@@ -173,3 +173,44 @@ describe('foundry_feedback_list — new response shape', () => {
     assert.deepEqual(items, []);
   });
 });
+
+describe('foundry_feedback_action — id-based', () => {
+  test('transitions an open item to actioned from a forge stage', async () => {
+    worktree = makeWorktree();
+    const tAdd = await tools(worktree);
+    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:x' },
+      { worktree },
+    ));
+    // Rewrite active-stage to forge:write and call action.
+    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
+    const tAct = await tools(worktree);
+    const res = parseResult(await tAct.foundry_feedback_action.execute({ id }, { worktree }));
+    assert.equal(res.ok, true);
+
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'actioned');
+    assert.equal(doc.items[0].history[0].stage, 'forge:write');
+  });
+
+  test('rejects non-forge stage', async () => {
+    worktree = makeWorktree();
+    const t = await tools(worktree);
+    const { id } = parseResult(await t.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:x' },
+      { worktree },
+    ));
+    // active-stage is still appraise:write-check; foundry_feedback_action requires forge.
+    const res = parseResult(await t.foundry_feedback_action.execute({ id }, { worktree }));
+    assert.ok(res.error);
+    assert.match(res.error, /forge/);
+  });
+
+  test('rejects unknown id', async () => {
+    worktree = makeWorktree({ stage: 'forge:write' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_action.execute({ id: 'DOES_NOT_EXIST' }, { worktree }));
+    assert.ok(res.error);
+    assert.match(res.error, /not found/);
+  });
+});

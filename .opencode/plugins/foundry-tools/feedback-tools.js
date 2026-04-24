@@ -72,10 +72,9 @@ export function createFeedbackTools({ tool }) {
     }),
 
     foundry_feedback_action: tool({
-      description: 'Mark a feedback item as actioned [x]',
+      description: 'Mark a feedback item as actioned (forge stages only)',
       args: {
-        file: tool.schema.string().describe('Artefact file path'),
-        index: tool.schema.number().describe('Zero-based index of the feedback item'),
+        id: tool.schema.string().describe('Feedback item id (ULID)'),
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
@@ -87,12 +86,22 @@ export function createFeedbackTools({ tool }) {
         if (stageBase !== 'forge') {
           return JSON.stringify({ error: `foundry_feedback_action requires active forge stage; current: ${guard.active.stage}` });
         }
-        const workPath = path.join(context.worktree, 'WORK.md');
-        const content = readFileSync(workPath, 'utf-8');
-        const r = actionFeedbackItem(content, args.file, args.index, stageBase);
-        if (!r.ok) return JSON.stringify({ error: r.error });
-        writeFileSync(workPath, r.text, 'utf-8');
-        return JSON.stringify({ ok: true });
+        const cycle = readCycle(io);
+        if (!cycle) return JSON.stringify({ error: 'foundry_feedback_action: WORK.md cycle not found' });
+
+        try {
+          const store = openFeedbackStore('WORK.feedback.yaml', io);
+          const r = store.transition({
+            id: args.id,
+            target: 'actioned',
+            stage: guard.active.stage,
+            cycle,
+          });
+          if (!r.ok) return JSON.stringify({ error: r.error });
+          return JSON.stringify({ ok: true });
+        } catch (err) {
+          return JSON.stringify({ error: `foundry_feedback_action: ${err.message}` });
+        }
       },
     }),
 
