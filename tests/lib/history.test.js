@@ -3,15 +3,38 @@ import assert from 'node:assert/strict';
 import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
 import yaml from 'js-yaml';
 
-function mockIO(fileContent = null) {
-  let written = null;
+function mockIO(initial = null) {
+  // Accept legacy single-arg form: a string or null means one file at 'h.yaml'.
+  // Accept object form: { path: content, ... }.
+  const files = initial === null
+    ? {}
+    : (typeof initial === 'string' ? { 'h.yaml': initial } : { ...initial });
   return {
-    exists: () => fileContent !== null,
-    readFile: () => fileContent,
-    writeFile: (path, content) => { written = content; },
-    getWritten: () => written,
+    exists: (p) => Object.prototype.hasOwnProperty.call(files, p),
+    readFile: (p) => {
+      if (!Object.prototype.hasOwnProperty.call(files, p)) throw new Error(`ENOENT: ${p}`);
+      return files[p];
+    },
+    writeFile: (p, content) => { files[p] = content; },
+    rename: (from, to) => {
+      if (!Object.prototype.hasOwnProperty.call(files, from)) throw new Error(`ENOENT: ${from}`);
+      files[to] = files[from];
+      delete files[from];
+    },
+    getWritten: () => files['h.yaml'] ?? null,
+    _get: (p) => files[p] ?? null,
   };
 }
+
+describe('mockIO — rename capability', () => {
+  it('rename moves content and removes the source key', () => {
+    const io = mockIO(null);
+    io.writeFile('a.yaml', 'hello');
+    io.rename('a.yaml', 'b.yaml');
+    assert.equal(io.exists('a.yaml'), false);
+    assert.equal(io.readFile('b.yaml'), 'hello');
+  });
+});
 
 describe('loadHistory', () => {
   it('returns [] for missing file', () => {
