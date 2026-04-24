@@ -16,6 +16,11 @@ function makeIo(files = {}) {
       return fs.get(p);
     },
     writeFile: (p, c) => fs.set(p, c),
+    rename: (from, to) => {
+      if (!fs.has(from)) throw new Error(`ENOENT: ${from}`);
+      fs.set(to, fs.get(from));
+      fs.delete(from);
+    },
     unlink: (p) => fs.delete(p),
     mkdir: () => {},
     exec: () => '',

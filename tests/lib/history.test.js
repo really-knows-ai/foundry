@@ -210,3 +210,43 @@ describe('loadHistory — (timestamp, seq) sort', () => {
     assert.equal(r[1].stage, 'second');
   });
 });
+
+describe('appendEntry — atomic write', () => {
+  it('routes through io.rename rather than writing the live path directly', () => {
+    const io = mockIO(null);
+    // Spy on rename.
+    let renameCalled = false;
+    const underlyingRename = io.rename;
+    io.rename = (from, to) => { renameCalled = true; return underlyingRename(from, to); };
+    // Spy on writeFile targets.
+    const writtenPaths = [];
+    const underlyingWrite = io.writeFile;
+    io.writeFile = (p, body) => { writtenPaths.push(p); return underlyingWrite(p, body); };
+
+    appendEntry('h.yaml', { cycle: 'c1', stage: 'quench:q', iteration: 1, comment: 'x' }, io);
+
+    assert.equal(renameCalled, true, 'appendEntry must call io.rename');
+    assert.ok(
+      writtenPaths.some(p => p.endsWith('.tmp')),
+      `expected a .tmp write; got ${JSON.stringify(writtenPaths)}`,
+    );
+    assert.ok(
+      !writtenPaths.includes('h.yaml'),
+      'appendEntry must not writeFile the live path directly',
+    );
+  });
+
+  it('rename failure leaves the live history file unchanged', () => {
+    const initial = yaml.dump([
+      { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'pre-existing', timestamp: '2026-04-24T09:00:00.000Z', seq: 0 },
+    ]);
+    const io = mockIO(initial);
+    const before = io._get('h.yaml');
+    io.rename = () => { throw new Error('simulated rename failure'); };
+    assert.throws(
+      () => appendEntry('h.yaml', { cycle: 'c1', stage: 'quench:q', iteration: 1, comment: 'x' }, io),
+      /simulated rename failure/,
+    );
+    assert.equal(io._get('h.yaml'), before, 'live file must be unchanged');
+  });
+});

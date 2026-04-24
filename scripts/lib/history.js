@@ -44,7 +44,10 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment, rou
   if (route !== undefined) entry.route = route;
   existing.push(entry);
 
-  io.writeFile(historyPath, yaml.dump(existing));
+  const body = yaml.dump(existing);
+  const tmp = `${historyPath}.tmp`;
+  io.writeFile(tmp, body);
+  io.rename(tmp, historyPath);
 }
 
 /**
