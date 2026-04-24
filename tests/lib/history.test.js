@@ -143,3 +143,47 @@ describe('appendEntry — route/stage invariant', () => {
     );
   });
 });
+
+describe('appendEntry — seq field', () => {
+  it('first entry has seq 0', () => {
+    const io = mockIO(null);
+    appendEntry('h.yaml', { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'x' }, io);
+    const data = yaml.load(io.getWritten());
+    assert.equal(data[0].seq, 0);
+  });
+
+  it('appended entry increments seq', () => {
+    const existing = yaml.dump([
+      { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'a', timestamp: '2025-01-01T00:00:00Z', seq: 0 },
+    ]);
+    const io = mockIO(existing);
+    appendEntry('h.yaml', { cycle: 'c1', stage: 'quench:q', iteration: 1, comment: 'b' }, io);
+    const data = yaml.load(io.getWritten());
+    assert.equal(data[0].seq, 0);
+    assert.equal(data[1].seq, 1);
+  });
+});
+
+describe('loadHistory — (timestamp, seq) sort', () => {
+  it('entries with same timestamp sort by seq ascending', () => {
+    const sameTs = '2026-04-24T10:00:00.000Z';
+    const data = yaml.dump([
+      { cycle: 'c1', stage: 'b', iteration: 1, comment: 'b', timestamp: sameTs, seq: 2 },
+      { cycle: 'c1', stage: 'a', iteration: 1, comment: 'a', timestamp: sameTs, seq: 1 },
+    ]);
+    const r = loadHistory('h.yaml', 'c1', mockIO(data));
+    assert.equal(r[0].stage, 'a');
+    assert.equal(r[1].stage, 'b');
+  });
+
+  it('entries missing seq are treated as seq 0 (backward compatible)', () => {
+    const sameTs = '2026-04-24T10:00:00.000Z';
+    const data = yaml.dump([
+      { cycle: 'c1', stage: 'first', iteration: 1, comment: 'a', timestamp: sameTs },
+      { cycle: 'c1', stage: 'second', iteration: 1, comment: 'b', timestamp: sameTs, seq: 5 },
+    ]);
+    const r = loadHistory('h.yaml', 'c1', mockIO(data));
+    assert.equal(r[0].stage, 'first');
+    assert.equal(r[1].stage, 'second');
+  });
+});

@@ -10,7 +10,10 @@ export function loadHistory(historyPath, cycle, io) {
   filtered.sort((a, b) => {
     const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
     const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return ta - tb;
+    if (ta !== tb) return ta - tb;
+    const sa = typeof a.seq === 'number' ? a.seq : 0;
+    const sb = typeof b.seq === 'number' ? b.seq : 0;
+    return sa - sb;
   });
   return filtered;
 }
@@ -36,6 +39,7 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment, rou
     iteration,
     comment,
     timestamp: new Date().toISOString(),
+    seq: existing.length,
   };
   if (route !== undefined) entry.route = route;
   existing.push(entry);
