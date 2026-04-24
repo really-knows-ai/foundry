@@ -23,7 +23,7 @@ describe('makeIO.rename', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'fdy-rename-'));
     try {
       const io = makeIO(dir);
-      assert.throws(() => io.rename('missing.txt', 'dst.txt'));
+      assert.throws(() => io.rename('missing.txt', 'dst.txt'), { code: 'ENOENT' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
