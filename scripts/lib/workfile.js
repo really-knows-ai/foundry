@@ -110,7 +110,5 @@ ${goal}
 
 | File | Type | Cycle | Status |
 |------|------|-------|--------|
-
-## Feedback
 `;
 }

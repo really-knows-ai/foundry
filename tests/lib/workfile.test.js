@@ -75,7 +75,7 @@ describe('createWorkfile', () => {
     assert.ok(result.includes('# Goal'));
     assert.ok(result.includes('Write a haiku'));
     assert.ok(result.includes('| File | Type | Cycle | Status |'));
-    assert.ok(result.includes('## Feedback'));
+    assert.ok(!result.includes('## Feedback'));
   });
 
   it('produces valid WORK.md with minimal frontmatter (no stages, no maxIterations)', () => {
@@ -88,7 +88,7 @@ describe('createWorkfile', () => {
     assert.ok(!result.includes('stages:'));
     assert.ok(!result.includes('maxIterations:'));
     assert.ok(result.includes('# Goal'));
-    assert.ok(result.includes('## Feedback'));
+    assert.ok(!result.includes('## Feedback'));
   });
 
   it('round-trips: minimal workfile, then setFrontmatterField adds stages', () => {
@@ -99,7 +99,7 @@ describe('createWorkfile', () => {
     assert.equal(fm.flow, 'creative-flow');
     assert.equal(fm.cycle, 'create-haiku');
     assert.ok(withStages.includes('Goal text'));
-    assert.ok(withStages.includes('## Feedback'));
+    assert.ok(!withStages.includes('## Feedback'));
   });
 
   it('supports frontmatter with stages but no maxIterations', () => {
