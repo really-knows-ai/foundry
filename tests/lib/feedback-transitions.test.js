@@ -43,8 +43,6 @@ describe('validateTransition — forge transitions', () => {
 });
 
 describe('validateTransition — source-stage transitions', () => {
-  const source = 'appraise:write-check';
-
   test('actioned → resolved requires matching source', () => {
     const ok = validateTransition({ currentState: 'actioned', target: 'resolved', stageBase: 'appraise', sourceMatches: true });
     assert.equal(ok.ok, true);
@@ -144,5 +142,28 @@ describe('hashText', () => {
   });
   test('returns a 16-char hex string', () => {
     assert.match(hashText('anything'), /^[0-9a-f]{16}$/);
+  });
+});
+
+describe('validateTransition — unsupported stage base', () => {
+  test('returns ok:false with a clear reason', () => {
+    const r = validateTransition({ currentState: 'open', target: 'actioned', stageBase: 'sort', sourceMatches: false });
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /unsupported stage base/);
+  });
+});
+
+describe('validateTransition — sourceMatches guard', () => {
+  test('throws when sourceMatches is omitted', () => {
+    assert.throws(
+      () => validateTransition({ currentState: 'actioned', target: 'resolved', stageBase: 'appraise' }),
+      /sourceMatches must be a boolean/
+    );
+  });
+  test('throws when sourceMatches is a non-boolean truthy value', () => {
+    assert.throws(
+      () => validateTransition({ currentState: 'actioned', target: 'resolved', stageBase: 'appraise', sourceMatches: 1 }),
+      /sourceMatches must be a boolean/
+    );
   });
 });

@@ -23,8 +23,14 @@ const FORGE_TARGETS = new Set(['actioned', 'wont-fix']);
 const SOURCE_TARGETS = new Set(['resolved', 'rejected']);
 const HUMAN_OVERRIDE_TARGETS = new Set(['resolved', 'wont-fix', 'rejected']);
 const KNOWN_STATES = new Set(['open', 'actioned', 'wont-fix', 'rejected', 'deadlocked', 'resolved']);
+const SOURCE_STAGES = new Set(['quench', 'appraise', 'human-appraise']);
 
 export function validateTransition({ currentState, target, stageBase, sourceMatches }) {
+  if (typeof sourceMatches !== 'boolean') {
+    throw new TypeError(
+      `validateTransition: sourceMatches must be a boolean; got ${typeof sourceMatches}`
+    );
+  }
   if (!KNOWN_STATES.has(currentState)) {
     return { ok: false, reason: `unknown state: ${currentState}` };
   }
@@ -56,7 +62,7 @@ export function validateTransition({ currentState, target, stageBase, sourceMatc
   }
 
   // Source-stage path: {actioned, wont-fix} → {resolved, rejected}, source must match.
-  if (stageBase === 'quench' || stageBase === 'appraise' || stageBase === 'human-appraise') {
+  if (SOURCE_STAGES.has(stageBase)) {
     if (currentState !== 'actioned' && currentState !== 'wont-fix') {
       return { ok: false, reason: `${stageBase} cannot transition from ${currentState}` };
     }
@@ -80,6 +86,13 @@ export function hashText(text) {
 // markdown-based flow). New code MUST use validateTransition (options-
 // object form) above. This export is deleted in phase 4 alongside
 // feedback.js itself. Keep semantics identical to the pre-phase-1 matrix.
+//
+// Reason strings below are byte-identical to the pre-phase-1 matrix;
+// downstream logs and test assertions in tests/lib/feedback.test.js
+// depend on this exact wording.
+
+/** @deprecated Phase-1 shim for the legacy markdown feedback store.
+ *  Do not use in new code. Deleted in phase 4 with scripts/lib/feedback.js. */
 export const legacyTransitionsMatrix = {
   open:       { actioned: ['forge'],  'wont-fix': ['forge'] },
   actioned:   { approved: ['quench','appraise','human-appraise'], rejected: ['quench','appraise','human-appraise'] },
@@ -88,6 +101,8 @@ export const legacyTransitionsMatrix = {
   approved:   {},
 };
 
+/** @deprecated Phase-1 shim for the legacy markdown feedback store.
+ *  Do not use in new code. Deleted in phase 4 with scripts/lib/feedback.js. */
 export function legacyValidateTransition(current, target, stageBase) {
   const row = legacyTransitionsMatrix[current];
   if (!row) return { ok: false, reason: `unknown state: ${current}` };
