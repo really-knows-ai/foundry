@@ -5,6 +5,8 @@ import { validateTransition, hashText, canForgeWontFix } from './feedback-transi
 
 const YAML_OPTS = { lineWidth: -1 };
 
+const VALID_SOURCE_BASES = new Set(['forge', 'quench', 'appraise', 'human-appraise']);
+
 function loadItems(path, io) {
   if (!io.exists(path)) return [];
   const raw = io.readFile(path);
@@ -31,10 +33,6 @@ function nowIso() {
 export function openFeedbackStore(path, io) {
   let items = loadItems(path, io);
 
-  function persist() {
-    saveItems(path, items, io);
-  }
-
   function currentState(item) {
     return item.history[0].state;
   }
@@ -55,7 +53,6 @@ export function openFeedbackStore(path, io) {
       if (!file || !tag || !text || !source || !cycle) {
         throw new Error('add requires file, tag, text, source, cycle');
       }
-      const VALID_SOURCE_BASES = new Set(['forge', 'quench', 'appraise', 'human-appraise']);
 
       if (typeof source !== 'string' || !source.includes(':')) {
         throw new Error(`source must be in 'base:alias' form; got ${JSON.stringify(source)}`);
@@ -90,8 +87,9 @@ export function openFeedbackStore(path, io) {
         source,
         history: [{ state: 'open', stage: source, cycle, timestamp: nowIso() }],
       };
-      items.push(item);
-      persist();
+      const nextItems = [...items, item];
+      saveItems(path, nextItems, io);
+      items = nextItems;
       return { id, deduped: false };
     },
 
@@ -144,8 +142,11 @@ export function openFeedbackStore(path, io) {
       const snapshot = { state: target, stage, cycle, timestamp: nowIso() };
       if (reason && reason.trim()) snapshot.reason = reason;
 
-      item.history = [snapshot, ...item.history];
-      persist();
+      const nextItems = items.map(it =>
+        it.id === id ? { ...it, history: [snapshot, ...it.history] } : it
+      );
+      saveItems(path, nextItems, io);
+      items = nextItems;
       return { ok: true };
     },
 
@@ -163,8 +164,11 @@ export function openFeedbackStore(path, io) {
         timestamp: nowIso(),
         reason,
       };
-      item.history = [snapshot, ...item.history];
-      persist();
+      const nextItems = items.map(it =>
+        it.id === id ? { ...it, history: [snapshot, ...it.history] } : it
+      );
+      saveItems(path, nextItems, io);
+      items = nextItems;
       return { ok: true };
     },
 

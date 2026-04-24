@@ -476,3 +476,39 @@ describe('store.add — source format validation (RED target)', () => {
     }
   });
 });
+
+describe('store.add — atomicity', () => {
+  test('rename failure leaves the live file unchanged AND in-memory list unchanged', () => {
+    const io = mockIO({ 'WORK.feedback.yaml': yaml.dump({ items: [] }) });
+    const originalContent = io._files['WORK.feedback.yaml'];
+    // Override rename to throw on the next call.
+    const realRename = io.rename;
+    io.rename = () => { throw new Error('simulated rename failure'); };
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.throws(
+      () => store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' }),
+      /simulated rename failure/
+    );
+    // Live file is untouched.
+    assert.equal(io._files['WORK.feedback.yaml'], originalContent);
+    // REVISION-CONTRACT §C1 M2: in-memory state must also roll back.
+    // Without this assertion, a naive `items.push(item); persist();` passes
+    // the file-unchanged check but leaves the store inconsistent with disk.
+    assert.strictEqual(store.list().length, 0, 'in-memory list must roll back on persist failure');
+    // Restore for cleanup.
+    io.rename = realRename;
+  });
+
+  test('writeFile failure leaves the live file unchanged AND in-memory list unchanged', () => {
+    const io = mockIO({ 'WORK.feedback.yaml': yaml.dump({ items: [] }) });
+    const originalContent = io._files['WORK.feedback.yaml'];
+    io.writeFile = () => { throw new Error('simulated writeFile failure'); };
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.throws(
+      () => store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' }),
+      /simulated writeFile failure/
+    );
+    assert.equal(io._files['WORK.feedback.yaml'], originalContent);
+    assert.strictEqual(store.list().length, 0, 'in-memory list must roll back on persist failure');
+  });
+});
