@@ -140,7 +140,7 @@ export function openFeedbackStore(path, io) {
     writeDeadlockedSnapshot({ id, cycle, reason }) {
       const item = items.find(x => x.id === id);
       if (!item) return { ok: false, error: `feedback item not found: ${id}` };
-      if (!reason) return { ok: false, error: 'reason is required for deadlocked snapshot' };
+      if (!reason || !reason.trim()) return { ok: false, error: 'reason is required for deadlocked snapshot' };
       const snapshot = {
         state: 'deadlocked',
         stage: 'sort',

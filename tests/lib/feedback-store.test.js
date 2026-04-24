@@ -113,6 +113,22 @@ describe('store.transition — forge path', () => {
     const r = store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
     assert.equal(r.ok, false);
   });
+
+  test('forge cannot wont-fix a quench-sourced item (A2/rule 7)', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'quench:schema', cycle: 'c' });
+    const r = store.transition({
+      id,
+      target: 'wont-fix',
+      stage: 'forge:write',
+      cycle: 'c',
+      reason: 'too hard',
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /source is appraise/);
+    assert.match(r.error, /source is quench:schema/);
+  });
 });
 
 describe('store.transition — source-stage authorship', () => {
