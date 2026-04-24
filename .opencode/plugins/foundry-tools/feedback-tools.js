@@ -1,11 +1,20 @@
 import path from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { addFeedbackItem, actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../../scripts/lib/feedback.js';
+// Legacy imports — used by action/wontfix/resolve/list tools, removed in tasks 3.5/3.7/3.8/3.9.
+import { actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../../scripts/lib/feedback.js';
+// New feedback-store, used by foundry_feedback_add and (subsequently) the rewritten tools.
+import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { parseArtefactsTable } from '../../../scripts/lib/artefacts.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { makeIO } from './helpers.js';
+
+function readCycle(io) {
+  if (!io.exists('WORK.md')) return null;
+  const fm = parseFrontmatter(io.readFile('WORK.md'));
+  return fm.cycle || null;
+}
 
 export function createFeedbackTools({ tool }) {
   return {
@@ -22,8 +31,11 @@ export function createFeedbackTools({ tool }) {
         if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_add: ${failedGuard.error}` });
         const guard = requireActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_add requires active stage; ${guard.error}` });
-        const stageBase = stageBaseOf(guard.active.stage);
-        // Per-stage tag allow-list.
+
+        const activeStage = guard.active.stage;
+        const stageBase = stageBaseOf(activeStage);
+
+        // Per-stage tag allow-list (unchanged from the markdown era).
         if (stageBase === 'forge') {
           return JSON.stringify({ error: 'foundry_feedback_add: forge stages do not add feedback' });
         }
@@ -39,11 +51,23 @@ export function createFeedbackTools({ tool }) {
         if (stageBase === 'assay' && args.tag !== 'validation') {
           return JSON.stringify({ error: `foundry_feedback_add: assay may only add tag "validation"; got "${args.tag}"` });
         }
-        const workPath = path.join(context.worktree, 'WORK.md');
-        const content = readFileSync(workPath, 'utf-8');
-        const r = addFeedbackItem(content, args.file, args.text, args.tag);
-        if (!r.deduped) writeFileSync(workPath, r.text, 'utf-8');
-        return JSON.stringify({ ok: true, deduped: r.deduped });
+
+        const cycle = readCycle(io);
+        if (!cycle) return JSON.stringify({ error: 'foundry_feedback_add: WORK.md cycle not found' });
+
+        try {
+          const store = openFeedbackStore('WORK.feedback.yaml', io);
+          const { id, deduped } = store.add({
+            file: args.file,
+            tag: args.tag,
+            text: args.text,
+            source: activeStage,
+            cycle,
+          });
+          return JSON.stringify({ ok: true, id, deduped });
+        } catch (err) {
+          return JSON.stringify({ error: `foundry_feedback_add: ${err.message}` });
+        }
       },
     }),
 
