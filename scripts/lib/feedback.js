@@ -3,7 +3,7 @@
  */
 
 import { extractAllTags } from './tags.js';
-import { validateTransition, hashText } from './feedback-transitions.js';
+import { legacyValidateTransition, hashText } from './feedback-transitions.js';
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -253,7 +253,7 @@ function transformFeedbackItemWithValidation(text, file, index, target, stageBas
     if (!current) {
       return { ok: false, error: `feedback item not found: file=${file} index=${index}` };
     }
-    const v = validateTransition(current, target, stageBase);
+    const v = legacyValidateTransition(current, target, stageBase);
     if (!v.ok) {
       return { ok: false, error: v.reason };
     }
