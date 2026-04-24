@@ -2,7 +2,7 @@
 
 import path from 'path';
 import fs from 'fs';
-import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
 import { getCycleDefinition } from '../../../scripts/lib/config.js';
 import { getOrOpenStore, getContext } from '../../../scripts/lib/memory/singleton.js';
@@ -102,6 +102,7 @@ export function makeIO(directory) {
     readDir: (p) => readdirSync(resolve(p)),
     mkdir: (p) => mkdirSync(resolve(p), { recursive: true }),
     unlink: (p) => { if (existsSync(resolve(p))) unlinkSync(resolve(p)); },
+    rename: (from, to) => renameSync(resolve(from), resolve(to)),
     // exec: run a shell command in the worktree and return stdout as a UTF-8 string.
     // Used by sort.js (getDirtyToolManagedFiles, getModifiedFiles) for git enforcement.
     // Call sites pass full shell strings (e.g. 'git status --porcelain ...'), so we
@@ -121,6 +122,7 @@ export function makeMemoryIO(directory) {
     readDir: async (p) => { try { return sync.readDir(p); } catch { return []; } },
     mkdir: async (p) => sync.mkdir(p),
     unlink: async (p) => sync.unlink(p),
+    rename: async (from, to) => sync.rename(from, to),
   };
 }
 
