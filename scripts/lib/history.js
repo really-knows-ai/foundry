@@ -1,11 +1,23 @@
 import yaml from 'js-yaml';
+import { markWorkfileFailed } from './failed-flow.js';
 
 /**
  * Load history entries for a cycle, sorted by timestamp ascending.
  */
 export function loadHistory(historyPath, cycle, io) {
   if (!io.exists(historyPath)) return [];
-  const data = yaml.load(io.readFile(historyPath)) || [];
+  const text = io.readFile(historyPath);
+  let data;
+  try {
+    data = yaml.load(text) || [];
+    if (!Array.isArray(data)) {
+      throw new Error('root is not an array');
+    }
+  } catch (err) {
+    const msg = `WORK.history.yaml malformed: ${err.message}`;
+    try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone; nothing to mark */ }
+    throw new Error(msg);
+  }
   const filtered = data.filter(e => e.cycle === cycle);
   filtered.sort((a, b) => {
     const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;

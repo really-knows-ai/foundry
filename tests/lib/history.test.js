@@ -250,3 +250,24 @@ describe('appendEntry — atomic write', () => {
     assert.equal(io._get('h.yaml'), before, 'live file must be unchanged');
   });
 });
+
+describe('loadHistory — malformed yaml', () => {
+  it('parse failure throws and marks the flow failed', () => {
+    const io = mockIO(':::not-yaml:::');
+    io.writeFile('WORK.md', '---\nflow: f\ncycle: c1\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n');
+    assert.throws(
+      () => loadHistory('h.yaml', 'c1', io),
+      /history\.yaml malformed/i,
+    );
+    assert.match(io.readFile('WORK.md'), /status:\s*failed/);
+  });
+
+  it('non-array root is treated as malformed', () => {
+    const io = mockIO(yaml.dump({ not: 'an array' }));
+    io.writeFile('WORK.md', '---\nflow: f\ncycle: c1\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n');
+    assert.throws(
+      () => loadHistory('h.yaml', 'c1', io),
+      /history\.yaml malformed/i,
+    );
+  });
+});
