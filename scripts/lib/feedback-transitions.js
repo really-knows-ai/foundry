@@ -113,3 +113,23 @@ export function legacyValidateTransition(current, target, stageBase) {
   }
   return { ok: true };
 }
+
+/**
+ * Per spec §5.1 rule 7 (REVISION-CONTRACT §A2): forge may produce the
+ * `wont-fix` target only for items whose source stage base is `appraise`.
+ * For `quench`- or `human-appraise`-sourced items, forge's only legal
+ * target from {open, rejected} is `actioned`.
+ *
+ * The predicate is forge-specific. Non-forge callers always receive
+ * `false` — they should use validateTransition directly, not this helper.
+ *
+ * @param {{source: string}} item — feedback item; `source` is `base:alias`.
+ * @param {string} callerStageBase — the caller's stage base (e.g. 'forge').
+ * @returns {boolean}
+ */
+export function canForgeWontFix(item, callerStageBase) {
+  if (callerStageBase !== 'forge') return false;
+  if (!item || typeof item.source !== 'string' || !item.source) return false;
+  const sourceBase = item.source.split(':')[0];
+  return sourceBase === 'appraise';
+}

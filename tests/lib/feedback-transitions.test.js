@@ -1,7 +1,7 @@
 // tests/lib/feedback-transitions.test.js
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateTransition, hashText } from '../../scripts/lib/feedback-transitions.js';
+import { validateTransition, hashText, canForgeWontFix } from '../../scripts/lib/feedback-transitions.js';
 
 describe('validateTransition — forge transitions', () => {
   test('forge: open → actioned is legal', () => {
@@ -165,5 +165,42 @@ describe('validateTransition — sourceMatches guard', () => {
       () => validateTransition({ currentState: 'actioned', target: 'resolved', stageBase: 'appraise', sourceMatches: 1 }),
       /sourceMatches must be a boolean/
     );
+  });
+});
+
+describe('canForgeWontFix — A2 source-scoped wont-fix', () => {
+  // Matrix: 3 source bases × 2 target states (actioned, wont-fix).
+  // Only forge→wont-fix is affected; the predicate is source-agnostic for
+  // the 'actioned' target (always true when called, since forge can always
+  // produce 'actioned'). We express the rule as a pure predicate on
+  // (item.source base, target) and exercise all 3 source bases.
+
+  test('appraise-sourced item: forge can wont-fix', () => {
+    const item = { source: 'appraise:write-check' };
+    assert.equal(canForgeWontFix(item, 'forge'), true);
+  });
+
+  test('quench-sourced item: forge CANNOT wont-fix', () => {
+    const item = { source: 'quench:schema' };
+    assert.equal(canForgeWontFix(item, 'forge'), false);
+  });
+
+  test('human-appraise-sourced item: forge CANNOT wont-fix', () => {
+    const item = { source: 'human-appraise:review' };
+    assert.equal(canForgeWontFix(item, 'forge'), false);
+  });
+
+  test('non-forge caller: predicate is only meaningful for forge base', () => {
+    // The predicate is documented as forge-specific; we codify that non-forge
+    // callers get `false` (they should not be asking this question).
+    const item = { source: 'appraise:x' };
+    assert.equal(canForgeWontFix(item, 'appraise'), false);
+    assert.equal(canForgeWontFix(item, 'quench'), false);
+    assert.equal(canForgeWontFix(item, 'human-appraise'), false);
+  });
+
+  test('malformed source returns false (defensive)', () => {
+    assert.equal(canForgeWontFix({ source: '' }, 'forge'), false);
+    assert.equal(canForgeWontFix({ source: null }, 'forge'), false);
   });
 });
