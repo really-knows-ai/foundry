@@ -286,3 +286,90 @@ describe('store.transition — unknown id', () => {
     assert.match(r.error, /not found/);
   });
 });
+
+describe('store.writeDeadlockedSnapshots — batch atomic primitive (B1)', () => {
+  test('writes snapshots for N items with a single atomic rename', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const a = store.add({ file: 'a.md', tag: 'law:x', text: 'ta', source: 'appraise:a', cycle: 'c' });
+    const b = store.add({ file: 'b.md', tag: 'law:y', text: 'tb', source: 'appraise:a', cycle: 'c' });
+    const c = store.add({ file: 'c.md', tag: 'law:z', text: 'tc', source: 'appraise:a', cycle: 'c' });
+
+    // Count io.rename invocations for the duration of the batch call.
+    let renameCount = 0;
+    const realRename = io.rename;
+    io.rename = (from, to) => { renameCount += 1; return realRename(from, to); };
+
+    const res = store.writeDeadlockedSnapshots(
+      [a.id, b.id, c.id],
+      'depth=3',
+      'sort',
+      'c',
+    );
+    assert.equal(res.ok, true);
+    assert.equal(renameCount, 1, 'batch must persist via exactly one atomic rename');
+
+    // All three items now have history[0].state === 'deadlocked'.
+    for (const id of [a.id, b.id, c.id]) {
+      const item = store.get(id);
+      assert.equal(item.history[0].state, 'deadlocked');
+      assert.equal(item.history[0].stage, 'sort');
+      assert.equal(item.history[0].reason, 'depth=3');
+    }
+  });
+
+  test('mid-write crash (rename throws) leaves all N items unchanged', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const a = store.add({ file: 'a.md', tag: 'law:x', text: 'ta', source: 'appraise:a', cycle: 'c' });
+    const b = store.add({ file: 'b.md', tag: 'law:y', text: 'tb', source: 'appraise:a', cycle: 'c' });
+    const c = store.add({ file: 'c.md', tag: 'law:z', text: 'tc', source: 'appraise:a', cycle: 'c' });
+
+    const beforeFile = io._files['WORK.feedback.yaml'];
+    const beforeHistoryLengths = [a.id, b.id, c.id].map(id => store.get(id).history.length);
+
+    // Sabotage rename for the next call.
+    const realRename = io.rename;
+    io.rename = () => { throw new Error('simulated rename failure'); };
+
+    assert.throws(
+      () => store.writeDeadlockedSnapshots([a.id, b.id, c.id], 'depth=3', 'sort', 'c'),
+      /simulated rename failure/,
+    );
+
+    // On-disk bytes untouched.
+    assert.equal(io._files['WORK.feedback.yaml'], beforeFile);
+
+    // In-memory view untouched: no item gained a deadlocked snapshot.
+    io.rename = realRename;
+    for (let i = 0; i < 3; i++) {
+      const id = [a.id, b.id, c.id][i];
+      assert.equal(store.get(id).history.length, beforeHistoryLengths[i]);
+      assert.notEqual(store.get(id).history[0].state, 'deadlocked');
+    }
+    // Store invariant: no partial batch visible.
+    assert.equal(
+      store.list().filter(it => it.history[0].state === 'deadlocked').length,
+      0,
+      'no item may be deadlocked when the batch failed',
+    );
+  });
+
+  test('empty array is a no-op — no file touched, no rename', () => {
+    const io = mockIO({ 'WORK.feedback.yaml': yaml.dump({ items: [] }) });
+    const before = io._files['WORK.feedback.yaml'];
+    let renameCount = 0;
+    const realRename = io.rename;
+    io.rename = (from, to) => { renameCount += 1; return realRename(from, to); };
+    let writeCount = 0;
+    const realWrite = io.writeFile;
+    io.writeFile = (p, c) => { writeCount += 1; return realWrite(p, c); };
+
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const res = store.writeDeadlockedSnapshots([], 'depth=3', 'sort', 'c');
+    assert.equal(res.ok, true);
+    assert.equal(renameCount, 0, 'empty batch writes nothing');
+    assert.equal(writeCount, 0, 'empty batch writes nothing');
+    assert.equal(io._files['WORK.feedback.yaml'], before);
+  });
+});

@@ -152,5 +152,43 @@ export function openFeedbackStore(path, io) {
       persist();
       return { ok: true };
     },
+
+    /**
+     * Batch deadlock writer. Used by sort (phase 4) to persist `state=deadlocked`
+     * snapshots for N items in a single atomic rename. Either all snapshots
+     * land or none. Bypasses validateTransition — sort owns deadlock per §6.1.
+     *
+     * @param {string[]} ids — feedback item ids to deadlock.
+     * @param {string} reason — required; same reason applied to all snapshots.
+     * @param {string} stage — caller stage, typically 'sort'.
+     * @param {string} cycle — current cycle id.
+     */
+    writeDeadlockedSnapshots(ids, reason, stage, cycle) {
+      if (!Array.isArray(ids)) return { ok: false, error: 'ids must be an array' };
+      if (ids.length === 0) return { ok: true };
+      if (!reason) return { ok: false, error: 'reason is required for deadlocked snapshot' };
+
+      // Build nextItems entirely in memory before any IO.
+      const ts = nowIso();
+      const idSet = new Set(ids);
+      const missing = [];
+      const nextItems = items.map(it => {
+        if (!idSet.has(it.id)) return it;
+        const snap = { state: 'deadlocked', stage, cycle, timestamp: ts, reason };
+        return { ...it, history: [snap, ...it.history] };
+      });
+      for (const id of ids) {
+        if (!items.some(it => it.id === id)) missing.push(id);
+      }
+      if (missing.length) {
+        return { ok: false, error: `feedback item(s) not found: ${missing.join(',')}` };
+      }
+
+      // Single atomic persist. If saveItems throws, in-memory `items` stays
+      // unchanged (we only assign after save succeeds).
+      saveItems(path, nextItems, io);
+      items = nextItems;
+      return { ok: true };
+    },
   };
 }
