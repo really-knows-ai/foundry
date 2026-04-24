@@ -19,7 +19,7 @@ function readCycle(io) {
 export function createFeedbackTools({ tool }) {
   return {
     foundry_feedback_add: tool({
-      description: 'Add a feedback item to WORK.md under a file heading',
+      description: 'Add a feedback item to WORK.feedback.yaml',
       args: {
         file: tool.schema.string().describe('Artefact file path'),
         text: tool.schema.string().describe('Feedback text'),
