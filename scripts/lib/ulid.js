@@ -1,0 +1,78 @@
+// scripts/lib/ulid.js
+import { randomBytes } from 'node:crypto';
+
+// Crockford's base32 alphabet (excludes I, L, O, U).
+const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+// ULID spec: 10 chars of timestamp (48-bit ms since epoch) + 16 chars of randomness (80 bits).
+// We make the randomness monotonic within the same millisecond by incrementing the previous
+// random component by 1 whenever the timestamp hasn't advanced.
+
+function encodeTime(ms) {
+  let out = '';
+  for (let i = 9; i >= 0; i--) {
+    out = ALPHABET[ms % 32] + out;
+    ms = Math.floor(ms / 32);
+  }
+  return out;
+}
+
+function randomIndexes() {
+  const bytes = randomBytes(10); // 80 bits
+  const out = new Array(16);
+  // Pack 80 bits into 16 5-bit groups.
+  let bitBuffer = 0;
+  let bits = 0;
+  let j = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    bitBuffer = (bitBuffer << 8) | bytes[i];
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      out[j++] = (bitBuffer >>> bits) & 31;
+    }
+  }
+  return out;
+}
+
+function incrementRandom(arr) {
+  // Increment as a base-32 little-endian-ish counter from the right.
+  const next = arr.slice();
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (next[i] < 31) { next[i] += 1; return next; }
+    next[i] = 0;
+  }
+  // Overflow across all 80 bits: re-seed. Extraordinarily unlikely.
+  return randomIndexes();
+}
+
+/**
+ * Creates an independent ULID generator with its own monotonicity state.
+ *
+ * Monotonicity state (lastTime, lastRandom) is kept in closure, not module
+ * scope, so tests can instantiate isolated generators and production code
+ * can import a single shared instance without cross-test contamination.
+ *
+ * @returns {(now?: number) => string} generator function
+ */
+export function createUlidGenerator() {
+  let lastTime = 0;
+  let lastRandom = null; // array of 16 base32 char indexes
+
+  return function ulid(now = Date.now()) {
+    let randArr;
+    if (now === lastTime && lastRandom) {
+      randArr = incrementRandom(lastRandom);
+    } else {
+      randArr = randomIndexes();
+    }
+    lastTime = now;
+    lastRandom = randArr;
+    const rand = randArr.map(i => ALPHABET[i]).join('');
+    return encodeTime(now) + rand;
+  };
+}
+
+// Default shared generator — preserves ergonomic `import { ulid }` usage.
+// Tests that need deterministic, isolated state should call createUlidGenerator().
+export const ulid = createUlidGenerator();
