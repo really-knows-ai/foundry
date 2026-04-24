@@ -55,6 +55,21 @@ export function openFeedbackStore(path, io) {
       if (!file || !tag || !text || !source || !cycle) {
         throw new Error('add requires file, tag, text, source, cycle');
       }
+      const VALID_SOURCE_BASES = new Set(['forge', 'quench', 'appraise', 'human-appraise']);
+
+      if (typeof source !== 'string' || !source.includes(':')) {
+        throw new Error(`source must be in 'base:alias' form; got ${JSON.stringify(source)}`);
+      }
+      {
+        const [base, ...aliasParts] = source.split(':');
+        const alias = aliasParts.join(':');
+        if (!base || !alias) {
+          throw new Error(`source must be in 'base:alias' form; got ${JSON.stringify(source)}`);
+        }
+        if (!VALID_SOURCE_BASES.has(base)) {
+          throw new Error(`unknown source base: ${base} (expected one of: forge, quench, appraise, human-appraise)`);
+        }
+      }
       // Dedup (§8.3): non-resolved items only.
       const textHash = hashText(text);
       const existing = items.find(it =>

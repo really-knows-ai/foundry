@@ -373,3 +373,106 @@ describe('store.writeDeadlockedSnapshots — batch atomic primitive (B1)', () =>
     assert.equal(io._files['WORK.feedback.yaml'], before);
   });
 });
+
+describe('store.add — dedup semantics', () => {
+  test('same (file, tag, text) returns existing id and does not write a new item', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const first = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    const second = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    assert.equal(second.deduped, true);
+    assert.equal(second.id, first.id);
+    assert.equal(store.list().length, 1);
+  });
+
+  test('different file breaks dedup', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    const r = store.add({ file: 'b.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    assert.equal(r.deduped, false);
+    assert.equal(store.list().length, 2);
+  });
+
+  test('different tag breaks dedup', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    const r = store.add({ file: 'a.md', tag: 'law:y', text: 'same', source: 'appraise:a', cycle: 'c' });
+    assert.equal(r.deduped, false);
+    assert.equal(store.list().length, 2);
+  });
+
+  test('resolved items do not block re-addition (regression feedback)', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const a = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    store.transition({ id: a.id, target: 'actioned', stage: 'forge:w', cycle: 'c' });
+    store.transition({ id: a.id, target: 'resolved', stage: 'appraise:a', cycle: 'c', reason: 'ok' });
+    const b = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    assert.equal(b.deduped, false);
+    assert.notEqual(b.id, a.id);
+    assert.equal(store.list().length, 2);
+  });
+
+  test('deadlocked items DO block dedup (they are non-resolved)', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const a = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    store.writeDeadlockedSnapshot({ id: a.id, cycle: 'c', reason: 'depth=3' });
+    const b = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    assert.equal(b.deduped, true);
+    assert.equal(b.id, a.id);
+  });
+});
+
+describe('store.add — source format validation (RED target)', () => {
+  // Per spec §4.2: source is `base:alias`. Task 1.6's implementation accepts
+  // any non-empty string. These tests force the implementation to validate
+  // the format; they are the RED step for task 1.10.
+
+  test('rejects source without a colon', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.throws(
+      () => store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise', cycle: 'c' }),
+      /source must be in 'base:alias' form/,
+    );
+  });
+
+  test('rejects source with empty alias', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.throws(
+      () => store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:', cycle: 'c' }),
+      /source must be in 'base:alias' form/,
+    );
+  });
+
+  test('rejects source with empty base', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.throws(
+      () => store.add({ file: 'a.md', tag: 'law:x', text: 't', source: ':alias', cycle: 'c' }),
+      /source must be in 'base:alias' form/,
+    );
+  });
+
+  test('rejects source with unknown base', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.throws(
+      () => store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'sort:main', cycle: 'c' }),
+      /unknown source base/,
+    );
+  });
+
+  test('accepts all valid source bases', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    for (const base of ['forge', 'quench', 'appraise', 'human-appraise']) {
+      const r = store.add({ file: `${base}.md`, tag: 'law:x', text: 't', source: `${base}:alias`, cycle: 'c' });
+      assert.equal(typeof r.id, 'string');
+    }
+  });
+});
