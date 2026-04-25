@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import yaml from 'js-yaml';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
 import { signToken } from '../../scripts/lib/token.js';
 import { disposeStores } from '../../scripts/lib/memory/singleton.js';
@@ -96,7 +97,7 @@ echo '{"kind":"entity","type":"class","name":"com.Hello","value":"hi"}'
     assert.equal(got.value, 'hi');
   });
 
-  it('aborts on extractor non-zero exit and writes #validation feedback to WORK.md', async () => {
+  it('aborts on extractor non-zero exit and writes validation feedback to WORK.feedback.yaml', async () => {
     writeScript(root, 'scripts/fail.sh', `#!/bin/sh\necho err >&2\nexit 3\n`);
     writeExtractor(root, 'bad', { command: 'scripts/fail.sh', write: ['class'] });
 
@@ -112,10 +113,13 @@ echo '{"kind":"entity","type":"class","name":"com.Hello","value":"hi"}'
     assert.equal(res.failedExtractor, 'bad');
     assert.match(res.reason, /exit code 3/);
 
-    const work = readFileSync(join(root, 'WORK.md'), 'utf-8');
-    assert.match(work, /#validation/);
-    assert.match(work, /assay/);
-    assert.match(work, /bad/);
+    const doc = yaml.load(readFileSync(join(root, 'WORK.feedback.yaml'), 'utf-8'));
+    const validationItems = (doc.items || []).filter(it => it.tag === 'validation');
+    assert.ok(validationItems.length > 0, 'expected at least one validation feedback item');
+    const item = validationItems[0];
+    assert.ok(item.source.startsWith('assay:'), `expected source to start with assay:; got ${item.source}`);
+    assert.match(item.text, /bad/);
+    assert.match(item.text, /assay aborted/);
   });
 
   it('flushes NDJSON immediately after a successful assay run (defence-in-depth, before stage_end)', async () => {

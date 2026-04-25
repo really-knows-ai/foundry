@@ -470,7 +470,7 @@ describe('store.add — source format validation (RED target)', () => {
   test('accepts all valid source bases', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
-    for (const base of ['forge', 'quench', 'appraise', 'human-appraise']) {
+    for (const base of ['forge', 'quench', 'appraise', 'human-appraise', 'assay']) {
       const r = store.add({ file: `${base}.md`, tag: 'law:x', text: 't', source: `${base}:alias`, cycle: 'c' });
       assert.equal(typeof r.id, 'string');
     }

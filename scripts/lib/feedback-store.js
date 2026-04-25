@@ -5,7 +5,7 @@ import { validateTransition, hashText, canForgeWontFix } from './feedback-transi
 
 const YAML_OPTS = { lineWidth: -1 };
 
-const VALID_SOURCE_BASES = new Set(['forge', 'quench', 'appraise', 'human-appraise']);
+const VALID_SOURCE_BASES = new Set(['forge', 'quench', 'appraise', 'human-appraise', 'assay']);
 
 function loadItems(path, io) {
   if (!io.exists(path)) return [];
@@ -64,7 +64,7 @@ export function openFeedbackStore(path, io) {
           throw new Error(`source must be in 'base:alias' form; got ${JSON.stringify(source)}`);
         }
         if (!VALID_SOURCE_BASES.has(base)) {
-          throw new Error(`unknown source base: ${base} (expected one of: forge, quench, appraise, human-appraise)`);
+          throw new Error(`unknown source base: ${base} (expected one of: forge, quench, appraise, human-appraise, assay)`);
         }
       }
       // Dedup (§8.3): non-resolved items only.

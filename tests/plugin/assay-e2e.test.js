@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import yaml from 'js-yaml';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
 import { disposeStores } from '../../scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
@@ -193,9 +194,10 @@ describe('assay end-to-end: extractor failure', () => {
     assert.equal(runRes.failedExtractor, 'java-syms');
     assert.match(runRes.reason, /exit code 4/);
 
-    // #validation feedback was written to WORK.md.
-    const work = readFileSync(join(root, 'WORK.md'), 'utf-8');
-    assert.match(work, /#validation/);
-    assert.match(work, /java-syms/);
+    // validation feedback was written to WORK.feedback.yaml.
+    const doc = yaml.load(readFileSync(join(root, 'WORK.feedback.yaml'), 'utf-8'));
+    const validationItems = (doc.items || []).filter(it => it.tag === 'validation');
+    assert.ok(validationItems.length > 0, 'expected validation feedback');
+    assert.match(validationItems[0].text, /java-syms/);
   });
 });

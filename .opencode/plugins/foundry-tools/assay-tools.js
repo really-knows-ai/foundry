@@ -1,6 +1,7 @@
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
-import { addFeedbackItem } from '../../../scripts/lib/feedback.js';
+import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
+import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { runAssay } from '../../../scripts/lib/assay/run.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../../scripts/lib/memory/writes.js';
@@ -10,7 +11,7 @@ import { makeIO, errorJson } from './helpers.js';
 export function createAssayTools({ tool }) {
   return {
     foundry_assay_run: tool({
-      description: 'Run extractors to populate flow memory. Only callable during an active assay stage. Aborts on first failure; writes #validation feedback against WORK.md on abort.',
+      description: 'Run extractors to populate flow memory. Only callable during an active assay stage. Aborts on first failure; emits a validation feedback item on abort.',
       args: {
         cycle: tool.schema.string().describe('Cycle name'),
         extractors: tool.schema.array(tool.schema.string()).describe('Extractor names, executed in order'),
@@ -49,13 +50,22 @@ export function createAssayTools({ tool }) {
             }
           } else {
             try {
-              const workPath = 'WORK.md';
-              if (await memIo.exists(workPath)) {
-                const text = await memIo.readFile(workPath);
-                const msg = `assay aborted on extractor \`${res.failedExtractor}\`: ${res.reason}` +
-                  (res.stderr ? ` (stderr: ${res.stderr.trim().slice(0, 500)})` : '');
-                const out = addFeedbackItem(text, 'WORK.md', msg, 'validation');
-                await memIo.writeFile(workPath, out.text);
+              const fbIo = makeIO(context.worktree);
+              if (fbIo.exists('WORK.md')) {
+                const fm = parseFrontmatter(fbIo.readFile('WORK.md'));
+                const cycle = fm.cycle;
+                if (cycle) {
+                  const msg = `assay aborted on extractor \`${res.failedExtractor}\`: ${res.reason}` +
+                    (res.stderr ? ` (stderr: ${res.stderr.trim().slice(0, 500)})` : '');
+                  const store = openFeedbackStore('WORK.feedback.yaml', fbIo);
+                  store.add({
+                    file: 'WORK.md',
+                    tag: 'validation',
+                    text: msg,
+                    source: guard.active.stage,
+                    cycle,
+                  });
+                }
               }
             } catch (_err) { /* best effort */ }
           }
