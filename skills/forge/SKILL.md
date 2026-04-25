@@ -69,7 +69,8 @@ Action every item whose `state` is `open` or `rejected`:
 
 - If you address the feedback in the artefact: call `foundry_feedback_action`
   with `{ id }`. This marks the item `actioned`. The tool returns
-  `{ ok: true, id, deduped: false }` on success; use `id` for any follow-up.
+  `{ ok: true }` on success; keep using the original list entry's `id` for
+  any follow-up.
 - If you decide not to address the feedback: call `foundry_feedback_wontfix`
   with `{ id, reason }`. The reason is required. **You may only mark
   `wont-fix` on items whose `source` stage base is `appraise`.** If the
