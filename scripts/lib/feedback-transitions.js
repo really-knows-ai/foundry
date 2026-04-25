@@ -88,8 +88,7 @@ export function hashText(text) {
 // to the pre-phase-1 matrix.
 //
 // Reason strings below are byte-identical to the pre-phase-1 matrix;
-// downstream logs and test assertions in tests/lib/feedback.test.js
-// depend on this exact wording.
+// downstream logs and transition test assertions depend on this exact wording.
 
 /** @deprecated Phase-1 shim for the legacy markdown feedback store.
  *  Do not use in new code. Removed from the active path in phase 4. */
