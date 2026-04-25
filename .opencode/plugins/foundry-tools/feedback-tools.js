@@ -1,11 +1,5 @@
-import path from 'path';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-// Legacy imports — used by action/wontfix/resolve/list tools, removed in tasks 3.5/3.7/3.8/3.9.
-import { actionFeedbackItem, wontfixFeedbackItem, resolveFeedbackItem, listFeedback } from '../../../scripts/lib/feedback.js';
-// New feedback-store, used by foundry_feedback_add and (subsequently) the rewritten tools.
 import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
-import { parseArtefactsTable } from '../../../scripts/lib/artefacts.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { makeIO } from './helpers.js';
