@@ -562,7 +562,7 @@ atomicity work landed).'
 
 - [ ] **Step 1: Run the sweep**
 
-The sweep excludes `new-feedback/` (planning docs — preserved for history, they contain legacy examples by design) and uses proper ripgrep alternation (`'(a|b)'`, not `'a\|b'`).
+The sweep excludes `new-feedback/` (planning docs — preserved for history, they contain legacy examples by design) and `docs/plans/` (archived implementation plans that may include historical fixtures). It uses proper ripgrep alternation (`'(a|b)'`, not `'a\|b'`).
 
 ```bash
 echo '=== legacy imports ==='
@@ -575,6 +575,7 @@ echo
 
 echo '=== legacy prose in skills / docs ==='
 rg -n --glob '!new-feedback/**' \
+   --glob '!docs/plans/**' \
    -e '## Feedback' \
    -e '\{\s*file,\s*index\s*\}' \
    skills/ docs/ README.md

@@ -36,49 +36,6 @@ made deliberately, with its own commit and rationale.
 
 ---
 
-### F3-3. Stale fixture and legacy arg shapes in failed-flow-tool-gate.test.js and preconditions.test.js
-
-**What.**
-- `failed-flow-tool-gate.test.js` line 34 seeds a fake `WORK.md` that
-  includes a `## Feedback` heading (now obsolete; phase 2 commit `c34db66`
-  stopped emitting it).
-- `failed-flow-tool-gate.test.js` lines 73–84 call `foundry_feedback_resolve`,
-  `foundry_feedback_action`, `foundry_feedback_wontfix` with the legacy
-  `{file, index, ...}` arg shape. The failed-flow guard fires before any
-  arg validation, so the legacy args are simply discarded.
-- `tests/plugin/preconditions.test.js` lines 124–138 (the
-  `'feedback stage-base allow-list on action/wontfix/resolve'` describe block)
-  has the same pattern: legacy `{file, index, ...}` args. The stage-base
-  allow-list guard fires before arg validation, so the calls produce the
-  expected error for unrelated reasons.
-
-Both files pass `npm test` correctly today, but the args document a
-no-longer-supported API surface.
-
-**Why deferred.** Functionally correct: both test groups are testing guards
-upstream of arg validation, not the feedback APIs themselves. Cleanup is
-mechanical but adds noise to phase 3. Phase 4 may rebuild
-`failed-flow-tool-gate.test.js`'s WORK.md fixture anyway.
-
-**Trigger.** Phase 4 (sort/orchestrate integration) or phase 6 (consistency).
-
-**Source.**
-- Code-quality review of commit `3f8dc27` (task 3.11), Notes section.
-- Discovered during task 3.12 verification gate that the plan's regex
-  (`foundry_feedback_action.*file:` etc., single-line) missed multi-line
-  call patterns. Both files surfaced under a multiline-aware grep:
-  `rg --multiline "foundry_feedback_(action|wontfix|resolve)\.execute\(\s*[^)]*\bindex:\s*\d" tests/ .opencode/`.
-- Also called out in task 3.12's verification-gate scope per the
-  phase-3 plan.
-
-**Note for verification-gate users.** Phase 3 plan's grep at task 3.12 step 2
-(`rg "foundry_feedback_action.*file:|..." tests/ .opencode/`) is single-line
-and produces a false-negative pass on these two files. The multiline grep
-above is the more reliable check. Phase 4 or phase 6 should update the
-plan's gate command in any retained reference.
-
----
-
 ### F3-5. `setupToActioned` test helper lives inside a describe block
 
 **What.** `tests/plugin/feedback-tools.test.js` line 257 defines
