@@ -5,6 +5,7 @@ import { minimatch } from 'minimatch';
 const TOOL_MANAGED = [
   'WORK.md',
   'WORK.history.yaml',
+  'WORK.feedback.yaml',
 ];
 const TOOL_MANAGED_PREFIX = ['.foundry/'];
 

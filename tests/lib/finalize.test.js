@@ -89,4 +89,22 @@ describe('finalizeStage', () => {
     });
     assert.equal(res.ok, true);
   });
+
+  it('does not flag WORK.feedback.yaml as an unexpected file', () => {
+    writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []');
+    mkdirSync(join(dir, 'haikus'), { recursive: true });
+    writeFileSync(join(dir, 'haikus/a.md'), '...');
+
+    const registered = [];
+    const res = finalizeStage({
+      cwd: dir, baseSha, stageBase: 'forge',
+      cycleDef: { outputArtefactType: 'haiku' },
+      artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      registerArtefact: artefact => registered.push(artefact),
+    });
+
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.artefacts, [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }]);
+    assert.deepEqual(registered, [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }]);
+  });
 });
