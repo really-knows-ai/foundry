@@ -43,7 +43,7 @@ Then return control to the user and stop.
 Call `foundry_assay_run({ cycle, extractors })` passing exactly those values. Do not modify the list. Do not split it into multiple calls. The tool returns one of:
 
 - `{ok: true, perExtractor: [{name, rowsUpserted, durationMs}, ...]}` — all extractors succeeded.
-- `{ok: false, aborted: true, failedExtractor, reason, stderr, perExtractor: [...]}` — the run aborted. The failure has already been recorded as `#validation` feedback against `WORK.md`.
+- `{ok: false, aborted: true, failedExtractor, reason, stderr, perExtractor: [...]}` — the run aborted. The failure has already been recorded as a `validation`-tagged feedback item in `WORK.feedback.yaml`.
 - `{error: "..."}` — a precondition failed (not an active assay stage, memory not enabled, etc.). This should not happen if step 1 succeeded; treat as an error and proceed to step 5 with the error text.
 
 ### 4. Prepare the summary
