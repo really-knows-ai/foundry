@@ -305,3 +305,91 @@ describe('foundry_feedback_resolve — id-based', () => {
     assert.match(res.error, /reason/);
   });
 });
+
+describe('foundry_feedback_resolve — deadlock override', () => {
+  test('human-appraise can resolve a deadlocked item regardless of source', async () => {
+    worktree = makeWorktree({ stage: 'appraise:write-check' });
+    const tAdd = await tools(worktree);
+    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:x' },
+      { worktree },
+    ));
+    // Simulate sort-side deadlock: write the snapshot directly via yaml.
+    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
+    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
+    doc.items[0].history.unshift({
+      state: 'deadlocked',
+      stage: 'sort',
+      cycle: 'write-haiku',
+      timestamp: new Date().toISOString(),
+      reason: 'depth=3',
+    });
+    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
+
+    // Switch to human-appraise stage, resolve it.
+    writeActiveStage(worktree, { stage: 'human-appraise:review', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved', reason: 'accepting as-is' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const after = yaml.load(readFileSync(feedbackPath, 'utf-8'));
+    assert.equal(after.items[0].history[0].state, 'resolved');
+  });
+
+  test('deadlock override requires a reason', async () => {
+    worktree = makeWorktree({ stage: 'appraise:write-check' });
+    const tAdd = await tools(worktree);
+    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:x' },
+      { worktree },
+    ));
+    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
+    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
+    doc.items[0].history.unshift({
+      state: 'deadlocked',
+      stage: 'sort',
+      cycle: 'write-haiku',
+      timestamp: new Date().toISOString(),
+      reason: 'depth=3',
+    });
+    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
+    writeActiveStage(worktree, { stage: 'human-appraise:review', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved' }, // no reason
+      { worktree },
+    ));
+    assert.match(res.error, /reason/);
+  });
+
+  test('appraise CANNOT override a deadlocked item even when source matches', async () => {
+    worktree = makeWorktree({ stage: 'appraise:write-check' });
+    const tAdd = await tools(worktree);
+    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:x' },
+      { worktree },
+    ));
+    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
+    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
+    doc.items[0].history.unshift({
+      state: 'deadlocked',
+      stage: 'sort',
+      cycle: 'write-haiku',
+      timestamp: new Date().toISOString(),
+      reason: 'depth=3',
+    });
+    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
+    // active-stage is still appraise:write-check (matches source).
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved', reason: 'trying' },
+      { worktree },
+    ));
+    // State machine refuses: only human-appraise overrides deadlocked.
+    assert.ok(res.error);
+  });
+});
+
+
