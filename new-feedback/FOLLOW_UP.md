@@ -159,6 +159,40 @@ Issues — Minor #5.
 
 ---
 
+### F4-3. Deleted `deadlock escalation` describe block dropped coverage of 4 sub-branches
+
+**What.** Task 4.2 wholesale deleted the seven-test `describe('deadlock
+escalation')` block in `tests/sort.test.js` because it tested the now-gone
+global-counter `detectDeadlocks` algorithm. The four new per-item-deadlock
+tests cover the spec'd behaviour, but four sub-branches of `runSort`'s
+deadlock-routing decision (sort.js:355-378) now have no direct test coverage:
+
+1. `human-appraise:${cycle}` synthesis when no human-appraise stage is in
+   `stages` but a `cycle` exists.
+2. `alreadyInHumanAppraise → return blocked` (deadlocked items remain after
+   human-appraise).
+3. Default threshold of 5 (when `deadlock-iterations` frontmatter is omitted).
+4. Custom non-5 thresholds (the four new tests all use `deadlock-iterations:
+   3` explicitly).
+
+Spec reviewer cursorily verified the four branches still look correct on
+inspection; no defects found, just no tests.
+
+**Why deferred.** Plan §4.2 listed exactly the four tests to add, so this
+isn't a contract violation. Adding more tests inline would expand scope
+mid-phase. Deletion was wholesale rather than selective because the deleted
+tests' WORK.md fixtures used the legacy `## Feedback` shape and would have
+needed full rewrites anyway.
+
+**Trigger.** Phase 6 (consistency pass), or any time someone touches the
+deadlock-routing branch in `runSort` and wants regression coverage.
+
+**Source.** Spec compliance review of commit `ef89986` (task 4.2),
+final note. Code-quality review confirmed no defects on inspection
+(Issues — Minor #9).
+
+---
+
 ### F4-2. `makeFeedbackYaml` ID truncation has an invisible cliff at i ≥ 100
 
 **What.** `tests/sort.test.js` `makeFeedbackYaml` builds IDs as
@@ -241,37 +275,31 @@ the `exists` guard.
 
 ---
 
-### F4-3. Deleted `deadlock escalation` describe block dropped coverage of 4 sub-branches
+### F4-7. Stale comment references to legacy API names in production `.js` files
 
-**What.** Task 4.2 wholesale deleted the seven-test `describe('deadlock
-escalation')` block in `tests/sort.test.js` because it tested the now-gone
-global-counter `detectDeadlocks` algorithm. The four new per-item-deadlock
-tests cover the spec'd behaviour, but four sub-branches of `runSort`'s
-deadlock-routing decision (sort.js:355-378) now have no direct test coverage:
+**What.** Two production source files retain comment-only references to
+deleted/legacy feedback APIs after the phase 4 cleanup:
 
-1. `human-appraise:${cycle}` synthesis when no human-appraise stage is in
-   `stages` but a `cycle` exists.
-2. `alreadyInHumanAppraise → return blocked` (deadlocked items remain after
-   human-appraise).
-3. Default threshold of 5 (when `deadlock-iterations` frontmatter is omitted).
-4. Custom non-5 thresholds (the four new tests all use `deadlock-iterations:
-   3` explicitly).
+1. `scripts/orchestrate.js:94,96` — CHANGELOG NOTE inside `readRecentFeedback`
+   explains the pre-/post-redesign ordering change and names the old
+   `listFeedback` helper for context.
+2. `scripts/lib/feedback-transitions.js:85,95,105` — comments reference the
+   deleted `scripts/lib/feedback.js` to explain why the legacy state-transition
+   matrix is preserved verbatim.
 
-Spec reviewer cursorily verified the four branches still look correct on
-inspection; no defects found, just no tests.
+Both are documentary, not functional. The phase 4 verification gate flagged
+them because they cause `rg listFeedback` and `rg scripts/lib/feedback\.js`
+to return non-zero, but neither represents a real call site.
 
-**Why deferred.** Plan §4.2 listed exactly the four tests to add, so this
-isn't a contract violation. Adding more tests inline would expand scope
-mid-phase. Deletion was wholesale rather than selective because the deleted
-tests' WORK.md fixtures used the legacy `## Feedback` shape and would have
-needed full rewrites anyway.
+**Why deferred.** Reviewer's call: these comments aid future maintainers by
+preserving historical context that would otherwise be lost. Removing them
+unblocks a cleaner grep but reduces the file's self-explanation. Phase 5/6
+gets to decide — keep, sweep, or rewrite to drop the legacy names while
+preserving the explanation.
 
-**Trigger.** Phase 6 (consistency pass), or any time someone touches the
-deadlock-routing branch in `runSort` and wants regression coverage.
+**Trigger.** Phase 5 (skills/docs sweep) or phase 6 (consistency).
 
-**Source.** Spec compliance review of commit `ef89986` (task 4.2),
-final note. Code-quality review confirmed no defects on inspection
-(Issues — Minor #9).
+**Source.** Phase 4 verification gate (task 4.6), Issues section.
 
 ---
 
