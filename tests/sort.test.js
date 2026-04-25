@@ -464,7 +464,7 @@ describe('checkModifiedFiles', () => {
       readFile: () => '---\nstages:\n  - forge:a\n---\n',
       exists: () => true,
     };
-    // Non-forge stage: only WORK.md + WORK.history.yaml allowed
+    // Non-forge stage: only always-allowed workfiles are permitted.
     const result = checkModifiedFiles('quench', 'foundry', 'foundry/cycles/c1.md', 'c1', io);
     assert.equal(result.ok, false);
     assert.deepEqual(result.violations, ['src/main.ts', 'package.json']);
