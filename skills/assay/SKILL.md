@@ -68,4 +68,4 @@ Call `foundry_stage_end({ summary })` with the summary from step 4. Always end t
 
 ## If something unexpected happens
 
-If `foundry_assay_run` throws an unrelated error (e.g. `error: memory not enabled`), that is a programming error in the cycle configuration — not an expected extractor failure. Do not retry. End the stage with a summary quoting the error, and let the human see the failure through the usual `#validation` channel.
+If `foundry_assay_run` throws an unrelated error (e.g. `error: memory not enabled`), that is a programming error in the cycle configuration — not an expected extractor failure. Do not retry. End the stage with a summary quoting the error, and let the human see the failure as a `validation`-tagged feedback item in `WORK.feedback.yaml`.
