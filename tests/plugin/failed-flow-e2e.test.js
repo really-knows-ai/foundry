@@ -29,7 +29,7 @@ function setup() {
   writeFileSync(join(root, 'foundry/cycles/observe.md'),
     `---\noutput: report\nmemory:\n  write: [finding]\n---\n\nCycle body.\n`);
   writeFileSync(join(root, 'WORK.md'),
-    `---\nflow: f\ncycle: observe\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n\n## Feedback\n`);
+    `---\nflow: f\ncycle: observe\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`);
   return root;
 }
 
