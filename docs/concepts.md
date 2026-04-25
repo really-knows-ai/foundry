@@ -52,7 +52,7 @@ Properties:
 - **Opt-in per cycle.** A cycle declares `assay: { extractors: [name, ...] }`. Cycles without this block behave exactly as they always have.
 - **Iteration 0 only.** Runs once, before the first forge. Re-extraction on later iterations is out of scope for v1.
 - **Requires memory.** A cycle with `assay:` but no `foundry/memory/` fails to load with a clear error.
-- **Strict failure.** Any non-zero exit, parse error, permission violation, or timeout aborts the cycle and writes a `#validation` feedback row against `WORK.md`.
+- **Strict failure.** Any non-zero exit, parse error, permission violation, or timeout aborts the cycle and writes a validation-tagged feedback item to `WORK.feedback.yaml`.
 
 See also: [Extractor](#extractor).
 
@@ -86,7 +86,7 @@ The transient shared state for a flow. Created on the work branch by the flow sk
 - Current position (flow, cycle, stage list, iteration limits) in frontmatter.
 - The goal (prose — written once).
 - An artefact registry (file, type, cycle, status).
-- All feedback with its full lifecycle.
+- Feedback state lives alongside it in `WORK.feedback.yaml`.
 
 See [work-spec.md](work-spec.md) for the full spec.
 
