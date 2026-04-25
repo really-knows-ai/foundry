@@ -92,9 +92,9 @@ function readRecentFeedback(io, limit = 5) {
   // CHANGELOG NOTE (2026-04-24): ordering changed.
   //
   // Pre-redesign: candidates.slice(-limit) over file order.
-  // Because items were appended to WORK.md's ## Feedback section in creation
-  // order and that order was preserved, callers displayed oldest-first
-  // within the tail window.
+  // Because items were previously stored in WORK.md in creation order and
+  // that order was preserved, callers displayed oldest-first within the tail
+  // window.
   //
   // Post-redesign: WORK.feedback.yaml stores items by creation order, but
   // history[0].timestamp is the authoritative "when did this item most

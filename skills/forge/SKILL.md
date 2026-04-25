@@ -95,7 +95,7 @@ items whose state is `actioned`, `wont-fix`, `deadlocked`, or `resolved`.
 
 Forge may only write to:
 - Files matching the output artefact type's `file-patterns`.
-- `WORK.md` and `WORK.history.yaml` (tool-managed).
+- `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` (tool-managed).
 
 Everything else on disk — including files of the cycle's input types, files of unrelated artefact types, and files outside any artefact type — is read-only for this stage. This is not an honor-system rule: `foundry_stage_finalize` returns `{error: 'unexpected_files'}` and `sort`'s `checkModifiedFiles` routes a violation on the next call. Either outcome marks the cycle's target artefact `blocked` and you do not get a retry.
 
@@ -118,4 +118,4 @@ items in the list output.
 - You do not evaluate or score the artefact.
 - You do not mark feedback as actioned unless you actually changed the artefact to address it.
 - You do not wont-fix items whose `source` stage base is `quench` or `human-appraise`.
-- You do not write to any file outside the output artefact type's `file-patterns` (plus `WORK.md` / `WORK.history.yaml`). Input files are read-only unless the output type's patterns happen to cover them.
+- You do not write to any file outside the output artefact type's `file-patterns` (plus `WORK.md` / `WORK.feedback.yaml` / `WORK.history.yaml`). Input files are read-only unless the output type's patterns happen to cover them.

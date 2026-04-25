@@ -119,7 +119,7 @@ Human feedback is tagged `#human` and takes priority over LLM feedback on the sa
 
 ## Micro-commit
 
-Every stage ends with a commit made by the orchestrator. This enables two things: file-modification enforcement (the write-invariant check compares the stage's diff to its allowed patterns) and recoverability (a crash mid-flow leaves a clean commit boundary to resume from). Orchestration refuses to proceed if uncommitted work is lingering in `WORK.md`, `WORK.history.yaml`, or `.foundry/`.
+Every stage ends with a commit made by the orchestrator. This enables two things: file-modification enforcement (the write-invariant check compares the stage's diff to its allowed patterns) and recoverability (a crash mid-flow leaves a clean commit boundary to resume from). Orchestration refuses to proceed if uncommitted work is lingering in `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, or `.foundry/`.
 
 ## Stage token
 

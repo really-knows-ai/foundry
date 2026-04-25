@@ -57,10 +57,10 @@ describe('feedback tools require active stage', () => {
       const args = toolName === 'foundry_feedback_add'
         ? { file: 'x.md', tag: 'validation', text: 't' }
         : toolName === 'foundry_feedback_resolve'
-        ? { file: 'x.md', index: 0, resolution: 'approved' }
+        ? { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', resolution: 'approved' }
         : toolName === 'foundry_feedback_wontfix'
-        ? { file: 'x.md', index: 0, reason: 'r' }
-        : { file: 'x.md', index: 0 };
+        ? { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', reason: 'r' }
+        : { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' };
       const res = JSON.parse(await plugin.tool[toolName].execute(args, makeCtx(dir)));
       assert.match(res.error, /requires active/);
     });
@@ -124,7 +124,7 @@ describe('feedback stage-base allow-list on action/wontfix/resolve', () => {
   it('forge stage rejects resolve', async () => {
     await beginStage(plugin, dir, 'forge:c', 'c');
     const res = JSON.parse(await plugin.tool.foundry_feedback_resolve.execute(
-      { file: 'x.md', index: 0, resolution: 'approved' }, makeCtx(dir),
+      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', resolution: 'approved' }, makeCtx(dir),
     ));
     assert.match(res.error, /requires active quench\|appraise\|human-appraise/);
   });
@@ -132,7 +132,7 @@ describe('feedback stage-base allow-list on action/wontfix/resolve', () => {
   it('quench stage rejects action (only forge can)', async () => {
     await beginStage(plugin, dir, 'quench:c', 'c');
     const res = JSON.parse(await plugin.tool.foundry_feedback_action.execute(
-      { file: 'x.md', index: 0 }, makeCtx(dir),
+      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' }, makeCtx(dir),
     ));
     assert.match(res.error, /requires active forge/);
   });

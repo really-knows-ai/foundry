@@ -17,7 +17,6 @@ import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
 import yaml from 'js-yaml';
 import { minimatch } from 'minimatch';
-import { validateTags } from './lib/tags.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable } from './lib/artefacts.js';
 import { loadHistory } from './lib/history.js';
@@ -345,13 +344,6 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
     if (!result.ok) {
       return { route: 'violation', details: `File modification violation after ${lastBase} stage: ${result.violations.join(', ')}` };
     }
-  }
-
-  // Tag validation
-  const tagErrors = validateTags(workText, foundryDir);
-  if (tagErrors.length > 0) {
-    const details = tagErrors.map(e => `line ${e.line}: ${e.message}`).join('; ');
-    return { route: 'violation', details: `Feedback tag validation failed: ${details}` };
   }
 
   // Spec §6.1 — if the deadlock pass produced any deadlocked items, override

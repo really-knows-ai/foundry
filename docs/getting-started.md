@@ -162,8 +162,9 @@ Every stage ends with a micro-commit. Violations of the write invariant (writing
 
 While a flow is running, the state of the world is in three places:
 
-- `WORK.md` — current cycle, goal, artefact table, all feedback with full lifecycle.
-- `WORK.history.yaml` — append-only log of every stage execution.
+- `WORK.md` — current cycle, goal, and artefact table.
+- `WORK.feedback.yaml` — feedback items and their lifecycle history.
+- `WORK.history.yaml` — append-only stage execution log.
 - `git log` — one commit per stage.
 
 You can pause and resume: if the flow skill sees an existing `WORK.md` when you start, it asks whether to resume, discard, or abort. Resume is only offered if the existing flow and cycle match the current request.
@@ -172,7 +173,7 @@ You can pause and resume: if the flow skill sees an existing `WORK.md` when you 
 
 ## Cleaning up
 
-Before squash-merging the work branch back into main, **delete `WORK.md` and `WORK.history.yaml`** — they're ephemeral per-flow state, not artefacts. `.foundry/` is gitignored and doesn't need cleanup.
+Before squash-merging the work branch back into main, **delete `WORK.md`, `WORK.history.yaml`, and `WORK.feedback.yaml`** — they're ephemeral per-flow state, not artefacts. `.foundry/` is gitignored and doesn't need cleanup.
 
 If you used `foundry_git_finish`, it handles this for you.
 

@@ -71,17 +71,17 @@ describe('failed-flow tool gate', () => {
 
   it('feedback_resolve refuses under failed', async () => {
     expectFailedError(await plugin.tool.foundry_feedback_resolve.execute(
-      { file: 'x.md', index: 0, resolution: 'approved' }, ctx()), 'feedback_resolve');
+      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', resolution: 'approved' }, ctx()), 'feedback_resolve');
   });
 
   it('feedback_action refuses under failed', async () => {
     expectFailedError(await plugin.tool.foundry_feedback_action.execute(
-      { file: 'x.md', index: 0 }, ctx()), 'feedback_action');
+      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' }, ctx()), 'feedback_action');
   });
 
   it('feedback_wontfix refuses under failed', async () => {
     expectFailedError(await plugin.tool.foundry_feedback_wontfix.execute(
-      { file: 'x.md', index: 0, reason: 'r' }, ctx()), 'feedback_wontfix');
+      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', reason: 'r' }, ctx()), 'feedback_wontfix');
   });
 
   it('assay_run refuses under failed', async () => {
