@@ -88,7 +88,7 @@ export async function readForgeFilePatterns(cycleId, io) {
   }
 }
 
-function readRecentFeedback(cycleId, io, limit = 5) {
+function readRecentFeedback(io, limit = 5) {
   // CHANGELOG NOTE (2026-04-24): ordering changed.
   //
   // Pre-redesign: candidates.slice(-limit) over listFeedback's FILE order.
@@ -212,7 +212,7 @@ async function handleSortResult(sortResult, { cycleId, cwd, io }) {
       context: {
         cycle: cycleId,
         artefact_file: art?.file ?? null,
-        recent_feedback: readRecentFeedback(cycleId, io),
+        recent_feedback: readRecentFeedback(io),
       },
     };
   }

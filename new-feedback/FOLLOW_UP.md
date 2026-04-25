@@ -180,6 +180,67 @@ Issues — Minor #6.
 
 ---
 
+### F4-4. `localeCompare` for ISO-8601 timestamp DESC sort is overkill
+
+**What.** `scripts/orchestrate.js:118` (`readRecentFeedback`) uses
+`b.history[0].timestamp.localeCompare(a.history[0].timestamp)` to sort
+candidates DESC. ISO-8601 sorts correctly under plain lexicographic
+comparison (`<` / `>`); `localeCompare` invokes the Intl collator, which is
+slower and locale-dependent (though ISO-8601 happens to be locale-stable).
+Idiomatic replacement: `a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0`.
+
+**Why deferred.** Zero practical impact — same order on the small candidate
+set. Stylistic only.
+
+**Trigger.** Any future refactor of `readRecentFeedback`, or a perf concern
+(extremely unlikely at expected scale).
+
+**Source.** Code-quality review of commits `efa632c..7a5308a` (tasks
+4.3+4.4), Issues — Minor #2.
+
+---
+
+### F4-5. `mockIO`/`makeSortIO`-style in-memory io fakes are duplicating across test files
+
+**What.** `tests/orchestrate-open-feedback.test.js:6-14` defines an inline
+`mockIO` that is a near-subset of `tests/sort.test.js:27-46`'s `makeSortIO`.
+Both share `exists`/`readFile`/`writeFile`/`rename`/`unlink` semantics; sort's
+adds `exec` and `_get`/`_set`. This is the second instance of the pattern
+(rule-of-three not yet reached). Distinct from F4-1 (inline WORK.md
+frontmatter) — a separate trend.
+
+**Why deferred.** Rule-of-three not reached. Current implementations are
+small and intentionally specialized. Premature extraction obscures the
+test's local context.
+
+**Trigger.** Third near-duplicate appears (likely in phase 5/6 tests).
+
+**Source.** Code-quality review of commits `efa632c..7a5308a` (tasks
+4.3+4.4), Issues — Minor #3.
+
+---
+
+### F4-6. `mockIO.readFile` doesn't throw on missing key
+
+**What.** `tests/orchestrate-open-feedback.test.js:9` — `readFile: (p) =>
+store[p]` returns `undefined` for missing keys instead of throwing ENOENT
+(unlike `makeSortIO` in `tests/sort.test.js`). `computeOpenFeedback` does
+call `io.exists()` first so this never matters today, but if a future
+regression caused the code to skip the `exists` check, the "missing
+feedback.yaml returns 0" test would silently pass via undefined-fed-to-yaml
+rather than catching the regression.
+
+**Why deferred.** Very low priority defensive tightening. The `exists()`
+guard makes this a hypothetical concern.
+
+**Trigger.** Any change to `computeOpenFeedback`'s read path that touches
+the `exists` guard.
+
+**Source.** Code-quality review of commits `efa632c..7a5308a` (tasks
+4.3+4.4), Issues — Minor #5.
+
+---
+
 ### F4-3. Deleted `deadlock escalation` describe block dropped coverage of 4 sub-branches
 
 **What.** Task 4.2 wholesale deleted the seven-test `describe('deadlock
