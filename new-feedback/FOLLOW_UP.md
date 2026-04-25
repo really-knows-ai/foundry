@@ -135,6 +135,85 @@ Suggestions section.
 
 ---
 
+## Phase 4
+
+### F4-1. Rule-of-three reached for inline WORK.md frontmatter in sort tests
+
+**What.** `tests/sort.test.js` has three tests in the new `runSort — per-item
+deadlock` block (lines ~818–997) that build near-identical WORK.md frontmatter
+strings inline. The frontmatter varies on a small number of fields (`stages`,
+`deadlock-appraise`, `deadlock-iterations`, `max-iterations`); everything else
+is boilerplate. A `makeWorkMd({stages, deadlockAppraise, deadlockIterations,
+maxIterations})` helper would shrink the file by ~30 lines and make the
+*interesting* differences (e.g. `deadlock-appraise: false`) visually obvious.
+
+**Why deferred.** Mechanical extraction; no behaviour change; not asked for
+by the plan. Doing it inline with the cleanup commit would expand the diff
+beyond review scope.
+
+**Trigger.** Next time a fourth test in this file builds an inline WORK.md
+frontmatter, or phase 6 (consistency).
+
+**Source.** Code-quality review of commit `ef89986` (task 4.2),
+Issues — Minor #5.
+
+---
+
+### F4-2. `makeFeedbackYaml` ID truncation has an invisible cliff at i ≥ 100
+
+**What.** `tests/sort.test.js` `makeFeedbackYaml` builds IDs as
+``` `EX${String(i).padStart(2, '0')}${'Z'.repeat(22)}`.slice(0, 26) ```. For
+`i < 100` the length is exactly 26 and `.slice(0,26)` is a no-op. For
+`i >= 100` the prefix becomes 3 digits and the slice silently chops the last
+`Z`. Still 26 Crockford-legal chars and still unique, but the cliff is
+invisible to a reader.
+
+**Why deferred.** Theoretical at current usage — every test in this file
+needs 1–2 items. Real fix is either a comment or a deterministic-width
+construction; neither blocks anything today.
+
+**Trigger.** Any test in this file using `i >= 10` items, or any future
+helper user reading `makeFeedbackYaml` and pausing at the slice.
+
+**Source.** Code-quality review of commit `ef89986` (task 4.2),
+Issues — Minor #6.
+
+---
+
+### F4-3. Deleted `deadlock escalation` describe block dropped coverage of 4 sub-branches
+
+**What.** Task 4.2 wholesale deleted the seven-test `describe('deadlock
+escalation')` block in `tests/sort.test.js` because it tested the now-gone
+global-counter `detectDeadlocks` algorithm. The four new per-item-deadlock
+tests cover the spec'd behaviour, but four sub-branches of `runSort`'s
+deadlock-routing decision (sort.js:355-378) now have no direct test coverage:
+
+1. `human-appraise:${cycle}` synthesis when no human-appraise stage is in
+   `stages` but a `cycle` exists.
+2. `alreadyInHumanAppraise → return blocked` (deadlocked items remain after
+   human-appraise).
+3. Default threshold of 5 (when `deadlock-iterations` frontmatter is omitted).
+4. Custom non-5 thresholds (the four new tests all use `deadlock-iterations:
+   3` explicitly).
+
+Spec reviewer cursorily verified the four branches still look correct on
+inspection; no defects found, just no tests.
+
+**Why deferred.** Plan §4.2 listed exactly the four tests to add, so this
+isn't a contract violation. Adding more tests inline would expand scope
+mid-phase. Deletion was wholesale rather than selective because the deleted
+tests' WORK.md fixtures used the legacy `## Feedback` shape and would have
+needed full rewrites anyway.
+
+**Trigger.** Phase 6 (consistency pass), or any time someone touches the
+deadlock-routing branch in `runSort` and wants regression coverage.
+
+**Source.** Spec compliance review of commit `ef89986` (task 4.2),
+final note. Code-quality review confirmed no defects on inspection
+(Issues — Minor #9).
+
+---
+
 ## Phase 2
 
 *(none yet)*
