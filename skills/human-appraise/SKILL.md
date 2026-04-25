@@ -77,11 +77,56 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
 
 7. `foundry_stage_end({summary})` — describe what the human decided so sort can log it.
 
-## #human feedback rules
+## Feedback handling
 
-- Feedback tagged `human` takes priority over all LLM appraiser feedback
-- Forge MUST address `#human` feedback — it cannot wont-fix it
-- When `#human` feedback contradicts LLM appraiser feedback, forge follows the human's direction
+As a human-appraise stage, you have three feedback capabilities. **Human-appraise
+can override any non-resolved item regardless of source** — this is the
+universal override authority recorded in spec §5.1 rule 5. It is not
+limited to deadlocked items, though in practice most overrides today are
+on deadlocked items because default sort routing only surfaces deadlocked
+items to human-appraise (see §17 future-work note below).
+
+1. **Adding new human feedback.** Call `foundry_feedback_add` with
+   `{ file, text, tag: 'human' }`. The `source` is your stage id. The tool
+   returns `{ ok: true, id, deduped }`; `deduped: true` indicates an
+   existing non-resolved item with the same `(file, tag, hash(text))` was
+   found and no new snapshot was written, `deduped: false` indicates a new
+   item was created.
+
+2. **Resolving any non-resolved item.** Unlike appraise and quench, you
+   are NOT restricted to items whose `source` matches your stage id.
+   You may transition any non-resolved item to any legal target state:
+   - From `{open, rejected}`: call `foundry_feedback_action` or
+     `foundry_feedback_wontfix` as appropriate (forwards toward
+     `{actioned, wont-fix}`).
+   - From `{actioned, wont-fix}`: call `foundry_feedback_resolve` with
+     `{ id, resolution: 'approved' | 'rejected', reason? }`.
+   - From `deadlocked`: call `foundry_feedback_resolve` with
+     `{ id, resolution: 'approved' | 'rejected', reason: '...' }`.
+     `reason` is always required on deadlock override — it documents why
+     the deadlock is being broken.
+
+3. **Deadlock resolution specifically.** When items reach
+   `state: deadlocked` (written by sort when an item's history depth hits
+   `deadlock-iterations`), human-appraise is the ONLY stage authorised to
+   resolve them. After human-appraise resolves every deadlocked item, the
+   cycle resumes normal forge/appraise routing. If deadlocks remain after
+   human-appraise, the cycle blocks (per spec §5.2).
+
+**Reason rules.** `reason` is required whenever the target state is
+`rejected`, `wont-fix`, `deadlocked` (only sort writes deadlocked — you
+do not), or `resolved`. `reason` is forbidden on `open` and optional on
+`actioned` (the code change is the reason). A deadlock override always
+requires `reason` because the target states (`{resolved, wont-fix,
+rejected}`) are all in the required set.
+
+**Future work.** Spec §17 notes that a cycle-level mode flag letting
+human-appraise see all unresolved feedback (not just deadlocked items)
+before sort routes is planned for a future release. In v2.6.0 the
+authority is universal but reachability is limited — you typically only
+see deadlocked items on the route from sort. If you do see non-deadlocked
+items (e.g. you were invoked directly by the user), the same authority
+applies.
 
 ## What you do NOT do
 
