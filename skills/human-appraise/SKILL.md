@@ -21,7 +21,7 @@ Human-appraise runs inside an enforced stage. Your **first** and **last** tool c
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
 2. **Last:** `foundry_stage_end({summary})`.
 
-Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` / `foundry_feedback_resolve` / `foundry_artefacts_set_status`. `foundry_stage_finalize` flags unexpected writes as a violation.
+Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` / `foundry_feedback_resolve` / `foundry_artefacts_set_status`. `foundry_stage_end` flags unexpected writes as a violation.
 
 ## Input
 
@@ -73,7 +73,7 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
    - **Approve** — "looks good" / "continue" — no feedback added, sort will advance.
    - **Provide feedback** — `foundry_feedback_add({ file, text, tag: 'human' })`. Sort will route back to forge.
    - **Transition feedback** — use the id-based feedback tools described below. Human-appraise may transition any non-resolved item to any legal target state regardless of source.
-   - **Abort** — `foundry_artefacts_set_status(file, 'blocked')`, cycle ends.
+   - **Abort** — `foundry_artefacts_set_status({ file, status: 'blocked' })`, cycle ends.
 
 7. `foundry_stage_end({summary})` — describe what the human decided so sort can log it.
 
