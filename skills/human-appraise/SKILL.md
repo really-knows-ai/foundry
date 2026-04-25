@@ -41,7 +41,7 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
 2. Gather context by calling:
    - `foundry_workfile_get` — current state, goal, cycle
 
-     **Check for failed flow state.** If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+     **Check for failed flow state.** If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not do any substantive work. Tell the user:
 
      > The flow is in a failed state. Reason: `<reason>`.
      >
@@ -51,10 +51,10 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
      >   2. Back out to main (`git checkout main`) and delete the work branch.
      >   3. Investigate and fix the root cause of the failure before restarting.
 
-     Then return control to the user and stop.
+     Then call `foundry_stage_end({summary: 'Flow is failed; no human appraisal performed'})`, return control to the user, and stop.
    - `foundry_artefacts_list({cycle: <current-cycle>})` — this cycle's artefact files and status (always pass the `cycle` filter; omitting it returns stale rows from prior sessions)
    - `foundry_feedback_list` — all existing feedback
-   - `foundry_history_list` — what has happened so far
+   - `foundry_history_list({cycle: <current-cycle>})` — what has happened so far
 
 3. Read the artefact file(s) for this cycle.
 
