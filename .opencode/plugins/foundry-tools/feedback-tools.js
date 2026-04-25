@@ -157,6 +157,9 @@ export function createFeedbackTools({ tool }) {
           return JSON.stringify({ error: `foundry_feedback_resolve requires active quench|appraise|human-appraise stage; current: ${activeStage}` });
         }
 
+        // Public API uses 'approved' for prompt-surface clarity; the state machine's
+        // terminal name is 'resolved' (REVISION-CONTRACT §A1, spec §4.3). 'rejected'
+        // is identity in both vocabularies.
         const target = args.resolution === 'approved' ? 'resolved' : 'rejected';
 
         try {
