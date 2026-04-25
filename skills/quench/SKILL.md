@@ -44,9 +44,10 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
    a. `foundry_config_validation` with the row's type. If it returns null, skip this row.
    b. `foundry_validate_run` with the type ID and the row's file path — executes all validation commands and returns results.
    c. For each failure: call `foundry_feedback_add` with `{ file, text, tag: 'validation' }`. Tag MUST be `validation` — the tool rejects other tags during quench.
-5. If every command passes for every row, add no new feedback.
-6. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
-7. `foundry_stage_end({summary})`.
+5. Call `foundry_feedback_list`. For items whose `source` matches your stage id and whose state is `actioned` or `wont-fix`, use the validation results from step 4 to resolve them by id: approve when the relevant validation now passes or the deterministic issue is gone; reject with a reason when it still fails.
+6. If every command passes for every row, add no new feedback.
+7. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
+8. `foundry_stage_end({summary})`.
 
 ## Feedback handling
 
@@ -66,10 +67,11 @@ As a quench stage, you have two feedback responsibilities:
 
 2. **Resolving items you sourced.** Call `foundry_feedback_list` to see items
    whose `source` matches your stage id. For items whose current state is
-   `actioned` or `wont-fix`, decide whether forge's response is acceptable:
-   - Acceptable: call `foundry_feedback_resolve` with `{ id, resolution: 'approved' }`.
+   `actioned` or `wont-fix`, use deterministic validation results to decide
+   whether the issue is gone:
+   - Validation now passes / issue is gone: call `foundry_feedback_resolve` with `{ id, resolution: 'approved' }`.
      `reason` is optional here.
-   - Not acceptable: call `foundry_feedback_resolve` with `{ id, resolution: 'rejected', reason: '...' }`.
+   - Validation still fails / issue remains: call `foundry_feedback_resolve` with `{ id, resolution: 'rejected', reason: '...' }`.
      `reason` is required on `rejected`. Forge will see the item back in
      the `rejected` state on the next pass.
 
