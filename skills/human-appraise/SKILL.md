@@ -79,7 +79,8 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
 
 ## Feedback handling
 
-As a human-appraise stage, you have three feedback capabilities. **Human-appraise
+As a human-appraise stage, you can add human feedback, transition feedback,
+and resolve deadlocks as a special case of feedback transition. **Human-appraise
 can override any non-resolved item regardless of source** — this is the
 universal override authority recorded in spec §5.1 rule 5. It is not
 limited to deadlocked items, though in practice most overrides today are
@@ -93,12 +94,12 @@ items to human-appraise (see §17 future-work note below).
    found and no new snapshot was written, `deduped: false` indicates a new
    item was created.
 
-2. **Resolving any non-resolved item.** Unlike appraise and quench, you
+2. **Transitioning any non-resolved item.** Unlike appraise and quench, you
    are NOT restricted to items whose `source` matches your stage id.
    You may transition any non-resolved item to any legal target state:
-   - From `{open, rejected}`: call `foundry_feedback_action` or
-     `foundry_feedback_wontfix` as appropriate (forwards toward
-     `{actioned, wont-fix}`).
+   - From `{open, rejected}`: call `foundry_feedback_action({ id })` or
+     `foundry_feedback_wontfix({ id, reason: '...' })` as appropriate
+     (forwards toward `{actioned, wont-fix}`).
    - From `{actioned, wont-fix}`: call `foundry_feedback_resolve` with
      `{ id, resolution: 'approved' | 'rejected', reason? }`.
    - From `deadlocked`: call `foundry_feedback_resolve` with
