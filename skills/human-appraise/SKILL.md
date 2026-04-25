@@ -71,8 +71,8 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
 
 6. Act on the response (tag MUST be `human` on any added feedback — the tool rejects other tags during human-appraise):
    - **Approve** — "looks good" / "continue" — no feedback added, sort will advance.
-   - **Provide feedback** — `foundry_feedback_add(file, text, tag: 'human')`. Sort will route back to forge.
-   - **Dismiss deadlocked feedback** — `foundry_feedback_resolve(file, index, resolution: 'approved')`. Human-appraise may resolve items in state `actioned` or `wont-fix`. This overrides the appraiser.
+   - **Provide feedback** — `foundry_feedback_add({ file, text, tag: 'human' })`. Sort will route back to forge.
+   - **Transition feedback** — use the id-based feedback tools described below. Human-appraise may transition any non-resolved item to any legal target state regardless of source.
    - **Abort** — `foundry_artefacts_set_status(file, 'blocked')`, cycle ends.
 
 7. `foundry_stage_end({summary})` — describe what the human decided so sort can log it.
@@ -113,12 +113,13 @@ items to human-appraise (see §17 future-work note below).
    cycle resumes normal forge/appraise routing. If deadlocks remain after
    human-appraise, the cycle blocks (per spec §5.2).
 
-**Reason rules.** `reason` is required whenever the target state is
-`rejected`, `wont-fix`, `deadlocked` (only sort writes deadlocked — you
-do not), or `resolved`. `reason` is forbidden on `open` and optional on
-`actioned` (the code change is the reason). A deadlock override always
-requires `reason` because the target states (`{resolved, wont-fix,
-rejected}`) are all in the required set.
+**Reason rules.** `reason` is required when rejecting feedback, when
+transitioning feedback to `wont-fix`, and when overriding a deadlocked
+item. `reason` is forbidden on `open` and optional on `actioned` (the code
+change is the reason). Non-deadlocked approved resolution via
+`foundry_feedback_resolve({ id, resolution: 'approved', reason? })` may
+omit `reason`; deadlock override always requires `reason` to document why
+the deadlock is being broken.
 
 **Future work.** Spec §17 notes that a cycle-level mode flag letting
 human-appraise see all unresolved feedback (not just deadlocked items)
