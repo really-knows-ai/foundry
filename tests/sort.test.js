@@ -935,6 +935,40 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
     assert.match(after.items[0].history[0].reason, /threshold=5/);
   });
 
+  it('does not treat its own deadlock snapshot write as prior-stage dirty state', () => {
+    const fiveStateHistory = [
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:09:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:05:00Z', reason: 'still bad' },
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+    ];
+    const feedbackYaml = makeFeedbackYaml([{ history: fiveStateHistory }]);
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': manyAppraiseRoundsHistory,
+      'WORK.feedback.yaml': feedbackYaml,
+    });
+    let feedbackWasWritten = false;
+    const rename = io.rename;
+    io.rename = (from, to) => {
+      rename(from, to);
+      if (to === 'WORK.feedback.yaml') feedbackWasWritten = true;
+    };
+    io.exec = (cmd) => {
+      if (cmd.startsWith('git status --porcelain')) {
+        return feedbackWasWritten ? ' M WORK.feedback.yaml\n' : '';
+      }
+      if (cmd.startsWith('git log')) return '';
+      if (cmd.startsWith('git diff')) return '';
+      return '';
+    };
+
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+
+    assert.equal(res.route, 'human-appraise:review');
+  });
+
   it('when deadlock-appraise: false, no snapshot is written and route is not forced', () => {
     const workTextDisabled = [
       '---',

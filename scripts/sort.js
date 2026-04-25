@@ -300,6 +300,21 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
   const artefacts = parseArtefactsTable(workText);
   const history = loadHistory(historyPath, cycle, io);
 
+  // Micro-commit enforcement checks for dirt left by prior stages. Run it
+  // before sort's own deadlock pass, because that pass may write
+  // WORK.feedback.yaml during this invocation.
+  // The first sort of a cycle has empty history — WORK.md may be untracked
+  // or dirty at that point, which is fine.
+  if (history.length > 0) {
+    const dirty = getDirtyToolManagedFiles(io);
+    if (dirty.length > 0) {
+      return {
+        route: 'violation',
+        details: `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. Call foundry_git_commit for the prior stage before invoking sort again.`,
+      };
+    }
+  }
+
   // Open the feedback store and run the per-item deadlock pass before any
   // routing decision (spec §6.1). The pass is a single atomic batch write.
   const store = openFeedbackStore('WORK.feedback.yaml', io);
@@ -319,20 +334,6 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
     depth: item.history.length,
   }));
   const anyDeadlocked = feedback.some(f => f.state === 'deadlocked');
-
-  // Micro-commit enforcement: if any prior stage ran (history non-empty),
-  // all tool-managed files must be committed before the next sort call.
-  // The first sort of a cycle has empty history — WORK.md may be untracked
-  // or dirty at that point, which is fine.
-  if (history.length > 0) {
-    const dirty = getDirtyToolManagedFiles(io);
-    if (dirty.length > 0) {
-      return {
-        route: 'violation',
-        details: `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. Call foundry_git_commit for the prior stage before invoking sort again.`,
-      };
-    }
-  }
 
   // File modification enforcement
   const nonSortHistory = history.filter(e => baseStage(e.stage || '') !== 'sort');
@@ -426,4 +427,3 @@ export {
   checkModifiedFiles,
   getDirtyToolManagedFiles,
 };
-
