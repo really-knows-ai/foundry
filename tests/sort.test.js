@@ -1,12 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import yaml from 'js-yaml';
 import {
   baseStage,
   findFirst,
   nextInRoute,
   parseFrontmatter,
-  parseFeedback,
-  parseFeedbackItem,
   parseArtefactsTable,
   determineRoute,
   nextAfterQuench,
@@ -18,6 +17,52 @@ import {
   checkModifiedFiles,
   runSort,
 } from '../scripts/sort.js';
+
+// ---------------------------------------------------------------------------
+// Test helpers — feedback-store fixtures
+// ---------------------------------------------------------------------------
+
+// Mock IO that holds WORK.md + WORK.feedback.yaml + WORK.history.yaml in a
+// single map. `rename` is required — phase 2 task 2.8.5 added it everywhere.
+function makeSortIO(files = {}) {
+  const store = { ...files };
+  return {
+    exists: (p) => Object.prototype.hasOwnProperty.call(store, p),
+    readFile: (p) => {
+      if (!(p in store)) throw new Error(`ENOENT: ${p}`);
+      return store[p];
+    },
+    writeFile: (p, c) => { store[p] = c; },
+    rename: (from, to) => {
+      if (!(from in store)) throw new Error(`ENOENT: ${from}`);
+      store[to] = store[from];
+      delete store[from];
+    },
+    unlink: (p) => { delete store[p]; },
+    readDir: () => [],
+    mkdir: () => {},
+    exec: () => '',
+    _get: (p) => store[p],
+    _set: (p, c) => { store[p] = c; },
+  };
+}
+
+// Build a WORK.feedback.yaml string with N items. Each item's history[0] is
+// the current state; tests can set the history array directly to control depth.
+function makeFeedbackYaml(items) {
+  return yaml.dump({
+    items: items.map((it, i) => ({
+      id: `EX${String(i).padStart(2, '0')}${'Z'.repeat(22)}`.slice(0, 26),
+      file: it.file || 'a.md',
+      tag: it.tag || 'law:x',
+      text: it.text || `item-${i}`,
+      source: it.source || 'appraise:w',
+      history: it.history || [
+        { state: 'open', stage: 'appraise:w', cycle: it.cycle || 'c1', timestamp: '2026-04-24T10:00:00.000Z' },
+      ],
+    })),
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -80,42 +125,6 @@ describe('parseFrontmatter', () => {
   });
 });
 
-describe('parseFeedbackItem', () => {
-  it('parses open item', () => {
-    const item = parseFeedbackItem('- [ ] Fix the thing #validation');
-    assert.equal(item.state, 'open');
-    assert.equal(item.resolved, false);
-    assert.deepEqual(item.tags, ['#validation']);
-  });
-  it('parses actioned item', () => {
-    const item = parseFeedbackItem('- [x] Done #law:brevity');
-    assert.equal(item.state, 'actioned');
-    assert.deepEqual(item.tags, ['#law:brevity']);
-  });
-  it('parses wont-fix item', () => {
-    const item = parseFeedbackItem('- [~] Not doing this #hitl');
-    assert.equal(item.state, 'wont-fix');
-  });
-  it('parses approved resolution', () => {
-    const item = parseFeedbackItem('- [x] Done #validation | approved');
-    assert.equal(item.state, 'actioned');
-    assert.equal(item.resolved, true);
-  });
-  it('parses rejected resolution', () => {
-    const item = parseFeedbackItem('- [x] Done #validation | rejected');
-    assert.equal(item.state, 'rejected');
-    assert.equal(item.resolved, false);
-  });
-  it('extracts multiple tags', () => {
-    const item = parseFeedbackItem('- [ ] Issue #validation #law:brevity');
-    assert.deepEqual(item.tags, ['#validation', '#law:brevity']);
-  });
-  it('handles unknown checkbox state', () => {
-    const item = parseFeedbackItem('- [?] Weird state #hitl');
-    assert.equal(item.state, 'unknown');
-  });
-});
-
 describe('parseArtefactsTable', () => {
   it('parses a markdown table', () => {
     const text = [
@@ -145,79 +154,6 @@ describe('parseArtefactsTable', () => {
     assert.equal(arts.length, 1);
   });
 
-});
-
-describe('parseFeedback', () => {
-  const artefacts = [
-    { file: 'src/main.ts', type: 'code', cycle: 'build', status: 'draft' },
-  ];
-
-  it('parses feedback items under matching file heading', () => {
-    const text = [
-      '# Feedback',
-      '## src/main.ts',
-      '- [ ] Fix error handling #validation',
-      '- [x] Add types #law:types',
-    ].join('\n');
-    const items = parseFeedback(text, 'build', artefacts);
-    assert.equal(items.length, 2);
-    assert.equal(items[0].state, 'open');
-    assert.equal(items[1].state, 'actioned');
-  });
-
-  it('ignores feedback for non-cycle files', () => {
-    const text = [
-      '# Feedback',
-      '## other-file.ts',
-      '- [ ] Should be ignored #validation',
-    ].join('\n');
-    const items = parseFeedback(text, 'build', artefacts);
-    assert.equal(items.length, 0);
-  });
-
-  it('stops at next top-level heading', () => {
-    const text = [
-      '# Feedback',
-      '## src/main.ts',
-      '- [ ] Included #validation',
-      '# Other Section',
-      '## src/main.ts',
-      '- [ ] Excluded #validation',
-    ].join('\n');
-    const items = parseFeedback(text, 'build', artefacts);
-    assert.equal(items.length, 1);
-  });
-
-  it('returns empty when no Feedback section', () => {
-    const items = parseFeedback('# Something else\n- [ ] Nope', 'build', artefacts);
-    assert.equal(items.length, 0);
-  });
-
-  it('parses feedback under h2 Feedback heading', () => {
-    const text = [
-      '## Feedback',
-      '### src/main.ts',
-      '- [ ] Fix error handling #validation',
-      '- [x] Add types #law:types',
-    ].join('\n');
-    const items = parseFeedback(text, 'build', artefacts);
-    assert.equal(items.length, 2);
-    assert.equal(items[0].state, 'open');
-    assert.equal(items[1].state, 'actioned');
-  });
-
-  it('stops h2 Feedback at next h2 heading', () => {
-    const text = [
-      '## Feedback',
-      '### src/main.ts',
-      '- [ ] Included #validation',
-      '## Other Section',
-      '### src/main.ts',
-      '- [ ] Excluded #validation',
-    ].join('\n');
-    const items = parseFeedback(text, 'build', artefacts);
-    assert.equal(items.length, 1);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -359,97 +295,6 @@ describe('nextAfterAppraise', () => {
     const stages = ['forge:write', 'quench:review', 'appraise:check'];
     const feedback = [{ state: 'actioned', resolved: true }];
     assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 0, 3), 'done');
-  });
-});
-
-describe('deadlock escalation', () => {
-  const threeAppraiseRounds = [
-    { stage: 'forge:write', cycle: 'c1' },
-    { stage: 'appraise:check', cycle: 'c1' },
-    { stage: 'forge:write', cycle: 'c1' },
-    { stage: 'appraise:check', cycle: 'c1' },
-    { stage: 'forge:write', cycle: 'c1' },
-    { stage: 'appraise:check', cycle: 'c1' },
-  ];
-  const fiveAppraiseRounds = [
-    ...threeAppraiseRounds,
-    { stage: 'forge:write', cycle: 'c1' },
-    { stage: 'appraise:check', cycle: 'c1' },
-    { stage: 'forge:write', cycle: 'c1' },
-    { stage: 'appraise:check', cycle: 'c1' },
-  ];
-  const rejected = [{ state: 'rejected' }];
-
-  it('routes to human-appraise in stages when deadlock triggers with deadlock-appraise on', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-    assert.equal(
-      determineRoute(stages, fiveAppraiseRounds, rejected, 10, {
-        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
-      }),
-      'human-appraise:review',
-    );
-  });
-
-  it('synthesizes human-appraise:<cycle> when not in stages but deadlock-appraise is on', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check'];
-    assert.equal(
-      determineRoute(stages, fiveAppraiseRounds, rejected, 10, {
-        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
-      }),
-      'human-appraise:c1',
-    );
-  });
-
-  it('returns blocked on deadlock when deadlock-appraise is disabled', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check'];
-    assert.equal(
-      determineRoute(stages, fiveAppraiseRounds, rejected, 10, {
-        deadlockAppraise: false, deadlockIterations: 5, cycle: 'c1',
-      }),
-      'blocked',
-    );
-  });
-
-  it('returns blocked when already in human-appraise and still deadlocked', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-    const history = [
-      ...fiveAppraiseRounds,
-      { stage: 'human-appraise:review', cycle: 'c1' },
-    ];
-    assert.equal(
-      determineRoute(stages, history, rejected, 10, {
-        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
-      }),
-      'blocked',
-    );
-  });
-
-  it('does not trigger deadlock before threshold', () => {
-    // 3 appraise rounds, threshold 5 → not deadlocked yet
-    const stages = ['forge:write', 'quench:review', 'appraise:check'];
-    // With 3 appraise rounds + rejected feedback + maxIterations=10, sort returns to forge
-    assert.equal(
-      determineRoute(stages, threeAppraiseRounds, rejected, 10, {
-        deadlockAppraise: true, deadlockIterations: 5, cycle: 'c1',
-      }),
-      'forge:write',
-    );
-  });
-
-  it('uses default threshold 5 when deadlockIterations not supplied', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check'];
-    // 3 rounds with default threshold 5 → not deadlocked
-    assert.equal(determineRoute(stages, threeAppraiseRounds, rejected, 10), 'forge:write');
-  });
-
-  it('honors custom deadlockIterations=3', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check'];
-    assert.equal(
-      determineRoute(stages, threeAppraiseRounds, rejected, 10, {
-        deadlockAppraise: true, deadlockIterations: 3, cycle: 'c1',
-      }),
-      'human-appraise:c1',
-    );
   });
 });
 
@@ -970,5 +815,181 @@ describe('determineRoute with assay', () => {
   it('without any assay in stages, behaves exactly as before', () => {
     const base = ['forge:c', 'appraise:c'];
     assert.equal(determineRoute(base, [], [], 3), 'forge:c');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runSort — per-item deadlock (spec §6.1)
+// ---------------------------------------------------------------------------
+
+describe('runSort — per-item deadlock (spec §6.1)', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+  const workText = [
+    '---',
+    'cycle: c1',
+    'stages:',
+    '  - forge:write',
+    '  - quench:review',
+    '  - appraise:check',
+    '  - human-appraise:review',
+    'deadlock-iterations: 5',
+    '---',
+    '',
+  ].join('\n');
+
+  // History showing many appraise rounds — under the OLD round-counting algorithm
+  // this would trigger deadlock for any open item. Under the new per-item rule,
+  // an item with shallow history is NOT deadlocked.
+  const manyAppraiseRoundsHistory = yaml.dump([
+    { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:00:00Z' },
+    { stage: 'quench:review', cycle: 'c1', timestamp: '2026-04-24T10:01:00Z' },
+    { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+    { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:03:00Z' },
+    { stage: 'quench:review', cycle: 'c1', timestamp: '2026-04-24T10:04:00Z' },
+    { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:05:00Z' },
+    { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:06:00Z' },
+    { stage: 'quench:review', cycle: 'c1', timestamp: '2026-04-24T10:07:00Z' },
+    { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:08:00Z' },
+    { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:09:00Z' },
+    { stage: 'quench:review', cycle: 'c1', timestamp: '2026-04-24T10:10:00Z' },
+    { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z' },
+    { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:12:00Z' },
+    { stage: 'quench:review', cycle: 'c1', timestamp: '2026-04-24T10:13:00Z' },
+    { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
+  ]);
+
+  it('brand-new open item is NOT deadlocked even when cycle iteration count is high', () => {
+    // Item has depth=1, threshold=5 → not qualifying.
+    const feedbackYaml = makeFeedbackYaml([
+      {
+        history: [
+          { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:30Z' },
+        ],
+      },
+    ]);
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': manyAppraiseRoundsHistory,
+      'WORK.feedback.yaml': feedbackYaml,
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    // Last completed non-sort stage is appraise:check; with an open item,
+    // routing should loop back to forge — NOT human-appraise.
+    assert.equal(res.route, 'forge:write');
+
+    // No deadlocked snapshot was written: item history depth is still 1.
+    const after = yaml.load(io._get('WORK.feedback.yaml'));
+    assert.equal(after.items[0].history.length, 1);
+    assert.equal(after.items[0].history[0].state, 'open');
+  });
+
+  it('item whose own history depth >= threshold IS deadlocked and routes to human-appraise', () => {
+    // Item has depth=5, threshold=5 → qualifies.
+    const fiveStateHistory = [
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:09:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:05:00Z', reason: 'still bad' },
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+    ];
+    const feedbackYaml = makeFeedbackYaml([{ history: fiveStateHistory }]);
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': manyAppraiseRoundsHistory,
+      'WORK.feedback.yaml': feedbackYaml,
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'human-appraise:review');
+
+    // A deadlocked snapshot was written — depth is now 6.
+    const after = yaml.load(io._get('WORK.feedback.yaml'));
+    assert.equal(after.items[0].history.length, 6);
+    assert.equal(after.items[0].history[0].state, 'deadlocked');
+    assert.equal(after.items[0].history[0].stage, 'sort');
+    assert.equal(after.items[0].history[0].cycle, 'c1');
+    assert.match(after.items[0].history[0].reason, /threshold=5/);
+  });
+
+  it('when deadlock-appraise: false, no snapshot is written and route is not forced', () => {
+    const workTextDisabled = [
+      '---',
+      'cycle: c1',
+      'stages:',
+      '  - forge:write',
+      '  - quench:review',
+      '  - appraise:check',
+      'deadlock-iterations: 5',
+      'deadlock-appraise: false',
+      '---',
+      '',
+    ].join('\n');
+    const fiveStateHistory = [
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:09:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:05:00Z', reason: 'still bad' },
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+    ];
+    const feedbackYaml = makeFeedbackYaml([{ history: fiveStateHistory }]);
+    const io = makeSortIO({
+      'WORK.md': workTextDisabled,
+      'WORK.history.yaml': manyAppraiseRoundsHistory,
+      'WORK.feedback.yaml': feedbackYaml,
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    // No forced human-appraise route. Open item with last-completed=appraise → loop to forge.
+    assert.notEqual(res.route, 'human-appraise:review');
+    assert.notEqual(res.route, 'human-appraise:c1');
+
+    // No snapshot was written.
+    const after = yaml.load(io._get('WORK.feedback.yaml'));
+    assert.equal(after.items[0].history.length, 5);
+    assert.notEqual(after.items[0].history[0].state, 'deadlocked');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runSort — deadlock pass runs before routing (spec §6.1)
+// ---------------------------------------------------------------------------
+
+describe('runSort — deadlock pass runs before routing (spec §6.1)', () => {
+  it('deadlock snapshot is written even when routing would have gone to quench', () => {
+    // Stages: forge → quench → appraise. Last completed = forge → normal route is quench.
+    // But a depth-5 item must override and route to human-appraise.
+    const workText = [
+      '---',
+      'cycle: c1',
+      'stages:',
+      '  - forge:write',
+      '  - quench:review',
+      '  - appraise:check',
+      '  - human-appraise:review',
+      'deadlock-iterations: 5',
+      '---',
+      '',
+    ].join('\n');
+    const historyYaml = yaml.dump([
+      { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:00:00Z' },
+    ]);
+    const fiveStateHistory = [
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T09:50:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T09:40:00Z', reason: 'r' },
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T09:30:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T09:20:00Z', reason: 'r' },
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T09:10:00Z' },
+    ];
+    const feedbackYaml = makeFeedbackYaml([{ history: fiveStateHistory }]);
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': historyYaml,
+      'WORK.feedback.yaml': feedbackYaml,
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    // Deadlock pass overrides quench routing.
+    assert.equal(res.route, 'human-appraise:review');
+
+    // And the snapshot was written.
+    const after = yaml.load(io._get('WORK.feedback.yaml'));
+    assert.equal(after.items[0].history[0].state, 'deadlocked');
   });
 });
