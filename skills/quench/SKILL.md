@@ -43,7 +43,7 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
 4. For each remaining row:
    a. `foundry_config_validation` with the row's type. If it returns null, skip this row.
    b. `foundry_validate_run` with the type ID and the row's file path — executes all validation commands and returns results.
-   c. For each failure: `foundry_feedback_add(file, text, tag: 'validation')`. Tag MUST be `validation` — the tool rejects other tags during quench.
+   c. For each failure: call `foundry_feedback_add` with `{ file, text, tag: 'validation' }`. Tag MUST be `validation` — the tool rejects other tags during quench.
 5. If every command passes for every row, add no new feedback.
 6. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
 7. `foundry_stage_end({summary})`.
