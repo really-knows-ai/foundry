@@ -8,7 +8,7 @@ description: Deterministic population of flow memory by running project-authored
 
 Runs the `assay` stage of a cycle. An assay stage executes every extractor listed in the cycle's `assay.extractors` frontmatter, in order. Each extractor is a project-authored CLI script at the path given in its definition file — see the `foundry/memory/extractors/<name>.md` files for what each one does.
 
-The assay stage is **deterministic**. This skill does **not** interpret extractor output. It only calls `foundry_assay_run`, which handles spawning, parsing, validation, and memory upserts. On any failure, `foundry_assay_run` writes a `#validation` feedback row against `WORK.md` and returns an aborted result. Your job is to wrap the lifecycle cleanly.
+The assay stage is **deterministic**. This skill does **not** interpret extractor output. It only calls `foundry_assay_run`, which handles spawning, parsing, validation, and memory upserts. On any failure, `foundry_assay_run` writes a `validation`-tagged feedback item to `WORK.feedback.yaml` with `source: assay:<alias>` and returns an aborted result. Internally this goes through `foundry_feedback_add` with `{ file: 'WORK.md', tag: 'validation', text: '<failure>' }`, which returns `{ ok: true, id, deduped }`. `deduped: true` means an existing non-resolved item with the same `(file, tag, hash(text))` was already present and the returned `id` points at that existing item; `deduped: false` means a new item was created. Either way the item follows the normal resolution path (forge addresses; the assay stage that created it approves or rejects the fix). Your job is to wrap the lifecycle cleanly.
 
 ## Protocol
 
