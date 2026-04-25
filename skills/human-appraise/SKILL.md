@@ -137,4 +137,4 @@ applies.
 - You do not skip the pause — the human must respond before continuing.
 - You do not filter or summarise away important details — show the full picture.
 - You do not call `foundry_history_append` or `foundry_git_commit` — sort owns those.
-- You do not register artefacts — handled by `foundry_stage_finalize`.
+- You do not register artefacts — handled by `foundry_stage_end({summary})`.
