@@ -250,6 +250,18 @@ describe('workfile tools preconditions', () => {
     assert.equal(existsSync(join(dir, 'WORK.md')), false);
   });
 
+  it('workfile_delete removes WORK.feedback.yaml when present', async () => {
+    writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
+    writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []\n');
+
+    const res = JSON.parse(await plugin.tool.foundry_workfile_delete.execute(
+      { confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true);
+    assert.equal(existsSync(join(dir, 'WORK.feedback.yaml')), false);
+  });
+
   it('workfile_create errors when WORK.md exists', async () => {
     const res = JSON.parse(await plugin.tool.foundry_workfile_create.execute(
       { flow: 'f', cycle: 'c', goal: 'g' }, makeCtx(dir),

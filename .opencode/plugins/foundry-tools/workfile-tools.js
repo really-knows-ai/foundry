@@ -60,7 +60,7 @@ export function createWorkfileTools({ tool }) {
     }),
 
     foundry_workfile_delete: tool({
-      description: 'Delete WORK.md and WORK.history.yaml (requires confirm:true)',
+      description: 'Delete WORK.md, WORK.history.yaml, and WORK.feedback.yaml (requires confirm:true)',
       args: {
         confirm: tool.schema.boolean().describe('Must be true to confirm deletion'),
       },
@@ -73,11 +73,15 @@ export function createWorkfileTools({ tool }) {
         }
         const workPath = path.join(context.worktree, 'WORK.md');
         const historyPath = path.join(context.worktree, 'WORK.history.yaml');
+        const feedbackPath = path.join(context.worktree, 'WORK.feedback.yaml');
         if (existsSync(workPath)) {
           unlinkSync(workPath);
         }
         if (existsSync(historyPath)) {
           unlinkSync(historyPath);
+        }
+        if (existsSync(feedbackPath)) {
+          unlinkSync(feedbackPath);
         }
         return JSON.stringify({ ok: true });
       },
