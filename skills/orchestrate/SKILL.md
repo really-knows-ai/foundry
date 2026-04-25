@@ -81,3 +81,15 @@ Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<af
 - You do NOT mint, modify, or cache tokens. The `prompt` from orchestrate already contains the token verbatim.
 - You do NOT call `foundry_history_append`, `foundry_git_commit`, `foundry_stage_finalize`, or `foundry_sort`. These are not registered tools in v2.3+; orchestrate handles them internally.
 - You do NOT reorder the protocol. `foundry_orchestrate` returns, you act, you call back. Nothing else between.
+
+## Feedback visibility
+
+Orchestrate's loop does not read, parse, or write feedback directly.
+Subagents invoked via `dispatch` use the `foundry_feedback_list` /
+`foundry_feedback_add` / `foundry_feedback_action` / `foundry_feedback_wontfix`
+/ `foundry_feedback_resolve` tools themselves; orchestrate does not stage
+feedback state between iterations. If you want to inspect feedback state
+between iterations for diagnostic purposes, call `foundry_feedback_list` —
+the response shape is `[{ id, file, tag, text, source, state, depth,
+reason? }]`. This is read-only and does not affect the loop's dispatch
+decisions.
