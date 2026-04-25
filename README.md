@@ -432,7 +432,7 @@ Tools are backed by shared modules in `scripts/lib/` (pipeline) and `scripts/lib
 @really-knows-ai/foundry
 ├── .opencode/
 │   └── plugins/
-│       └── foundry.js          # plugin: skills + 24 custom tools
+│       └── foundry.js          # plugin: skills + 46 custom tools
 ├── skills/                     # skill definitions
 │   ├── flow/                   # pipeline
 │   ├── orchestrate/
@@ -532,7 +532,7 @@ your-project/
 └── ...
 ```
 
-During a flow, a work branch also contains `WORK.md` and `WORK.history.yaml` at the repo root. Both are ephemeral — delete them before squash-merging.
+During a flow, a work branch also contains `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` at the repo root. All are ephemeral — delete them before squash-merging.
 
 ---
 
@@ -590,7 +590,7 @@ Memory is a separate, optional subsystem — no `foundry/memory/` means no memor
 
 - [docs/concepts.md](docs/concepts.md) — every concept defined concisely.
 - [docs/getting-started.md](docs/getting-started.md) — end-to-end walkthrough (including flow memory).
-- [docs/work-spec.md](docs/work-spec.md) — the full WORK.md + WORK.history.yaml spec.
+- [docs/work-spec.md](docs/work-spec.md) — the full WORK.md + WORK.feedback.yaml + WORK.history.yaml spec.
 - [docs/memory-maintenance.md](docs/memory-maintenance.md) — contributor notes on Cozo 0.7 and memory session lifecycle.
 - [CHANGELOG.md](CHANGELOG.md) — version history and migration notes.
 
