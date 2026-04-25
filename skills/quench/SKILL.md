@@ -48,16 +48,38 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
 6. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
 7. `foundry_stage_end({summary})`.
 
-## Reviewing actioned feedback
+## Feedback handling
 
-On subsequent passes, review previously actioned items:
+As a quench stage, you have two feedback responsibilities:
 
-1. `foundry_feedback_list` — find `actioned` items tagged `validation` for artefacts in this cycle (use the file list from step 3 above).
-2. Re-run the relevant command via `foundry_validate_run`.
-3. If the check now passes: `foundry_feedback_resolve(file, index, resolution: 'approved')`.
-4. If it still fails: `foundry_feedback_resolve(file, index, resolution: 'rejected', reason)`.
+1. **Adding new validation feedback.** If a validation command surfaces
+   an issue, call `foundry_feedback_add` with `{ file, text, tag: 'validation' }`.
+   The `source` is automatically recorded as your stage id. The tool rejects
+   any tag other than `validation` during a quench stage; do not attempt
+   `tag: 'quench-lint'` or similar — the tool will return an error.
 
-There is no wont-fix for validation feedback — deterministic rules are not negotiable. Quench may only resolve items in state `actioned`; the feedback tool enforces this.
+   The tool returns `{ ok: true, id, deduped }` on success. `deduped: true`
+   means an existing non-resolved item with the same `(file, tag,
+   hash(text))` was found; the returned `id` is the existing item's id and
+   no new snapshot was written. `deduped: false` means a new item was
+   created. Either way, `id` is usable for follow-up calls.
+
+2. **Resolving items you sourced.** Call `foundry_feedback_list` to see items
+   whose `source` matches your stage id. For items whose current state is
+   `actioned` or `wont-fix`, decide whether forge's response is acceptable:
+   - Acceptable: call `foundry_feedback_resolve` with `{ id, resolution: 'approved' }`.
+     `reason` is optional here.
+   - Not acceptable: call `foundry_feedback_resolve` with `{ id, resolution: 'rejected', reason: '...' }`.
+     `reason` is required on `rejected`. Forge will see the item back in
+     the `rejected` state on the next pass.
+
+**Reason rules.** `reason` is required when resolving a deadlocked item
+(deadlock override — but quench never does this; only human-appraise does),
+or when `resolution: 'rejected'`. On `resolution: 'approved'` for a
+non-deadlocked item, `reason` is optional.
+
+You cannot resolve items sourced by other stages, and you cannot touch
+deadlocked items (only human-appraise can override those).
 
 ## History
 
