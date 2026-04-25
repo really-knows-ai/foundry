@@ -96,13 +96,17 @@ Append-only log of every stage execution, sitting next to WORK.md. Used by sort 
 
 ## Feedback
 
-The communication mechanism between stages. Written as markdown checklist items in WORK.md, grouped by artefact file, tagged by source:
+Feedback items live in `WORK.feedback.yaml` — a yaml file at the worktree
+root, alongside `WORK.md`. Every item has a ULID, a source stage, and a
+full history of state transitions (open → actioned → resolved, or variants
+including wont-fix / rejected / deadlocked).
 
-- `#validation` — from a deterministic quench command. Cannot be wont-fixed.
-- `#law:<law-id>` — from an appraiser, tied to a specific law. May be wont-fixed with justification.
-- `#human` — from a human-appraise stage. Takes absolute priority; cannot be wont-fixed.
+Plugins read and write feedback through the `foundry_feedback_*` tools;
+skills never edit the yaml directly. Sort-side detection of deadlocked
+items (per-item history depth) replaces the earlier global-iteration
+counter.
 
-Lifecycle: `open` → `actioned` / `wont-fix` → `approved` / `rejected`. `approved` is terminal; `rejected` re-opens. Items are never deleted.
+See `docs/work-spec.md` for the full schema and state machine.
 
 ## HITL / human-appraise
 
