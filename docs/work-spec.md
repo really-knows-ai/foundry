@@ -60,45 +60,82 @@ Statuses:
 - `done` — artefact has cleared all stages
 - `blocked` — artefact hit iteration limit or a violation
 
-### Feedback
+## WORK.feedback.yaml
 
-Grouped by artefact file path. Each item is a checklist entry with a tag indicating its source.
+Every cycle owns a `WORK.feedback.yaml` file alongside `WORK.md` and
+`WORK.history.yaml`. It records every feedback item created during the cycle
+and the full state-transition history of each. Tracked in git, committed
+per-stage on the work branch, deleted by `foundry_git_finish` before the
+squash-merge (same lifecycle as `WORK.history.yaml`).
 
-```markdown
-# Feedback
+### Schema
 
-## petitions/login-change.md
+Top-level: `{ items: [Item...] }`.
 
-- [ ] Missing "Acceptance Criteria" section #validation
-- [x] Justification is circular #law:justified-change | approved
-- [~] Could be more concise #law:clear-language | wont-fix: brevity would lose necessary context | approved
-```
+Each `Item`:
 
-#### Tags
+| Field | Type | Required | Mutable? |
+|-------|------|----------|----------|
+| `id` | string (ULID, 26 chars) | yes | no |
+| `file` | string | yes | no |
+| `tag` | string (no leading `#`) | yes | no |
+| `text` | string | yes | no |
+| `source` | string (`base:alias`) | yes | no |
+| `history` | array, length >= 1 | yes | prepend-only |
 
-- `#validation` — from a deterministic quench command
-- `#law:<law-id>` — from subjective appraise, tied to a specific law
-- `#human` — from human-provided feedback at a human-appraise checkpoint
+`source` bases include `assay`, `quench`, `appraise`, and `human-appraise`.
 
-#### Lifecycle states
+Each history snapshot:
 
-```
-- [ ] issue #tag                                    open, needs forge action
-- [x] issue #tag                                    actioned, needs approval
-- [~] issue #tag | wont-fix: <reason>               declined by forge, needs approval (appraise only)
-- [x] issue #tag | approved                         resolved
-- [~] issue #tag | wont-fix: <reason> | approved    resolved
-- [x] issue #tag | rejected: <reason>               re-opened
-- [~] issue #tag | wont-fix: <reason> | rejected    re-opened
-```
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `state` | enum | yes | `open \| actioned \| wont-fix \| rejected \| deadlocked \| resolved` |
+| `stage` | string (`base:alias`) or literal `sort` | yes | Who performed the transition |
+| `cycle` | string | yes | Cycle id at the time of the transition |
+| `timestamp` | ISO-8601 UTC with ms | yes | |
+| `reason` | string | conditional | Required on `rejected`, `wont-fix`, `deadlocked`, `resolved`; forbidden on `open`; optional on `actioned` |
 
-#### Rules
+`history[0]` is always the current state; new snapshots are prepended.
+`resolved` is terminal.
 
-- Validation feedback (`#validation`) cannot be wont-fixed — deterministic rules are not negotiable.
-- Human feedback (`#human`) cannot be wont-fixed — it takes absolute priority over LLM feedback.
-- Feedback is never deleted — it stays as a record of the iteration history.
-- New feedback is appended, not inserted.
-- Items are grouped under the artefact they relate to.
+### State machine
+
+The six states and the legal transitions are:
+
+| From \ Caller | forge (any source) | source-stage (assay / quench / appraise / human-appraise where stageId === item.source) | sort | human-appraise (override authority, any source) |
+|---|---|---|---|---|
+| `open` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | -> `{actioned, wont-fix}` |
+| `rejected` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | -> `{actioned, wont-fix}` |
+| `actioned` | — | -> `{resolved, rejected}` | -> `deadlocked` (if depth >= threshold) | -> `{resolved, rejected}` |
+| `wont-fix` | — | -> `{resolved, rejected}` | -> `deadlocked` (if depth >= threshold) | -> `{resolved, rejected}` |
+| `deadlocked` | — | — | — | -> `{resolved, wont-fix, rejected}` |
+| `resolved` | — | — | — | — (terminal) |
+
+Notes:
+
+- `source-stage` column applies when the caller's stage id exactly matches `item.source` (e.g. `appraise:write-check` resolving an item it created). `human-appraise` override authority (last column) applies regardless of `item.source` and is the only path that can transition out of `deadlocked`.
+- **Forge `wont-fix` scope.** When `item.source` base is `assay` or `quench` (objective validation failure) or `human-appraise` (direct user instruction), forge may not `wont-fix` — it must `actioned`. Only `appraise`-sourced items are wont-fix-able by forge. This replaces the earlier tag-based restriction on `#validation` / `#human` tags.
+- **Reason required on** `rejected`, `wont-fix`, `deadlocked`, `resolved`. **Forbidden on** `open`. **Optional on** `actioned` (the code change is the reason).
+- Sort is the only writer of `state: deadlocked`; it writes these via its internal pass, not through the plugin API.
+
+See `docs/specs/2026-04-24-work-feedback-yaml-redesign.md` §5 for the authoritative rules.
+
+### Transitions are made via the plugin API
+
+No direct yaml editing. Every state change goes through one of:
+
+- `foundry_feedback_add` (creates items from `assay`, `quench`, `appraise`, and `human-appraise`)
+- `foundry_feedback_action` (forge: open/rejected -> actioned)
+- `foundry_feedback_wontfix` (forge: open/rejected -> wont-fix)
+- `foundry_feedback_resolve` (source stage: actioned/wont-fix -> resolved/rejected; or human-appraise deadlock override)
+
+Sort is the only writer of `state: deadlocked`, and it writes snapshots via
+its own internal pass — not through the plugin API.
+
+### Persistence
+
+Writes are atomic: `io.writeFile(path + '.tmp', body); io.rename(tmp, path)`.
+A crash between the two steps leaves the live file untouched.
 
 ## Who writes what
 
@@ -108,7 +145,8 @@ Grouped by artefact file path. Each item is a checklist entry with a tag indicat
 | Frontmatter (`stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models`) | `foundry_orchestrate` (first call of each cycle, internally) | reset on each new cycle |
 | Goal | `foundry_workfile_create` (flow skill) | nobody |
 | Artefacts | `foundry_stage_finalize` (orchestrator, after forge closes) | `foundry_artefacts_set_status` (orchestrator → `done`/`blocked`) |
-| Feedback | `foundry_feedback_add` (quench / appraise / human-appraise) | `foundry_feedback_action` / `foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (quench / appraise / human-appraise) |
+| `WORK.feedback.yaml` | `foundry_feedback_add` (`assay` / `quench` / `appraise` / `human-appraise`) | `foundry_feedback_action` / `foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (source stage / human-appraise override); sort writes only deadlocked snapshots |
+| `WORK.history.yaml` | `foundry_orchestrate` | `foundry_orchestrate` |
 
 Note: `foundry_artefacts_add` no longer exists as a public tool — artefact registration is automatic via `stage_finalize`, which scans the git diff and registers files matching the output type's `file-patterns` as `draft`.
 
@@ -150,11 +188,16 @@ A separate file (`WORK.history.yaml`) alongside WORK.md. Append-only log of ever
 
 ### Fields
 
-- `timestamp` — ISO 8601 UTC
-- `cycle` — which foundry cycle this entry belongs to
-- `stage` — which stage just completed, in `base:alias` format (e.g. `forge:draft-petition`, `quench:validate-petition`, `appraise:review-petition`, `human-appraise:human-review`)
-- `iteration` — the current iteration number (increments each time forge runs within a cycle)
-- `comment` — brief description of what happened
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `cycle` | string | yes | |
+| `stage` | string or literal `sort` | yes | |
+| `iteration` | integer | yes | Count of completed forge stages for the cycle at the time of write |
+| `comment` | string | yes | |
+| `timestamp` | ISO-8601 UTC with ms | yes | |
+| `seq` | integer | yes on write | Monotonic per file; sort tiebreaker for same-ms entries |
+| `route` | string | conditional | Only on `stage: sort` entries; records the route decision. Throws if set on a non-sort entry |
+| `open_feedback` | integer | yes on write | Count of non-resolved items in `WORK.feedback.yaml` at the time of write; deadlocked items are counted |
 
 ### Rules
 
@@ -166,6 +209,17 @@ A separate file (`WORK.history.yaml`) alongside WORK.md. Append-only log of ever
 ### Who writes
 
 History entries are written by `foundry_orchestrate` after each stage closes (via its internal `foundry_history_append` — the tool is not registered publicly). Sub-agents never append history directly.
+
+### Lifecycle
+
+`WORK.history.yaml` is tracked in git and committed per-stage on the work
+branch. `foundry_git_finish` deletes it before the squash-merge so the
+history does not leak into the base branch.
+
+If the yaml is malformed on read (parse failure or non-array root), the
+flow is marked failed via `markWorkfileFailed` and the error is re-thrown
+to the caller. Mirrors the P0 #3 failed-flow pattern used by the memory
+sync writer.
 
 ## Example
 
@@ -194,14 +248,4 @@ and the sound of rain on leaves.
 | petitions/autumn-rain-haiku.md | petition | haiku-ideation | done |
 | haiku/autumn-rain.md | haiku | haiku-creation | draft |
 
-# Feedback
-
-## petitions/autumn-rain-haiku.md
-
-- [x] Acceptance criteria should mention seasonal reference #law:clear-acceptance-criteria | approved
-
-## haiku/autumn-rain.md
-
-- [ ] Line 2 has 8 syllables, expected 7 #validation
-- [x] No seasonal reference detected #law:seasonal-reference | approved
 ```
