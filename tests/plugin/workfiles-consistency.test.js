@@ -1,6 +1,51 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import yaml from 'js-yaml';
+import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { makeIO } from '../../.opencode/plugins/foundry-tools/helpers.js';
+import { appendEntry } from '../../scripts/lib/history.js';
+
+function writeActiveStage(dir, { cycle = 'write-haiku', stage, baseSha = 'test-sha' }) {
+  writeFileSync(
+    path.join(dir, '.foundry', 'active-stage.json'),
+    JSON.stringify({ cycle, stage, baseSha }),
+    'utf-8',
+  );
+}
+
+function makeWorktree({ stage = 'appraise:w', cycle = 'write-haiku', flow = 'creative' } = {}) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fdy-workfiles-consistency-'));
+  mkdirSync(path.join(dir, '.foundry'), { recursive: true });
+  writeActiveStage(dir, { cycle, stage });
+  writeFileSync(
+    path.join(dir, 'WORK.md'),
+    `---\nflow: ${flow}\ncycle: ${cycle}\nstages:\n  - appraise:w\n  - forge:w\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`,
+    'utf-8',
+  );
+  return dir;
+}
+
+async function tools(dir) {
+  const plugin = await FoundryPlugin({ directory: dir });
+  return plugin.tool;
+}
+
+function parseResult(raw) {
+  return JSON.parse(raw);
+}
+
+function loadFeedbackAndHistory(worktree) {
+  const feedbackDoc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+  const historyEntries = yaml.load(readFileSync(path.join(worktree, 'WORK.history.yaml'), 'utf-8')) || [];
+  return { feedbackDoc, historyEntries };
+}
+
+function appendHistory(worktree, entry) {
+  appendEntry('WORK.history.yaml', entry, makeIO(worktree));
+}
 
 function assertFeedbackHistoryConsistent(feedbackDoc, historyEntries) {
   const historyPairs = new Set(historyEntries.map(e => `${e.stage}||${e.cycle}`));
@@ -111,5 +156,67 @@ describe('workfiles consistency — synthetic', () => {
     const feedbackDoc = { items: [] };
     const historyEntries = [];
     assert.doesNotThrow(() => assertFeedbackHistoryConsistent(feedbackDoc, historyEntries));
+  });
+});
+
+describe('workfiles consistency — driven', () => {
+  test('after a full appraise/forge/appraise round-trip, the invariant holds', async () => {
+    const worktree = makeWorktree();
+    try {
+      const t1 = await tools(worktree);
+      const addRes = parseResult(await t1.foundry_feedback_add.execute(
+        { file: 'haiku.md', text: 'too cheerful', tag: 'law:dark' },
+        { worktree },
+      ));
+      assert.equal(addRes.ok, true);
+      appendHistory(worktree, {
+        cycle: 'write-haiku',
+        stage: 'appraise:w',
+        iteration: 0,
+        comment: 'feedback added',
+        openFeedback: 1,
+      });
+      assert.doesNotThrow(() => assertFeedbackHistoryConsistent(
+        loadFeedbackAndHistory(worktree).feedbackDoc,
+        loadFeedbackAndHistory(worktree).historyEntries,
+      ));
+
+      writeActiveStage(worktree, { stage: 'forge:w', cycle: 'write-haiku' });
+      const t2 = await tools(worktree);
+      const actionRes = parseResult(await t2.foundry_feedback_action.execute({ id: addRes.id }, { worktree }));
+      assert.equal(actionRes.ok, true);
+      appendHistory(worktree, {
+        cycle: 'write-haiku',
+        stage: 'forge:w',
+        iteration: 1,
+        comment: 'feedback actioned',
+        openFeedback: 1,
+      });
+      assert.doesNotThrow(() => assertFeedbackHistoryConsistent(
+        loadFeedbackAndHistory(worktree).feedbackDoc,
+        loadFeedbackAndHistory(worktree).historyEntries,
+      ));
+
+      writeActiveStage(worktree, { stage: 'appraise:w', cycle: 'write-haiku' });
+      const t3 = await tools(worktree);
+      const resolveRes = parseResult(await t3.foundry_feedback_resolve.execute(
+        { id: addRes.id, resolution: 'approved', reason: 'fix verified' },
+        { worktree },
+      ));
+      assert.equal(resolveRes.ok, true);
+      appendHistory(worktree, {
+        cycle: 'write-haiku',
+        stage: 'appraise:w',
+        iteration: 1,
+        comment: 'feedback resolved',
+        openFeedback: 0,
+      });
+      assert.doesNotThrow(() => assertFeedbackHistoryConsistent(
+        loadFeedbackAndHistory(worktree).feedbackDoc,
+        loadFeedbackAndHistory(worktree).historyEntries,
+      ));
+    } finally {
+      rmSync(worktree, { recursive: true, force: true });
+    }
   });
 });
