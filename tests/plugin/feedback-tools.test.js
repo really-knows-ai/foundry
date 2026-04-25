@@ -252,3 +252,56 @@ describe('foundry_feedback_wontfix — id-based', () => {
     assert.match(res.error, /reason/);
   });
 });
+
+describe('foundry_feedback_resolve — id-based', () => {
+  async function setupToActioned(stage, cycle = 'write-haiku') {
+    worktree = makeWorktree({ stage });
+    const t1 = await tools(worktree);
+    const { id } = parseResult(await t1.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: stage.startsWith('appraise') ? 'law:x' : 'validation' },
+      { worktree },
+    ));
+    // Switch to forge, action it.
+    writeActiveStage(worktree, { stage: 'forge:write', cycle });
+    const t2 = await tools(worktree);
+    const actRes = parseResult(await t2.foundry_feedback_action.execute({ id }, { worktree }));
+    assert.equal(actRes.ok, true);
+    return id;
+  }
+
+  test('source stage resolves an actioned item', async () => {
+    const id = await setupToActioned('appraise:write-check');
+    // Switch back to source.
+    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved', reason: 'fix verified' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'resolved');
+  });
+
+  test('non-source stage cannot resolve', async () => {
+    const id = await setupToActioned('appraise:write-check');
+    writeActiveStage(worktree, { stage: 'appraise:other-check', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved' },
+      { worktree },
+    ));
+    assert.match(res.error, /source/);
+  });
+
+  test('rejected resolution requires reason', async () => {
+    const id = await setupToActioned('appraise:write-check');
+    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'rejected' },
+      { worktree },
+    ));
+    assert.match(res.error, /reason/);
+  });
+});

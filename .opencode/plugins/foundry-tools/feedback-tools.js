@@ -144,27 +144,35 @@ export function createFeedbackTools({ tool }) {
     foundry_feedback_resolve: tool({
       description: 'Resolve a feedback item (approved or rejected)',
       args: {
-        file: tool.schema.string().describe('Artefact file path'),
-        index: tool.schema.number().describe('Zero-based index of the feedback item'),
+        id: tool.schema.string().describe('Feedback item id (ULID)'),
         resolution: tool.schema.enum(['approved', 'rejected']).describe('Resolution type'),
-        reason: tool.schema.string().optional().describe('Reason (required if rejected)'),
+        reason: tool.schema.string().optional().describe('Reason (required if rejected, or for deadlock override)'),
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_resolve: ${failedGuard.error}` });
-        const guard = requireActiveStage(io);
-        if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_resolve requires active stage; ${guard.error}` });
-        const stageBase = stageBaseOf(guard.active.stage);
+        const pre = preflight(io, 'foundry_feedback_resolve');
+        if (!pre.ok) return JSON.stringify({ error: pre.error });
+        const { activeStage, stageBase, cycle } = pre;
         if (!['quench', 'appraise', 'human-appraise'].includes(stageBase)) {
-          return JSON.stringify({ error: `foundry_feedback_resolve requires active quench|appraise|human-appraise stage; current: ${guard.active.stage}` });
+          return JSON.stringify({ error: `foundry_feedback_resolve requires active quench|appraise|human-appraise stage; current: ${activeStage}` });
         }
-        const workPath = path.join(context.worktree, 'WORK.md');
-        const content = readFileSync(workPath, 'utf-8');
-        const r = resolveFeedbackItem(content, args.file, args.index, args.resolution, args.reason, stageBase);
-        if (!r.ok) return JSON.stringify({ error: r.error });
-        writeFileSync(workPath, r.text, 'utf-8');
-        return JSON.stringify({ ok: true });
+
+        const target = args.resolution === 'approved' ? 'resolved' : 'rejected';
+
+        try {
+          const store = openFeedbackStore('WORK.feedback.yaml', io);
+          const r = store.transition({
+            id: args.id,
+            target,
+            stage: activeStage,
+            cycle,
+            reason: args.reason,
+          });
+          if (!r.ok) return JSON.stringify({ error: r.error });
+          return JSON.stringify({ ok: true });
+        } catch (err) {
+          return JSON.stringify({ error: `foundry_feedback_resolve: ${err.message}` });
+        }
       },
     }),
 
