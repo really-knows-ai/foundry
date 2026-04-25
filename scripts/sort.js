@@ -13,7 +13,7 @@
  * Exit code: 0 on success, 1 on error
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
 import yaml from 'js-yaml';
 import { minimatch } from 'minimatch';
@@ -21,7 +21,7 @@ import { validateTags } from './lib/tags.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable } from './lib/artefacts.js';
 import { loadHistory } from './lib/history.js';
-import { parseFeedback, parseFeedbackItem, detectDeadlocks } from './lib/feedback.js';
+import { openFeedbackStore } from './lib/feedback-store.js';
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -52,6 +52,8 @@ function nextInRoute(stages, current) {
 
 const defaultIO = {
   readFile: (p) => readFileSync(p, 'utf-8'),
+  writeFile: (p, c) => writeFileSync(p, c),
+  rename: (from, to) => renameSync(from, to),
   exists: (p) => existsSync(p),
   exec: (cmd) => execSync(cmd, { encoding: 'utf8' }),
 };
@@ -98,7 +100,8 @@ function determineRoute(stages, history, feedback, maxIterations, opts = {}) {
 }
 
 function nextAfterQuench(stages, current, feedback, forgeCount, maxIterations) {
-  const needsForge = feedback.some(f => f.state === 'open' || f.state === 'rejected');
+  const openItems = feedback.filter(f => f.state !== 'resolved' && f.state !== 'deadlocked');
+  const needsForge = openItems.some(f => f.state === 'open' || f.state === 'rejected');
   if (needsForge) {
     if (forgeCount >= maxIterations) return 'blocked';
     return findFirst(stages, 'forge') ?? 'blocked';
@@ -108,41 +111,19 @@ function nextAfterQuench(stages, current, feedback, forgeCount, maxIterations) {
 }
 
 function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations, history = [], opts = {}) {
-  const {
-    humanAppraise: humanAppraiseEnabled = false,
-    deadlockAppraise = true,
-    deadlockIterations = 5,
-    cycle = null,
-  } = opts;
+  // Note: deadlock detection is now handled by runDeadlockPass at the top of
+  // runSort (spec §6.1). This helper assumes routing has already been allowed
+  // to fall through (i.e., no item qualifies as deadlocked).
 
-  // Check for deadlock escalation using configured threshold
-  const deadlocked = detectDeadlocks(feedback, history, deadlockIterations);
-  if (deadlocked.length > 0) {
-    const alreadyInHumanAppraise = baseStage(current) === 'human-appraise';
-    if (alreadyInHumanAppraise) {
-      // Human-appraise ran and deadlock still present — give up.
-      return 'blocked';
-    }
-    if (deadlockAppraise) {
-      // Route to human-appraise. Prefer one in `stages`; else synthesize via cycle id.
-      const inStages = findFirst(stages, 'human-appraise');
-      if (inStages) return inStages;
-      if (cycle) return `human-appraise:${cycle}`;
-      return 'blocked';
-    }
-    // deadlock-appraise disabled — block the cycle.
-    return 'blocked';
-  }
+  const openItems = feedback.filter(f => f.state !== 'resolved' && f.state !== 'deadlocked');
 
-  const needsForge = feedback.some(f => f.state === 'open' || f.state === 'rejected');
+  const needsForge = openItems.some(f => f.state === 'open' || f.state === 'rejected');
   if (needsForge) {
     if (forgeCount >= maxIterations) return 'blocked';
     return findFirst(stages, 'forge') ?? 'blocked';
   }
 
-  const pendingApproval = feedback.some(
-    f => (f.state === 'actioned' || f.state === 'wont-fix') && !f.resolved
-  );
+  const pendingApproval = openItems.some(f => f.state === 'actioned' || f.state === 'wont-fix');
   if (pendingApproval) {
     return findFirst(stages, 'appraise') ?? 'blocked';
   }
@@ -257,6 +238,36 @@ function getDirtyToolManagedFiles(io = defaultIO) {
 }
 
 // ---------------------------------------------------------------------------
+// Top-level deadlock pass (spec §6.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk the feedback store and write a `state=deadlocked` snapshot for every
+ * non-resolved item whose history depth has reached the configured threshold.
+ * One atomic batch write via `store.writeDeadlockedSnapshots(ids, ...)`.
+ *
+ * Sort is the only writer of `state=deadlocked` per spec §6.1.
+ *
+ * @returns {boolean} true iff at least one snapshot was written.
+ */
+function runDeadlockPass(store, { threshold, enabled, cycle }) {
+  if (!enabled) return false;
+  const qualifying = store.list().filter(item => {
+    const head = item.history[0];
+    if (head.state === 'resolved' || head.state === 'deadlocked') return false;
+    return item.history.length >= threshold;
+  });
+  if (qualifying.length === 0) return false;
+  store.writeDeadlockedSnapshots(
+    qualifying.map(it => it.id),
+    `depth >= threshold=${threshold}`,
+    'sort',
+    cycle,
+  );
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Exported runSort — structured result for programmatic use
 // ---------------------------------------------------------------------------
 
@@ -285,7 +296,24 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
 
   const artefacts = parseArtefactsTable(workText);
   const history = loadHistory(historyPath, cycle, io);
-  const feedback = parseFeedback(workText, cycle, artefacts);
+
+  // Open the feedback store and run the per-item deadlock pass before any
+  // routing decision (spec §6.1). The pass is a single atomic batch write.
+  const store = openFeedbackStore('WORK.feedback.yaml', io);
+  runDeadlockPass(store, {
+    threshold: deadlockIterations,
+    enabled: deadlockAppraise,
+    cycle,
+  });
+
+  // Re-list after the potential writes so routing sees updated states.
+  const feedback = store.list().map(item => ({
+    id: item.id,
+    file: item.file,
+    state: item.history[0].state, // 'open' | 'actioned' | 'wont-fix' | 'rejected' | 'deadlocked' | 'resolved'
+    depth: item.history.length,
+  }));
+  const anyDeadlocked = feedback.some(f => f.state === 'deadlocked');
 
   // Micro-commit enforcement: if any prior stage ran (history non-empty),
   // all tool-managed files must be committed before the next sort call.
@@ -320,12 +348,34 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
     return { route: 'violation', details: `Feedback tag validation failed: ${details}` };
   }
 
-  const route = determineRoute(stages, history, feedback, maxIterations, {
-    humanAppraise: humanAppraiseEnabled,
-    deadlockAppraise,
-    deadlockIterations,
-    cycle,
-  });
+  // Spec §6.1 — if the deadlock pass produced any deadlocked items, override
+  // normal routing and head straight to human-appraise. Runs BEFORE
+  // determineRoute so a deadlock detected with last completed stage = forge
+  // still escalates instead of falling through to quench.
+  let route;
+  if (anyDeadlocked) {
+    const currentNonSort = nonSortHistory.length > 0 ? nonSortHistory[nonSortHistory.length - 1].stage : null;
+    const alreadyInHumanAppraise = currentNonSort && baseStage(currentNonSort) === 'human-appraise';
+    if (alreadyInHumanAppraise) {
+      route = 'blocked';
+    } else {
+      const inStages = findFirst(stages, 'human-appraise');
+      if (inStages) {
+        route = inStages;
+      } else if (cycle) {
+        route = `human-appraise:${cycle}`;
+      } else {
+        route = 'blocked';
+      }
+    }
+  } else {
+    route = determineRoute(stages, history, feedback, maxIterations, {
+      humanAppraise: humanAppraiseEnabled,
+      deadlockAppraise,
+      deadlockIterations,
+      cycle,
+    });
+  }
 
   // Model resolution
   let model = null;
@@ -358,7 +408,6 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
 
 export { parseArtefactsTable } from './lib/artefacts.js';
 export { loadHistory } from './lib/history.js';
-export { parseFeedback, parseFeedbackItem } from './lib/feedback.js';
 
 export {
   baseStage,

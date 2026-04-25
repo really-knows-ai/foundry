@@ -277,7 +277,7 @@ describe('nextAfterAppraise', () => {
   });
 
   it('returns done when all resolved', () => {
-    const feedback = [{ state: 'actioned', resolved: true }];
+    const feedback = [{ state: 'resolved' }];
     assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 1, 3), 'done');
   });
 
@@ -287,13 +287,13 @@ describe('nextAfterAppraise', () => {
 
   it('advances to next stage when all feedback resolved', () => {
     const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-    const feedback = [{ state: 'approved', resolved: true }];
+    const feedback = [{ state: 'resolved' }];
     assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 0, 3), 'human-appraise:review');
   });
 
   it('returns done when appraise is last stage and all resolved', () => {
     const stages = ['forge:write', 'quench:review', 'appraise:check'];
-    const feedback = [{ state: 'actioned', resolved: true }];
+    const feedback = [{ state: 'resolved' }];
     assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 0, 3), 'done');
   });
 });
@@ -832,6 +832,7 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
     '  - quench:review',
     '  - appraise:check',
     '  - human-appraise:review',
+    'max-iterations: 100',
     'deadlock-iterations: 5',
     '---',
     '',
@@ -918,6 +919,7 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
       '  - forge:write',
       '  - quench:review',
       '  - appraise:check',
+      'max-iterations: 100',
       'deadlock-iterations: 5',
       'deadlock-appraise: false',
       '---',
