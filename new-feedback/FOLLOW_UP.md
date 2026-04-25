@@ -36,25 +36,6 @@ made deliberately, with its own commit and rationale.
 
 ---
 
-### F3-2. Spec §5.1 source-base list does not enumerate `assay`
-
-**What.** The spec at `new-feedback/2026-04-24-work-feedback-yaml-redesign.md`
-§5.1 enumerates feedback creation sources as "quench, appraise, or
-human-appraise". §12 *implicitly* includes assay (skills/assay/SKILL.md uses
-the new feedback API for `#validation` items), and `feedback-store.js`'s
-`VALID_SOURCE_BASES` set was extended in commit `3f8dc27` to include
-`'assay'`. The spec text was not updated.
-
-**Why deferred.** Doc-only fix, no behavioural impact. Belongs in the §5.1
-edit pass rather than buried in a phase-3 implementation commit.
-
-**Trigger.** Phase 5 (skills/docs updates) or phase 6 (consistency).
-
-**Source.** Spec compliance review of commit `3f8dc27` (task 3.11),
-Follow-ups item 1.
-
----
-
 ### F3-3. Stale fixture and legacy arg shapes in failed-flow-tool-gate.test.js and preconditions.test.js
 
 **What.**

@@ -108,7 +108,7 @@ Rationale for ULID: monotonically-sortable, 26 chars, no dependencies (implement
 ## 5. State machine
 
 ```
-               forge            quench / appraise / human-appraise              sort        human-appraise
+               forge            assay / quench / appraise / human-appraise      sort        human-appraise
                (open,rejected)   (source == item.source)                        (any)       (state==deadlocked only)
 
 open        → {actioned, wont-fix}    —                                          → deadlocked   —
@@ -121,9 +121,9 @@ resolved    —                         —                                     
 
 ### 5.1 Legal transition rules
 
-1. **Creation.** A new item is created by calling `foundry_feedback_add` from a quench, appraise, or human-appraise stage. The item's initial `history[0]` is `{ state: 'open', stage, cycle, timestamp }`. Forge cannot create items. Creation is not a "transition" in the matrix sense — it brings the item into existence in the `open` state.
+1. **Creation.** A new item is created by calling `foundry_feedback_add` from an assay, quench, appraise, or human-appraise stage. The item's initial `history[0]` is `{ state: 'open', stage, cycle, timestamp }`. Forge cannot create items. Creation is not a "transition" in the matrix sense — it brings the item into existence in the `open` state.
 2. **Forge transitions.** Forge operates only on items where `history[0].state ∈ {open, rejected}`. Produces `actioned` or `wont-fix`. Forge cannot operate on `actioned`, `wont-fix`, `deadlocked`, or `resolved` items.
-3. **Source-stage transitions.** Quench, appraise, and human-appraise operate only on items where:
+3. **Source-stage transitions.** Assay, quench, appraise, and human-appraise operate only on items where:
    - `history[0].state ∈ {actioned, wont-fix}` AND
    - the caller's `stageId === item.source`.
    Produce `resolved` or `rejected`. `rejected` requires a `reason`.
@@ -135,7 +135,7 @@ resolved    —                         —                                     
 
    `reason` is required on all transitions that require `reason` per §4.3. **Reachability note:** under default sort routing, human-appraise only sees non-deadlocked items when the cycle is configured to surface them pre-sort — a future feature (see §17). In practice most human-appraise operations today are on deadlocked items, but the authority is universal, not conditional on the deadlocked state.
 6. **Terminal state.** `resolved` is terminal. No snapshots are ever appended to an item whose `history[0].state === 'resolved'`.
-7. **Forge wont-fix scope.** Forge may transition to `wont-fix` only when `item.source` base is `appraise`. When `item.source` base is `quench` or `human-appraise`, forge's only legal transitions from `{open, rejected}` are to `actioned`. Rationale: `quench` feedback records objective validation failures (not opt-out-able); `human-appraise` feedback records direct user instructions (forge must address, not decline). Enforced by `feedback-transitions.js` via a `canForgeWontFix(item, callerStageBase)` predicate; surfaces to the tool layer as a source-authorship-adjacent error. This rule replaces the previous tag-based restriction on `#validation` and `#human` tags; tags are now categorical/display-only and not consulted by the state machine.
+7. **Forge wont-fix scope.** Forge may transition to `wont-fix` only when `item.source` base is `appraise`. When `item.source` base is `assay`, `quench`, or `human-appraise`, forge's only legal transitions from `{open, rejected}` are to `actioned`. Rationale: `assay` and `quench` feedback records objective validation failures (not opt-out-able); `human-appraise` feedback records direct user instructions (forge must address, not decline). Enforced by `feedback-transitions.js` via a `canForgeWontFix(item, callerStageBase)` predicate; surfaces to the tool layer as a source-authorship-adjacent error. This rule replaces the previous tag-based restriction on `#validation` and `#human` tags; tags are now categorical/display-only and not consulted by the state machine.
 
 ### 5.2 Depth and deadlocks
 
