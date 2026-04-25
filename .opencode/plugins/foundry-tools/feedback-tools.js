@@ -16,6 +16,21 @@ function readCycle(io) {
   return fm.cycle || null;
 }
 
+// Shared guard preamble for stage-bound feedback tools.
+// Returns {ok:true, activeStage, stageBase, cycle} or {ok:false, error}.
+// Caller is responsible for any tool-specific stage-base / tag checks.
+function preflight(io, toolName) {
+  const failedGuard = requireNotFailed(io);
+  if (!failedGuard.ok) return { ok: false, error: `${toolName}: ${failedGuard.error}` };
+  const guard = requireActiveStage(io);
+  if (!guard.ok) return { ok: false, error: `${toolName} requires active stage; ${guard.error}` };
+  const activeStage = guard.active.stage;
+  const stageBase = stageBaseOf(activeStage);
+  const cycle = readCycle(io);
+  if (!cycle) return { ok: false, error: `${toolName}: WORK.md cycle not found` };
+  return { ok: true, activeStage, stageBase, cycle };
+}
+
 export function createFeedbackTools({ tool }) {
   return {
     foundry_feedback_add: tool({
@@ -27,13 +42,9 @@ export function createFeedbackTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_add: ${failedGuard.error}` });
-        const guard = requireActiveStage(io);
-        if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_add requires active stage; ${guard.error}` });
-
-        const activeStage = guard.active.stage;
-        const stageBase = stageBaseOf(activeStage);
+        const pre = preflight(io, 'foundry_feedback_add');
+        if (!pre.ok) return JSON.stringify({ error: pre.error });
+        const { activeStage, stageBase, cycle } = pre;
 
         // Per-stage tag allow-list (unchanged from the markdown era).
         if (stageBase === 'forge') {
@@ -51,9 +62,6 @@ export function createFeedbackTools({ tool }) {
         if (stageBase === 'assay' && args.tag !== 'validation') {
           return JSON.stringify({ error: `foundry_feedback_add: assay may only add tag "validation"; got "${args.tag}"` });
         }
-
-        const cycle = readCycle(io);
-        if (!cycle) return JSON.stringify({ error: 'foundry_feedback_add: WORK.md cycle not found' });
 
         try {
           const store = openFeedbackStore('WORK.feedback.yaml', io);
@@ -78,23 +86,19 @@ export function createFeedbackTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_action: ${failedGuard.error}` });
-        const guard = requireActiveStage(io);
-        if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_action requires active stage; ${guard.error}` });
-        const stageBase = stageBaseOf(guard.active.stage);
+        const pre = preflight(io, 'foundry_feedback_action');
+        if (!pre.ok) return JSON.stringify({ error: pre.error });
+        const { activeStage, stageBase, cycle } = pre;
         if (stageBase !== 'forge') {
-          return JSON.stringify({ error: `foundry_feedback_action requires active forge stage; current: ${guard.active.stage}` });
+          return JSON.stringify({ error: `foundry_feedback_action requires active forge stage; current: ${activeStage}` });
         }
-        const cycle = readCycle(io);
-        if (!cycle) return JSON.stringify({ error: 'foundry_feedback_action: WORK.md cycle not found' });
 
         try {
           const store = openFeedbackStore('WORK.feedback.yaml', io);
           const r = store.transition({
             id: args.id,
             target: 'actioned',
-            stage: guard.active.stage,
+            stage: activeStage,
             cycle,
           });
           if (!r.ok) return JSON.stringify({ error: r.error });
