@@ -98,6 +98,43 @@ plan's gate command in any retained reference.
 
 ---
 
+### F3-4. `foundry_feedback_list` "WORK.md not found" error lacks tool-name prefix
+
+**What.** `feedback-tools.js` line 184 returns
+`JSON.stringify({error: 'WORK.md not found'})`. The other four feedback
+tools route this same case through `preflight` and produce
+`'foundry_feedback_<name>: WORK.md cycle not found'`. Cosmetic
+inconsistency.
+
+**Why deferred.** Trivial; not worth a one-line commit on its own.
+
+**Trigger.** Phase 5 (skills/docs may re-touch error messages anyway) or
+when the next nearby commit happens to be in this file.
+
+**Source.** Final phase-3 review of commit range `7de6a78^..fb52110`,
+Suggestions section.
+
+---
+
+### F3-5. `setupToActioned` test helper lives inside a describe block
+
+**What.** `tests/plugin/feedback-tools.test.js` line 257 defines
+`async function setupToActioned(stage, cycle = 'write-haiku')` inside the
+`describe('foundry_feedback_resolve — id-based')` block. If a future test
+outside that block needs the same setup, the helper would have to be
+duplicated or lifted.
+
+**Why deferred.** No current consumer outside the block. Premature
+hoisting is its own form of debt.
+
+**Trigger.** Next time another describe block needs `add → action`
+sequencing for setup. Lift to module scope at that point.
+
+**Source.** Final phase-3 review of commit range `7de6a78^..fb52110`,
+Suggestions section.
+
+---
+
 ## Phase 2
 
 *(none yet)*
