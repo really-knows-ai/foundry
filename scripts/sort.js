@@ -3,7 +3,7 @@
 /**
  * Sort — deterministic routing for a Foundry Cycle.
  *
- * Reads WORK.md (frontmatter + feedback) and WORK.history.yaml to determine
+ * Reads WORK.md, WORK.feedback.yaml, and WORK.history.yaml to determine
  * the next stage to execute, or signal completion/blocked.
  *
  * Usage:
@@ -166,7 +166,7 @@ function globMatch(filePath, pattern) {
 }
 
 function getAllowedPatterns(lastBase, foundryDir, cycleDef, io = defaultIO) {
-  const always = ['WORK.md', 'WORK.history.yaml'];
+  const always = ['WORK.md', 'WORK.feedback.yaml', 'WORK.history.yaml'];
 
   if (lastBase === 'assay') {
     return [...always, '.foundry/**', 'foundry/memory/**'];
@@ -218,7 +218,7 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
  * Return a list of tool-managed files that have uncommitted changes
  * (modified, staged, or untracked) in the working tree.
  *
- * Tool-managed files are WORK.md, WORK.history.yaml, and anything under
+ * Tool-managed files are WORK.md, WORK.feedback.yaml, WORK.history.yaml, and anything under
  * .foundry/. The sort skill is the sole writer of these between stages,
  * and every stage must end with `foundry_git_commit`. If this function
  * returns a non-empty list at the start of a sort invocation, a prior
@@ -226,7 +226,7 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
  */
 function getDirtyToolManagedFiles(io = defaultIO) {
   try {
-    const output = io.exec('git status --porcelain -- WORK.md WORK.history.yaml .foundry');
+    const output = io.exec('git status --porcelain -- WORK.md WORK.feedback.yaml WORK.history.yaml .foundry');
     return output
       .split('\n')
       .map(line => line.trim())
@@ -426,5 +426,4 @@ export {
   checkModifiedFiles,
   getDirtyToolManagedFiles,
 };
-
 

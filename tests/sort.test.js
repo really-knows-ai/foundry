@@ -15,6 +15,7 @@ import {
   getModifiedFiles,
   getAllowedPatterns,
   checkModifiedFiles,
+  getDirtyToolManagedFiles,
   runSort,
 } from '../scripts/sort.js';
 
@@ -406,9 +407,11 @@ describe('getModifiedFiles', () => {
 });
 
 describe('getAllowedPatterns', () => {
+  const alwaysAllowed = ['WORK.md', 'WORK.feedback.yaml', 'WORK.history.yaml'];
+
   it('returns only always-allowed for non-forge stages', () => {
     const io = { readFile: () => { throw new Error('should not read'); }, exists: () => true };
-    assert.deepEqual(getAllowedPatterns('quench', 'foundry', 'foundry/cycles/c1.md', io), ['WORK.md', 'WORK.history.yaml']);
+    assert.deepEqual(getAllowedPatterns('quench', 'foundry', 'foundry/cycles/c1.md', io), alwaysAllowed);
   });
 
   it('adds artefact file-patterns for forge stage', () => {
@@ -421,7 +424,7 @@ describe('getAllowedPatterns', () => {
       exists: (p) => !!files[p],
     };
     const result = getAllowedPatterns('forge', 'foundry', 'foundry/cycles/c1.md', io);
-    assert.deepEqual(result, ['WORK.md', 'WORK.history.yaml', 'src/**/*.ts', 'src/**/*.tsx']);
+    assert.deepEqual(result, [...alwaysAllowed, 'src/**/*.ts', 'src/**/*.tsx']);
   });
 
   it('returns always-allowed when cycle def has no output', () => {
@@ -429,7 +432,7 @@ describe('getAllowedPatterns', () => {
       readFile: () => '---\nstages:\n  - forge:a\n---\n',
       exists: () => true,
     };
-    assert.deepEqual(getAllowedPatterns('forge', 'foundry', 'foundry/cycles/c1.md', io), ['WORK.md', 'WORK.history.yaml']);
+    assert.deepEqual(getAllowedPatterns('forge', 'foundry', 'foundry/cycles/c1.md', io), alwaysAllowed);
   });
 
   it('returns always-allowed when artefact def missing', () => {
@@ -440,7 +443,7 @@ describe('getAllowedPatterns', () => {
       },
       exists: (p) => p === 'foundry/cycles/c1.md',
     };
-    assert.deepEqual(getAllowedPatterns('forge', 'foundry', 'foundry/cycles/c1.md', io), ['WORK.md', 'WORK.history.yaml']);
+    assert.deepEqual(getAllowedPatterns('forge', 'foundry', 'foundry/cycles/c1.md', io), alwaysAllowed);
   });
 });
 
@@ -479,6 +482,29 @@ describe('checkModifiedFiles', () => {
     };
     const result = checkModifiedFiles('quench', 'foundry', 'foundry/cycles/c1.md', 'c1', io);
     assert.deepEqual(result, { ok: true, violations: [] });
+  });
+
+  it('allows WORK.feedback.yaml changes from feedback-writing stages', () => {
+    const io = {
+      exec: (cmd) => {
+        if (cmd.startsWith('git log')) return 'abc [c1] sort: appraise:check';
+        if (cmd.startsWith('git diff')) return 'WORK.feedback.yaml\n';
+        return '';
+      },
+      readFile: () => '',
+      exists: () => true,
+    };
+    const result = checkModifiedFiles('appraise', 'foundry', 'foundry/cycles/c1.md', 'c1', io);
+    assert.deepEqual(result, { ok: true, violations: [] });
+  });
+});
+
+describe('getDirtyToolManagedFiles', () => {
+  it('detects dirty WORK.feedback.yaml as tool-managed state', () => {
+    const io = {
+      exec: (cmd) => cmd.includes('WORK.feedback.yaml') ? ' M WORK.feedback.yaml\n' : '',
+    };
+    assert.deepEqual(getDirtyToolManagedFiles(io), ['WORK.feedback.yaml']);
   });
 });
 
