@@ -199,5 +199,7 @@ describe('assay end-to-end: extractor failure', () => {
     const validationItems = (doc.items || []).filter(it => it.tag === 'validation');
     assert.ok(validationItems.length > 0, 'expected validation feedback');
     assert.match(validationItems[0].text, /java-syms/);
+    assert.ok(validationItems[0].source.startsWith('assay:'),
+      `expected source to start with assay:; got ${validationItems[0].source}`);
   });
 });

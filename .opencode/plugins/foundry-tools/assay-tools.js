@@ -50,15 +50,14 @@ export function createAssayTools({ tool }) {
             }
           } else {
             try {
-              const fbIo = makeIO(context.worktree);
-              if (fbIo.exists('WORK.md')) {
-                const fm = parseFrontmatter(fbIo.readFile('WORK.md'));
+              if (io.exists('WORK.md')) {
+                const fm = parseFrontmatter(io.readFile('WORK.md'));
                 const cycle = fm.cycle;
                 if (cycle) {
                   const msg = `assay aborted on extractor \`${res.failedExtractor}\`: ${res.reason}` +
                     (res.stderr ? ` (stderr: ${res.stderr.trim().slice(0, 500)})` : '');
-                  const store = openFeedbackStore('WORK.feedback.yaml', fbIo);
-                  store.add({
+                  const fbStore = openFeedbackStore('WORK.feedback.yaml', io);
+                  fbStore.add({
                     file: 'WORK.md',
                     tag: 'validation',
                     text: msg,
