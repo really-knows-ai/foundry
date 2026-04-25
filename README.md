@@ -18,7 +18,7 @@ Foundry is an opinionated framework for **governed artefact generation** — you
 - **Stop babysitting the agent.** Stage transitions, commits, write invariants, and feedback state live in deterministic tools. The LLM can't skip a step, forge a token, or quietly write outside its lane.
 - **Written quality criteria, not vibes.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is non-negotiable.
 - **Multi-model diversity by default.** Forge on one model, appraise on another, or run every appraiser on a different model. Different blind spots — one flag is enough to raise an issue.
-- **Full audit trail in git.** One commit per stage. WORK.md + WORK.history.yaml record exactly what happened, why, and which model said it. Crashes leave clean boundaries to resume from.
+- **Full audit trail in git.** One commit per stage. `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` record exactly what happened, why, and which model said it. Crashes leave clean boundaries to resume from.
 - **Bring your own pipeline.** Artefact types are yours. Works for code, specs, docs, data, contracts, creative writing — anything you can describe as files with pass/fail criteria.
 - **Shared memory across cycles.** Optional typed graph store with semantic search, so cycles can build on what earlier cycles learned.
 
@@ -110,7 +110,7 @@ Add `@really-knows-ai/foundry` to your OpenCode config:
 - A **flow** defines the set of cycles and their entry points.
 - A **cycle** produces exactly one artefact type and declares its own `targets` — Foundry follows a dependency graph, not a linear list.
 - Each cycle loops through **forge → quench → appraise** until there is no unresolved feedback, or an iteration limit is hit.
-- All inter-stage communication goes through **WORK.md** on a dedicated work branch; every stage ends with a micro-commit.
+- All inter-stage communication goes through `WORK.md` and its sibling YAML files on a dedicated work branch; every stage ends with a micro-commit.
 
 ---
 
@@ -206,11 +206,11 @@ Per-stage write rules:
 
 | Stage | May write |
 |-------|-----------|
-| `forge` | Files matching the output artefact type's `file-patterns`, plus `WORK.md` / `WORK.history.yaml` |
-| `quench` | `WORK.md` / `WORK.history.yaml` only (feedback) |
-| `appraise` | `WORK.md` / `WORK.history.yaml` only (feedback) |
-| `human-appraise` | `WORK.md` / `WORK.history.yaml` only (feedback) |
-| `assay` | Flow memory (via `foundry_assay_run` only — not direct `foundry_memory_put`); `WORK.md` / `WORK.history.yaml` for `#validation` feedback on abort |
+| `forge` | Files matching the output artefact type's `file-patterns`, plus `WORK.md` / `WORK.feedback.yaml` / `WORK.history.yaml` via tools |
+| `quench` | `WORK.feedback.yaml` via feedback tools; `WORK.history.yaml` via stage finalization |
+| `appraise` | `WORK.feedback.yaml` via feedback tools; `WORK.history.yaml` via stage finalization |
+| `human-appraise` | `WORK.feedback.yaml` via feedback tools; `WORK.history.yaml` via stage finalization |
+| `assay` | Flow memory (via `foundry_assay_run` only — not direct `foundry_memory_put`); `WORK.feedback.yaml` for `#validation` feedback on abort |
 
 Input artefacts are read-only. Files outside any artefact type's patterns are read-only. Violations hard-stop the cycle.
 
@@ -232,7 +232,7 @@ switch on action:
 
 ## Feedback lifecycle
 
-Feedback is structured YAML in `WORK.feedback.yaml`, created and updated only through `foundry_feedback_*` plugin tools. Each item is tagged to indicate source and moves through a six-state machine: `open`, `actioned`, `wont-fix`, `approved`, `rejected`, or `deadlocked`.
+Feedback is structured YAML in `WORK.feedback.yaml`, created and updated only through `foundry_feedback_*` plugin tools. Each item is tagged to indicate source and moves through a six-state machine: `open`, `actioned`, `wont-fix`, `resolved`, `rejected`, or `deadlocked`.
 
 Tags:
 
@@ -242,7 +242,7 @@ Tags:
 | `#law:<id>` | appraise (subjective law) | May be wont-fixed with justification; an appraiser must approve. |
 | `#human` | human-appraise | Takes absolute priority. Forge MUST address it — cannot wont-fix. |
 
-Feedback is append-only: items are never deleted, only resolved. Sort writes `deadlocked` when repeated forge/appraise iterations exceed the configured depth, and `human-appraise` can override the deadlock with final human direction.
+Feedback is append-only: items are never deleted, only resolved. Sort writes `deadlocked` when repeated forge/appraise iterations exceed the configured depth. `human-appraise` can override any non-resolved feedback, though default routing usually surfaces deadlocked items for that authority.
 
 ### Deadlock handling
 
@@ -256,9 +256,9 @@ Foundry is designed around "trust the tool, not the LLM". The following guarante
 
 - **Stage-locked mutations.** `foundry_feedback_*`, `foundry_artefacts_*`, and `foundry_workfile_*` tools require the caller's role to match the active stage. A forge sub-agent cannot add feedback; a quench sub-agent cannot register artefacts.
 - **Single-use tokens.** `foundry_stage_begin` verifies an HMAC token minted at dispatch time. Replays, forgery, and cross-stage reuse all fail closed. Keys live in `.foundry/.secret` (mode 0600, gitignored, one per worktree).
-- **Commit-per-stage contract.** `foundry_orchestrate` refuses to proceed if there are uncommitted changes to `WORK.md`, `WORK.history.yaml`, or anything under `.foundry/` at the start of a sort call and history is non-empty.
+- **Commit-per-stage contract.** `foundry_orchestrate` refuses to proceed if there are uncommitted changes to `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, or anything under `.foundry/` at the start of a sort call and history is non-empty.
 - **Write invariants.** `foundry_stage_finalize` scans the git diff and rejects stray writes with `{error: 'unexpected_files'}`.
-- **Feedback state machine.** Only legal transitions are accepted: `approved` is terminal; quench cannot approve/reject a `wont-fix`; validation cannot be wont-fixed.
+- **Feedback state machine.** Only legal transitions are accepted: `resolved` is terminal; quench cannot approve/reject a `wont-fix`; validation cannot be wont-fixed.
 - **Artefact-type glob uniqueness.** `add-artefact-type` refuses to create a type whose file patterns overlap with an existing type; the enforcer can't determine file ownership otherwise.
 
 ---
@@ -550,7 +550,7 @@ Composition happens at the skill layer. `flow` reads a definition and invokes `o
 
 ### WORK.md as shared state
 
-All inter-stage communication goes through WORK.md via the `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`, and `foundry_history_*` tools. No stage passes output directly to another. This gives a complete audit trail, makes flows resumable after a crash, and lets any stage be re-run independently.
+Inter-stage communication goes through `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` via the `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`, and `foundry_history_*` tools. No stage passes output directly to another. This gives a complete audit trail, makes flows resumable after a crash, and lets any stage be re-run independently.
 
 ### Cycles own their routing
 
