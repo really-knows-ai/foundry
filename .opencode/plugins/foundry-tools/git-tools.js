@@ -48,8 +48,10 @@ export function createGitTools({ tool }) {
         // Delete work files
         const workPath = path.join(cwd, 'WORK.md');
         const historyPath = path.join(cwd, 'WORK.history.yaml');
+        const feedbackPath = path.join(cwd, 'WORK.feedback.yaml');
         if (existsSync(workPath)) unlinkSync(workPath);
         if (existsSync(historyPath)) unlinkSync(historyPath);
+        if (existsSync(feedbackPath)) unlinkSync(feedbackPath);
 
         // Commit cleanup if there are changes
         try {
