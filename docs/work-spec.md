@@ -156,35 +156,45 @@ Note: `foundry_artefacts_add` no longer exists as a public tool — artefact reg
 A separate file (`WORK.history.yaml`) alongside WORK.md. Append-only log of every stage execution.
 
 ```yaml
-- timestamp: "2026-04-17T14:32:01Z"
+- timestamp: "2026-04-17T14:32:01.000Z"
   cycle: write-petition
   stage: forge:draft-petition
   iteration: 1
   comment: Initial petition draft created
+  seq: 0
+  open_feedback: 0
 
-- timestamp: "2026-04-17T14:32:45Z"
+- timestamp: "2026-04-17T14:32:45.000Z"
   cycle: write-petition
   stage: quench:validate-petition
   iteration: 1
   comment: 2 validation issues found
+  seq: 1
+  open_feedback: 2
 
-- timestamp: "2026-04-17T14:33:12Z"
+- timestamp: "2026-04-17T14:33:12.000Z"
   cycle: write-petition
   stage: forge:draft-petition
   iteration: 2
   comment: Addressed 2 validation issues
+  seq: 2
+  open_feedback: 2
 
-- timestamp: "2026-04-17T14:33:30Z"
+- timestamp: "2026-04-17T14:33:30.000Z"
   cycle: write-petition
   stage: quench:validate-petition
   iteration: 2
   comment: Validation passed
+  seq: 3
+  open_feedback: 0
 
-- timestamp: "2026-04-17T14:34:00Z"
+- timestamp: "2026-04-17T14:34:00.000Z"
   cycle: write-petition
   stage: appraise:review-petition
   iteration: 2
   comment: No issues found, cycle complete
+  seq: 4
+  open_feedback: 0
 ```
 
 ### Fields
