@@ -21,7 +21,7 @@ Human-appraise runs inside an enforced stage. Your **first** and **last** tool c
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
 2. **Last:** `foundry_stage_end({summary})`.
 
-Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` / `foundry_feedback_resolve` / `foundry_artefacts_set_status`. `foundry_stage_end` flags unexpected writes as a violation.
+Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` / `foundry_feedback_action` / `foundry_feedback_wontfix` / `foundry_feedback_resolve` / `foundry_artefacts_set_status`. `foundry_stage_end` flags unexpected writes as a violation.
 
 ## Input
 
