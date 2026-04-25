@@ -181,9 +181,8 @@ Transient shared state on the work branch. Created when the flow starts, deleted
 - **Frontmatter** — current position (`flow`, `cycle`, stage list, max iterations, model map, human-appraise config).
 - **Goal** — the prose request that kicked off the flow.
 - **Artefacts** — a table of every file produced by the flow and its status (`draft`, `done`, `blocked`).
-- **Feedback** — grouped by artefact file, every feedback item with its full lifecycle.
 
-A sibling file `WORK.history.yaml` is an append-only log of every stage execution. See [docs/work-spec.md](docs/work-spec.md).
+Sibling files hold structured state: `WORK.feedback.yaml` stores feedback and `WORK.history.yaml` is an append-only log of every stage execution. See [docs/work-spec.md](docs/work-spec.md).
 
 ---
 
@@ -233,27 +232,17 @@ switch on action:
 
 ## Feedback lifecycle
 
-Feedback is markdown checklists under each artefact in WORK.md, tagged to indicate source.
-
-```
-- [ ] issue #tag                                    → open          — needs forge action
-- [x] issue #tag                                    → actioned      — needs appraise approval
-- [~] issue #tag | wont-fix: <reason>               → wont-fix      — needs appraise approval
-- [x] issue #tag | approved                         → resolved
-- [~] issue #tag | wont-fix: <reason> | approved    → resolved
-- [x] issue #tag | rejected: <reason>               → re-opened
-- [~] issue #tag | wont-fix: <reason> | rejected    → re-opened
-```
+Feedback is structured YAML in `WORK.feedback.yaml`, created and updated only through `foundry_feedback_*` plugin tools. Each item is tagged to indicate source and moves through a six-state machine: `open`, `actioned`, `wont-fix`, `approved`, `rejected`, or `deadlocked`.
 
 Tags:
 
 | Tag | Source | Notes |
 |-----|--------|-------|
-| `#validation` | quench (CLI command failed) | Cannot be wont-fixed. Deterministic rules are not negotiable. |
+| `#validation` | quench or assay (CLI command failed) | Cannot be wont-fixed. Deterministic rules are not negotiable. |
 | `#law:<id>` | appraise (subjective law) | May be wont-fixed with justification; an appraiser must approve. |
 | `#human` | human-appraise | Takes absolute priority. Forge MUST address it — cannot wont-fix. |
 
-Feedback is append-only: items are never deleted, only resolved. Re-opened items show their full history.
+Feedback is append-only: items are never deleted, only resolved. Sort writes `deadlocked` when repeated forge/appraise iterations exceed the configured depth, and `human-appraise` can override the deadlock with final human direction.
 
 ### Deadlock handling
 
@@ -567,9 +556,9 @@ All inter-stage communication goes through WORK.md via the `foundry_workfile_*`,
 
 A flow declares starting points; individual cycles declare `targets` and input contracts. The flow skill walks the resulting graph. This keeps cycles composable across flows and prevents the flow file from becoming a procedural monolith.
 
-### Feedback as checklists
+### Feedback as structured state
 
-Markdown checkboxes with `#validation`, `#law:<id>`, or `#human` tags. Human-readable, trivially parseable, lifecycle encoded inline. Feedback is append-only; history is part of the artefact's story. Nothing is silent — every issue is raised, every decision is recorded, every resolution is auditable.
+Feedback lives in `WORK.feedback.yaml` with `#validation`, `#law:<id>`, or `#human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions instead of encoding state in markdown checkboxes. Feedback is append-only; history is part of the artefact's story. Nothing is silent — every issue is raised, every decision is recorded, every resolution is auditable.
 
 ### Wont-fix requires approval
 
