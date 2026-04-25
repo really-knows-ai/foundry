@@ -50,6 +50,20 @@ function parseResult(raw) {
   return JSON.parse(raw);
 }
 
+async function setupToActioned(stage, cycle = 'write-haiku') {
+  worktree = makeWorktree({ stage, cycle });
+  const t1 = await tools(worktree);
+  const { id } = parseResult(await t1.foundry_feedback_add.execute(
+    { file: 'haiku.md', text: 'x', tag: stage.startsWith('appraise') ? 'law:x' : 'validation' },
+    { worktree },
+  ));
+  writeActiveStage(worktree, { stage: 'forge:write', cycle });
+  const t2 = await tools(worktree);
+  const actRes = parseResult(await t2.foundry_feedback_action.execute({ id }, { worktree }));
+  assert.equal(actRes.ok, true);
+  return id;
+}
+
 let worktree;
 afterEach(() => {
   if (worktree) {
@@ -262,21 +276,6 @@ describe('foundry_feedback_wontfix — id-based', () => {
 });
 
 describe('foundry_feedback_resolve — id-based', () => {
-  async function setupToActioned(stage, cycle = 'write-haiku') {
-    worktree = makeWorktree({ stage });
-    const t1 = await tools(worktree);
-    const { id } = parseResult(await t1.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: stage.startsWith('appraise') ? 'law:x' : 'validation' },
-      { worktree },
-    ));
-    // Switch to forge, action it.
-    writeActiveStage(worktree, { stage: 'forge:write', cycle });
-    const t2 = await tools(worktree);
-    const actRes = parseResult(await t2.foundry_feedback_action.execute({ id }, { worktree }));
-    assert.equal(actRes.ok, true);
-    return id;
-  }
-
   test('source stage resolves an actioned item', async () => {
     const id = await setupToActioned('appraise:write-check');
     // Switch back to source.
@@ -316,12 +315,7 @@ describe('foundry_feedback_resolve — id-based', () => {
 
 describe('foundry_feedback_resolve — deadlock override', () => {
   test('human-appraise can resolve a deadlocked item regardless of source', async () => {
-    worktree = makeWorktree({ stage: 'appraise:write-check' });
-    const tAdd = await tools(worktree);
-    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    ));
+    const id = await setupToActioned('appraise:write-check');
     // Simulate sort-side deadlock: write the snapshot directly via yaml.
     const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
     const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
@@ -347,12 +341,7 @@ describe('foundry_feedback_resolve — deadlock override', () => {
   });
 
   test('deadlock override requires a reason', async () => {
-    worktree = makeWorktree({ stage: 'appraise:write-check' });
-    const tAdd = await tools(worktree);
-    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    ));
+    const id = await setupToActioned('appraise:write-check');
     const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
     const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
     doc.items[0].history.unshift({
@@ -373,12 +362,7 @@ describe('foundry_feedback_resolve — deadlock override', () => {
   });
 
   test('appraise CANNOT override a deadlocked item even when source matches', async () => {
-    worktree = makeWorktree({ stage: 'appraise:write-check' });
-    const tAdd = await tools(worktree);
-    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    ));
+    const id = await setupToActioned('appraise:write-check');
     const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
     const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
     doc.items[0].history.unshift({
@@ -389,7 +373,7 @@ describe('foundry_feedback_resolve — deadlock override', () => {
       reason: 'depth=3',
     });
     writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
-    // active-stage is still appraise:write-check (matches source).
+    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
     const t = await tools(worktree);
     const res = parseResult(await t.foundry_feedback_resolve.execute(
       { id, resolution: 'approved', reason: 'trying' },
@@ -399,4 +383,3 @@ describe('foundry_feedback_resolve — deadlock override', () => {
     assert.ok(res.error);
   });
 });
-

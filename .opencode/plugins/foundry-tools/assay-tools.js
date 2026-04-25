@@ -64,9 +64,13 @@ export function createAssayTools({ tool }) {
                     source: guard.active.stage,
                     cycle,
                   });
+                } else {
+                  console.error('assay validation feedback skipped: WORK.md frontmatter has no cycle');
                 }
               }
-            } catch (_err) { /* best effort */ }
+            } catch (err) {
+              console.error(`assay validation feedback failed: ${err.message ?? err}`);
+            }
           }
           return JSON.stringify(res);
         } catch (err) {

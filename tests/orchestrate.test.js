@@ -486,3 +486,71 @@ cycle: create-haiku
   assert.strictEqual(result.context.cycle, 'create-haiku');
   assert.strictEqual(result.context.artefact_file, 'haikus/a.md');
 });
+
+test('handleSortResult: recent feedback is sorted most-recent first and keeps equal timestamps stable', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+cycle: create-haiku
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'WORK.feedback.yaml': `items:
+  - id: older
+    file: haikus/a.md
+    tag: human
+    text: older
+    source: appraise:create-haiku
+    history:
+      - state: rejected
+        stage: appraise:create-haiku
+        cycle: create-haiku
+        timestamp: '2026-04-24T10:00:00.000Z'
+        reason: still bad
+  - id: equal-a
+    file: haikus/a.md
+    tag: human
+    text: equal a
+    source: appraise:create-haiku
+    history:
+      - state: rejected
+        stage: appraise:create-haiku
+        cycle: create-haiku
+        timestamp: '2026-04-24T10:05:00.000Z'
+        reason: still bad
+  - id: equal-b
+    file: haikus/a.md
+    tag: human
+    text: equal b
+    source: appraise:create-haiku
+    history:
+      - state: wont-fix
+        stage: appraise:create-haiku
+        cycle: create-haiku
+        timestamp: '2026-04-24T10:05:00.000Z'
+        reason: acceptable tradeoff
+  - id: newest
+    file: haikus/a.md
+    tag: human
+    text: newest
+    source: appraise:create-haiku
+    history:
+      - state: rejected
+        stage: appraise:create-haiku
+        cycle: create-haiku
+        timestamp: '2026-04-24T10:10:00.000Z'
+        reason: still bad
+`,
+  });
+
+  const result = await orchestrate.__handleSortResultForTest(
+    { route: 'human-appraise:create-haiku', token: 'HA_TOKEN' },
+    { cycleId: 'create-haiku', cwd: '/tmp', io }
+  );
+
+  assert.deepStrictEqual(
+    result.context.recent_feedback.map(it => it.id),
+    ['newest', 'equal-a', 'equal-b', 'older']
+  );
+});

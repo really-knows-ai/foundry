@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import yaml from 'js-yaml';
+import { makeMockIO } from './helpers/mock-io.js';
 import {
   baseStage,
   findFirst,
@@ -23,27 +24,24 @@ import {
 // Test helpers — feedback-store fixtures
 // ---------------------------------------------------------------------------
 
-// Mock IO that holds WORK.md + WORK.feedback.yaml + WORK.history.yaml in a
-// single map. `rename` is required — phase 2 task 2.8.5 added it everywhere.
-function makeSortIO(files = {}) {
-  const store = { ...files };
-  return {
-    exists: (p) => Object.prototype.hasOwnProperty.call(store, p),
-    readFile: (p) => {
-      if (!(p in store)) throw new Error(`ENOENT: ${p}`);
-      return store[p];
-    },
-    writeFile: (p, c) => { store[p] = c; },
-    rename: (from, to) => {
-      if (!(from in store)) throw new Error(`ENOENT: ${from}`);
-      store[to] = store[from];
-      delete store[from];
-    },
-    unlink: (p) => { delete store[p]; },
-    exec: () => '',
-    _get: (p) => store[p],
-    _set: (p, c) => { store[p] = c; },
-  };
+const makeSortIO = makeMockIO;
+
+function makeWorkMd(options = {}) {
+  const cycle = Object.prototype.hasOwnProperty.call(options, 'cycle') ? options.cycle : 'c1';
+  const stages = options.stages || ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+  const maxIterations = Object.prototype.hasOwnProperty.call(options, 'maxIterations') ? options.maxIterations : 100;
+  const deadlockIterations = Object.prototype.hasOwnProperty.call(options, 'deadlockIterations') ? options.deadlockIterations : 5;
+  const lines = [
+    '---',
+    `cycle: ${cycle}`,
+    'stages:',
+    ...stages.map(stage => `  - ${stage}`),
+  ];
+  if (maxIterations !== undefined) lines.push(`max-iterations: ${maxIterations}`);
+  if (deadlockIterations !== undefined) lines.push(`deadlock-iterations: ${deadlockIterations}`);
+  if (options.deadlockAppraise !== undefined) lines.push(`deadlock-appraise: ${options.deadlockAppraise}`);
+  lines.push('---', '');
+  return lines.join('\n');
 }
 
 // Build a WORK.feedback.yaml string with N items. Each item's history[0] is
@@ -51,7 +49,7 @@ function makeSortIO(files = {}) {
 function makeFeedbackYaml(items) {
   return yaml.dump({
     items: items.map((it, i) => ({
-      id: `EX${String(i).padStart(2, '0')}${'Z'.repeat(22)}`.slice(0, 26),
+      id: `EXJ${String(i).padStart(23, '0')}`,
       file: it.file || 'a.md',
       tag: it.tag || 'law:x',
       text: it.text || `item-${i}`,
@@ -62,6 +60,21 @@ function makeFeedbackYaml(items) {
     })),
   });
 }
+
+describe('makeFeedbackYaml', () => {
+  it('builds deterministic 26-character Crockford-legal fixture IDs', () => {
+    const feedback = yaml.load(makeFeedbackYaml([{}, {}]));
+
+    assert.deepEqual(feedback.items.map(item => item.id), [
+      'EXJ00000000000000000000000',
+      'EXJ00000000000000000000001',
+    ]);
+    for (const item of feedback.items) {
+      assert.equal(item.id.length, 26);
+      assert.match(item.id, /^[0-9A-HJKMNP-TV-Z]{26}$/);
+    }
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -848,19 +861,7 @@ describe('determineRoute with assay', () => {
 
 describe('runSort — per-item deadlock (spec §6.1)', () => {
   const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-  const workText = [
-    '---',
-    'cycle: c1',
-    'stages:',
-    '  - forge:write',
-    '  - quench:review',
-    '  - appraise:check',
-    '  - human-appraise:review',
-    'max-iterations: 100',
-    'deadlock-iterations: 5',
-    '---',
-    '',
-  ].join('\n');
+  const workText = makeWorkMd({ stages });
 
   // History showing many appraise rounds — under the OLD round-counting algorithm
   // this would trigger deadlock for any open item. Under the new per-item rule,
@@ -970,19 +971,10 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
   });
 
   it('when deadlock-appraise: false, no snapshot is written and route is not forced', () => {
-    const workTextDisabled = [
-      '---',
-      'cycle: c1',
-      'stages:',
-      '  - forge:write',
-      '  - quench:review',
-      '  - appraise:check',
-      'max-iterations: 100',
-      'deadlock-iterations: 5',
-      'deadlock-appraise: false',
-      '---',
-      '',
-    ].join('\n');
+    const workTextDisabled = makeWorkMd({
+      stages: ['forge:write', 'quench:review', 'appraise:check'],
+      deadlockAppraise: false,
+    });
     const fiveStateHistory = [
       { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
       { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
@@ -1006,6 +998,113 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
     assert.equal(after.items[0].history.length, 5);
     assert.notEqual(after.items[0].history[0].state, 'deadlocked');
   });
+
+  it('synthesizes human-appraise route from cycle when no human-appraise stage exists', () => {
+    const workTextWithoutHumanStage = makeWorkMd({
+      stages: ['forge:write', 'quench:review', 'appraise:check'],
+      maxIterations: undefined,
+    });
+    const fiveStateHistory = [
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:09:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:05:00Z', reason: 'still bad' },
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+    ];
+    const io = makeSortIO({
+      'WORK.md': workTextWithoutHumanStage,
+      'WORK.history.yaml': manyAppraiseRoundsHistory,
+      'WORK.feedback.yaml': makeFeedbackYaml([{ history: fiveStateHistory }]),
+    });
+
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+
+    assert.equal(res.route, 'human-appraise:c1');
+  });
+
+  it('blocks when deadlocked items remain after human-appraise', () => {
+    const historyYaml = yaml.dump([
+      { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:00:00Z' },
+      { stage: 'quench:review', cycle: 'c1', timestamp: '2026-04-24T10:01:00Z' },
+      { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+      { stage: 'human-appraise:review', cycle: 'c1', timestamp: '2026-04-24T10:03:00Z' },
+    ]);
+    const deadlockedHistory = [
+      { state: 'deadlocked', stage: 'sort', cycle: 'c1', timestamp: '2026-04-24T10:03:30Z', reason: 'depth >= threshold=5' },
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:01:00Z', reason: 'still bad' },
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:00:30Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:00:15Z', reason: 'still bad' },
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:00:00Z' },
+    ];
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': historyYaml,
+      'WORK.feedback.yaml': makeFeedbackYaml([{ history: deadlockedHistory }]),
+    });
+
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+
+    assert.equal(res.route, 'blocked');
+  });
+
+  it('uses default deadlock threshold of 5 when frontmatter omits deadlock-iterations', () => {
+    const workTextDefaultThreshold = makeWorkMd({ stages, deadlockIterations: undefined });
+    const fourStateHistory = [
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:09:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:05:00Z', reason: 'still bad' },
+    ];
+    const fiveStateHistory = [
+      ...fourStateHistory,
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
+    ];
+    const io = makeSortIO({
+      'WORK.md': workTextDefaultThreshold,
+      'WORK.history.yaml': manyAppraiseRoundsHistory,
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { file: 'a.md', history: fourStateHistory },
+        { file: 'b.md', history: fiveStateHistory },
+      ]),
+    });
+
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    const after = yaml.load(io._get('WORK.feedback.yaml'));
+
+    assert.equal(res.route, 'human-appraise:review');
+    assert.equal(after.items[0].history[0].state, 'open');
+    assert.equal(after.items[1].history[0].state, 'deadlocked');
+    assert.match(after.items[1].history[0].reason, /threshold=5/);
+  });
+
+  it('uses custom non-5 deadlock threshold from frontmatter', () => {
+    const workTextCustomThreshold = makeWorkMd({ stages, deadlockIterations: 3 });
+    const twoStateHistory = [
+      { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
+      { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
+    ];
+    const threeStateHistory = [
+      ...twoStateHistory,
+      { state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:09:00Z' },
+    ];
+    const io = makeSortIO({
+      'WORK.md': workTextCustomThreshold,
+      'WORK.history.yaml': manyAppraiseRoundsHistory,
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { file: 'a.md', history: twoStateHistory },
+        { file: 'b.md', history: threeStateHistory },
+      ]),
+    });
+
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    const after = yaml.load(io._get('WORK.feedback.yaml'));
+
+    assert.equal(res.route, 'human-appraise:review');
+    assert.equal(after.items[0].history[0].state, 'open');
+    assert.equal(after.items[1].history[0].state, 'deadlocked');
+    assert.match(after.items[1].history[0].reason, /threshold=3/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1016,18 +1115,7 @@ describe('runSort — deadlock pass runs before routing (spec §6.1)', () => {
   it('deadlock snapshot is written even when routing would have gone to quench', () => {
     // Stages: forge → quench → appraise. Last completed = forge → normal route is quench.
     // But a depth-5 item must override and route to human-appraise.
-    const workText = [
-      '---',
-      'cycle: c1',
-      'stages:',
-      '  - forge:write',
-      '  - quench:review',
-      '  - appraise:check',
-      '  - human-appraise:review',
-      'deadlock-iterations: 5',
-      '---',
-      '',
-    ].join('\n');
+    const workText = makeWorkMd({ maxIterations: undefined });
     const historyYaml = yaml.dump([
       { stage: 'forge:write', cycle: 'c1', timestamp: '2026-04-24T10:00:00Z' },
     ]);

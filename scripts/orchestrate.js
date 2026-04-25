@@ -114,9 +114,11 @@ function readRecentFeedback(io, limit = 5) {
       const s = it.history[0].state;
       return s === 'wont-fix' || s === 'rejected';
     });
-    candidates.sort((a, b) =>
-      b.history[0].timestamp.localeCompare(a.history[0].timestamp)
-    );
+    candidates.sort((a, b) => {
+      const aTs = a.history[0].timestamp;
+      const bTs = b.history[0].timestamp;
+      return aTs < bTs ? 1 : aTs > bTs ? -1 : 0;
+    });
     return candidates.slice(0, limit).map(it => ({
       id:     it.id,
       file:   it.file,
