@@ -19,7 +19,6 @@ Single JS package, MIT, Node ≥18.3, ESM. Author: Really Knows AI.
 scripts/
   orchestrate.js  (464)        ← deterministic cycle driver
   sort.js         (378)        ← routing + stage transitions
-  validate-tags.js (54)        ← CLI utility
   lib/                         ← 14 focused modules (workfile, feedback, tokens, etc.)
     assay/       (5 modules)   ← NEW: extractor subprocess runner
     memory/      (19 modules + admin/) ← flow-memory subsystem
@@ -64,7 +63,7 @@ No TypeScript, no lint config, no build step. Pure ESM JS. Only 4 runtime deps: 
 
 - **No TypeScript**, no JSDoc types in most files (only 3 files have `@param`/`@returns`). Relies on tests.
 - **No linter or formatter config** (`.eslintrc`, `.prettierrc` absent).
-- **No `console.log` noise** in production code (only one in `validate-tags.js`).
+- **No `console.log` noise** in production code.
 - Only **one TODO** in the entire tree: a stub template in `skills/add-extractor/SKILL.md:62`. No `FIXME`/`HACK`/`XXX`.
 - Modules are small and focused (most <150 lines). The one notable exception is the plugin entry `.opencode/plugins/foundry.js` at **1,334 lines** — it's a long `tool(...)` registration wall.
 - `scripts/lib/feedback.js` at 440 lines is the next-largest and handles the state machine for feedback items (pending → actioned/wontfix → approved/rejected).
