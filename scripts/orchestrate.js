@@ -12,7 +12,7 @@ import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from './lib/artefacts.js';
 import { readActiveStage, readLastStage, clearActiveStage } from './lib/state.js';
 import { appendEntry, getIteration } from './lib/history.js';
-import { listFeedback } from './lib/feedback.js';
+import { openFeedbackStore } from './lib/feedback-store.js';
 import { loadExtractor } from './lib/assay/loader.js';
 
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
@@ -89,20 +89,59 @@ export async function readForgeFilePatterns(cycleId, io) {
 }
 
 function readRecentFeedback(cycleId, io, limit = 5) {
-  // Best-effort: surface recent deadlocked items (rejected or wont-fix) for
-  // the human-appraise checkpoint. Returns last `limit` matching entries.
-  // On any parse error, return [] rather than crashing the cycle.
+  // CHANGELOG NOTE (2026-04-24): ordering changed.
+  //
+  // Pre-redesign: candidates.slice(-limit) over listFeedback's FILE order.
+  // Because items were appended to WORK.md's ## Feedback section in creation
+  // order and listFeedback preserved that, callers displayed oldest-first
+  // within the tail window.
+  //
+  // Post-redesign: WORK.feedback.yaml stores items by creation order, but
+  // history[0].timestamp is the authoritative "when did this item most
+  // recently change" signal. Callers of this helper (human-appraise skill
+  // preamble) want the MOST RECENT wont-fix/rejected items -- the last few
+  // that went through the appraise cycle. Sort by history[0].timestamp DESC
+  // and slice the first `limit`.
+  //
+  // Net effect for a same-ms-file: identical items surface, order reversed.
+  // Callers treating this as a set (not a list) are unaffected; callers that
+  // care about display order now see most-recent first.
   try {
-    if (!io.exists('WORK.md')) return [];
-    const content = io.readFile('WORK.md');
-    const rows = parseArtefactsTable(content);
-    const items = listFeedback(content, cycleId, rows);
-    const deadlocked = items.filter(
-      it => it.state === 'wont-fix' || it.state === 'rejected'
+    if (!io.exists('WORK.feedback.yaml')) return [];
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const items = store.list();
+    const candidates = items.filter(it => {
+      const s = it.history[0].state;
+      return s === 'wont-fix' || s === 'rejected';
+    });
+    candidates.sort((a, b) =>
+      b.history[0].timestamp.localeCompare(a.history[0].timestamp)
     );
-    return deadlocked.slice(-limit);
+    return candidates.slice(0, limit).map(it => ({
+      id:     it.id,
+      file:   it.file,
+      text:   it.text,
+      state:  it.history[0].state,
+      reason: it.history[0].reason,
+    }));
   } catch {
     return [];
+  }
+}
+
+/**
+ * Spec §10. Count non-resolved items for stamping on every history entry.
+ * Deadlocked items count as open; only 'resolved' is excluded. Returns 0 on
+ * missing file or any read/parse error -- the count is debug metadata, not
+ * load-bearing, so a failed read does not abort the cycle.
+ */
+export function computeOpenFeedback(io) {
+  if (!io.exists('WORK.feedback.yaml')) return 0;
+  try {
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    return store.list().filter(it => it.history[0].state !== 'resolved').length;
+  } catch {
+    return 0;
   }
 }
 
@@ -426,18 +465,21 @@ export async function runOrchestrate(args = {}, io) {
     const historyPath = 'WORK.history.yaml';
     const iteration = getIteration(historyPath, cycleId, io);
 
+    const openFeedback = computeOpenFeedback(io);
     appendEntry(historyPath, {
       cycle: cycleId,
       stage: 'sort',
       iteration,
       route: lastStage.stage,
       comment: `route ${lastStage.stage}`,
+      open_feedback: openFeedback,
     }, io);
     appendEntry(historyPath, {
       cycle: cycleId,
       stage: lastStage.stage,
       iteration,
       comment: summary,
+      open_feedback: openFeedback,
     }, io);
 
     if (git && typeof git.commit === 'function') {
