@@ -21,7 +21,7 @@ Appraise runs inside an enforced stage. Your **first** and **last** tool calls a
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
 2. **Last:** `foundry_stage_end({summary})`.
 
-Appraise makes **no disk writes**. All output flows through `foundry_feedback_add`. `foundry_stage_finalize` flags any unexpected writes as a violation.
+Appraise makes **no disk writes**. Feedback output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. `foundry_stage_finalize` flags any unexpected writes as a violation.
 
 ## Protocol
 
@@ -55,7 +55,7 @@ Appraise makes **no disk writes**. All output flows through `foundry_feedback_ad
    - De-duplicate: merge overlapping observations into a single feedback item
    - Preserve which appraiser(s) raised each issue (for traceability)
 
-6. For each consolidated issue: `foundry_feedback_add(file, text, tag: 'law:<law-id>')`. Tag MUST start with `law:` — the tool rejects other tags during appraise. The tool also de-duplicates by text-hash.
+6. For each consolidated issue: `foundry_feedback_add` with `{ file, text, tag: 'law:<slug>' }`. Tags must match `law:<slug>`, and dedup uses the non-resolved `(file, tag, hash(text))` semantics described in Feedback handling.
 
 7. If no appraiser found any issues, the artefact clears appraisal.
 
