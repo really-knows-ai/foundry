@@ -110,28 +110,34 @@ export function createFeedbackTools({ tool }) {
     }),
 
     foundry_feedback_wontfix: tool({
-      description: 'Mark a feedback item as wont-fix [~] with reason',
+      description: 'Mark a feedback item as wont-fix with reason (forge stages only)',
       args: {
-        file: tool.schema.string().describe('Artefact file path'),
-        index: tool.schema.number().describe('Zero-based index of the feedback item'),
+        id: tool.schema.string().describe('Feedback item id (ULID)'),
         reason: tool.schema.string().describe('Reason for wont-fix'),
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_feedback_wontfix: ${failedGuard.error}` });
-        const guard = requireActiveStage(io);
-        if (!guard.ok) return JSON.stringify({ error: `foundry_feedback_wontfix requires active stage; ${guard.error}` });
-        const stageBase = stageBaseOf(guard.active.stage);
+        const pre = preflight(io, 'foundry_feedback_wontfix');
+        if (!pre.ok) return JSON.stringify({ error: pre.error });
+        const { activeStage, stageBase, cycle } = pre;
         if (stageBase !== 'forge') {
-          return JSON.stringify({ error: `foundry_feedback_wontfix requires active forge stage; current: ${guard.active.stage}` });
+          return JSON.stringify({ error: `foundry_feedback_wontfix requires active forge stage; current: ${activeStage}` });
         }
-        const workPath = path.join(context.worktree, 'WORK.md');
-        const content = readFileSync(workPath, 'utf-8');
-        const r = wontfixFeedbackItem(content, args.file, args.index, args.reason, stageBase);
-        if (!r.ok) return JSON.stringify({ error: r.error });
-        writeFileSync(workPath, r.text, 'utf-8');
-        return JSON.stringify({ ok: true });
+
+        try {
+          const store = openFeedbackStore('WORK.feedback.yaml', io);
+          const r = store.transition({
+            id: args.id,
+            target: 'wont-fix',
+            stage: activeStage,
+            cycle,
+            reason: args.reason,
+          });
+          if (!r.ok) return JSON.stringify({ error: r.error });
+          return JSON.stringify({ ok: true });
+        } catch (err) {
+          return JSON.stringify({ error: `foundry_feedback_wontfix: ${err.message}` });
+        }
       },
     }),
 

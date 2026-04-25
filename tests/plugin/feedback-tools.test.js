@@ -214,3 +214,41 @@ describe('foundry_feedback_action — id-based', () => {
     assert.match(res.error, /not found/);
   });
 });
+
+describe('foundry_feedback_wontfix — id-based', () => {
+  test('transitions to wont-fix with reason from a forge stage', async () => {
+    worktree = makeWorktree({ stage: 'forge:write' });
+    // First add from an appraise stage (forge cannot add).
+    writeActiveStage(worktree, { stage: 'appraise:a', cycle: 'write-haiku' });
+    const t1 = await tools(worktree);
+    const { id } = parseResult(await t1.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:x' },
+      { worktree },
+    ));
+    // Switch to forge, call wontfix.
+    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
+    const t2 = await tools(worktree);
+    const res = parseResult(await t2.foundry_feedback_wontfix.execute(
+      { id, reason: 'out of scope' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'wont-fix');
+    assert.equal(doc.items[0].history[0].reason, 'out of scope');
+  });
+
+  test('rejects missing reason', async () => {
+    worktree = makeWorktree();
+    const tAdd = await tools(worktree);
+    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:x' },
+      { worktree },
+    ));
+    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
+    const tWf = await tools(worktree);
+    const res = parseResult(await tWf.foundry_feedback_wontfix.execute({ id, reason: '' }, { worktree }));
+    assert.ok(res.error);
+    assert.match(res.error, /reason/);
+  });
+});
