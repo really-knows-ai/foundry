@@ -91,9 +91,9 @@ export async function readForgeFilePatterns(cycleId, io) {
 function readRecentFeedback(io, limit = 5) {
   // CHANGELOG NOTE (2026-04-24): ordering changed.
   //
-  // Pre-redesign: candidates.slice(-limit) over listFeedback's FILE order.
+  // Pre-redesign: candidates.slice(-limit) over file order.
   // Because items were appended to WORK.md's ## Feedback section in creation
-  // order and listFeedback preserved that, callers displayed oldest-first
+  // order and that order was preserved, callers displayed oldest-first
   // within the tail window.
   //
   // Post-redesign: WORK.feedback.yaml stores items by creation order, but

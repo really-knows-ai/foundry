@@ -238,34 +238,6 @@ the `exists` guard.
 
 ---
 
-### F4-7. Stale comment references to legacy API names in production `.js` files
-
-**What.** Two production source files retain comment-only references to
-deleted/legacy feedback APIs after the phase 4 cleanup:
-
-1. `scripts/orchestrate.js:94,96` — CHANGELOG NOTE inside `readRecentFeedback`
-   explains the pre-/post-redesign ordering change and names the old
-   `listFeedback` helper for context.
-2. `scripts/lib/feedback-transitions.js:85,95,105` — comments reference the
-   deleted `scripts/lib/feedback.js` to explain why the legacy state-transition
-   matrix is preserved verbatim.
-
-Both are documentary, not functional. The phase 4 verification gate flagged
-them because they cause `rg listFeedback` and `rg scripts/lib/feedback\.js`
-to return non-zero, but neither represents a real call site.
-
-**Why deferred.** Reviewer's call: these comments aid future maintainers by
-preserving historical context that would otherwise be lost. Removing them
-unblocks a cleaner grep but reduces the file's self-explanation. Phase 5/6
-gets to decide — keep, sweep, or rewrite to drop the legacy names while
-preserving the explanation.
-
-**Trigger.** Phase 5 (skills/docs sweep) or phase 6 (consistency).
-
-**Source.** Phase 4 verification gate (task 4.6), Issues section.
-
----
-
 ## Phase 2
 
 *(none yet)*

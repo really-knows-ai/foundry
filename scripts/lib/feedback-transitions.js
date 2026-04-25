@@ -82,17 +82,17 @@ export function hashText(text) {
   return createHash('sha256').update(text).digest('hex').slice(0, 16);
 }
 
-// Legacy matrix preserved verbatim for scripts/lib/feedback.js (the old
-// markdown-based flow). New code MUST use validateTransition (options-
-// object form) above. This export is deleted in phase 4 alongside
-// feedback.js itself. Keep semantics identical to the pre-phase-1 matrix.
+// Legacy matrix preserved verbatim for the old markdown-based flow. New code
+// MUST use validateTransition (options-object form) above. This export was
+// removed from the active feedback path in phase 4. Keep semantics identical
+// to the pre-phase-1 matrix.
 //
 // Reason strings below are byte-identical to the pre-phase-1 matrix;
 // downstream logs and test assertions in tests/lib/feedback.test.js
 // depend on this exact wording.
 
 /** @deprecated Phase-1 shim for the legacy markdown feedback store.
- *  Do not use in new code. Deleted in phase 4 with scripts/lib/feedback.js. */
+ *  Do not use in new code. Removed from the active path in phase 4. */
 export const legacyTransitionsMatrix = {
   open:       { actioned: ['forge'],  'wont-fix': ['forge'] },
   actioned:   { approved: ['quench','appraise','human-appraise'], rejected: ['quench','appraise','human-appraise'] },
@@ -102,7 +102,7 @@ export const legacyTransitionsMatrix = {
 };
 
 /** @deprecated Phase-1 shim for the legacy markdown feedback store.
- *  Do not use in new code. Deleted in phase 4 with scripts/lib/feedback.js. */
+ *  Do not use in new code. Removed from the active path in phase 4. */
 export function legacyValidateTransition(current, target, stageBase) {
   const row = legacyTransitionsMatrix[current];
   if (!row) return { ok: false, reason: `unknown state: ${current}` };
