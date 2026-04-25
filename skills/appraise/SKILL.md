@@ -61,13 +61,46 @@ Appraise makes **no disk writes**. All output flows through `foundry_feedback_ad
 
 8. `foundry_stage_end({summary})`.
 
-## Reviewing actioned and wont-fix feedback
+## Feedback handling
 
-On subsequent passes, review previously actioned and wont-fix items:
+As an appraise stage, you have two feedback responsibilities:
 
-1. `foundry_feedback_list` — find `actioned` and `wont-fix` items for this artefact.
-2. Appraiser sub-agents evaluate whether the change addresses the issue (`actioned`) or the justification is sound (`wont-fix`).
-3. `foundry_feedback_resolve(file, index, resolution: 'approved'|'rejected', reason?)`. Appraise is the only stage (other than human-appraise) allowed to resolve `wont-fix` items.
+1. **Adding new law-violation feedback.** For each unmet law, call
+   `foundry_feedback_add` with `{ file, text, tag: 'law:<slug>' }`.
+   The `source` is automatically your stage id (e.g. `appraise:write-check`).
+   The tool rejects any tag not matching `law:<slug>` during an appraise
+   stage; do not attempt bare `'appraise'` or `'review'` tags.
+
+   The tool returns `{ ok: true, id, deduped }` on success. `deduped: true`
+   means an existing non-resolved item with the same `(file, tag,
+   hash(text))` was found (no new snapshot written); `deduped: false`
+   means a new item was created. Resolved items are NOT considered for
+   dedup — a re-added item after a resolution is a legitimate new item
+   (regression feedback).
+
+2. **Resolving items you sourced.** Call `foundry_feedback_list` and look
+   at items whose `source` exactly matches your stage id. For items whose
+   current state is `actioned` or `wont-fix`:
+   - Approve: `foundry_feedback_resolve` with `{ id, resolution: 'approved' }`.
+     `reason` is optional.
+   - Reject: `foundry_feedback_resolve` with `{ id, resolution: 'rejected', reason: '...' }`.
+     `reason` is required. A rejection sends the item back to forge for
+     another attempt (the `rejected` state is a legal forge input per
+     §5.1 rule 2).
+
+**Reason rules.** `reason` is required on `resolution: 'rejected'` and on
+any deadlock-override transition. On `resolution: 'approved'` for a
+non-deadlocked item, `reason` is optional.
+
+**Source-authorship rule.** You can only resolve/reject items whose `source`
+matches your own stage id — not every appraise stage in the cycle, just yours.
+This prevents a second appraise stage from rubber-stamping work it didn't
+request. For deadlocked items, only human-appraise has the override authority.
+
+**Future work.** Spec §17 notes a planned cycle-level mode that would let
+human-appraise see non-deadlocked unresolved feedback before sort routes.
+Not available in v2.6.0; appraise stages today are the sole resolver of
+their own non-deadlocked items.
 
 ## Dispatch
 
