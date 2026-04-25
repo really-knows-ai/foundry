@@ -6,6 +6,66 @@
 
 - **Stage-end memory sync failure is now a hard flow failure.** When `foundry_stage_end` cannot flush the in-memory memory DB to the NDJSON source of truth, WORK.md is marked `status: failed` with the sync error as `reason`, and every mutating tool (`stage_begin`, `orchestrate`, `assay_run`, `forge`/`quench`/`appraise`/`human-appraise` helpers, `memory_put` / `_relate` / `_unrelate`, `feedback_*`, `artefacts_set_status`, `workfile_create`) refuses until the cycle is abandoned via `foundry_workfile_delete`. Read-only tools and the escape hatches (`workfile_delete`, `git_finish`) remain callable. Skills driving each stage (`forge`, `quench`, `appraise`, `human-appraise`, `orchestrate`, `assay`, `flow`) were updated to check for the failed state at the top of their procedure and hand control back to the user. Previously, sync failures were silently swallowed (`console.error` + `{ok:true}`) and the Cozo DB was allowed to drift ahead of on-disk NDJSON. See REVIEW.md P0 #3.
 
+## [2.6.0] - 2026-04-24
+
+### Breaking changes
+
+- `foundry_feedback_*` plugin tools switch from `{ file, index }` to `{ id }`
+  addressing. `foundry_feedback_add` drops the `stageBase?` argument (source
+  is read from the active stage). `foundry_feedback_list` response shape
+  changes to `{ id, file, tag, text, source, state, depth, reason? }`.
+- Feedback state machine expands from 4 states to 6 (`open | actioned |
+  wont-fix | rejected | deadlocked | resolved`). `approved` is renamed to
+  `resolved` internally; the public resolve tool still accepts
+  `resolution: 'approved' | 'rejected'` as input.
+- Deadlock detection becomes per-item (based on the item's own history depth)
+  instead of based on a global forge-appraise iteration count. Items freshly
+  added in the threshold-th iteration are never auto-deadlocked.
+
+### Added
+
+- `WORK.feedback.yaml` — first-class persistent record of every feedback
+  item and its full transition history. Replaces the markdown `## Feedback`
+  section in `WORK.md`.
+- `open_feedback` field on every `WORK.history.yaml` entry.
+- `seq` field on every `WORK.history.yaml` entry (tiebreaker for same-ms
+  timestamps).
+- Atomic writes via write-temp-then-rename for both `WORK.feedback.yaml`
+  and `WORK.history.yaml`.
+- Source-authorship rule: only the stage that created a feedback item can
+  resolve/reject it. Human-appraise has universal override authority —
+  it may transition any non-resolved item to any legal target state
+  regardless of source (per spec §5.1 rule 5). In practice default sort
+  routing only surfaces deadlocked items to human-appraise; a cycle-level
+  mode flag to surface non-deadlocked items pre-sort is future work
+  (spec §17).
+
+### Removed
+
+- `scripts/lib/feedback.js` (markdown parser + walker).
+- `readLastSortRoute` from `scripts/lib/history.js` (dead code).
+- `## Feedback` section from `createWorkfile` output.
+
+### Fixed
+
+- Deadlock detection no longer flags freshly-added open items (P1 [feedback M1]).
+- `WORK.history.yaml` writes are now atomic (closes observed incompleteness
+  in the wild).
+- Malformed `WORK.history.yaml` on read now marks the flow failed via
+  `markWorkfileFailed` instead of crashing the caller.
+- `appendEntry` enforces `route => stage === 'sort'`; violating calls throw.
+
+### Migration
+
+2.6.0 no longer reads or writes the `## Feedback` section. Pre-2.6.0
+workfiles with in-flight feedback are not auto-migrated — finish or
+discard in-flight cycles before upgrading. `foundry_workfile_delete`
++ re-flow is the supported path. Any `## Feedback` content left over
+in a `WORK.md` on disk after the upgrade is inert text: neither parsed
+nor deleted by 2.6.0 tools, and new writes go to `WORK.feedback.yaml`.
+Users running `foundry_git_finish` post-upgrade on a stale cycle will
+squash-merge the inert markdown unless they delete the workfile first.
+
 ## 2.5.0 — 2026-04-23
 
 ### Added
