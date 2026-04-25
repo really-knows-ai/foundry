@@ -39,8 +39,6 @@ function makeSortIO(files = {}) {
       delete store[from];
     },
     unlink: (p) => { delete store[p]; },
-    readDir: () => [],
-    mkdir: () => {},
     exec: () => '',
     _get: (p) => store[p],
     _set: (p, c) => { store[p] = c; },

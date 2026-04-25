@@ -27,6 +27,11 @@ import { openFeedbackStore } from './lib/feedback-store.js';
 // Stage helpers
 // ---------------------------------------------------------------------------
 
+// Spec §6.1: an item is "open" (still in flight) iff its head state is neither
+// 'resolved' nor 'deadlocked'. Used by routing predicates to count items that
+// still need work.
+const isOpenItem = (f) => f.state !== 'resolved' && f.state !== 'deadlocked';
+
 function baseStage(stage) {
   return stage.split(':')[0];
 }
@@ -57,10 +62,6 @@ const defaultIO = {
   exists: (p) => existsSync(p),
   exec: (cmd) => execSync(cmd, { encoding: 'utf8' }),
 };
-
-// ---------------------------------------------------------------------------
-// Parsing
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Routing logic
@@ -100,7 +101,7 @@ function determineRoute(stages, history, feedback, maxIterations, opts = {}) {
 }
 
 function nextAfterQuench(stages, current, feedback, forgeCount, maxIterations) {
-  const openItems = feedback.filter(f => f.state !== 'resolved' && f.state !== 'deadlocked');
+  const openItems = feedback.filter(isOpenItem);
   const needsForge = openItems.some(f => f.state === 'open' || f.state === 'rejected');
   if (needsForge) {
     if (forgeCount >= maxIterations) return 'blocked';
@@ -115,7 +116,7 @@ function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations,
   // runSort (spec §6.1). This helper assumes routing has already been allowed
   // to fall through (i.e., no item qualifies as deadlocked).
 
-  const openItems = feedback.filter(f => f.state !== 'resolved' && f.state !== 'deadlocked');
+  const openItems = feedback.filter(isOpenItem);
 
   const needsForge = openItems.some(f => f.state === 'open' || f.state === 'rejected');
   if (needsForge) {
@@ -253,6 +254,8 @@ function getDirtyToolManagedFiles(io = defaultIO) {
 function runDeadlockPass(store, { threshold, enabled, cycle }) {
   if (!enabled) return false;
   const qualifying = store.list().filter(item => {
+    // history[0] is the most recent state per the feedback-store invariant
+    // (entries are prepended to keep newest at head).
     const head = item.history[0];
     if (head.state === 'resolved' || head.state === 'deadlocked') return false;
     return item.history.length >= threshold;
@@ -306,7 +309,9 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
     cycle,
   });
 
-  // Re-list after the potential writes so routing sees updated states.
+  // runDeadlockPass calls store.list() internally to find qualifying items and
+  // may write new 'deadlocked' history entries via the batch primitive. Re-list
+  // here so the routing layer below sees the post-write state.
   const feedback = store.list().map(item => ({
     id: item.id,
     file: item.file,
@@ -362,10 +367,8 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
       const inStages = findFirst(stages, 'human-appraise');
       if (inStages) {
         route = inStages;
-      } else if (cycle) {
-        route = `human-appraise:${cycle}`;
       } else {
-        route = 'blocked';
+        route = `human-appraise:${cycle}`;
       }
     }
   } else {
