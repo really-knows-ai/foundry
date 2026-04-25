@@ -115,10 +115,11 @@ Notes:
 
 - `source-stage` column applies when the caller's stage id exactly matches `item.source` (e.g. `appraise:write-check` resolving an item it created). `human-appraise` override authority (last column) applies regardless of `item.source` and is the only path that can transition out of `deadlocked`.
 - **Forge `wont-fix` scope.** When `item.source` base is `assay` or `quench` (objective validation failure) or `human-appraise` (direct user instruction), forge may not `wont-fix` — it must `actioned`. Only `appraise`-sourced items are wont-fix-able by forge. This replaces the earlier tag-based restriction on `#validation` / `#human` tags.
+- `tag` is categorical and display-only. The state machine consults `source`, not tags; `#validation` / `#human` tag-based restrictions are legacy and do not apply.
 - **Reason required on** `rejected`, `wont-fix`, `deadlocked`, `resolved`. **Forbidden on** `open`. **Optional on** `actioned` (the code change is the reason).
 - Sort is the only writer of `state: deadlocked`; it writes these via its internal pass, not through the plugin API.
 
-See `docs/specs/2026-04-24-work-feedback-yaml-redesign.md` §5 for the authoritative rules.
+See `new-feedback/2026-04-24-work-feedback-yaml-redesign.md` §5 for the authoritative rules.
 
 ### Transitions are made via the plugin API
 
