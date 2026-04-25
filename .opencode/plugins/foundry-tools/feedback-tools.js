@@ -181,7 +181,7 @@ export function createFeedbackTools({ tool }) {
       async execute(args, context) {
         const io = makeIO(context.worktree);
         if (!io.exists('WORK.md')) {
-          return JSON.stringify({ error: 'WORK.md not found' });
+          return JSON.stringify({ error: 'foundry_feedback_list: WORK.md cycle not found' });
         }
         try {
           const store = openFeedbackStore('WORK.feedback.yaml', io);

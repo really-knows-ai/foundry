@@ -172,6 +172,14 @@ describe('foundry_feedback_list — new response shape', () => {
     const items = parseResult(await t.foundry_feedback_list.execute({}, { worktree }));
     assert.deepEqual(items, []);
   });
+
+  test('returns a tool-prefixed error when WORK.md is absent', async () => {
+    worktree = makeWorktree();
+    rmSync(path.join(worktree, 'WORK.md'), { force: true });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_list.execute({}, { worktree }));
+    assert.equal(res.error, 'foundry_feedback_list: WORK.md cycle not found');
+  });
 });
 
 describe('foundry_feedback_action — id-based', () => {
@@ -391,5 +399,4 @@ describe('foundry_feedback_resolve — deadlock override', () => {
     assert.ok(res.error);
   });
 });
-
 
