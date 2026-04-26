@@ -137,23 +137,28 @@ function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations,
 
 function getModifiedFiles(cycle, io = defaultIO) {
   try {
-    // Find the last sort commit for this cycle to use as the base.
-    // This captures ALL files modified since the last sort invocation,
-    // even if the stage made multiple commits.
+    // Find the most recent sort commit for this cycle and diff from its SHA
+    // to HEAD. The diff is exclusive of the sort commit itself, so it
+    // captures every file changed by stage commits made AFTER the last sort
+    // invocation. When the sort commit IS HEAD (no stage commits since), the
+    // diff is naturally empty.
+    //
+    // If no matching sort commit is found in recent history (e.g. very first
+    // sort of a cycle, or shallow clone), we return an empty list rather
+    // than diffing against an arbitrary depth — guessing risks false
+    // violations.
     const log = io.exec('git log --oneline -20');
     const sortPattern = `[${cycle}] sort:`;
-    let commitCount = 1;
-    let foundSortCommit = false;
+    let sortSha = null;
     for (const line of log.trim().split('\n')) {
-      commitCount++;
       if (line.includes(sortPattern)) {
-        foundSortCommit = true;
+        // `git log --oneline` format: "<sha> <subject>"
+        sortSha = line.split(' ', 1)[0];
         break;
       }
     }
-    // If no sort commit found in recent history, fall back to HEAD~1
-    if (!foundSortCommit) commitCount = 1;
-    const output = io.exec(`git diff --name-only HEAD~${commitCount} HEAD`);
+    if (!sortSha) return [];
+    const output = io.exec(`git diff --name-only --no-renames ${sortSha} HEAD`);
     return output.trim().split('\n').filter(Boolean);
   } catch {
     return [];
