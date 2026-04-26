@@ -29,7 +29,7 @@ Then return control to the user and stop.
 
 Loop until `foundry_orchestrate` returns a terminal action (`done`, `blocked`, or `violation`):
 
-1. Call `foundry_orchestrate({lastResult})`. Omit `lastResult` on the first iteration. On subsequent iterations, pass `{kind, ok}` reflecting the previous action's outcome.
+1. Call `foundry_orchestrate({lastResult})`. Omit `lastResult` on the first iteration. On subsequent iterations, pass `{ok, error?}` reflecting the previous action's outcome.
 
 2. Switch on the returned `action`:
 
@@ -45,7 +45,7 @@ task tool:
   prompt: <prompt-from-payload — pass verbatim>
 ```
 
-When the task returns, call `foundry_orchestrate({lastResult: {kind: 'dispatch', ok: true}})`. If the task tool itself errored or reported a subagent crash, pass `{kind: 'dispatch', ok: false, error: '<message>'}`.
+When the task returns, call `foundry_orchestrate({lastResult: {ok: true}})`. If the task tool itself errored or reported a subagent crash, pass `{ok: false, error: '<message>'}`.
 
 ### `human_appraise`
 
@@ -53,7 +53,7 @@ Payload: `{stage, token, context}`.
 
 Invoke the `human-appraise` skill inline, passing `{cycle, token, context}`. The skill will prompt the user, collect feedback, and call `foundry_stage_end({summary})`.
 
-When it returns, call `foundry_orchestrate({lastResult: {kind: 'human_appraise', ok: true}})`.
+When it returns, call `foundry_orchestrate({lastResult: {ok: true}})`.
 
 ### `done`
 
