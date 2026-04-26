@@ -1,5 +1,5 @@
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { markWorkfileFailed, requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { runAssay } from '../../../scripts/lib/assay/run.js';
@@ -43,10 +43,18 @@ export function createAssayTools({ tool }) {
             // rather than deferring to stage_end. A stage killed before
             // stage_end would otherwise lose every extractor-written row on
             // the next process start.
+            //
+            // If this sync fails, the in-memory DB is ahead of the on-disk
+            // NDJSON source of truth — same data-loss risk that stage_end
+            // guards against. Mirror that behaviour: mark the workfile failed
+            // and surface flow_failed to the caller, so subsequent mutating
+            // tools refuse to run until the user abandons the cycle.
             try {
               await syncStore({ store, io: memIo });
             } catch (err) {
-              console.error(`assay post-run memory sync failed: ${err.message ?? err}`);
+              const msg = `assay post-run memory sync failed: ${err?.message ?? err}`;
+              try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone? nothing we can do */ }
+              return JSON.stringify({ error: msg, flow_failed: true });
             }
           } else {
             try {

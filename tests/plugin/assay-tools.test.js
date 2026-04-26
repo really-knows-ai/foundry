@@ -217,6 +217,51 @@ echo '{"kind":"entity","type":"class","name":"com.Flushed","value":"durable"}'
       { cycle: 'c', extractors: ['x'] }, { worktree: root }));
     assert.match(res.error, /requires active assay stage/);
   });
+
+  it('marks WORK.md failed and returns flow_failed when post-assay syncStore fails', async () => {
+    // Deterministic injection: the extractor emits a valid entity (so runAssay
+    // succeeds) and then replaces the relation NDJSON file with a directory of
+    // the same name. The subsequent syncStore call hits writeFileSync against
+    // a directory path → EISDIR, mirroring the failure-injection style used by
+    // the validation-feedback test above (which mkdirs WORK.feedback.yaml.tmp).
+    // No chmod required.
+    writeScript(root, 'scripts/emit-then-poison.sh', `#!/bin/sh
+echo '{"kind":"entity","type":"class","name":"com.Poisoned","value":"v"}'
+rm -f foundry/memory/relations/class.ndjson
+mkdir foundry/memory/relations/class.ndjson
+`);
+    writeExtractor(root, 'poison-sync', { command: 'scripts/emit-then-poison.sh', write: ['class'] });
+    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
+
+    await beginAssay(plugin, root);
+    let res;
+    try {
+      res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['poison-sync'] }, { worktree: root }));
+    } finally {
+      // Clean up the poisoned dir so endStage / later tests can run, and so
+      // disposeStores in `after` is unaffected.
+      rmSync(join(root, 'foundry/memory/relations/class.ndjson'), { recursive: true, force: true });
+      writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'), '');
+      try { await endStage(plugin, root); } catch {}
+    }
+
+    // Result must surface the failure: not ok, with an error and flow_failed.
+    assert.notEqual(res.ok, true, `expected non-ok result; got ${JSON.stringify(res)}`);
+    assert.ok(res.error, `expected error message; got ${JSON.stringify(res)}`);
+    assert.match(res.error, /memory sync/i);
+    assert.equal(res.flow_failed, true,
+      `expected flow_failed:true; got ${JSON.stringify(res)}`);
+
+    // WORK.md must be marked failed so subsequent mutating tools refuse to run.
+    const work = readFileSync(join(root, 'WORK.md'), 'utf-8');
+    assert.match(work, /status: failed/);
+    assert.match(work, /reason: /);
+
+    // Singleton store is now divergent from disk; reset it so later tests in
+    // this describe block (which share `root`) don't reuse a poisoned handle.
+    disposeStores();
+  });
 });
 
 describe('foundry_extractor_create', () => {
