@@ -222,11 +222,13 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
  * Return a list of tool-managed files that have uncommitted changes
  * (modified, staged, or untracked) in the working tree.
  *
- * Tool-managed files are WORK.md, WORK.feedback.yaml, WORK.history.yaml, and anything under
- * .foundry/. The sort skill is the sole writer of these between stages,
- * and every stage must end with `foundry_git_commit`. If this function
+ * Tool-managed files are WORK.md, WORK.feedback.yaml, WORK.history.yaml,
+ * and anything under .foundry/. `foundry_orchestrate` is the sole writer
+ * of these between stages, and every stage commit is performed internally
+ * by the orchestrator's git bridge (the previously-public
+ * `foundry_git_commit` tool was deregistered in v2.3.0). If this function
  * returns a non-empty list at the start of a sort invocation, a prior
- * stage skipped the commit step.
+ * stage's commit was skipped or aborted.
  */
 function getDirtyToolManagedFiles(io = defaultIO) {
   try {
@@ -314,7 +316,7 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
     if (dirty.length > 0) {
       return {
         route: 'violation',
-        details: `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. Call foundry_git_commit for the prior stage before invoking sort again.`,
+        details: `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. Each stage's commit is performed internally by foundry_orchestrate; if you see this, the prior stage's commit was skipped or aborted. Re-run foundry_orchestrate or commit the listed files manually before retrying.`,
       };
     }
   }

@@ -34,7 +34,7 @@ const allSkillsDir = path.join(packageRoot, 'skills');
 export { buildCyclePromptExtras } from './foundry-tools/helpers.js';
 
 export const FoundryPlugin = async ({ directory }) => {
-  // Bootstrap per-worktree HMAC secret (created on first boot, persisted to .foundry/secret).
+  // Bootstrap per-worktree HMAC secret (created on first boot, persisted to .foundry/.secret).
   // Note: `directory` is the worktree root at plugin-boot time. Per-invocation `context.worktree`
   // may differ in multi-worktree setups — we still use `context.worktree` inside tool `execute`
   // bodies to locate `.foundry/` on disk, and use the plugin-boot `secret` only for
