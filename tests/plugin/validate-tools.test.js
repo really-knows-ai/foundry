@@ -88,6 +88,68 @@ test('foundry_validate_run handles spaces and $() in file paths', async () => {
   }
 });
 
+test('foundry_validate_run reports passed:true when validation command succeeds', async () => {
+  const dir = setupFoundry(
+    '## ok-check\nCommand: `cat {file}`\nFailure means: file unreadable\n',
+  );
+  try {
+    writeFileSync(join(dir, 'good.txt'), 'hello-world', 'utf-8');
+    const plugin = await FoundryPlugin({ directory: dir });
+    const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'doc', file: 'good.txt' }, makeCtx(dir),
+    ));
+    assert.ok(Array.isArray(out));
+    assert.equal(out.length, 1);
+    assert.equal(out[0].id, 'ok-check');
+    assert.equal(out[0].passed, true);
+    assert.equal(out[0].output, 'hello-world');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('foundry_validate_run reports passed:false with output and failureMeans on failure', async () => {
+  const dir = setupFoundry(
+    '## must-have-foo\nCommand: `grep foo {file}`\nFailure means: missing foo marker\n',
+  );
+  try {
+    writeFileSync(join(dir, 'bad.txt'), 'no-marker-here\n', 'utf-8');
+    const plugin = await FoundryPlugin({ directory: dir });
+    const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'doc', file: 'bad.txt' }, makeCtx(dir),
+    ));
+    assert.equal(out.length, 1);
+    assert.equal(out[0].id, 'must-have-foo');
+    assert.equal(out[0].passed, false);
+    assert.equal(out[0].failureMeans, 'missing foo marker');
+    // output is a string (possibly empty for grep), not undefined
+    assert.equal(typeof out[0].output, 'string');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('foundry_validate_run runs multiple validations and reports each independently', async () => {
+  const dir = setupFoundry(
+    '## first-pass\nCommand: `cat {file}`\nFailure means: missing\n\n## second-fail\nCommand: `grep nonexistent-token {file}`\nFailure means: token absent\n',
+  );
+  try {
+    writeFileSync(join(dir, 'thing.txt'), 'plain', 'utf-8');
+    const plugin = await FoundryPlugin({ directory: dir });
+    const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'doc', file: 'thing.txt' }, makeCtx(dir),
+    ));
+    assert.equal(out.length, 2);
+    const first = out.find(r => r.id === 'first-pass');
+    const second = out.find(r => r.id === 'second-fail');
+    assert.equal(first.passed, true);
+    assert.equal(second.passed, false);
+    assert.equal(second.failureMeans, 'token absent');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('foundry_validate_run returns error when no validation defined', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-validate-'));
   try {
