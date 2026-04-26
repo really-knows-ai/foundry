@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsSync, rmSync } from 'node:fs';
@@ -73,8 +73,8 @@ async function endStage(plugin, root, summary = 'ok') {
 
 describe('foundry_assay_run', () => {
   let root, plugin;
-  before(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
-  after(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
+  beforeEach(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
+  afterEach(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
 
   it('executes a simple extractor and upserts entities into memory', async () => {
     writeScript(root, 'scripts/emit-one.sh', `#!/bin/sh
@@ -239,10 +239,6 @@ mkdir foundry/memory/relations/class.ndjson
       res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
         { cycle: 'c', extractors: ['poison-sync'] }, { worktree: root }));
     } finally {
-      // Clean up the poisoned dir so endStage / later tests can run, and so
-      // disposeStores in `after` is unaffected.
-      rmSync(join(root, 'foundry/memory/relations/class.ndjson'), { recursive: true, force: true });
-      writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'), '');
       try { await endStage(plugin, root); } catch {}
     }
 
@@ -257,17 +253,13 @@ mkdir foundry/memory/relations/class.ndjson
     const work = readFileSync(join(root, 'WORK.md'), 'utf-8');
     assert.match(work, /status: failed/);
     assert.match(work, /reason: /);
-
-    // Singleton store is now divergent from disk; reset it so later tests in
-    // this describe block (which share `root`) don't reuse a poisoned handle.
-    disposeStores();
   });
 });
 
 describe('foundry_extractor_create', () => {
   let root, plugin;
-  before(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
-  after(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
+  beforeEach(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
+  afterEach(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
 
   it('creates an extractor file via the admin helper', async () => {
     const out = JSON.parse(await plugin.tool.foundry_extractor_create.execute({
