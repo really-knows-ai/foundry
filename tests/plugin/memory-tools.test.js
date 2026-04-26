@@ -39,10 +39,11 @@ describe('plugin memory tools', () => {
   });
   after(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
 
-  it('registers all seven memory tools', () => {
+  it('registers all eight memory tools', () => {
     for (const name of [
       'foundry_memory_put', 'foundry_memory_relate', 'foundry_memory_unrelate',
       'foundry_memory_get', 'foundry_memory_list', 'foundry_memory_neighbours', 'foundry_memory_query',
+      'foundry_memory_search',
     ]) {
       assert.ok(plugin.tool[name], `missing tool: ${name}`);
     }
