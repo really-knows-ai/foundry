@@ -330,7 +330,7 @@ memory:
 
 - `read` types appear in the prompt vocabulary and expose `foundry_memory_{get,list,neighbours,query}` (plus `foundry_memory_search` when embeddings are enabled).
 - `write` types additionally expose `foundry_memory_{put,relate,unrelate}`.
-- Edge permissions are derived: an edge is readable when either endpoint type is readable, writable when either endpoint type is writable.
+- **`read` and `write` are independent sets.** Entity reads (`get`, `list`, `neighbours`, `search`) check only the `read` set — a type listed in `write` but not `read` is writable but invisible to those tools. If a cycle needs both, list the type in **both** `read` and `write`. (Edge permissions are looser: an edge is readable when either endpoint type is in `read` *or* `write`, and writable when either endpoint is in `write`.)
 - `foundry_memory_query` rejects Datalog that references `ent_*` / `edge_*` relations outside the read set.
 - A cycle with no `memory:` block sees no memory tools — injection no-ops.
 

@@ -223,7 +223,8 @@ memory:
 
 - Types in `read` become visible (the cycle's dispatched prompt lists them along with `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, and — if embeddings are on — `foundry_memory_search`).
 - Types in `write` additionally expose `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`.
-- Edges are visible when either endpoint type is readable, writable when either endpoint type is writable.
+- **`read` and `write` are independent.** Entity reads check only the `read` set — a type listed in `write` only is writable but not readable. If the cycle needs to read entities of a type before writing them (the common case), list it in **both** `read` and `write`.
+- Edges are visible when either endpoint type is in `read` *or* `write`, writable when either endpoint type is in `write`.
 - A cycle with no `memory:` block sees no memory tools — same as before.
 
 During a flow, forge stages write into memory; subsequent cycles read what previous cycles learned. All writes flush to `relations/*.ndjson` so the knowledge is committed alongside the artefacts.
