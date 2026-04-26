@@ -89,6 +89,38 @@ describe('foundry_stage_begin', () => {
     assert.match(res.error, /token.*mismatch/);
   });
 
+  it('does not consume nonce when git rev-parse HEAD fails (no commits)', async () => {
+    // Fresh repo with no commits — git rev-parse HEAD will fail.
+    const noCommitDir = mkdtempSync(join(tmpdir(), 'foundry-nocommit-'));
+    execSync('git init -q', { cwd: noCommitDir, env: GIT_ENV });
+    try {
+      const plugin = await FoundryPlugin({ directory: noCommitDir });
+      const pending = plugin[Symbol.for('foundry.test.pending')];
+      const secret = plugin[Symbol.for('foundry.test.secret')];
+      const payload = { route: 'forge:c', cycle: 'c', nonce: 'nNC', exp: Date.now() + 60_000 };
+      pending.add('nNC', payload);
+      const token = signToken(payload, secret);
+
+      // First attempt fails because there are no commits.
+      const res1 = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+        { stage: 'forge:c', cycle: 'c', token }, makeCtx(noCommitDir),
+      ));
+      assert.match(res1.error, /git rev-parse HEAD/);
+      assert.equal(existsSync(join(noCommitDir, '.foundry/active-stage.json')), false);
+
+      // Now create a commit and retry with the SAME token. The nonce must
+      // still be pending for this to succeed.
+      execSync('git commit --allow-empty -m init -q', { cwd: noCommitDir, env: GIT_ENV });
+      const res2 = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+        { stage: 'forge:c', cycle: 'c', token }, makeCtx(noCommitDir),
+      ));
+      assert.equal(res2.ok, true, `expected retry to succeed, got: ${JSON.stringify(res2)}`);
+      assert.ok(existsSync(join(noCommitDir, '.foundry/active-stage.json')));
+    } finally {
+      rmSync(noCommitDir, { recursive: true, force: true });
+    }
+  });
+
   it('rejects when active stage already present', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const pending = plugin[Symbol.for('foundry.test.pending')];

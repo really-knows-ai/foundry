@@ -32,17 +32,22 @@ export function createStageTools({ tool, secret, pending }) {
         if (v.payload.route !== args.stage || v.payload.cycle !== args.cycle) {
           return JSON.stringify({ error: `foundry_stage_begin: token payload mismatch (route=${v.payload.route}, cycle=${v.payload.cycle})` });
         }
-        // Single-use nonce check.
-        const meta = pending.consume(v.payload.nonce);
-        if (!meta) return JSON.stringify({ error: `foundry_stage_begin: nonce not pending or already consumed` });
 
-        // Resolve base SHA from git.
+        // Resolve base SHA from git. Done BEFORE consuming the nonce so a
+        // transient git failure (e.g. no-commit repo) does not burn the
+        // single-use dispatch token; the caller can retry with the same token.
         let baseSha;
         try {
           baseSha = execSync('git rev-parse HEAD', { cwd: context.worktree }).toString().trim();
         } catch {
           return JSON.stringify({ error: `foundry_stage_begin: git rev-parse HEAD failed (no commits?)` });
         }
+
+        // Single-use nonce check. This MUTATES the pending store, so it must
+        // be the last precondition — anything after this that fails would
+        // strand the nonce.
+        const meta = pending.consume(v.payload.nonce);
+        if (!meta) return JSON.stringify({ error: `foundry_stage_begin: nonce not pending or already consumed` });
 
         const tokenHash = createHash('sha256').update(args.token).digest('hex');
         const active = {
