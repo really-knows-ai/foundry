@@ -177,6 +177,57 @@ The markdown body is a prose brief injected into the `forge` prompt of any cycle
 
 Create with `add-extractor`.
 
+### JSONL output contract
+
+Extractors emit one JSON object per line on stdout, discriminated by a required `kind` field. Two row shapes are recognised:
+
+**Entity row:**
+
+```json
+{"kind":"entity","type":"<entity-type>","name":"<id>","value":"<string>"}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `kind` | `"entity"` | yes | Discriminator. |
+| `type` | string | yes | Must match a declared entity type in the project's vocabulary. |
+| `name` | string | yes | Stable identifier for the entity within its type. |
+| `value` | string | yes | Free text describing the entity's intrinsic characteristics. **Max 4096 bytes** (UTF-8). |
+
+No other fields are permitted; unknown keys raise a parse error.
+
+**Edge row:**
+
+```json
+{"kind":"edge","from":{"type":"<t1>","name":"<n1>"},"edge":"<edge-type>","to":{"type":"<t2>","name":"<n2>"}}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `kind` | `"edge"` | yes | Discriminator. |
+| `from` | object `{type,name}` | yes | Source endpoint. Both inner fields required and non-empty. |
+| `edge` | string | yes | Edge type name (must exist in vocabulary). |
+| `to` | object `{type,name}` | yes | Target endpoint. Both inner fields required and non-empty. |
+
+No other fields are permitted on edge rows.
+
+**Line handling:**
+
+- Blank lines and lines starting with `#` (after trimming whitespace) are ignored — useful for header comments.
+- Each remaining line must be a valid JSON object (not an array, not a primitive).
+- Parsing is line-numbered: errors include the line number for easy debugging.
+
+**Failure semantics:**
+
+Any of the following abort the assay stage with a `#validation`-tagged feedback item and mark the cycle blocked:
+
+- Extractor exits non-zero.
+- Extractor exceeds the configured `timeout`.
+- Output contains a malformed JSON line, an unknown `kind`, an unknown field, a missing required field, or an entity `value` exceeding 4096 bytes.
+- An entity row references a `type` not in the extractor's `memory.write` set, or an edge row's endpoint types are both outside that set (permission violation).
+
+The complete reference parser is `scripts/lib/assay/parse-jsonl.js`.
+
 ## Memory permissions
 
 Per-cycle opt-in, specified in cycle frontmatter:
