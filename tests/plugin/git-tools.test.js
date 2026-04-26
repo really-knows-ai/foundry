@@ -29,6 +29,12 @@ function cleanup(dir) {
 
 test('foundry_git_finish removes WORK.feedback.yaml from the worktree', async () => {
   const dir = initRepo();
+  const envSnapshot = {
+    GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
+    GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL,
+    GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
+    GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL,
+  };
   try {
     Object.assign(process.env, {
       GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
@@ -50,6 +56,10 @@ test('foundry_git_finish removes WORK.feedback.yaml from the worktree', async ()
     assert.equal(existsSync(join(dir, 'WORK.history.yaml')), false);
     assert.equal(existsSync(join(dir, 'WORK.feedback.yaml')), false);
   } finally {
+    for (const [k, v] of Object.entries(envSnapshot)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
     cleanup(dir);
   }
 });
