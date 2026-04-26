@@ -35,7 +35,7 @@ For each file, parse the frontmatter and body content.
 
 Check each file against the current expected format:
 
-**Agent files (v2.1 migration):**
+**Agent files (v2.1 migration — see §8):**
 - Any `.opencode/agents/foundry-*.md` filename containing a `.` character? → needs renaming to all-dashes format. The v2.1 naming convention replaces both `/` and `.` in the model ID with `-`. For example, `foundry-github-copilot-claude-sonnet-4.6.md` must become `foundry-github-copilot-claude-sonnet-4-6.md`. The inner `model:` frontmatter field is **not** changed — only the filename.
 
 **Flows:**
@@ -46,7 +46,7 @@ Check each file against the current expected format:
 - Has `targets` field? If not → needs target routing
 - Has `inputs.type` (`any-of`/`all-of`)? If `inputs` is a plain list → needs contract type
 - Has `hitl` in stages or frontmatter? → needs human-appraise migration
-- Has nested `human-appraise: {enabled, deadlock-threshold}`? → v2.2.1 flat-keys migration (see §4b)
+- Has nested `human-appraise: {enabled, deadlock-threshold}`? → v2.2.0 → v2.2.1 flat-keys migration (see §8b)
 - Has `models` map? Check format
 
 **Artefact types:**
@@ -89,7 +89,83 @@ Present a grouped summary of all issues found:
 
 If nothing needs migration, say so and stop.
 
-### 4. Migrate agent files (v2.1)
+### 4. Choose your starting version
+
+The current target version is **v2.6.0**. Identify the version you're upgrading from (check the `@really-knows-ai/foundry` entry in `package.json`) and read only the sections you need.
+
+| From    | To 2.6.0 | Sections to read (in order)                           |
+|---------|----------|-------------------------------------------------------|
+| 2.5.x   | 2.6.0    | §7 (v2.5 → v2.6)                                      |
+| 2.4.x   | 2.6.0    | §6 (v2.4 → v2.5), §7                                  |
+| 2.3.x   | 2.6.0    | §5 (v2.3 → v2.4), §6, §7                              |
+| 2.2.x   | 2.6.0    | §8c (v2.2.x → v2.3), §5, §6, §7                       |
+| 2.1.x   | 2.6.0    | §8 (v2.1 agents), §8a, §8b, §8c, §5, §6, §7           |
+| pre-2.1 | 2.6.0    | All historical migrations (§8 → §8c), then §5 → §7    |
+
+Each section labels the source-version range it applies to and the target version. A migration becomes a no-op once you have already passed through it.
+
+### 5. v2.3.x → v2.4.x
+
+v2.4.0 adds **flow memory** — an opt-in, typed graph store under `foundry/memory/`. v2.4.1 fixes the `getting-started` install snippet; v2.4.2 is README-only. None of these are forced migrations.
+
+#### Pre-flight checks
+
+Same as §8c: clean tree, on base branch, no `WORK.md` in repo root.
+
+#### Upgrade steps
+
+1. `npm install @really-knows-ai/foundry@2.4.2 --save-dev` (or skip straight to 2.6.0 — see later sections).
+2. Replace `.opencode/plugins/foundry.js` with the new version from `node_modules/@really-knows-ai/foundry/.opencode/plugins/foundry.js`.
+3. **No config migration required.** Existing flows, cycles, artefact types, appraisers, and laws continue to work unchanged. A project without `foundry/memory/` behaves exactly as before.
+4. (Optional) To opt into flow memory, run the `init-memory` skill afterwards. Cycles that want memory must declare a `memory: { read: [...], write: [...] }` block in their frontmatter — but no existing cycle is forced to.
+5. Commit: `chore: upgrade foundry to 2.4.2`.
+
+### 6. v2.4.x → v2.5.x
+
+v2.5.0 adds the **assay stage** — a deterministic, opt-in pre-forge stage that runs project-authored extractor scripts to populate flow memory. Not a forced migration.
+
+#### Pre-flight checks
+
+Clean tree, on base branch, no `WORK.md` in repo root.
+
+#### Upgrade steps
+
+1. `npm install @really-knows-ai/foundry@2.5.0 --save-dev`.
+2. Replace `.opencode/plugins/foundry.js` from the new package.
+3. **No config migration required.** Existing cycles continue to work unchanged.
+4. (Optional) To opt a cycle into assay: ensure `foundry/memory/` is initialized first (run `init-memory` if needed), then add `assay: { extractors: [<names>] }` to the cycle frontmatter and create `foundry/memory/extractors/<name>.md` files via the `add-extractor` skill.
+5. Commit: `chore: upgrade foundry to 2.5.0`.
+
+### 7. v2.5.x → v2.6.0
+
+v2.6.0 is a **breaking** feedback-system overhaul:
+
+- Feedback tool args switch from `{ file, index }` to `{ id }`.
+- `foundry_feedback_add` drops the `stageBase` argument (source is read from the active stage).
+- `foundry_feedback_list` response shape changes to `{ id, file, tag, text, source, state, depth, reason? }`.
+- The state machine expands from 4 to 6 states (`open | actioned | wont-fix | rejected | deadlocked | resolved`).
+- Deadlock detection becomes per-item (uses each item's own history depth) instead of a global iteration count.
+- Feedback now lives in `WORK.feedback.yaml`. The old `## Feedback` markdown section in `WORK.md` is no longer read or written.
+
+#### Pre-flight checks
+
+Clean tree, on base branch, no `WORK.md` in repo root. **The third check is load-bearing here:** there is no automatic migration of in-flight feedback. If `WORK.md` is present, run `foundry_workfile_delete` (or finish the cycle) before upgrading. Re-flow from a clean base afterwards.
+
+#### Upgrade steps
+
+1. `npm install @really-knows-ai/foundry@2.6.0 --save-dev`.
+2. Replace `.opencode/plugins/foundry.js` from the new package.
+3. **No `foundry/` config migration required.** Cycle, flow, artefact, law, and appraiser definitions are unchanged.
+4. Any `## Feedback` markdown left over in a stale `WORK.md` on disk after the upgrade is **inert** — neither parsed nor deleted by 2.6.0 tools, and new writes go to `WORK.feedback.yaml`. If a stale `WORK.md` slipped past pre-flight, `foundry_workfile_delete` it before running `foundry_git_finish`, otherwise the squash-merge will carry inert markdown into the base branch.
+5. Commit: `chore: upgrade foundry to 2.6.0`.
+
+## Historical migrations (pre-2.3.0)
+
+The following sections cover migrations that only matter if you are upgrading from a version older than 2.3.0. Skip them if you are already on 2.3.x or later.
+
+### 8. Migrate agent files (v2.1)
+
+Applies to: any project upgrading **from pre-2.1 to v2.1.x or later**.
 
 For each `.opencode/agents/foundry-*.md` file with a `.` in its filename:
 - Compute the new filename by replacing all `.` with `-` (keep the `.md` extension)
@@ -98,7 +174,7 @@ For each `.opencode/agents/foundry-*.md` file with a `.` in its filename:
 
 After renaming, remind the user: **Restart OpenCode** for the new agent filenames to register.
 
-### 4a. v2.2.0 lifecycle upgrade
+### 8a. v2.1.x → v2.2.0 lifecycle upgrade
 
 Foundry v2.2.0 introduces a tool-enforced stage lifecycle (`stage_begin` / `stage_end` / `stage_finalize`) backed by a per-project state directory and HMAC-signed dispatch tokens. The upgrade is non-destructive — no WORK.md or artefact migration is required — but the project needs three small changes:
 
@@ -111,7 +187,7 @@ Foundry v2.2.0 introduces a tool-enforced stage lifecycle (`stage_begin` / `stag
 
 The `foundry_artefacts_add` tool has been removed in v2.2.0 — artefact registration now happens automatically via `foundry_stage_finalize`. No existing config references this tool, so there is nothing to migrate in `foundry/`.
 
-### 4b. v2.2.1 cycle-definition flat human-appraise keys
+### 8b. v2.2.0 → v2.2.1 cycle-definition flat human-appraise keys
 
 v2.2.1 replaces the nested `human-appraise: {enabled, deadlock-threshold}` block in cycle definitions with three flat keys:
 
@@ -130,9 +206,11 @@ For each `foundry/cycles/*.md` whose frontmatter has the old nested form, migrat
 
 The old nested form is no longer read. After migration, verify by asking: "cycle `<id>`: human-appraise every iteration? deadlock-appraise on? deadlock-iterations = N?".
 
-### 4c. v2.2.x → v2.3.0
+### 8c. v2.2.x → v2.3.0
 
 v2.3.0 replaces the LLM-driven sort orchestrator with the `foundry_orchestrate` plugin tool. The `cycle` and `sort` skills are removed. Six tools are deregistered: `foundry_sort`, `foundry_history_append`, `foundry_stage_finalize`, `foundry_git_commit`, `foundry_workfile_configure_from_cycle`, `foundry_workfile_set`.
+
+v2.3.1 and v2.3.2 ship within this section as no-op upgrades: v2.3.1 is a skill-prose change (any cycle in a flow may be a starting cycle; forge write invariant restated) with no tool, schema, or config changes; v2.3.2 tightens config-modifying skills to refuse on `work/*` branches and removes historical planning docs. Neither requires `foundry/` migration. Install the latest 2.3.x and follow the v2.3.0 steps below.
 
 #### Pre-flight checks
 
@@ -154,14 +232,14 @@ Only when all three pass, proceed with the plugin swap.
 
 #### Upgrade steps
 
-1. Install the new plugin package version: `npm install @really-knows-ai/foundry@2.3.0 --save-dev`.
+1. Install the new plugin package version: `npm install @really-knows-ai/foundry@2.3.2 --save-dev` (latest 2.3.x).
 2. Swap `.opencode/plugins/foundry.js` with the new version from `node_modules/@really-knows-ai/foundry/.opencode/plugins/foundry.js`.
 3. Remove `skills/cycle/` and `skills/sort/` directories from the project if they exist locally (they shouldn't — skills live in the package).
-4. Commit the upgrade: `chore: upgrade foundry to 2.3.0`.
+4. Commit the upgrade: `chore: upgrade foundry to 2.3.2`.
 
 No state migration is performed. In-flight cycles from v2.2.x must be completed or discarded before upgrading.
 
-### 5. Migrate flows
+### 9. Migrate flows (historical, pre-2.3.0)
 
 For each flow needing migration:
 - Show the current ordered cycle list
@@ -170,7 +248,7 @@ For each flow needing migration:
 - Present the proposed `starting-cycles` and confirm
 - Convert numbered `## Cycles` list to unordered
 
-### 6. Migrate cycles
+### 10. Migrate cycles (historical, pre-2.3.0)
 
 For each cycle needing migration:
 
@@ -189,20 +267,22 @@ For each cycle needing migration:
 
 Remove `hitl` from stages and add `human-appraise` config if enabled.
 
-### 7. Migrate other config
+### 11. Migrate other config (historical, pre-2.3.0)
 
 For artefact types, appraisers, laws, and validation with issues:
 - Present each issue with a suggested fix
 - Ask the user to confirm or adjust
 
-### 8. Present migration plan
+## Finalisation
+
+### 12. Present migration plan
 
 Before writing anything, show the complete list of changes:
 - Group by category
 - Show each file and the specific changes
 - Ask for confirmation
 
-### 9. Apply changes
+### 13. Apply changes
 
 - Update all affected files
 - Commit with message: `[foundry] upgrade: migrate to current format`
