@@ -175,7 +175,7 @@ You can pause and resume: if the flow skill sees an existing `WORK.md` when you 
 
 Before squash-merging the work branch back into main, **delete `WORK.md`, `WORK.history.yaml`, and `WORK.feedback.yaml`** — they're ephemeral per-flow state, not artefacts. `.foundry/` is gitignored and doesn't need cleanup.
 
-If you used `foundry_git_finish`, it handles this for you.
+If you used `foundry_git_finish`, it handles this for you. The tool is destructive and requires `confirm: true` — without it you get a dry-run plan back. With confirmation, it: (1) refuses to run on a dirty worktree, (2) deletes the three WORK files and commits the cleanup on the work branch, (3) checks out the base branch (default `main`), (4) squash-merges the work branch and creates a single commit with your message, (5) force-deletes the work branch. On merge conflict it aborts the merge, restores the worktree, and leaves the work branch intact for manual resolution. See [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contract.
 
 ---
 
