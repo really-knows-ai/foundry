@@ -90,6 +90,88 @@ describe('finalizeStage', () => {
     assert.equal(res.ok, true);
   });
 
+  it('detects staged unexpected file (git add of stray)', () => {
+    writeFileSync(join(dir, 'stray.txt'), 'x');
+    git(dir, 'add stray.txt');
+    const res = finalizeStage({
+      cwd: dir, baseSha, stageBase: 'forge',
+      cycleDef: { outputArtefactType: 'haiku' },
+      artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      registerArtefact: () => {},
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.error, 'unexpected_files');
+    assert.deepEqual(res.files, ['stray.txt']);
+  });
+
+  it('detects staged allowed artefact (git add of matching file)', () => {
+    mkdirSync(join(dir, 'haikus'), { recursive: true });
+    writeFileSync(join(dir, 'haikus/staged.md'), '...');
+    git(dir, 'add haikus/staged.md');
+    const registered = [];
+    const res = finalizeStage({
+      cwd: dir, baseSha, stageBase: 'forge',
+      cycleDef: { outputArtefactType: 'haiku' },
+      artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      registerArtefact: a => registered.push(a),
+    });
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.artefacts, [{ file: 'haikus/staged.md', type: 'haiku', status: 'draft' }]);
+    assert.deepEqual(registered, [{ file: 'haikus/staged.md', type: 'haiku', status: 'draft' }]);
+  });
+
+  it('detects staged deletion of unexpected file', () => {
+    // Add an extra tracked file in the base, then stage its deletion
+    writeFileSync(join(dir, 'extra.txt'), 'x');
+    git(dir, 'add extra.txt'); git(dir, 'commit -m extra -q');
+    baseSha = git(dir, 'rev-parse HEAD');
+    git(dir, 'rm extra.txt');
+    const res = finalizeStage({
+      cwd: dir, baseSha, stageBase: 'forge',
+      cycleDef: { outputArtefactType: 'haiku' },
+      artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      registerArtefact: () => {},
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.error, 'unexpected_files');
+    assert.deepEqual(res.files, ['extra.txt']);
+  });
+
+  it('detects staged rename as changed files', () => {
+    writeFileSync(join(dir, 'old.txt'), 'content');
+    git(dir, 'add old.txt'); git(dir, 'commit -m old -q');
+    baseSha = git(dir, 'rev-parse HEAD');
+    execSync('git mv old.txt new.txt', { cwd: dir, env: GIT_ENV });
+    const res = finalizeStage({
+      cwd: dir, baseSha, stageBase: 'forge',
+      cycleDef: { outputArtefactType: 'haiku' },
+      artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      registerArtefact: () => {},
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.error, 'unexpected_files');
+    // Both old and new paths should appear as changed
+    assert.ok(res.files.includes('old.txt'), `expected old.txt in ${JSON.stringify(res.files)}`);
+    assert.ok(res.files.includes('new.txt'), `expected new.txt in ${JSON.stringify(res.files)}`);
+  });
+
+  it('detects mixed staged and unstaged changes', () => {
+    mkdirSync(join(dir, 'haikus'), { recursive: true });
+    writeFileSync(join(dir, 'haikus/a.md'), 'staged');
+    git(dir, 'add haikus/a.md');
+    writeFileSync(join(dir, 'haikus/b.md'), 'unstaged'); // untracked
+    const registered = [];
+    const res = finalizeStage({
+      cwd: dir, baseSha, stageBase: 'forge',
+      cycleDef: { outputArtefactType: 'haiku' },
+      artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      registerArtefact: a => registered.push(a),
+    });
+    assert.equal(res.ok, true);
+    const files = res.artefacts.map(a => a.file).sort();
+    assert.deepEqual(files, ['haikus/a.md', 'haikus/b.md']);
+  });
+
   it('does not flag WORK.feedback.yaml as an unexpected file', () => {
     writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []');
     mkdirSync(join(dir, 'haikus'), { recursive: true });
