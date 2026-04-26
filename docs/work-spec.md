@@ -122,7 +122,7 @@ Notes:
 - **Reason required on** `rejected`, `wont-fix`, `deadlocked`, `resolved`. **Forbidden on** `open`. **Optional on** `actioned` (the code change is the reason).
 - Sort is the only writer of `state: deadlocked`; it writes these via its internal pass, not through the plugin API.
 
-See `new-feedback/2026-04-24-work-feedback-yaml-redesign.md` §5 for the authoritative rules.
+This section is the authoritative specification of the feedback state machine.
 
 ### Transitions are made via the plugin API
 
