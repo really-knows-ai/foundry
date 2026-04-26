@@ -154,7 +154,7 @@ If there are no issues, return an empty list.
 
 ## History
 
-Do NOT call `foundry_history_append` or `foundry_git_commit` — the sort skill handles those. Return a summary via `foundry_stage_end` (e.g., "3 issues found across 2 appraisers" or "No issues found").
+Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those (the tools are not registered publicly). Return a summary via `foundry_stage_end` (e.g., "3 issues found across 2 appraisers" or "No issues found").
 
 ### Human override awareness
 

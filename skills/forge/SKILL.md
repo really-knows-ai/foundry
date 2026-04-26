@@ -114,7 +114,7 @@ items in the list output.
 - You normally do not add feedback — that is the quench and appraise skills' job.
 - You do not `foundry_feedback_resolve` — that belongs to quench/appraise/human-appraise.
 - You do not register artefacts — `foundry_stage_finalize` handles that automatically.
-- You do not call `foundry_history_append` or `foundry_git_commit` — the sort skill does.
+- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` does (those tools are not registered publicly).
 - You do not evaluate or score the artefact.
 - You do not mark feedback as actioned unless you actually changed the artefact to address it.
 - You do not wont-fix items whose `source` stage base is `quench` or `human-appraise`.

@@ -85,7 +85,7 @@ deadlocked items (only human-appraise can override those).
 
 ## History
 
-Do NOT call `foundry_history_append` or `foundry_git_commit` — the sort skill handles those. Return a clear summary via `foundry_stage_end` (e.g., "2 validation issues found" or "Validation passed").
+Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those (the tools are not registered publicly). Return a clear summary via `foundry_stage_end` (e.g., "2 validation issues found" or "Validation passed").
 
 ## What you do NOT do
 

@@ -150,5 +150,5 @@ applies.
 - You do not modify the artefact.
 - You do not skip the pause — the human must respond before continuing.
 - You do not filter or summarise away important details — show the full picture.
-- You do not call `foundry_history_append` or `foundry_git_commit` — sort owns those.
+- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` owns those (the tools are not registered publicly).
 - You do not register artefacts — handled by `foundry_stage_end({summary})`.
