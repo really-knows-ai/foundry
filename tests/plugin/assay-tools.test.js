@@ -127,41 +127,37 @@ echo '{"kind":"entity","type":"class","name":"com.Hello","value":"hi"}'
     assert.match(item.text, /assay aborted/);
   });
 
-  it('logs and preserves abort result when WORK.md has no cycle for validation feedback', async () => {
+  it('logs and preserves abort result when WORK.md has no cycle for validation feedback', async (t) => {
     writeScript(root, 'scripts/fail-missing-cycle.sh', `#!/bin/sh\necho no-cycle >&2\nexit 5\n`);
     writeExtractor(root, 'bad-missing-cycle', { command: 'scripts/fail-missing-cycle.sh', write: ['class'] });
 
     writeFileSync(join(root, 'WORK.md'), '---\nflow: test\n---\n\n# Goal\n\ntest\n');
 
-    const originalError = console.error;
     const errors = [];
-    console.error = (...args) => { errors.push(args.join(' ')); };
-    try {
-      await beginAssay(plugin, root);
-      const res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
-        { cycle: 'c', extractors: ['bad-missing-cycle'] }, { worktree: root }));
-      await endStage(plugin, root);
+    t.mock.method(console, 'error', (...args) => { errors.push(args.join(' ')); });
 
-      assert.equal(res.ok, false);
-      assert.equal(res.aborted, true);
-      assert.equal(res.failedExtractor, 'bad-missing-cycle');
-      assert.match(res.reason, /exit code 5/);
-      assert.match(errors.join('\n'), /assay validation feedback skipped.*cycle/i);
-    } finally {
-      console.error = originalError;
-    }
+    await beginAssay(plugin, root);
+    const res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+      { cycle: 'c', extractors: ['bad-missing-cycle'] }, { worktree: root }));
+    await endStage(plugin, root);
+
+    assert.equal(res.ok, false);
+    assert.equal(res.aborted, true);
+    assert.equal(res.failedExtractor, 'bad-missing-cycle');
+    assert.match(res.reason, /exit code 5/);
+    assert.match(errors.join('\n'), /assay validation feedback skipped.*cycle/i);
   });
 
-  it('logs and preserves abort result when validation feedback write fails', async () => {
+  it('logs and preserves abort result when validation feedback write fails', async (t) => {
     writeScript(root, 'scripts/fail-feedback-write.sh', `#!/bin/sh\necho feedback-write >&2\nexit 6\n`);
     writeExtractor(root, 'bad-feedback-write', { command: 'scripts/fail-feedback-write.sh', write: ['class'] });
 
     writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
     mkdirSync(join(root, 'WORK.feedback.yaml.tmp'));
 
-    const originalError = console.error;
     const errors = [];
-    console.error = (...args) => { errors.push(args.join(' ')); };
+    t.mock.method(console, 'error', (...args) => { errors.push(args.join(' ')); });
+
     try {
       await beginAssay(plugin, root);
       const res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
@@ -175,7 +171,6 @@ echo '{"kind":"entity","type":"class","name":"com.Hello","value":"hi"}'
       assert.match(errors.join('\n'), /assay validation feedback failed/i);
       assert.match(errors.join('\n'), /WORK\.feedback\.yaml\.tmp|EISDIR|directory/i);
     } finally {
-      console.error = originalError;
       rmSync(join(root, 'WORK.feedback.yaml.tmp'), { recursive: true, force: true });
     }
   });
