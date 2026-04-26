@@ -61,11 +61,12 @@ describe('plugin memory tools', () => {
 
   it('relate + neighbours work via the plugin', async () => {
     const ctx = { worktree: root };
-    await plugin.tool.foundry_memory_put.execute({ type: 'class', name: 'com.Bar', value: 'bar' }, ctx);
+    await plugin.tool.foundry_memory_put.execute({ type: 'class', name: 'com.Src', value: 'src' }, ctx);
+    await plugin.tool.foundry_memory_put.execute({ type: 'class', name: 'com.Dst', value: 'dst' }, ctx);
     await plugin.tool.foundry_memory_relate.execute({
-      from_type: 'class', from_name: 'com.Foo', edge_type: 'calls', to_type: 'class', to_name: 'com.Bar',
+      from_type: 'class', from_name: 'com.Src', edge_type: 'calls', to_type: 'class', to_name: 'com.Dst',
     }, ctx);
-    const out = JSON.parse(await plugin.tool.foundry_memory_neighbours.execute({ type: 'class', name: 'com.Foo', depth: 1 }, ctx));
+    const out = JSON.parse(await plugin.tool.foundry_memory_neighbours.execute({ type: 'class', name: 'com.Src', depth: 1 }, ctx));
     assert.equal(out.edges.length, 1);
   });
 
