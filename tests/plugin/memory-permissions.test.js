@@ -73,3 +73,90 @@ describe('memory tools respect cycle permissions', () => {
     assert.equal(JSON.parse(out).name, 'f2');
   });
 });
+
+describe('memory tools fall back to .foundry/active-stage.json when context.cycle is absent', () => {
+  let root, plugin;
+  before(async () => {
+    root = setupWorktreeWithCycle();
+    plugin = await FoundryPlugin({ directory: root });
+    // Seed a finding entity via an unscoped call so subsequent reads have something to find.
+    await plugin.tool.foundry_memory_put.execute(
+      { type: 'finding', name: 'seed', value: 'seeded' },
+      { worktree: root },
+    );
+  });
+  after(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
+
+  function setActiveStage(cycle) {
+    mkdirSync(join(root, '.foundry'), { recursive: true });
+    writeFileSync(
+      join(root, '.foundry/active-stage.json'),
+      JSON.stringify({ cycle, stage: 'forge:write', baseSha: 'test' }),
+    );
+  }
+  function clearActiveStage() {
+    rmSync(join(root, '.foundry/active-stage.json'), { force: true });
+  }
+
+  it('rejects writes outside active-stage cycle write permissions when context.cycle missing', async () => {
+    setActiveStage('readonly-inspect');
+    try {
+      const out = await plugin.tool.foundry_memory_put.execute(
+        { type: 'finding', name: 'x', value: 'v' },
+        { worktree: root },
+      );
+      assert.match(out, /write permission/);
+    } finally {
+      clearActiveStage();
+    }
+  });
+
+  it('rejects reads outside active-stage cycle read permissions when context.cycle missing', async () => {
+    setActiveStage('readonly-inspect');
+    try {
+      const out = await plugin.tool.foundry_memory_get.execute(
+        { type: 'finding', name: 'seed' },
+        { worktree: root },
+      );
+      assert.equal(JSON.parse(out), null);
+    } finally {
+      clearActiveStage();
+    }
+  });
+
+  it('preserves full access when no active stage and no context.cycle', async () => {
+    clearActiveStage();
+    const out = await plugin.tool.foundry_memory_get.execute(
+      { type: 'finding', name: 'seed' },
+      { worktree: root },
+    );
+    assert.equal(JSON.parse(out).name, 'seed');
+  });
+
+  it('fails closed when active-stage references an unresolvable cycle', async () => {
+    setActiveStage('does-not-exist');
+    try {
+      const out = await plugin.tool.foundry_memory_get.execute(
+        { type: 'finding', name: 'seed' },
+        { worktree: root },
+      );
+      assert.match(out, /error/i);
+      assert.match(out, /active stage|cycle/i);
+    } finally {
+      clearActiveStage();
+    }
+  });
+
+  it('fails closed on writes when active-stage references an unresolvable cycle', async () => {
+    setActiveStage('does-not-exist');
+    try {
+      const out = await plugin.tool.foundry_memory_put.execute(
+        { type: 'finding', name: 'y', value: 'v' },
+        { worktree: root },
+      );
+      assert.match(out, /error/i);
+    } finally {
+      clearActiveStage();
+    }
+  });
+});
