@@ -78,8 +78,16 @@ export function createOrchestrateTool({ tool, secret, pending }) {
               try {
                 const artDoc = await getArtefactType('foundry', outputType, io);
                 artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
-              } catch {
-                artefactTypes[outputType] = { filePatterns: [] };
+              } catch (e) {
+                // Surface as a typed finalize error instead of falling back to
+                // empty filePatterns. The fallback would let the forge-written
+                // artefact file resurface as a misleading `unexpected_files`
+                // violation, hiding the actual cause: a missing or malformed
+                // artefact-type definition.
+                return {
+                  ok: false,
+                  error: `missing_artefact_type: ${outputType} (${e.message})`,
+                };
               }
             }
             const workPath = path.join(cwd, 'WORK.md');

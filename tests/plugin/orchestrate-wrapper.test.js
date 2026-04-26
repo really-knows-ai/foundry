@@ -196,7 +196,7 @@ describe('foundry_orchestrate wrapper: missing artefact-type during finalize', (
   beforeEach(() => { root = setupBasicCycle(); });
   afterEach(() => { cleanup(root); });
 
-  it('produces an unexpected_files violation when artefact type is missing and forge wrote files', async () => {
+  it('produces a typed missing_artefact_type violation (not unexpected_files) when artefact type is missing', async () => {
     const plugin = await FoundryPlugin({ directory: root });
     const r1 = JSON.parse(await plugin.tool.foundry_orchestrate.execute({}, makeCtx(root)));
     assert.equal(r1.action, 'dispatch');
@@ -209,18 +209,21 @@ describe('foundry_orchestrate wrapper: missing artefact-type during finalize', (
     writeLastStage(io, { cycle: 'c', stage: 'forge:c', baseSha, summary: 'forge done' });
     clearActiveStage(io);
 
-    // Remove the artefact type definition; the wrapper's finalize closure
-    // catches the getArtefactType error and uses filePatterns: [], so the
-    // forge-written haikus/a.md will be flagged as unexpected.
+    // Remove the artefact type definition. The finalize bridge must surface
+    // this as a typed `missing_artefact_type` error rather than falling back
+    // to empty filePatterns (which would re-surface the forge-written file
+    // as a misleading `unexpected_files` violation).
     rmSync(join(root, 'foundry/artefacts/haiku/definition.md'));
 
     const r2 = JSON.parse(await plugin.tool.foundry_orchestrate.execute(
       { lastResult: { ok: true } }, makeCtx(root),
     ));
     assert.equal(r2.action, 'violation', `expected violation, got ${JSON.stringify(r2)}`);
-    assert.match(r2.details, /unexpected files/);
-    assert.ok(r2.affected_files.includes('haikus/a.md'),
-      `expected haikus/a.md in affected_files, got ${JSON.stringify(r2.affected_files)}`);
+    assert.match(r2.details, /stage_finalize error: missing_artefact_type/);
+    assert.match(r2.details, /haiku/);
+    // Must NOT be reported as unexpected_files — the file was the expected
+    // forge output; the type definition is what's missing.
+    assert.doesNotMatch(r2.details, /unexpected files/);
   });
 });
 
