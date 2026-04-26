@@ -395,6 +395,8 @@ All authoring skills are interactive and conflict-aware — they explain what th
 
 The plugin registers **46 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
 
+For per-tool args, return shapes, stage requirements, failure modes, and side effects, see the full reference at [`docs/tools.md`](./docs/tools.md). The category tables below are an index.
+
 ### Pipeline tools
 
 | Category | Tools |
