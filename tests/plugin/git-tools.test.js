@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,25 +23,178 @@ function initRepo() {
   return dir;
 }
 
+function cleanup(dir) {
+  try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
 test('foundry_git_finish removes WORK.feedback.yaml from the worktree', async () => {
   const dir = initRepo();
-  Object.assign(process.env, {
-    GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
-    GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
-  });
-  execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
-  writeFileSync(join(dir, 'WORK.md'), '# Goal\n\ntest\n');
-  writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
-  writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []\n');
-  execSync('git add . && git commit -m workfiles -q', { cwd: dir, env: GIT_ENV });
+  try {
+    Object.assign(process.env, {
+      GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
+      GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
+    });
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\ntest\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
+    writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []\n');
+    execSync('git add . && git commit -m workfiles -q', { cwd: dir, env: GIT_ENV });
 
-  const plugin = await FoundryPlugin({ directory: dir });
-  const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
-    { message: 'finish flow' }, makeCtx(dir),
-  ));
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish flow', confirm: true }, makeCtx(dir),
+    ));
 
-  assert.equal(res.ok, true, res.error);
-  assert.equal(existsSync(join(dir, 'WORK.md')), false);
-  assert.equal(existsSync(join(dir, 'WORK.history.yaml')), false);
-  assert.equal(existsSync(join(dir, 'WORK.feedback.yaml')), false);
+    assert.equal(res.ok, true, res.error);
+    assert.equal(existsSync(join(dir, 'WORK.md')), false);
+    assert.equal(existsSync(join(dir, 'WORK.history.yaml')), false);
+    assert.equal(existsSync(join(dir, 'WORK.feedback.yaml')), false);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish without confirm returns planned side effects without acting', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
+    execSync('git add . && git commit -m workfiles -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish flow' }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, false);
+    assert.ok(res.planned, 'expected planned object');
+    assert.equal(res.planned.workBranch, 'work/f-flow');
+    assert.equal(res.planned.baseBranch, 'main');
+    assert.ok(Array.isArray(res.planned.filesToDelete));
+    assert.ok(res.planned.filesToDelete.includes('WORK.md'));
+    assert.ok(res.planned.filesToDelete.includes('WORK.history.yaml'));
+    // Side effects should NOT have happened.
+    assert.equal(existsSync(join(dir, 'WORK.md')), true);
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'work/f-flow');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish with confirm:false also returns planned without acting', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n');
+    execSync('git add . && git commit -m workfiles -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish flow', confirm: false }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, false);
+    assert.ok(res.planned);
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'work/f-flow');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish refuses dirty worktree even with confirm:true', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n');
+    execSync('git add . && git commit -m workfiles -q', { cwd: dir, env: GIT_ENV });
+    // Modify a tracked file without committing.
+    writeFileSync(join(dir, 'README.md'), 'modified baseline\n');
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish flow', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.ok(res.error, 'expected error for dirty worktree');
+    assert.match(res.error, /dirty|uncommitted/i);
+    // Branch should still be the work branch.
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'work/f-flow');
+    // README modification should be preserved (not reverted).
+    assert.match(execSync('cat README.md', { cwd: dir }).toString(), /modified/);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish on base branch is a graceful no-op', async () => {
+  const dir = initRepo();
+  try {
+    // Already on main from initRepo.
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish flow', confirm: true }, makeCtx(dir),
+    ));
+
+    // Should not error; just indicate nothing to do.
+    assert.equal(res.ok, true, `expected ok, got ${JSON.stringify(res)}`);
+    assert.equal(res.noop, true);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish aborts on merge conflict and preserves work branch', async () => {
+  const dir = initRepo();
+  try {
+    // Create conflicting change on main.
+    writeFileSync(join(dir, 'conflict.txt'), 'main version\n');
+    execSync('git add . && git commit -m main-change -q', { cwd: dir, env: GIT_ENV });
+    // Branch off an earlier commit and add conflicting content.
+    execSync('git checkout -b work/f-flow HEAD~1 -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'conflict.txt'), 'work version\n');
+    execSync('git add . && git commit -m work-change -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish flow', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.ok(res.error, 'expected error for merge conflict');
+    // Work branch must still exist (not force-deleted).
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(branches.includes('work/f-flow'), `expected work branch to remain, got: ${branches}`);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish successful path returns ok with hash and base branch', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish flow', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    assert.ok(res.hash);
+    assert.equal(res.branch, 'main');
+    // Work branch should be deleted.
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(!branches.includes('work/f-flow'), `expected work branch deleted, got: ${branches}`);
+    // Feature should be merged.
+    assert.equal(existsSync(join(dir, 'feature.txt')), true);
+    assert.equal(existsSync(join(dir, 'WORK.md')), false);
+  } finally {
+    cleanup(dir);
+  }
 });
