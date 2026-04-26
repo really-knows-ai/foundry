@@ -16,25 +16,28 @@ deadlock-iterations: 5
 models:
   forge: anthropic/claude-opus-4.7
   appraise: openai/gpt-5
+assay:
+  extractors: [list-routes, list-models]
 ---
 ```
 
 Fields:
 - `flow` — the foundry flow being executed.
 - `cycle` — the current cycle id.
-- `stages` — the ordered route for this cycle. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, or `human-appraise`) and `alias` is a human-readable name for what that stage does in this cycle. Derived from the cycle and artefact type: `forge` + `appraise` are always included, `quench` is included iff the artefact type has `validation.md`, `human-appraise` is included iff the cycle sets `human-appraise: true`.
+- `stages` — the ordered route for this cycle. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, `human-appraise`, or `assay`) and `alias` is a human-readable name for what that stage does in this cycle. Derived from the cycle and artefact type: `forge` + `appraise` are always included, `quench` is included iff the artefact type has `validation.md`, `human-appraise` is included iff the cycle sets `human-appraise: true`, and `assay` is included iff the cycle declares an `assay.extractors` block — when present it runs once at iteration 0, before the first forge.
 - `max-iterations` — how many forge passes before the cycle is blocked (default: 3).
 - `human-appraise` — run human-appraise every iteration (default: `false`).
 - `deadlock-appraise` — route to human-appraise when LLM appraisers deadlock (default: `true`).
 - `deadlock-iterations` — deadlock threshold (default: 5).
 - `models` — optional per-stage model overrides; individual appraisers may further override via their own `model` field.
+- `assay.extractors` — optional list of extractor names (defined under `foundry/memory/extractors/`) to run at iteration 0 before the first forge. Requires `foundry/memory/` to be initialized; cycle fails to load otherwise.
 
-The `stages` list is the happy path. Sort follows it but loops back to `forge` when unresolved feedback demands it, and inserts a `human-appraise` stage on deadlock.
+The `stages` list is the happy path. Sort follows it but loops back to `forge` when unresolved feedback demands it, and inserts a `human-appraise` stage on deadlock. When `assay` is present, it runs first at iteration 0 (before the first forge), then the normal `stages` route applies.
 
 ### Who sets what
 
 - `flow`, `cycle`, `goal` — set by the `flow` skill via `foundry_workfile_create` at flow/cycle boundaries.
-- `stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models` — set by `foundry_orchestrate` on the first call of each cycle (via internal `workfile_configure_from_cycle`, reading the cycle definition).
+- `stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models`, `assay` — set by `foundry_orchestrate` on the first call of each cycle (via internal `workfile_configure_from_cycle`, reading the cycle definition).
 
 ## Sections
 

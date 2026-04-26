@@ -190,7 +190,7 @@ Sibling files hold structured state: `WORK.feedback.yaml` stores feedback and `W
 
 ### Stages run inside a token-gated lifecycle
 
-Every dispatched stage (forge, quench, appraise, human-appraise) runs under a single-use HMAC token:
+Every dispatched stage (forge, quench, appraise, human-appraise, assay) runs under a single-use HMAC token:
 
 1. The `orchestrate` tool mints a token and hands it to the sub-agent in the dispatch prompt.
 2. The sub-agent's **first** call must be `foundry_stage_begin({stage, cycle, token})`. The token is redeemed; mutation tools now check that the active stage matches.
