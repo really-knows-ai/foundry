@@ -47,11 +47,9 @@ Free text describing what the foundry flow is producing and any context the huma
 
 ### Artefacts
 
-A table tracking every artefact produced by the foundry flow.
+A table tracking every artefact produced by the foundry flow. The generator (`createWorkfile` in `scripts/lib/workfile.js`) writes the table immediately after the `# Goal` body — there is no `# Artefacts` heading. Authoring tools should append rows to this trailing table.
 
 ```markdown
-# Artefacts
-
 | File | Type | Cycle | Status |
 |------|------|-------|--------|
 | petitions/login-change.md | petition | write-petition | draft |
@@ -254,8 +252,6 @@ deadlock-iterations: 5
 
 Write a haiku about autumn rain. Should evoke loneliness
 and the sound of rain on leaves.
-
-# Artefacts
 
 | File | Type | Cycle | Status |
 |------|------|-------|--------|
