@@ -232,15 +232,18 @@ switch on action:
 
 ## Feedback lifecycle
 
-Feedback is structured YAML in `WORK.feedback.yaml`, created and updated only through `foundry_feedback_*` plugin tools. Each item is tagged to indicate source and moves through a six-state machine: `open`, `actioned`, `wont-fix`, `resolved`, `rejected`, or `deadlocked`.
+Feedback is structured YAML in `WORK.feedback.yaml`, created and updated only through `foundry_feedback_*` plugin tools. Each item has a `source` (the stage that created it) and moves through a six-state machine: `open`, `actioned`, `wont-fix`, `resolved`, `rejected`, or `deadlocked`.
 
-Tags:
+The state machine's transition rules are **source-based, not tag-based**. Tags are categorical/display-only metadata; the legal transitions a caller can perform depend on the item's `source` stage and the caller's stage:
 
-| Tag | Source | Notes |
-|-----|--------|-------|
-| `#validation` | quench or assay (CLI command failed) | Cannot be wont-fixed. Deterministic rules are not negotiable. |
-| `#law:<id>` | appraise (subjective law) | May be wont-fixed with justification; an appraiser must approve. |
-| `#human` | human-appraise | Takes absolute priority. Forge MUST address it — cannot wont-fix. |
+| Source stage | Forge can `wont-fix`? | Resolved by |
+|--------------|------------------------|-------------|
+| `assay` (extractor failure) | No — must `actioned` | the originating `assay` stage, or `human-appraise` override |
+| `quench` (CLI validation failure) | No — must `actioned` | the originating `quench` stage, or `human-appraise` override |
+| `appraise` (subjective law) | Yes (with reason) | the originating `appraise` stage, or `human-appraise` override |
+| `human-appraise` (direct user instruction) | No — must `actioned` | the originating `human-appraise` stage |
+
+Conventional tags (`#validation`, `#law:<id>`, `#human`) are still emitted for human-readable categorisation, but the state machine consults `source`, not tags. Items whose `source` base is `assay`, `quench`, or `human-appraise` are not wont-fix-able by forge regardless of tag; `appraise`-sourced items are. See [`docs/work-spec.md`](./docs/work-spec.md#state-machine) for the full transition table.
 
 Feedback is append-only: items are never deleted, only resolved. Sort writes `deadlocked` when repeated forge/appraise iterations exceed the configured depth. `human-appraise` can override any non-resolved feedback, though default routing usually surfaces deadlocked items for that authority.
 
