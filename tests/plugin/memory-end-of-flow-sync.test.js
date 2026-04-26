@@ -43,7 +43,7 @@ describe('end-of-flow memory sync', () => {
     // Cycle-scoped put: goes into Cozo but NOT flushed to NDJSON (syncIfOutOfCycle is a no-op).
     const putOut = await plugin.tool.foundry_memory_put.execute(
       { type: 'finding', name: 'f-flow-end', value: 'pending' }, ctx);
-    assert.match(putOut, /ok.*true/);
+    assert.equal(JSON.parse(putOut).ok, true);
 
     const ndPath = join(root, 'foundry/memory/relations/finding.ndjson');
     // Before stage end: file should either not exist, or not contain the record yet.
@@ -55,7 +55,7 @@ describe('end-of-flow memory sync', () => {
       JSON.stringify({ cycle: 'observe', stage: 'forge:observe', baseSha: 'abc123' }));
 
     const endOut = await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, ctx);
-    assert.match(endOut, /ok.*true/);
+    assert.equal(JSON.parse(endOut).ok, true);
 
     // After stage end: sync should have flushed the record to NDJSON.
     assert.ok(existsSync(ndPath), 'finding.ndjson should exist after sync');

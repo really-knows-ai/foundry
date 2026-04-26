@@ -45,13 +45,17 @@ describe('memory tools respect cycle permissions', () => {
   it('rejects put outside write permission', async () => {
     const ctx = { worktree: root, cycle: 'readonly-inspect' };
     const out = await plugin.tool.foundry_memory_put.execute({ type: 'class', name: 'com.A', value: 'v' }, ctx);
-    assert.match(out, /write permission/);
+    const parsed = JSON.parse(out);
+    assert.equal(parsed.ok, undefined);
+    assert.match(parsed.error, /write permission/);
   });
 
   it('allows put within write permission', async () => {
     const ctx = { worktree: root, cycle: 'observe' };
     const out = await plugin.tool.foundry_memory_put.execute({ type: 'finding', name: 'f1', value: 'noted' }, ctx);
-    assert.match(out, /ok.*true/);
+    const parsed = JSON.parse(out);
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.error, undefined);
   });
 
   it('returns null for get on out-of-read-scope type', async () => {
@@ -65,7 +69,8 @@ describe('memory tools respect cycle permissions', () => {
       { datalog: '?[n] := *ent_finding{name: n}' },
       { worktree: root, cycle: 'readonly-inspect' },
     );
-    assert.match(out, /cannot query relation/);
+    const parsed = JSON.parse(out);
+    assert.match(parsed.error, /cannot query relation/);
   });
 
   it('unscoped direct call (no cycle) has full access', async () => {
@@ -105,7 +110,9 @@ describe('memory tools fall back to .foundry/active-stage.json when context.cycl
         { type: 'finding', name: 'x', value: 'v' },
         { worktree: root },
       );
-      assert.match(out, /write permission/);
+      const parsed = JSON.parse(out);
+      assert.equal(parsed.ok, undefined);
+      assert.match(parsed.error, /write permission/);
     } finally {
       clearActiveStage();
     }
@@ -140,8 +147,9 @@ describe('memory tools fall back to .foundry/active-stage.json when context.cycl
         { type: 'finding', name: 'seed' },
         { worktree: root },
       );
-      assert.match(out, /error/i);
-      assert.match(out, /active stage|cycle/i);
+      const parsed = JSON.parse(out);
+      assert.ok(parsed.error, `expected error field, got ${out}`);
+      assert.match(parsed.error, /active stage|cycle/i);
     } finally {
       clearActiveStage();
     }
@@ -154,7 +162,8 @@ describe('memory tools fall back to .foundry/active-stage.json when context.cycl
         { type: 'finding', name: 'y', value: 'v' },
         { worktree: root },
       );
-      assert.match(out, /error/i);
+      const parsed = JSON.parse(out);
+      assert.ok(parsed.error, `expected error field, got ${out}`);
     } finally {
       clearActiveStage();
     }

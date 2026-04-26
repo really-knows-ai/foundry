@@ -47,7 +47,7 @@ describe('stage_end: sync failure marks flow failed', () => {
     const ctx = { worktree: root, cycle: 'observe' };
     const putOut = await plugin.tool.foundry_memory_put.execute(
       { type: 'finding', name: 'f1', value: 'pending' }, ctx);
-    assert.match(putOut, /ok.*true/);
+    assert.equal(JSON.parse(putOut).ok, true);
 
     writeFileSync(join(root, '.foundry/active-stage.json'),
       JSON.stringify({ cycle: 'observe', stage: 'forge:observe', baseSha: 'abc123' }));
