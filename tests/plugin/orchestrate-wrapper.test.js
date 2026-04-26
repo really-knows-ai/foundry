@@ -317,3 +317,32 @@ describe('foundry_orchestrate wrapper: preserves lastResult.error', () => {
       `expected lastResult.error to surface in violation details, got: ${r2.details}`);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 7. requireNotFailed runs inside the wrapper's try/catch
+// ---------------------------------------------------------------------------
+
+describe('foundry_orchestrate wrapper: failed-flow guard inside try/catch', () => {
+  let root;
+  beforeEach(() => { root = setupBasicCycle(); });
+  afterEach(() => { cleanup(root); });
+
+  it('returns a violation (not an uncaught throw) when WORK.md frontmatter is malformed', async () => {
+    const plugin = await FoundryPlugin({ directory: root });
+
+    // Plant a malformed YAML frontmatter in WORK.md. requireNotFailed parses
+    // this on every invocation; a malformed frontmatter throws from
+    // js-yaml, which previously bypassed the wrapper's try/catch.
+    writeFileSync(
+      join(root, 'WORK.md'),
+      `---\nflow: f\ncycle: c\nmodels: {forge: [unterminated\n---\n\n# Goal\n\ntest\n`,
+    );
+
+    // Must not throw; must return a violation envelope.
+    const res = JSON.parse(await plugin.tool.foundry_orchestrate.execute({}, makeCtx(root)));
+    assert.equal(res.action, 'violation', `expected violation, got ${JSON.stringify(res)}`);
+    assert.match(res.details, /orchestrate threw:/);
+    assert.equal(res.recoverable, false);
+    assert.deepEqual(res.affected_files, []);
+  });
+});

@@ -25,74 +25,79 @@ export function createOrchestrateTool({ tool, secret, pending }) {
       async execute(args, context) {
         const { runOrchestrate } = await import('../../../scripts/orchestrate.js');
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${failedGuard.error}` });
         const cwd = context.worktree;
 
-        // Mint: same pattern as removed foundry_sort.
-        const mint = ({ route, cycle, exp }) => {
-          const nonce = randomUUID();
-          const payload = { route, cycle, nonce, exp };
-          pending.add(nonce, payload);
-          return signToken(payload, secret);
-        };
-
-        // Git bridge: stage ONLY the files allowed for the current phase
-        // (tool-managed workfiles plus `allowedPatterns`) and commit. If the
-        // worktree contains anything else, throws UnexpectedFilesError so the
-        // orchestrator surfaces a `violation` action without committing.
-        const runGit = (argv) => execFileSync('git', argv, { cwd, encoding: 'utf8' });
-        const git = {
-          commit: (msg, opts = {}) => {
-            const sha = commitWithPolicy({
-              message: msg,
-              allowedPatterns: opts.allowedPatterns ?? [],
-              execFile: runGit,
-            });
-            return sha;
-          },
-          status: () => {
-            const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
-            return { clean: out === '', dirty: out.split('\n').filter(Boolean) };
-          },
-        };
-
-        // Finalize bridge: mimics the deleted foundry_stage_finalize body.
-        const finalize = async ({ cycleId, stage, baseSha }) => {
-          let cycleDoc;
-          try {
-            cycleDoc = await getCycleDefinition('foundry', cycleId, io);
-          } catch (e) {
-            return { ok: false, error: e.message };
-          }
-          const outputType = cycleDoc.frontmatter.output;
-          const cycleDef = { outputArtefactType: outputType };
-          const artefactTypes = {};
-          if (outputType) {
-            try {
-              const artDoc = await getArtefactType('foundry', outputType, io);
-              artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
-            } catch {
-              artefactTypes[outputType] = { filePatterns: [] };
-            }
-          }
-          const workPath = path.join(cwd, 'WORK.md');
-          const result = finalizeStage({
-            cwd,
-            baseSha,
-            stageBase: stageBaseOf(stage),
-            cycleDef,
-            artefactTypes,
-            registerArtefact: ({ file, type, status }) => {
-              const text = readFileSync(workPath, 'utf-8');
-              const updated = addArtefactRow(text, { file, type, cycle: cycleId, status });
-              writeFileSync(workPath, updated, 'utf-8');
-            },
-          });
-          return result;
-        };
-
         try {
+          // Failed-flow guard. Inside the try so a malformed WORK.md (which
+          // requireNotFailed parses) surfaces as a violation rather than an
+          // uncaught exception, preserving the wrapper's catch-to-violation
+          // contract.
+          const failedGuard = requireNotFailed(io);
+          if (!failedGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${failedGuard.error}` });
+
+          // Mint: same pattern as removed foundry_sort.
+          const mint = ({ route, cycle, exp }) => {
+            const nonce = randomUUID();
+            const payload = { route, cycle, nonce, exp };
+            pending.add(nonce, payload);
+            return signToken(payload, secret);
+          };
+
+          // Git bridge: stage ONLY the files allowed for the current phase
+          // (tool-managed workfiles plus `allowedPatterns`) and commit. If the
+          // worktree contains anything else, throws UnexpectedFilesError so the
+          // orchestrator surfaces a `violation` action without committing.
+          const runGit = (argv) => execFileSync('git', argv, { cwd, encoding: 'utf8' });
+          const git = {
+            commit: (msg, opts = {}) => {
+              const sha = commitWithPolicy({
+                message: msg,
+                allowedPatterns: opts.allowedPatterns ?? [],
+                execFile: runGit,
+              });
+              return sha;
+            },
+            status: () => {
+              const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
+              return { clean: out === '', dirty: out.split('\n').filter(Boolean) };
+            },
+          };
+
+          // Finalize bridge: mimics the deleted foundry_stage_finalize body.
+          const finalize = async ({ cycleId, stage, baseSha }) => {
+            let cycleDoc;
+            try {
+              cycleDoc = await getCycleDefinition('foundry', cycleId, io);
+            } catch (e) {
+              return { ok: false, error: e.message };
+            }
+            const outputType = cycleDoc.frontmatter.output;
+            const cycleDef = { outputArtefactType: outputType };
+            const artefactTypes = {};
+            if (outputType) {
+              try {
+                const artDoc = await getArtefactType('foundry', outputType, io);
+                artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
+              } catch {
+                artefactTypes[outputType] = { filePatterns: [] };
+              }
+            }
+            const workPath = path.join(cwd, 'WORK.md');
+            const result = finalizeStage({
+              cwd,
+              baseSha,
+              stageBase: stageBaseOf(stage),
+              cycleDef,
+              artefactTypes,
+              registerArtefact: ({ file, type, status }) => {
+                const text = readFileSync(workPath, 'utf-8');
+                const updated = addArtefactRow(text, { file, type, cycle: cycleId, status });
+                writeFileSync(workPath, updated, 'utf-8');
+              },
+            });
+            return result;
+          };
+
           const result = await runOrchestrate({
             cwd, cycleDef: args.cycleDef, git, mint, finalize,
             now: () => Date.now(),
