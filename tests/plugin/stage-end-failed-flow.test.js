@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -39,7 +39,6 @@ describe('stage_end: sync failure marks flow failed', () => {
   let root, plugin;
   before(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
   after(() => {
-    try { chmodSync(join(root, 'foundry/memory/relations'), 0o755); } catch {}
     disposeStores();
     rmSync(root, { recursive: true, force: true });
   });
@@ -53,7 +52,11 @@ describe('stage_end: sync failure marks flow failed', () => {
     writeFileSync(join(root, '.foundry/active-stage.json'),
       JSON.stringify({ cycle: 'observe', stage: 'forge:observe', baseSha: 'abc123' }));
 
-    chmodSync(join(root, 'foundry/memory/relations'), 0o555);
+    // Deterministic write-failure injection: place a directory where syncStore
+    // expects to writeFileSync the entity NDJSON. writeFileSync against a
+    // directory path raises EISDIR on every platform/filesystem, unlike chmod
+    // which depends on POSIX permissions and user privileges.
+    mkdirSync(join(root, 'foundry/memory/relations/finding.ndjson'));
 
     const endOut = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, ctx));
     assert.equal(endOut.flow_failed, true, `expected flow_failed:true, got ${JSON.stringify(endOut)}`);

@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, chmodSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -37,7 +37,6 @@ describe('failed-flow e2e', () => {
   let root, plugin;
   before(async () => { root = setup(); plugin = await FoundryPlugin({ directory: root }); });
   after(() => {
-    try { chmodSync(join(root, 'foundry/memory/relations'), 0o755); } catch {}
     disposeStores();
     rmSync(root, { recursive: true, force: true });
   });
@@ -52,7 +51,11 @@ describe('failed-flow e2e', () => {
     writeFileSync(join(root, '.foundry/active-stage.json'),
       JSON.stringify({ cycle: 'observe', stage: 'forge:observe', baseSha: 'abc' }));
 
-    chmodSync(join(root, 'foundry/memory/relations'), 0o555);
+    // Deterministic write-failure injection: directory at the NDJSON path
+    // forces EISDIR from writeFileSync inside syncStore. Platform-agnostic
+    // and matches the convention used by the assay-tools failure test.
+    const poisonPath = join(root, 'foundry/memory/relations/finding.ndjson');
+    mkdirSync(poisonPath);
 
     const end = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 's' }, ctx));
     assert.equal(end.flow_failed, true);
@@ -62,7 +65,7 @@ describe('failed-flow e2e', () => {
       { type: 'finding', name: 'f2', value: 'v2' }, ctx));
     assert.match(m.error, /flow is in failed state/i);
 
-    chmodSync(join(root, 'foundry/memory/relations'), 0o755);
+    rmSync(poisonPath, { recursive: true });
 
     const d = JSON.parse(await plugin.tool.foundry_workfile_delete.execute({ confirm: true }, ctx));
     assert.equal(d.ok, true);
