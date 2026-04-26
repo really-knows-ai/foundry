@@ -112,10 +112,14 @@ Each appraiser is dispatched as an independent sub-agent. The sub-agent receives
 
 ### Model resolution
 
-`foundry_appraisers_select` returns raw model IDs for each appraiser. Convert each to an agent name: `foundry-<model.replace(/\//g, '-')>` (e.g., `openai/gpt-4o` becomes `foundry-openai-gpt-4o`).
+`foundry_appraisers_select` returns raw model IDs for each appraiser. Convert each to an agent name: `foundry-<model.replace(/[/.]/g, '-')>` — both `/` and `.` are replaced with `-`. Examples:
+- `openai/gpt-4o` → `foundry-openai-gpt-4o`
+- `github-copilot/claude-sonnet-4.6` → `foundry-github-copilot-claude-sonnet-4-6`
 
 - If a model is specified: dispatch with `subagent_type: "foundry-<converted-name>"`. If no agent with that name exists, **hard fail**.
 - If no model is specified: dispatch with `subagent_type: "general"` (inherits session model).
+
+Note: per-appraiser `model` overrides are applied here at dispatch time. The cycle-level `models.appraise` value (if set) is read by sort.js for routing-time agent-file validation only; this skill does not consult it when iterating appraisers.
 
 Dispatch all appraisers in parallel (multiple Task calls in a single response).
 
