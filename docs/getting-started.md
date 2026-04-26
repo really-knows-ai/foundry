@@ -21,7 +21,13 @@ Add Foundry to `opencode.json`:
 }
 ```
 
-Restart OpenCode (or reload plugins) so the plugin registers its tools and skills.
+OpenCode resolves the package itself — `npm install` is **not** required. Restart OpenCode (or reload plugins) so the plugin registers its tools and skills.
+
+Optionally, if you want the package available to your project's local node_modules (for editor tooling or scripts), run:
+
+```sh
+npm install --save-dev @really-knows-ai/foundry
+```
 
 ## Initialize
 

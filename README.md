@@ -58,7 +58,7 @@ When AI output has to hold up under review — code merging to main, specs going
 
 ## Installation
 
-Add `@really-knows-ai/foundry` to your OpenCode config:
+OpenCode resolves plugins listed in `opencode.json` automatically — you typically don't need to run `npm install` yourself. Add `@really-knows-ai/foundry` to your config:
 
 ```json
 // opencode.json
@@ -67,6 +67,16 @@ Add `@really-knows-ai/foundry` to your OpenCode config:
   "plugin": ["@really-knows-ai/foundry"]
 }
 ```
+
+Then **restart OpenCode** (or reload plugins) so the new plugin registers its 46 tools and bundled skills.
+
+If you want the package locally for editor tooling, scripts, or to run `npm test` against the source, install it explicitly:
+
+```sh
+npm install --save-dev @really-knows-ai/foundry
+```
+
+That step is optional — OpenCode does not require it.
 
 ---
 
