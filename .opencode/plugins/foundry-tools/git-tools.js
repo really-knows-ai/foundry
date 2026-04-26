@@ -22,7 +22,14 @@ export function createGitTools({ tool }) {
         const flowSlug = slugify(args.flowId);
         const descSlug = slugify(args.description);
         const branch = `work/${flowSlug}-${descSlug}`;
-        execFileSync('git', ['checkout', '-b', branch], { cwd: context.worktree, encoding: 'utf8', stdio: 'pipe' });
+        try {
+          execFileSync('git', ['checkout', '-b', branch], { cwd: context.worktree, encoding: 'utf8', stdio: 'pipe' });
+        } catch (err) {
+          const stderr = (err && (err.stderr || err.stdout)) ? String(err.stderr || err.stdout).trim() : '';
+          return JSON.stringify({
+            error: `foundry_git_branch: failed to create branch '${branch}'.${stderr ? ' ' + stderr : ''}`,
+          });
+        }
         return JSON.stringify({ ok: true, branch });
       },
     }),

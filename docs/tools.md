@@ -552,8 +552,8 @@ failed.
 
 **Failure modes:**
 - Active stage exists → `... requires no active stage; current: <stage>`.
-- `git checkout -b` failure (e.g. branch exists) propagates as a thrown
-  error from `execFileSync`.
+- `git checkout -b` failure (e.g. branch already exists, dirty state)
+  returns `{ error: "foundry_git_branch: failed to create branch '<branch>'. <git stderr>" }`.
 
 **Side effects:** runs `git checkout -b` in the worktree.
 
@@ -908,11 +908,7 @@ its rows. **Destructive.**
    like `foundry_memory_reset` and `foundry_memory_drop_*` will run
    even on a workfile marked failed. Compare with the data-write
    tools, which all gate on `requireNotFailed`.
-4. **`foundry_git_branch` propagates raw `execFileSync` errors.** Other
-   git/io wrappers catch and wrap; here a thrown error from `git
-   checkout -b` will surface as an unhandled tool error rather than
-   `{error: ...}`.
-5. **`foundry_orchestrate` returns `violation` (not `{error}`) when
+4. **`foundry_orchestrate` returns `violation` (not `{error}`) when
    `runOrchestrate` throws.** This is intentional (recoverable=false
    signals the orchestrator state), but is the only tool whose error
    path does not use `{error}`.

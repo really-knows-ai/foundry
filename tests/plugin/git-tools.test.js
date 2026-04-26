@@ -208,3 +208,43 @@ test('foundry_git_finish successful path returns ok with hash and base branch', 
     cleanup(dir);
   }
 });
+
+test('foundry_git_branch returns wrapped error when branch already exists', async () => {
+  const dir = initRepo();
+  try {
+    // Pre-create the branch we are about to ask for.
+    execSync('git checkout -b work/myflow-some-desc -q', { cwd: dir, env: GIT_ENV });
+    execSync('git checkout main -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_branch.execute(
+      { flowId: 'myflow', description: 'some desc' }, makeCtx(dir),
+    ));
+
+    assert.ok(res.error, `expected error JSON, got ${JSON.stringify(res)}`);
+    assert.match(res.error, /foundry_git_branch/);
+    assert.equal(res.ok, undefined);
+    // Caller should remain on main; checkout should not have switched branches.
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'main');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_branch returns ok and branch name on success', async () => {
+  const dir = initRepo();
+  try {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_branch.execute(
+      { flowId: 'myflow', description: 'fresh desc' }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    assert.equal(res.branch, 'work/myflow-fresh-desc');
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'work/myflow-fresh-desc');
+  } finally {
+    cleanup(dir);
+  }
+});
