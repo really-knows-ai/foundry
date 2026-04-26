@@ -20,6 +20,11 @@ export const TOOL_MANAGED = [
   'WORK.md',
   'WORK.history.yaml',
   'WORK.feedback.yaml',
+  // The plugin's secret bootstrap idempotently appends `.foundry/` to the
+  // project's `.gitignore` (see scripts/lib/secret.js). Treat it as
+  // tool-managed so the orchestrator's setup commit can sweep up that change
+  // without flagging it as an unexpected dirty file.
+  '.gitignore',
 ];
 
 export const TOOL_MANAGED_PREFIX = ['.foundry/'];

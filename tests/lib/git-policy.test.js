@@ -18,6 +18,9 @@ describe('isToolManaged', () => {
     assert.equal(isToolManaged('.foundry/last-stage.json'), true);
     assert.equal(isToolManaged('.foundry/nested/deep/file.txt'), true);
   });
+  it('matches .gitignore (plugin appends `.foundry/` on boot)', () => {
+    assert.equal(isToolManaged('.gitignore'), true);
+  });
   it('rejects ordinary repo files', () => {
     assert.equal(isToolManaged('README.md'), false);
     assert.equal(isToolManaged('haikus/a.md'), false);

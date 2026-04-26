@@ -46,6 +46,11 @@ Set up the `foundry/` directory structure in the current project.
 
    > Foundry is initialized. **Restart OpenCode** for the new foundry agents to take effect.
    >
+   > The first time the plugin boots in this project, it will create the
+   > `.foundry/` runtime directory (which holds the per-worktree HMAC key) and
+   > idempotently append `.foundry/` to your `.gitignore` so the secret never
+   > gets committed. No manual gitignore step is required.
+   >
    > Here's how to set up your first pipeline:
    >
    > 1. **Define an artefact type** — use the `add-artefact-type` skill
