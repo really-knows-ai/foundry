@@ -7,6 +7,7 @@ import { getCycleDefinition, getArtefactType } from '../../../scripts/lib/config
 import { addArtefactRow } from '../../../scripts/lib/artefacts.js';
 import { stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { finalizeStage } from '../../../scripts/lib/finalize.js';
+import { commitWithPolicy, UnexpectedFilesError } from '../../../scripts/lib/git-bridge.js';
 import { makeIO, buildCyclePromptExtras } from './helpers.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 
@@ -36,12 +37,19 @@ export function createOrchestrateTool({ tool, secret, pending }) {
           return signToken(payload, secret);
         };
 
-        // Git bridge: commit staged changes with a cycle-prefixed message.
+        // Git bridge: stage ONLY the files allowed for the current phase
+        // (tool-managed workfiles plus `allowedPatterns`) and commit. If the
+        // worktree contains anything else, throws UnexpectedFilesError so the
+        // orchestrator surfaces a `violation` action without committing.
+        const runGit = (argv) => execFileSync('git', argv, { cwd, encoding: 'utf8' });
         const git = {
-          commit: (msg) => {
-            execFileSync('git', ['add', '.'], { cwd, encoding: 'utf8' });
-            execFileSync('git', ['commit', '-m', msg], { cwd, encoding: 'utf8' });
-            return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
+          commit: (msg, opts = {}) => {
+            const sha = commitWithPolicy({
+              message: msg,
+              allowedPatterns: opts.allowedPatterns ?? [],
+              execFile: runGit,
+            });
+            return sha;
           },
           status: () => {
             const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();

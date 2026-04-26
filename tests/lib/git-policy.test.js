@@ -1,0 +1,94 @@
+// tests/lib/git-policy.test.js
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  TOOL_MANAGED,
+  isToolManaged,
+  parsePorcelainZ,
+  partitionDirty,
+  allowedPatternsForStage,
+} from '../../scripts/lib/git-policy.js';
+
+describe('isToolManaged', () => {
+  it('matches the canonical workfiles', () => {
+    for (const f of TOOL_MANAGED) assert.equal(isToolManaged(f), true);
+  });
+  it('matches anything under .foundry/', () => {
+    assert.equal(isToolManaged('.foundry/active-stage.json'), true);
+    assert.equal(isToolManaged('.foundry/last-stage.json'), true);
+    assert.equal(isToolManaged('.foundry/nested/deep/file.txt'), true);
+  });
+  it('rejects ordinary repo files', () => {
+    assert.equal(isToolManaged('README.md'), false);
+    assert.equal(isToolManaged('haikus/a.md'), false);
+    assert.equal(isToolManaged('foundry/cycles/c.md'), false);
+  });
+});
+
+describe('parsePorcelainZ', () => {
+  it('returns [] for empty input', () => {
+    assert.deepEqual(parsePorcelainZ(''), []);
+  });
+  it('parses untracked, modified, and added entries', () => {
+    const out = '?? secret.env\0 M src/a.js\0A  newfile.md\0';
+    assert.deepEqual(parsePorcelainZ(out), ['secret.env', 'src/a.js', 'newfile.md']);
+  });
+  it('emits BOTH paths for a rename (destination then source)', () => {
+    // -z rename format: "R  new\0old\0"
+    const out = 'R  new.txt\0old.txt\0';
+    assert.deepEqual(parsePorcelainZ(out), ['new.txt', 'old.txt']);
+  });
+  it('de-duplicates repeated paths', () => {
+    const out = 'MM a.txt\0?? a.txt\0';
+    assert.deepEqual(parsePorcelainZ(out), ['a.txt']);
+  });
+  it('handles paths with spaces', () => {
+    const out = '?? path with spaces.txt\0';
+    assert.deepEqual(parsePorcelainZ(out), ['path with spaces.txt']);
+  });
+});
+
+describe('partitionDirty', () => {
+  it('puts tool-managed files into allowed regardless of patterns', () => {
+    const { allowed, unexpected } = partitionDirty(
+      ['WORK.md', 'WORK.history.yaml', '.foundry/active-stage.json'],
+      [],
+    );
+    assert.deepEqual(allowed, ['WORK.md', 'WORK.history.yaml', '.foundry/active-stage.json']);
+    assert.deepEqual(unexpected, []);
+  });
+  it('matches allowed against patterns', () => {
+    const { allowed, unexpected } = partitionDirty(
+      ['haikus/a.md', 'haikus/b.md', 'stray.txt'],
+      ['haikus/*.md'],
+    );
+    assert.deepEqual(allowed, ['haikus/a.md', 'haikus/b.md']);
+    assert.deepEqual(unexpected, ['stray.txt']);
+  });
+  it('reports everything outside tool-managed and patterns as unexpected', () => {
+    const { allowed, unexpected } = partitionDirty(
+      ['secret.env', 'src/foo.js', 'WORK.md'],
+      [],
+    );
+    assert.deepEqual(allowed, ['WORK.md']);
+    assert.deepEqual(unexpected, ['secret.env', 'src/foo.js']);
+  });
+});
+
+describe('allowedPatternsForStage', () => {
+  it('forge: returns the supplied artefact file-patterns', () => {
+    assert.deepEqual(
+      allowedPatternsForStage({ stageBase: 'forge', forgeFilePatterns: ['haikus/*.md'] }),
+      ['haikus/*.md'],
+    );
+  });
+  it('assay: returns foundry/memory/**', () => {
+    assert.deepEqual(allowedPatternsForStage({ stageBase: 'assay' }), ['foundry/memory/**']);
+  });
+  it('quench / appraise / human-appraise / setup: empty', () => {
+    assert.deepEqual(allowedPatternsForStage({ stageBase: 'quench' }), []);
+    assert.deepEqual(allowedPatternsForStage({ stageBase: 'appraise' }), []);
+    assert.deepEqual(allowedPatternsForStage({ stageBase: 'human-appraise' }), []);
+    assert.deepEqual(allowedPatternsForStage({}), []);
+  });
+});

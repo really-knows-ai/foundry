@@ -193,6 +193,228 @@ test('runOrchestrate first call: runs setup, commits, returns dispatch for forge
     `expected a setup commit, got: ${commits.join(', ')}`);
 });
 
+// --- Git-bridge policy: unexpected_files translates to violations ----------
+//
+// runOrchestrate's two commit sites must NOT swallow stray repository
+// changes. The bridge throws an UnexpectedFilesError-shaped error when the
+// worktree contains files outside the phase's allowed set; runOrchestrate
+// must turn that into a `violation` action with `affected_files` and refuse
+// to dispatch.
+
+test('runOrchestrate setup: returns violation when bridge reports unexpected_files', async () => {
+  const io = makeBootstrapFixture();
+  const git = {
+    commit: (_msg, opts) => {
+      // Simulate the real bridge: any file outside allowedPatterns trips.
+      assert.deepStrictEqual(opts.allowedPatterns, [],
+        'setup commit must allow only tool-managed files');
+      const err = new Error('unexpected_files');
+      err.code = 'unexpected_files';
+      err.files = ['secret.env', 'src/unrelated.js'];
+      throw err;
+    },
+    status: () => ({ clean: false, dirty: ['secret.env', 'src/unrelated.js'] }),
+  };
+  const result = await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'T',
+    now: () => 1,
+  }, io);
+  assert.strictEqual(result.action, 'violation');
+  assert.match(result.details, /clean worktree/i);
+  assert.match(result.details, /secret\.env/);
+  assert.deepStrictEqual(result.affected_files, ['secret.env', 'src/unrelated.js']);
+});
+
+test('runOrchestrate stage commit: forge passes artefact file-patterns to bridge', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+---
+# Goal
+
+haiku
+
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'WORK.history.yaml': '',
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      baseSha: 'abc',
+      summary: 'wrote',
+    }),
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output: haiku
+stages: [forge, appraise]
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+  const observed = [];
+  const git = {
+    commit: (msg, opts) => { observed.push({ msg, opts }); return 'sha'; },
+    status: () => ({ clean: true, dirty: [] }),
+  };
+  await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'T',
+    now: () => 1,
+    lastResult: { ok: true },
+    finalize: async () => ({ ok: true, artefacts: [] }),
+  }, io);
+  // The forge stage commit must pass haikus/*.md as the allowed pattern.
+  const forgeCommit = observed.find(o => o.msg.includes('forge:create-haiku'));
+  assert.ok(forgeCommit, `expected a forge commit, got: ${JSON.stringify(observed)}`);
+  assert.deepStrictEqual(forgeCommit.opts.allowedPatterns, ['haikus/*.md']);
+});
+
+test('runOrchestrate stage commit: quench passes empty allowedPatterns', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - quench:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  quench: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'WORK.history.yaml': '',
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'quench:create-haiku',
+      baseSha: 'abc',
+      summary: 'ok',
+    }),
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    'foundry/artefacts/haiku/validation.md': `## c\nCommand: \`echo ok\`\n`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+  const observed = [];
+  const git = {
+    commit: (msg, opts) => { observed.push({ msg, opts }); return 'sha'; },
+    status: () => ({ clean: true, dirty: [] }),
+  };
+  await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'T',
+    now: () => 1,
+    lastResult: { ok: true },
+    finalize: async () => ({ ok: true, artefacts: [] }),
+  }, io);
+  const quenchCommit = observed.find(o => o.msg.includes('quench:create-haiku'));
+  assert.ok(quenchCommit);
+  assert.deepStrictEqual(quenchCommit.opts.allowedPatterns, []);
+});
+
+test('runOrchestrate stage commit: bridge rejection becomes violation with files', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'WORK.history.yaml': '',
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      baseSha: 'abc',
+      summary: 'ok',
+    }),
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+  const git = {
+    commit: () => {
+      const err = new Error('unexpected_files');
+      err.code = 'unexpected_files';
+      err.files = ['stray.bin'];
+      throw err;
+    },
+    status: () => ({ clean: false, dirty: ['stray.bin'] }),
+  };
+  const result = await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'T',
+    now: () => 1,
+    lastResult: { ok: true },
+    finalize: async () => ({ ok: true, artefacts: [] }),
+  }, io);
+  assert.strictEqual(result.action, 'violation');
+  assert.match(result.details, /forge:create-haiku/);
+  assert.match(result.details, /stray\.bin/);
+  assert.deepStrictEqual(result.affected_files, ['stray.bin']);
+});
+
 test('needsSetup: false when stages populated', () => {
   const workMd = `---
 flow: creative-flow

@@ -14,6 +14,8 @@ import { readActiveStage, readLastStage, clearActiveStage } from './lib/state.js
 import { appendEntry, getIteration } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { loadExtractor } from './lib/assay/loader.js';
+import { stageBaseOf } from './lib/stage-guard.js';
+import { allowedPatternsForStage } from './lib/git-policy.js';
 
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
   const lines = [
@@ -154,6 +156,34 @@ function violation(details, affectedFiles = []) {
     recoverable: false,
     affected_files: affectedFiles,
   };
+}
+
+/**
+ * Call git.commit with phase-appropriate allowed patterns, translating an
+ * UnexpectedFilesError-style throw into a structured violation. The bridge
+ * marks unexpected-files errors with `code === 'unexpected_files'` and a
+ * `files` array; tests stub `git.commit` as a plain function and never throw.
+ *
+ * Returns null on success, a violation object on policy failure.
+ */
+function tryCommit(git, message, allowedPatterns, phase) {
+  if (!git || typeof git.commit !== 'function') return null;
+  try {
+    git.commit(message, { allowedPatterns });
+    return null;
+  } catch (err) {
+    if (err && err.code === 'unexpected_files') {
+      const files = Array.isArray(err.files) ? err.files : [];
+      const where = phase === 'setup'
+        ? 'flow setup requires a clean worktree'
+        : `stage ${phase} commit may only include allowed files`;
+      return violation(
+        `${where}; refusing to commit unrelated changes: ${files.join(', ')}`,
+        files,
+      );
+    }
+    throw err;
+  }
 }
 
 function markArtefactBlocked(cycleId, io) {
@@ -379,7 +409,13 @@ export async function runOrchestrate(args = {}, io) {
     io.writeFile('WORK.md', newWork);
 
     if (git && typeof git.commit === 'function') {
-      git.commit(`[${cycleId}] setup: configure stages and limits`);
+      const v = tryCommit(
+        git,
+        `[${cycleId}] setup: configure stages and limits`,
+        [],
+        'setup',
+      );
+      if (v) return v;
     }
 
     workContent = io.readFile('WORK.md');
@@ -485,7 +521,21 @@ export async function runOrchestrate(args = {}, io) {
     }, io);
 
     if (git && typeof git.commit === 'function') {
-      git.commit(`[${cycleId}] ${lastStage.stage}: ${summary}`);
+      const stageBase = stageBaseOf(lastStage.stage);
+      const forgeFilePatterns = stageBase === 'forge'
+        ? (await readForgeFilePatterns(cycleId, io)) ?? []
+        : [];
+      const allowedPatterns = allowedPatternsForStage({ stageBase, forgeFilePatterns });
+      const v = tryCommit(
+        git,
+        `[${cycleId}] ${lastStage.stage}: ${summary}`,
+        allowedPatterns,
+        lastStage.stage,
+      );
+      if (v) {
+        if (activeStage) clearActiveStage(io);
+        return v;
+      }
     }
     // Defensive: stage_end clears activeStage already; this is a no-op in the
     // normal lifecycle but cleans up if the subagent skipped stage_end.

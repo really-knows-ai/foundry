@@ -174,10 +174,13 @@ describe('assay end-to-end: extractor failure', () => {
 
   it('aborts cleanly when an extractor fails', async () => {
     const ctx = { worktree: root };
-    // Replace the script with one that exits non-zero.
+    // Replace the script with one that exits non-zero. Commit the change
+    // before driving the flow — orchestrator setup now refuses to run with
+    // unrelated dirty files in the worktree.
     writeFileSync(join(root, 'scripts/extract.sh'),
       '#!/bin/sh\necho "no good" >&2\nexit 4\n');
     chmodSync(join(root, 'scripts/extract.sh'), 0o755);
+    execSync('git add -A && git commit -q -m "swap extractor"', { cwd: root, env: GIT_ENV });
 
     const dispatch = JSON.parse(await plugin.tool.foundry_orchestrate.execute({}, ctx));
     assert.equal(dispatch.stage, 'assay:doc-java');
