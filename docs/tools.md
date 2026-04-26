@@ -428,13 +428,10 @@ propagates as a tool error rather than being wrapped in `{error: ...}`
 
 **Args:** `typeId` (string, optional).
 
-**Returns:** array of law definitions.
-
-> ⚠️ **Implementation note:** when called without `typeId`, the wrapper
-> calls `getLaws('foundry', io)` — i.e. it passes `io` as the second
-> positional argument where `getLaws` expects a type id. Verify against
-> `scripts/lib/config.js`'s `getLaws` signature; this may be a latent
-> bug. See follow-ups.
+**Returns:** array of law definitions. Without `typeId`, only global
+laws under `foundry/laws/` are returned. With `typeId`, type-specific
+laws from `foundry/artefacts/<typeId>/laws.md` are appended after the
+global set.
 
 ### `foundry_config_validation`
 
@@ -892,23 +889,15 @@ its rows. **Destructive.**
 
 ## Follow-ups / inconsistencies spotted while documenting
 
-1. **`foundry_config_laws` arity bug.** When `typeId` is omitted, the
-   wrapper calls `getLaws('foundry', io)` — passing `io` as the second
-   positional argument. Either `getLaws` accepts `io` here (in which
-   case the typed branch
-   `getLaws('foundry', args.typeId, io)` is correct, suggesting the
-   no-typeId branch is missing the `io`), or it expects a `typeId`
-   string (in which case `io` is being misused as a filter). Worth
-   inspecting `scripts/lib/config.js` `getLaws` signature.
-2. **`foundry_validate_run` has no stage guard.** It runs subprocesses
+1. **`foundry_validate_run` has no stage guard.** It runs subprocesses
    regardless of active stage, and does not check for failed flow.
    Quench cycles enforce this externally, but a direct caller could
    invoke validation outside the lifecycle.
-3. **Memory admin tools have no failed-flow guard.** Destructive ops
+2. **Memory admin tools have no failed-flow guard.** Destructive ops
    like `foundry_memory_reset` and `foundry_memory_drop_*` will run
    even on a workfile marked failed. Compare with the data-write
    tools, which all gate on `requireNotFailed`.
-4. **`foundry_orchestrate` returns `violation` (not `{error}`) when
+3. **`foundry_orchestrate` returns `violation` (not `{error}`) when
    `runOrchestrate` throws.** This is intentional (recoverable=false
    signals the orchestrator state), but is the only tool whose error
    path does not use `{error}`.

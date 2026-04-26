@@ -62,7 +62,7 @@ describe('getLaws', () => {
       'foundry/laws': ['style.md'],
       'foundry/laws/style.md': '## clarity\nBe clear.\n\n## brevity\nBe brief.',
     });
-    const laws = await getLaws('foundry', null, io);
+    const laws = await getLaws('foundry', io);
     assert.equal(laws.length, 2);
     assert.equal(laws[0].id, 'clarity');
     assert.equal(laws[0].text, 'Be clear.');
@@ -76,12 +76,12 @@ describe('getLaws', () => {
       'foundry/laws/global.md': '## g1\nGlobal law.',
       'foundry/artefacts/code/laws.md': '## c1\nCode law.',
     });
-    const laws = await getLaws('foundry', 'code', io);
+    const laws = await getLaws('foundry', io, { typeId: 'code' });
     assert.equal(laws.length, 2);
     assert.equal(laws[1].source, 'artefacts/code/laws.md');
   });
 
-  it('works with io as second arg (no typeId)', async () => {
+  it('returns global laws when no typeId is provided', async () => {
     const io = mockIO({
       'foundry/laws': ['a.md'],
       'foundry/laws/a.md': '## x\nText.',

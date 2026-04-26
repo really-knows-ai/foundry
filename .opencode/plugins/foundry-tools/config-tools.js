@@ -34,9 +34,7 @@ export function createConfigTools({ tool }) {
       },
       async execute(args, context) {
         const io = makeIO(context.worktree);
-        const result = args.typeId
-          ? await getLaws('foundry', args.typeId, io)
-          : await getLaws('foundry', io);
+        const result = await getLaws('foundry', io, { typeId: args.typeId });
         return JSON.stringify(result);
       },
     }),

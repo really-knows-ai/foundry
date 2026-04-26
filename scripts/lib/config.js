@@ -29,13 +29,7 @@ export async function getArtefactType(foundryDir, typeId, io) {
   return parseDoc(text);
 }
 
-export async function getLaws(foundryDir, typeId, io) {
-  // Handle optional typeId: if typeId is the io object, shift args
-  if (typeId && typeof typeId === 'object' && typeof typeId.exists === 'function') {
-    io = typeId;
-    typeId = null;
-  }
-
+export async function getLaws(foundryDir, io, { typeId } = {}) {
   const laws = [];
 
   function parseLaws(text, source) {
