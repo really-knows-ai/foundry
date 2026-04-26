@@ -59,7 +59,7 @@ Run `add-artefact-type`. It walks you through:
 
 - `id` (lowercase, hyphenated), `name`, prose description.
 - `file-patterns` — glob patterns describing which files this type owns. The skill refuses patterns that overlap with existing types.
-- `output-dir` — where forge should write new files.
+- `output` — the directory under which forge should write new files of this type.
 - Appraiser config — how many appraisers evaluate this type and which personalities are allowed.
 - Optional `laws.md` — type-specific criteria.
 - Optional `validation.md` — CLI commands for quench (non-zero exit = failure).
