@@ -9,6 +9,19 @@ const TOOL_MANAGED = [
 ];
 const TOOL_MANAGED_PREFIX = ['.foundry/'];
 
+// Accepts short (>=7) and full (<=64) hex SHAs. Rejects symbolic refs (HEAD),
+// argument-injection (--upload-pack=...), and shell metacharacters. The
+// practical attack surface is .foundry/active-stage.json and last-stage.json,
+// which are persisted on disk and may be edited or corrupted; we validate
+// here for defense-in-depth before passing the value to git.
+const SHA_RE = /^[0-9a-f]{7,64}$/i;
+
+function assertValidSha(baseSha) {
+  if (typeof baseSha !== 'string' || !SHA_RE.test(baseSha)) {
+    throw new Error(`invalid baseSha: ${JSON.stringify(baseSha)}`);
+  }
+}
+
 function git(cwd, args) {
   return execFileSync('git', args, { cwd }).toString().split('\n').filter(Boolean);
 }
@@ -27,6 +40,7 @@ function isToolManaged(f) {
 }
 
 export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, registerArtefact }) {
+  assertValidSha(baseSha);
   const files = changedFiles(cwd, baseSha).filter(f => !isToolManaged(f));
   const allowedPatterns = stageBase === 'forge'
     ? (artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [])

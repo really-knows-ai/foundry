@@ -172,6 +172,74 @@ describe('finalizeStage', () => {
     assert.deepEqual(files, ['haikus/a.md', 'haikus/b.md']);
   });
 
+  describe('baseSha validation', () => {
+    function callWith(badSha) {
+      return finalizeStage({
+        cwd: dir, baseSha: badSha, stageBase: 'forge',
+        cycleDef: { outputArtefactType: 'haiku' },
+        artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+        registerArtefact: () => {},
+      });
+    }
+
+    it('rejects a non-hex string', () => {
+      assert.throws(() => callWith('not-a-sha'), /invalid baseSha/);
+    });
+
+    it('rejects symbolic refs like HEAD', () => {
+      assert.throws(() => callWith('HEAD'), /invalid baseSha/);
+    });
+
+    it('rejects argument-injection attempts', () => {
+      assert.throws(() => callWith('--upload-pack=evil'), /invalid baseSha/);
+    });
+
+    it('rejects empty string', () => {
+      assert.throws(() => callWith(''), /invalid baseSha/);
+    });
+
+    it('rejects null/undefined', () => {
+      assert.throws(() => callWith(undefined), /invalid baseSha/);
+      assert.throws(() => callWith(null), /invalid baseSha/);
+    });
+
+    it('rejects shell metacharacters', () => {
+      assert.throws(() => callWith(';rm -rf /'), /invalid baseSha/);
+      assert.throws(() => callWith('$(echo pwned)'), /invalid baseSha/);
+      assert.throws(() => callWith('abc123 ; ls'), /invalid baseSha/);
+    });
+
+    it('rejects too-short hex (under 7 chars)', () => {
+      assert.throws(() => callWith('abc12'), /invalid baseSha/);
+    });
+
+    it('rejects too-long hex (over 64 chars)', () => {
+      assert.throws(() => callWith('a'.repeat(65)), /invalid baseSha/);
+    });
+
+    it('accepts a normal full SHA', () => {
+      // baseSha from beforeEach is a real 40-hex SHA
+      const res = finalizeStage({
+        cwd: dir, baseSha, stageBase: 'quench',
+        cycleDef: { outputArtefactType: 'haiku' },
+        artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+        registerArtefact: () => {},
+      });
+      assert.equal(res.ok, true);
+    });
+
+    it('accepts a 7-char short SHA', () => {
+      const shortSha = baseSha.slice(0, 7);
+      const res = finalizeStage({
+        cwd: dir, baseSha: shortSha, stageBase: 'quench',
+        cycleDef: { outputArtefactType: 'haiku' },
+        artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+        registerArtefact: () => {},
+      });
+      assert.equal(res.ok, true);
+    });
+  });
+
   it('does not flag WORK.feedback.yaml as an unexpected file', () => {
     writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []');
     mkdirSync(join(dir, 'haikus'), { recursive: true });
