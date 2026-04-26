@@ -752,8 +752,8 @@ state; they are intended to run as project-level admin actions.
 
 **Args:** `type` (optional), `name` (optional), `depth` (optional).
 
-**Returns:** a string (not JSON-stringified) — the rendered report. On
-error, JSON `{error}`.
+**Returns:** JSON `{ dump }` where `dump` is the rendered human-readable
+report string. On error, JSON `{error}`.
 
 **Side effects:** none.
 
@@ -908,15 +908,11 @@ its rows. **Destructive.**
    like `foundry_memory_reset` and `foundry_memory_drop_*` will run
    even on a workfile marked failed. Compare with the data-write
    tools, which all gate on `requireNotFailed`.
-4. **`foundry_memory_dump` returns a raw string** rather than a JSON
-   envelope. All other tools return `JSON.stringify(...)`. Documented
-   above, but inconsistent with the contract stated in this doc's
-   preamble.
-5. **`foundry_git_branch` propagates raw `execFileSync` errors.** Other
+4. **`foundry_git_branch` propagates raw `execFileSync` errors.** Other
    git/io wrappers catch and wrap; here a thrown error from `git
    checkout -b` will surface as an unhandled tool error rather than
    `{error: ...}`.
-6. **`foundry_orchestrate` returns `violation` (not `{error}`) when
+5. **`foundry_orchestrate` returns `violation` (not `{error}`) when
    `runOrchestrate` throws.** This is intentional (recoverable=false
    signals the orchestrator state), but is the only tool whose error
    path does not use `{error}`.

@@ -240,22 +240,22 @@ describe('plugin memory admin tools', () => {
     it('returns a summary string when no type/name supplied', async () => {
       await plugin.tool.foundry_memory_put.execute(
         { type: 'class', name: 'com.A', value: 'v' }, { worktree: root });
-      const out = await plugin.tool.foundry_memory_dump.execute({}, { worktree: root });
-      assert.equal(typeof out, 'string');
-      assert.match(out, /memory summary/);
+      const out = JSON.parse(await plugin.tool.foundry_memory_dump.execute({}, { worktree: root }));
+      assert.equal(typeof out.dump, 'string');
+      assert.match(out.dump, /memory summary/);
     });
     it('returns entity body when type+name provided', async () => {
       await plugin.tool.foundry_memory_put.execute(
         { type: 'class', name: 'com.B', value: 'body-content' }, { worktree: root });
-      const out = await plugin.tool.foundry_memory_dump.execute(
-        { type: 'class', name: 'com.B' }, { worktree: root });
-      assert.match(out, /com\.B/);
-      assert.match(out, /body-content/);
+      const out = JSON.parse(await plugin.tool.foundry_memory_dump.execute(
+        { type: 'class', name: 'com.B' }, { worktree: root }));
+      assert.match(out.dump, /com\.B/);
+      assert.match(out.dump, /body-content/);
     });
     it('reports missing entity', async () => {
-      const out = await plugin.tool.foundry_memory_dump.execute(
-        { type: 'class', name: 'ghost' }, { worktree: root });
-      assert.match(out, /no entity found/);
+      const out = JSON.parse(await plugin.tool.foundry_memory_dump.execute(
+        { type: 'class', name: 'ghost' }, { worktree: root }));
+      assert.match(out.dump, /no entity found/);
     });
   });
 

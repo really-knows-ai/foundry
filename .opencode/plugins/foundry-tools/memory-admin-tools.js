@@ -162,7 +162,8 @@ export function createMemoryAdminTools({ tool }) {
       async execute(args, context) {
         try {
           const { store, vocabulary } = await withStore(context);
-          return await admDump({ store, vocabulary, ...args });
+          const dump = await admDump({ store, vocabulary, ...args });
+          return JSON.stringify({ dump });
         } catch (err) { return errorJson(err); }
       },
     }),
