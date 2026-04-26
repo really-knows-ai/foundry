@@ -81,12 +81,12 @@ For `output` and each entry in `inputs`:
 Read the flow definition from `foundry/flows/<flow-id>.md`. Check:
 
 - No existing foundry cycle in the foundry flow already outputs the same artefact type. Two foundry cycles producing the same type in one foundry flow is a conflict — the file modification enforcement can't distinguish which foundry cycle owns the files.
-- Each `input` artefact type is produced by an earlier foundry cycle in the foundry flow. If an input references an artefact type that no prior foundry cycle outputs, warn:
+- Each `input` artefact type is produced by some cycle that can run before this one according to the flow's `targets` graph (a reachable predecessor). If an input references an artefact type that no reachable predecessor outputs, warn:
 
-> Input `<type>` is not produced by any earlier foundry cycle in this foundry flow. The artefact won't exist when this foundry cycle runs.
+> Input `<type>` is not produced by any reachable predecessor of this foundry cycle in the flow's `targets` graph. The artefact won't exist when this foundry cycle runs.
 >
 > Options:
-> 1. Add a foundry cycle that produces `<type>` before this one
+> 1. Add a foundry cycle that produces `<type>` and route to this cycle via `targets`
 > 2. Remove `<type>` from inputs (this foundry cycle won't have that context)
 > 3. Proceed anyway (the artefact may exist from a previous foundry flow run)
 
