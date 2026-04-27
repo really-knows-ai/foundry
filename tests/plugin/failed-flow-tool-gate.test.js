@@ -112,6 +112,79 @@ describe('failed-flow tool gate', () => {
       { from_type: 'finding', from_name: 'a', edge_type: 'e', to_type: 'finding', to_name: 'b' }, ctx()), 'memory_unrelate');
   });
 
+  // --- memory admin tools: every mutating admin tool must gate on failed flow.
+  // Read-only diagnostics (dump, validate) MUST remain available.
+
+  it('memory_create_entity_type refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_create_entity_type.execute(
+      { name: 'newtype', body: 'doc' }, ctx()), 'memory_create_entity_type');
+  });
+
+  it('memory_create_edge_type refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_create_edge_type.execute(
+      { name: 'newedge', sources: ['finding'], targets: ['finding'], body: 'doc' }, ctx()),
+      'memory_create_edge_type');
+  });
+
+  it('extractor_create refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_extractor_create.execute(
+      { name: 'ex', command: 'echo', memoryWrite: ['finding'], body: 'doc' }, ctx()),
+      'extractor_create');
+  });
+
+  it('memory_rename_entity_type refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_rename_entity_type.execute(
+      { from: 'finding', to: 'finding2' }, ctx()), 'memory_rename_entity_type');
+  });
+
+  it('memory_rename_edge_type refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_rename_edge_type.execute(
+      { from: 'finding', to: 'finding2' }, ctx()), 'memory_rename_edge_type');
+  });
+
+  it('memory_drop_entity_type refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_drop_entity_type.execute(
+      { name: 'finding', confirm: true }, ctx()), 'memory_drop_entity_type');
+  });
+
+  it('memory_drop_edge_type refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_drop_edge_type.execute(
+      { name: 'finding', confirm: true }, ctx()), 'memory_drop_edge_type');
+  });
+
+  it('memory_reset refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_reset.execute(
+      { confirm: true }, ctx()), 'memory_reset');
+  });
+
+  it('memory_init refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_init.execute(
+      { embeddings_enabled: false, probe: false }, ctx()), 'memory_init');
+  });
+
+  it('memory_vacuum refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_vacuum.execute(
+      {}, ctx()), 'memory_vacuum');
+  });
+
+  it('memory_change_embedding_model refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_change_embedding_model.execute(
+      { model: 'm', dimensions: 4 }, ctx()), 'memory_change_embedding_model');
+  });
+
+  it('memory_dump still works under failed (read-only diagnostic)', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_memory_dump.execute({}, ctx()));
+    assert.ok(typeof out.dump === 'string',
+      `memory_dump should return a dump under failed flow, got: ${JSON.stringify(out)}`);
+    assert.doesNotMatch(out.dump || '', /flow is in failed state/i);
+  });
+
+  it('memory_validate still works under failed (read-only diagnostic)', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_memory_validate.execute({}, ctx()));
+    assert.ok('ok' in out && Array.isArray(out.issues),
+      `memory_validate should return a report under failed flow, got: ${JSON.stringify(out)}`);
+  });
+
   // Escape hatches and read-only tools MUST still work.
   it('workfile_delete still works under failed (escape hatch)', async () => {
     const root2 = setupFailedWorktree();

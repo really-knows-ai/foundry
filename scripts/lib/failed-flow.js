@@ -5,8 +5,20 @@
  * flush memory to NDJSON and the on-disk source of truth is now behind
  * the live DB), it marks WORK.md with `status: failed` and a `reason`.
  *
- * Every mutating tool guards on this state via `requireNotFailed`. The
- * only ways out are `foundry_workfile_delete` (abandon the cycle) or
+ * Every mutating tool guards on this state via `requireNotFailed`. This
+ * includes both work-branch FS writers (artefacts, feedback, workfile,
+ * stage, orchestrate) and memory writers — both row-level (memory_put,
+ * memory_relate, memory_unrelate) and admin (create_*, rename_*, drop_*,
+ * reset, init, vacuum, change_embedding_model). The rule: anything that
+ * mutates disk or live DB state is blocked, because the work-branch FS
+ * is the source-of-truth that's thrown away on abandon-and-retry.
+ *
+ * Read-only diagnostics are intentionally exempt: workfile_get,
+ * memory_list/get/neighbours/query/search, memory_dump, memory_validate.
+ * These are needed to figure out what went wrong before abandoning the
+ * cycle.
+ *
+ * The only ways out are `foundry_workfile_delete` (abandon the cycle) or
  * manually editing WORK.md to remove the failed status after fixing the
  * underlying issue.
  */

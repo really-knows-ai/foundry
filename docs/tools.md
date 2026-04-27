@@ -23,9 +23,16 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - **Stage base**: stage aliases have the form `<base>:<cycle>` (e.g.
   `forge:create-haiku`). Some tools restrict to a particular base
   (`forge`, `quench`, `appraise`, `human-appraise`, `assay`).
-- **Failed flow**: when `WORK.md` frontmatter has `status: failed`, most
-  tools refuse to run and return an error prefixed with the tool name.
-  The escape hatches are `foundry_workfile_get` and
+- **Failed flow**: when `WORK.md` frontmatter has `status: failed`, every
+  mutating tool refuses to run and returns an error prefixed with the
+  tool name. This covers both work-branch FS writers and memory writers
+  (data and admin alike — `memory_put`, `memory_reset`, `memory_drop_*`,
+  `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`,
+  `memory_change_embedding_model`). Read-only diagnostics remain
+  available so the caller can figure out what went wrong:
+  `foundry_workfile_get`, `foundry_memory_dump`, `foundry_memory_validate`,
+  `foundry_memory_list`, `foundry_memory_get`, `foundry_memory_neighbours`,
+  `foundry_memory_query`, `foundry_memory_search`. The escape hatch is
   `foundry_workfile_delete`.
 - **Worktree context**: every tool reads `context.worktree` (the project
   root) and operates on `foundry/`, `WORK.md`, `WORK.feedback.yaml`,
@@ -893,11 +900,7 @@ its rows. **Destructive.**
    regardless of active stage, and does not check for failed flow.
    Quench cycles enforce this externally, but a direct caller could
    invoke validation outside the lifecycle.
-2. **Memory admin tools have no failed-flow guard.** Destructive ops
-   like `foundry_memory_reset` and `foundry_memory_drop_*` will run
-   even on a workfile marked failed. Compare with the data-write
-   tools, which all gate on `requireNotFailed`.
-3. **`foundry_orchestrate` returns `violation` (not `{error}`) when
+2. **`foundry_orchestrate` returns `violation` (not `{error}`) when
    `runOrchestrate` throws.** This is intentional (recoverable=false
    signals the orchestrator state), but is the only tool whose error
    path does not use `{error}`.
