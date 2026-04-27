@@ -482,11 +482,12 @@ global set.
 `{ error: "No validation defined for type: ..." }` if the type has no
 commands.
 
-**Stage requirements:** none. (Note: callable outside any stage; intended
-to be invoked by quench, but not enforced.)
+**Stage requirements:** none (callable outside any stage; intended to be
+invoked by quench, but not enforced). Refused on a failed flow.
 
 **Side effects:** spawns subprocesses via `execSync` in the worktree —
-external commands may have arbitrary side effects.
+external commands may have arbitrary side effects, which is why the tool
+is gated on failed flow.
 
 ---
 
@@ -896,11 +897,7 @@ its rows. **Destructive.**
 
 ## Follow-ups / inconsistencies spotted while documenting
 
-1. **`foundry_validate_run` has no stage guard.** It runs subprocesses
-   regardless of active stage, and does not check for failed flow.
-   Quench cycles enforce this externally, but a direct caller could
-   invoke validation outside the lifecycle.
-2. **`foundry_orchestrate` returns `violation` (not `{error}`) when
+1. **`foundry_orchestrate` returns `violation` (not `{error}`) when
    `runOrchestrate` throws.** This is intentional (recoverable=false
    signals the orchestrator state), but is the only tool whose error
    path does not use `{error}`.

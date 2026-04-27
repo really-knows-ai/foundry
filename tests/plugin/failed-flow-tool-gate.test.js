@@ -179,6 +179,13 @@ describe('failed-flow tool gate', () => {
     assert.doesNotMatch(out.dump || '', /flow is in failed state/i);
   });
 
+  it('validate_run refuses under failed', async () => {
+    // Uses a type with no validation defined; if the guard runs first,
+    // we get the failed-flow error rather than "No validation defined".
+    expectFailedError(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'report', file: 'x.md' }, ctx()), 'validate_run');
+  });
+
   it('memory_validate still works under failed (read-only diagnostic)', async () => {
     const out = JSON.parse(await plugin.tool.foundry_memory_validate.execute({}, ctx()));
     assert.ok('ok' in out && Array.isArray(out.issues),

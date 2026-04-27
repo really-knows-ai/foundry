@@ -9,9 +9,13 @@
  * includes both work-branch FS writers (artefacts, feedback, workfile,
  * stage, orchestrate) and memory writers — both row-level (memory_put,
  * memory_relate, memory_unrelate) and admin (create_*, rename_*, drop_*,
- * reset, init, vacuum, change_embedding_model). The rule: anything that
- * mutates disk or live DB state is blocked, because the work-branch FS
- * is the source-of-truth that's thrown away on abandon-and-retry.
+ * reset, init, vacuum, change_embedding_model). It also includes
+ * `validate_run`, since validation commands are project-defined
+ * subprocesses with arbitrary side effects (linters with --fix,
+ * formatters). The rule: anything that mutates disk or live DB state,
+ * or runs unsandboxed subprocesses that could mutate it, is blocked,
+ * because the work-branch FS is the source-of-truth that's thrown away
+ * on abandon-and-retry.
  *
  * Read-only diagnostics are intentionally exempt: workfile_get,
  * memory_list/get/neighbours/query/search, memory_dump, memory_validate.
