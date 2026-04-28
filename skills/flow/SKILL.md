@@ -47,7 +47,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 ## Between cycles
 
-When a cycle completes (sort returns `done`):
+When a cycle completes (`foundry_orchestrate` returns action `done`):
 
 1. Read the completed cycle's definition to find its `targets`
 2. If no targets → this branch of the flow is done. Proceed to "Completing a flow"
