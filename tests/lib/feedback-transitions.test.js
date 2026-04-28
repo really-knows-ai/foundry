@@ -76,14 +76,19 @@ describe('validateTransition — deadlock override', () => {
     });
     assert.equal(r.ok, true);
   });
-  test('human-appraise: deadlocked → wont-fix legal', () => {
+  test('human-appraise: deadlocked → wont-fix is REJECTED (override mirrors source-stage targets)', () => {
+    // wont-fix is a forge declaration ("considered, choosing not to act").
+    // The deadlock-override authority answers the source-stage question
+    // ("was the actioned/wont-fix outcome correct?") and so produces only
+    // {resolved, rejected}. Producing wont-fix from a deadlocked item would
+    // be a category error.
     const r = validateTransition({
       currentState: 'deadlocked',
       target: 'wont-fix',
       stageBase: 'human-appraise',
       sourceMatches: false,
     });
-    assert.equal(r.ok, true);
+    assert.equal(r.ok, false);
   });
   test('human-appraise: deadlocked → rejected legal', () => {
     const r = validateTransition({

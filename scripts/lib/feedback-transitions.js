@@ -13,7 +13,10 @@ import { createHash } from 'node:crypto';
 //      this function. Included for completeness: no stage-base is allowed to produce
 //      'deadlocked' through this function.
 //   4. Human-appraise override: on a deadlocked item, transitions to
-//      {resolved, wont-fix, rejected} are legal regardless of source match.
+//      {resolved, rejected} are legal regardless of source match. The
+//      override authority mirrors the source-stage targets — wont-fix is
+//      a forge declaration ("considered, choosing not to act"), not a
+//      reviewer verdict, so it is intentionally absent here.
 //   5. 'resolved' is terminal.
 //
 // validateTransition takes an options object so new dimensions (sourceMatches,
@@ -21,7 +24,7 @@ import { createHash } from 'node:crypto';
 
 const FORGE_TARGETS = new Set(['actioned', 'wont-fix']);
 const SOURCE_TARGETS = new Set(['resolved', 'rejected']);
-const HUMAN_OVERRIDE_TARGETS = new Set(['resolved', 'wont-fix', 'rejected']);
+const HUMAN_OVERRIDE_TARGETS = new Set(['resolved', 'rejected']);
 const KNOWN_STATES = new Set(['open', 'actioned', 'wont-fix', 'rejected', 'deadlocked', 'resolved']);
 const SOURCE_STAGES = new Set(['quench', 'appraise', 'human-appraise']);
 

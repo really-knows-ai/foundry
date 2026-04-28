@@ -109,7 +109,7 @@ The six states and the legal transitions are:
 | `rejected` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | -> `{actioned, wont-fix}` |
 | `actioned` | — | -> `{resolved, rejected}` | -> `deadlocked` (if depth >= threshold) | -> `{resolved, rejected}` |
 | `wont-fix` | — | -> `{resolved, rejected}` | -> `deadlocked` (if depth >= threshold) | -> `{resolved, rejected}` |
-| `deadlocked` | — | — | — | -> `{resolved, wont-fix, rejected}` |
+| `deadlocked` | — | — | — | -> `{resolved, rejected}` |
 | `resolved` | — | — | — | — (terminal) |
 
 Notes:
