@@ -84,7 +84,7 @@ Each `Item`:
 | `source` | string (`base:alias`) | yes | no |
 | `history` | array, length >= 1 | yes | prepend-only |
 
-`source` bases include `assay`, `quench`, `appraise`, and `human-appraise`.
+`source` bases include `quench`, `appraise`, and `human-appraise`. (`assay` is not a feedback source — extractor failure marks the workfile failed.)
 
 Each history snapshot:
 
@@ -103,7 +103,7 @@ Each history snapshot:
 
 The six states and the legal transitions are:
 
-| From \ Caller | forge (any source) | source-stage (assay / quench / appraise / human-appraise where stageId === item.source) | sort | human-appraise (override authority, any source) |
+| From \ Caller | forge (any source) | source-stage (quench / appraise / human-appraise where stageId === item.source) | sort | human-appraise (override authority, any source) |
 |---|---|---|---|---|
 | `open` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | -> `{actioned, wont-fix}` |
 | `rejected` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | -> `{actioned, wont-fix}` |
@@ -115,7 +115,7 @@ The six states and the legal transitions are:
 Notes:
 
 - `source-stage` column applies when the caller's stage id exactly matches `item.source` (e.g. `appraise:write-check` resolving an item it created). `human-appraise` override authority (last column) applies regardless of `item.source` and is the only path that can transition out of `deadlocked`.
-- **Forge `wont-fix` scope.** When `item.source` base is `assay` or `quench` (objective validation failure) or `human-appraise` (direct user instruction), forge may not `wont-fix` — it must `actioned`. Only `appraise`-sourced items are wont-fix-able by forge. This replaces the earlier tag-based restriction on `#validation` / `#human` tags.
+- **Forge `wont-fix` scope.** When `item.source` base is `quench` (objective validation failure) or `human-appraise` (direct user instruction), forge may not `wont-fix` — it must `actioned`. Only `appraise`-sourced items are wont-fix-able by forge. This replaces the earlier tag-based restriction on `#validation` / `#human` tags.
 - `tag` is categorical and display-only. The state machine consults `source`, not tags; `#validation` / `#human` tag-based restrictions are legacy and do not apply.
 - **Reason required on** `rejected`, `wont-fix`, `deadlocked`, `resolved`. **Forbidden on** `open`. **Optional on** `actioned` (the code change is the reason).
 - Sort is the only writer of `state: deadlocked`; it writes these via its internal pass, not through the plugin API.
@@ -126,7 +126,7 @@ This section is the authoritative specification of the feedback state machine.
 
 No direct yaml editing. Every state change goes through one of:
 
-- `foundry_feedback_add` (creates items from `assay`, `quench`, `appraise`, and `human-appraise`)
+- `foundry_feedback_add` (creates items from `quench`, `appraise`, and `human-appraise`)
 - `foundry_feedback_action` (forge: open/rejected -> actioned)
 - `foundry_feedback_wontfix` (forge: open/rejected -> wont-fix)
 - `foundry_feedback_resolve` (source stage: actioned/wont-fix -> resolved/rejected; or human-appraise deadlock override)
@@ -147,7 +147,7 @@ A crash between the two steps leaves the live file untouched.
 | Frontmatter (`stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models`) | `foundry_orchestrate` (first call of each cycle, internally) | reset on each new cycle |
 | Goal | `foundry_workfile_create` (flow skill) | nobody |
 | Artefacts | `foundry_stage_finalize` (orchestrator, after forge closes) | `foundry_artefacts_set_status` (orchestrator → `done`/`blocked`) |
-| `WORK.feedback.yaml` | `foundry_feedback_add` (`assay` / `quench` / `appraise` / `human-appraise`) | `foundry_feedback_action` / `foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (source stage / human-appraise override); sort writes only deadlocked snapshots |
+| `WORK.feedback.yaml` | `foundry_feedback_add` (`quench` / `appraise` / `human-appraise`) | `foundry_feedback_action` / `foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (source stage / human-appraise override); sort writes only deadlocked snapshots |
 | `WORK.history.yaml` | `foundry_orchestrate` | `foundry_orchestrate` |
 
 Note: `foundry_artefacts_add` no longer exists as a public tool — artefact registration is automatic via `stage_finalize`, which scans the git diff and registers files matching the output type's `file-patterns` as `draft`.
