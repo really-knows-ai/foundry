@@ -52,7 +52,7 @@ Check each file against the current expected format:
 
 **Artefact types:**
 - Has required frontmatter fields (`id`, `name`, `file-patterns`)?
-- Has `output:` in frontmatter (instead of `output-dir:`)? → v2.6 → v2.7 artefact-type-output rename (see §7a)
+- Has `output:` in frontmatter? → v2.6 → v2.7 cycle-output rename (see §7a)
 - Has `appraisers` config if applicable?
 
 **Appraisers:**
@@ -164,22 +164,27 @@ Clean tree, on base branch, no `WORK.md` in repo root. **The third check is load
 
 ### 7a. v2.6.x → v2.7.0
 
-v2.7.0 disambiguates the overloaded `output:` frontmatter key. Pre-2.7, both
+v2.7.0 cleans up the overloaded `output:` frontmatter key. Pre-2.7, both
 cycle definitions and artefact-type definitions used `output:` to mean two
 different things — an artefact-type ID on cycles, a directory path on
-artefact-types. v2.7 splits them:
+artefact-types. v2.7 resolves this by:
 
-| File                                       | Old key   | New key       | Meaning                                  |
-|--------------------------------------------|-----------|---------------|------------------------------------------|
-| `foundry/cycles/<id>.md`                   | `output:` | `output-type:` | The artefact-type ID this cycle produces |
-| `foundry/artefacts/<id>/definition.md`     | `output:` | `output-dir:`  | The directory new files are written to   |
+- **Renaming** the cycle key: `output:` → `output-type:` (the artefact-type ID
+  this cycle produces).
+- **Removing** the artefact-type key entirely. It had no runtime consumer —
+  forge's write scope is `file-patterns`, not a directory hint. Stale
+  `output:` entries in artefact-type frontmatter are harmless (parsers
+  ignore unknown keys) but should be deleted for hygiene.
 
-This is a **breaking** schema change. The orchestrator no longer reads
-`output:` on cycles; an unmigrated cycle yields a hard violation pointing
-at the upgrade-foundry skill. The artefact-type `output:` key has no
-runtime consumer (it lives only in the `add-artefact-type` SKILL template
-and the getting-started docs), but the rename is applied here for
-schema-level consistency so both keys are self-documenting.
+| File                                       | Old key   | v2.7 action                                |
+|--------------------------------------------|-----------|--------------------------------------------|
+| `foundry/cycles/<id>.md`                   | `output:` | Rename to `output-type:` (load-bearing)    |
+| `foundry/artefacts/<id>/definition.md`     | `output:` | Delete the line (field has no consumer)    |
+
+The cycle rename is a **breaking** schema change. The orchestrator no longer
+reads `output:` on cycles; an unmigrated cycle yields a hard violation
+pointing at this skill. The artefact-type cleanup is cosmetic — projects
+that skip it still run.
 
 #### Pre-flight checks
 
@@ -193,10 +198,11 @@ Same as §7: clean tree, on base branch, no `WORK.md` in repo root.
    has `output: <type-id>`, rename the key to `output-type:`. The value is
    unchanged. Confirm with the user before rewriting:
    > Cycle `<id>` declares `output: <value>`. Rename to `output-type: <value>`?
-4. **Artefact-type migration:** for every `foundry/artefacts/<id>/definition.md`
-   whose frontmatter has `output: <dir-path>`, rename the key to `output-dir:`.
-   The value is unchanged. Confirm with the user before rewriting:
-   > Artefact type `<id>` declares `output: <value>`. Rename to `output-dir: <value>`?
+4. **Artefact-type cleanup (optional but recommended):** for every
+   `foundry/artefacts/<id>/definition.md` whose frontmatter has
+   `output: <dir-path>`, delete the line. The field has no runtime
+   consumer; this is hygiene only. Confirm with the user before rewriting:
+   > Artefact type `<id>` has an inert `output: <value>` line. Delete it?
 5. Verify by running any cycle: the orchestrator now resolves the cycle's
    `output-type:` against the artefact-type registry. Any cycle still
    carrying `output:` will halt with a `cycle <id> uses old schema key

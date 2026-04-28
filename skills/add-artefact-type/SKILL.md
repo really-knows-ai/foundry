@@ -27,8 +27,7 @@ Before running this skill, verify both of the following:
 From the user's prompt, establish:
 - `id` — lowercase, hyphenated identifier
 - `name` — human-readable name
-- `file-patterns` — glob patterns for files this type produces
-- `output` — output directory
+- `file-patterns` — glob patterns for files this type produces (forge's write scope is exactly these patterns)
 - A prose description of what this artefact type is
 
 If any of these are missing, ask.
@@ -75,7 +74,6 @@ id: <id>
 name: <name>
 file-patterns:
   - "<pattern>"
-output-dir: <output-dir>
 appraisers:
   count: 3
 ---

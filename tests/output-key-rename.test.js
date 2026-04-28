@@ -4,16 +4,17 @@
 // Artefact-type definitions used `output:` to name the directory new files
 // of that type are written under. Same key, different schemas — a footgun.
 //
-// The chosen resolution (option D in FOLLOW_UP.md) renames both:
-//   - cycle  `output:`     → `output-type:`
-//   - artefact-type `output:` → `output-dir:`
+// The chosen resolution renames the cycle key and drops the artefact-type
+// key entirely (the latter had no source-code consumers — forge's write
+// scope is `file-patterns`, not a directory hint):
+//   - cycle  `output:`     → `output-type:`  (load-bearing rename)
+//   - artefact-type `output:` → removed       (field had no runtime use)
 //
-// The artefact-type key has no source-code consumers (it lives only in the
-// add-artefact-type SKILL template and getting-started docs), so its rename
-// is purely a doc/template change and is covered by file-presence tests in
-// other suites and by the upgrade-foundry skill rather than runtime code.
+// Cleanup of stale `output:` lines on artefact-type definitions is covered
+// by the upgrade-foundry skill rather than runtime code, since unknown
+// frontmatter keys are simply ignored by the loader.
 //
-// This file pins the runtime behavior that drives the rename:
+// This file pins the runtime behavior that drives the cycle rename:
 //
 //   1. `readForgeFilePatterns` reads `output-type:` on the cycle.
 //   2. The orchestrate forge-violation path emits a clear migration
