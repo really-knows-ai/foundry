@@ -81,7 +81,7 @@ export async function readCycleTargets(cycleId, io) {
 export async function readForgeFilePatterns(cycleId, io) {
   try {
     const cd = await getCycleDefinition('foundry', cycleId, io);
-    const output = cd.frontmatter?.output;
+    const output = cd.frontmatter?.['output-type'];
     if (!output) return null;
     const at = await getArtefactType('foundry', output, io);
     return at.frontmatter?.['file-patterns'] ?? null;
@@ -319,9 +319,20 @@ export async function runOrchestrate(args = {}, io) {
     }
     const cfm = cycleDefDoc.frontmatter || {};
 
-    const outputType = cfm.output;
+    const outputType = cfm['output-type'];
     if (!outputType) {
-      return violation(`cycle ${cycleId} missing output field`, ['WORK.md']);
+      // Loud diagnostic for cycles still carrying the pre-rename `output:`
+      // key. Without this branch, the unmigrated key would silently produce
+      // a generic "missing output-type field" error that doesn't tell the
+      // operator the schema changed under their feet.
+      if (cfm.output !== undefined) {
+        return violation(
+          `cycle ${cycleId} uses old schema key 'output:' for the produced artefact-type. ` +
+            `Rename it to 'output-type:' (run the upgrade-foundry skill).`,
+          ['WORK.md']
+        );
+      }
+      return violation(`cycle ${cycleId} missing output-type field`, ['WORK.md']);
     }
 
     try {

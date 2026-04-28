@@ -43,7 +43,7 @@ haiku about airports
 `,
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 inputs: []
 targets: [create-short-story]
 stages: [forge, quench, appraise]
@@ -311,7 +311,7 @@ function baseArgs(io) {
 test('runOrchestrate assay: synthesises assay:<cycle> when opted in', async () => {
   const io = makeAssayIo({
     withMemory: true,
-    cycleFm: `id: c\noutput: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [java]\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n  assay: github-copilot/claude-sonnet-4.6`,
+    cycleFm: `id: c\noutput-type: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [java]\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n  assay: github-copilot/claude-sonnet-4.6`,
   });
   // Agent file so sort.js can resolve the model for assay dispatch
   io.fs.set(
@@ -335,7 +335,7 @@ test('runOrchestrate assay: synthesises assay:<cycle> when opted in', async () =
 test('runOrchestrate assay: rejects when memory is not enabled', async () => {
   const io = makeAssayIo({
     withMemory: false,
-    cycleFm: `id: c\noutput: doc\nassay:\n  extractors: [java]`,
+    cycleFm: `id: c\noutput-type: doc\nassay:\n  extractors: [java]`,
   });
   const { args } = baseArgs(io);
   const r = await runOrchestrate(args, io);
@@ -347,7 +347,7 @@ test('runOrchestrate assay: rejects when memory is not enabled', async () => {
 test("runOrchestrate assay: rejects extractor writing types not in cycle's memory.write", async () => {
   const io = makeAssayIo({
     withMemory: true,
-    cycleFm: `id: c\noutput: doc\nmemory:\n  read: [class]\n  write: [other]\nassay:\n  extractors: [java]`,
+    cycleFm: `id: c\noutput-type: doc\nmemory:\n  read: [class]\n  write: [other]\nassay:\n  extractors: [java]`,
   });
   const { args } = baseArgs(io);
   const r = await runOrchestrate(args, io);
@@ -359,7 +359,7 @@ test("runOrchestrate assay: rejects extractor writing types not in cycle's memor
 test('runOrchestrate assay: rejects when an extractor does not exist', async () => {
   const io = makeAssayIo({
     withMemory: true,
-    cycleFm: `id: c\noutput: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [missing]`,
+    cycleFm: `id: c\noutput-type: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [missing]`,
   });
   const { args } = baseArgs(io);
   const r = await runOrchestrate(args, io);
@@ -371,7 +371,7 @@ test('runOrchestrate assay: rejects when an extractor does not exist', async () 
 test('runOrchestrate assay: rejects when cycle has no memory.write', async () => {
   const io = makeAssayIo({
     withMemory: true,
-    cycleFm: `id: c\noutput: doc\nassay:\n  extractors: [java]`,
+    cycleFm: `id: c\noutput-type: doc\nassay:\n  extractors: [java]`,
   });
   const { args } = baseArgs(io);
   const r = await runOrchestrate(args, io);

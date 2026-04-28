@@ -17,7 +17,7 @@ Running a flow creates a work branch and a `WORK.md`. The flow completes when no
 
 An iterative loop that produces a single artefact type. Defined in `foundry/cycles/*.md`. A cycle declares:
 
-- `output` — the artefact type it produces (read-write).
+- `output-type` — the artefact type it produces (read-write).
 - `inputs` — a contract (`any-of` / `all-of`) over other artefact types. Inputs are discovered on disk; they are read-only unless the output type's patterns happen to cover them.
 - `targets` — the cycle(s) that may run after this one. May be empty (terminal cycle).
 - `human-appraise` — whether a human quality gate runs every iteration (default: `false`).

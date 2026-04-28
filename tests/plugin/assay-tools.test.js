@@ -25,7 +25,7 @@ function setupWorktree() {
   // Cycle definition for the active stage. Without this, the memory helper's
   // active-stage fallback would fail closed when withStore is called with
   // only { worktree } during an active assay stage.
-  writeFileSync(join(root, 'foundry/cycles/c.md'), '---\noutput: report\n---\n\nCycle body.\n');
+  writeFileSync(join(root, 'foundry/cycles/c.md'), '---\noutput-type: report\n---\n\nCycle body.\n');
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/entities/class.md'), '---\ntype: class\n---\n\n# class\nA class.\n');
   writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify({

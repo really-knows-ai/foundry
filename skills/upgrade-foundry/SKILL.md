@@ -47,10 +47,12 @@ Check each file against the current expected format:
 - Has `inputs.type` (`any-of`/`all-of`)? If `inputs` is a plain list → needs contract type
 - Has `hitl` in stages or frontmatter? → needs human-appraise migration
 - Has nested `human-appraise: {enabled, deadlock-threshold}`? → v2.2.0 → v2.2.1 flat-keys migration (see §8b)
+- Has `output:` in frontmatter (instead of `output-type:`)? → v2.6 → v2.7 cycle-output rename (see §7a)
 - Has `models` map? Check format
 
 **Artefact types:**
 - Has required frontmatter fields (`id`, `name`, `file-patterns`)?
+- Has `output:` in frontmatter (instead of `output-dir:`)? → v2.6 → v2.7 artefact-type-output rename (see §7a)
 - Has `appraisers` config if applicable?
 
 **Appraisers:**
@@ -91,16 +93,17 @@ If nothing needs migration, say so and stop.
 
 ### 4. Choose your starting version
 
-The current target version is **v2.6.0**. Identify the version you're upgrading from (check the `@really-knows-ai/foundry` entry in `package.json`) and read only the sections you need.
+The current target version is **v2.7.0**. Identify the version you're upgrading from (check the `@really-knows-ai/foundry` entry in `package.json`) and read only the sections you need.
 
-| From    | To 2.6.0 | Sections to read (in order)                           |
-|---------|----------|-------------------------------------------------------|
-| 2.5.x   | 2.6.0    | §7 (v2.5 → v2.6)                                      |
-| 2.4.x   | 2.6.0    | §6 (v2.4 → v2.5), §7                                  |
-| 2.3.x   | 2.6.0    | §5 (v2.3 → v2.4), §6, §7                              |
-| 2.2.x   | 2.6.0    | §8c (v2.2.x → v2.3), §5, §6, §7                       |
-| 2.1.x   | 2.6.0    | §8 (v2.1 agents), §8a, §8b, §8c, §5, §6, §7           |
-| pre-2.1 | 2.6.0    | All historical migrations (§8 → §8c), then §5 → §7    |
+| From    | To 2.7.0 | Sections to read (in order)                                |
+|---------|----------|------------------------------------------------------------|
+| 2.6.x   | 2.7.0    | §7a (v2.6 → v2.7 output-key rename)                        |
+| 2.5.x   | 2.7.0    | §7 (v2.5 → v2.6), §7a                                      |
+| 2.4.x   | 2.7.0    | §6 (v2.4 → v2.5), §7, §7a                                  |
+| 2.3.x   | 2.7.0    | §5 (v2.3 → v2.4), §6, §7, §7a                              |
+| 2.2.x   | 2.7.0    | §8c (v2.2.x → v2.3), §5, §6, §7, §7a                       |
+| 2.1.x   | 2.7.0    | §8 (v2.1 agents), §8a, §8b, §8c, §5, §6, §7, §7a           |
+| pre-2.1 | 2.7.0    | All historical migrations (§8 → §8c), then §5 → §7a        |
 
 Each section labels the source-version range it applies to and the target version. A migration becomes a no-op once you have already passed through it.
 
@@ -158,6 +161,48 @@ Clean tree, on base branch, no `WORK.md` in repo root. **The third check is load
 3. **No `foundry/` config migration required.** Cycle, flow, artefact, law, and appraiser definitions are unchanged.
 4. Any `## Feedback` markdown left over in a stale `WORK.md` on disk after the upgrade is **inert** — neither parsed nor deleted by 2.6.0 tools, and new writes go to `WORK.feedback.yaml`. If a stale `WORK.md` slipped past pre-flight, `foundry_workfile_delete` it before running `foundry_git_finish`, otherwise the squash-merge will carry inert markdown into the base branch.
 5. Commit: `chore: upgrade foundry to 2.6.0`.
+
+### 7a. v2.6.x → v2.7.0
+
+v2.7.0 disambiguates the overloaded `output:` frontmatter key. Pre-2.7, both
+cycle definitions and artefact-type definitions used `output:` to mean two
+different things — an artefact-type ID on cycles, a directory path on
+artefact-types. v2.7 splits them:
+
+| File                                       | Old key   | New key       | Meaning                                  |
+|--------------------------------------------|-----------|---------------|------------------------------------------|
+| `foundry/cycles/<id>.md`                   | `output:` | `output-type:` | The artefact-type ID this cycle produces |
+| `foundry/artefacts/<id>/definition.md`     | `output:` | `output-dir:`  | The directory new files are written to   |
+
+This is a **breaking** schema change. The orchestrator no longer reads
+`output:` on cycles; an unmigrated cycle yields a hard violation pointing
+at the upgrade-foundry skill. The artefact-type `output:` key has no
+runtime consumer (it lives only in the `add-artefact-type` SKILL template
+and the getting-started docs), but the rename is applied here for
+schema-level consistency so both keys are self-documenting.
+
+#### Pre-flight checks
+
+Same as §7: clean tree, on base branch, no `WORK.md` in repo root.
+
+#### Upgrade steps
+
+1. `npm install @really-knows-ai/foundry@2.7.0 --save-dev`.
+2. Replace `.opencode/plugins/foundry.js` from the new package.
+3. **Cycle migration:** for every `foundry/cycles/<id>.md` whose frontmatter
+   has `output: <type-id>`, rename the key to `output-type:`. The value is
+   unchanged. Confirm with the user before rewriting:
+   > Cycle `<id>` declares `output: <value>`. Rename to `output-type: <value>`?
+4. **Artefact-type migration:** for every `foundry/artefacts/<id>/definition.md`
+   whose frontmatter has `output: <dir-path>`, rename the key to `output-dir:`.
+   The value is unchanged. Confirm with the user before rewriting:
+   > Artefact type `<id>` declares `output: <value>`. Rename to `output-dir: <value>`?
+5. Verify by running any cycle: the orchestrator now resolves the cycle's
+   `output-type:` against the artefact-type registry. Any cycle still
+   carrying `output:` will halt with a `cycle <id> uses old schema key
+   'output:' for the produced artefact-type. Rename it to 'output-type:'`
+   diagnostic — apply the rename and re-run.
+6. Commit: `chore: upgrade foundry to 2.7.0`.
 
 ## Historical migrations (pre-2.3.0)
 

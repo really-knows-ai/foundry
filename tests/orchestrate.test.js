@@ -139,7 +139,7 @@ haiku about airports
 `,
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 inputs: []
 targets: []
 stages: [forge, quench, appraise]
@@ -260,7 +260,7 @@ haiku
     }),
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 stages: [forge, appraise]
 human-appraise: false
 deadlock-appraise: true
@@ -324,7 +324,7 @@ models:
     }),
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 ---
 `,
     'foundry/artefacts/haiku/definition.md': `---
@@ -382,7 +382,7 @@ models:
     }),
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 ---
 `,
     'foundry/artefacts/haiku/definition.md': `---
@@ -478,11 +478,11 @@ cycle: create-haiku
   );
 });
 
-test('readForgeFilePatterns: reads via cycle.output → artefact-type', async () => {
+test('readForgeFilePatterns: reads via cycle.output-type → artefact-type', async () => {
   const io = makeIo({
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 ---
 `,
     'foundry/artefacts/haiku/definition.md': `---
@@ -544,7 +544,7 @@ haiku
     'haikus/a.md': 'cup of coffee / terminal delay / the rain returns',
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 stages: [forge, quench, appraise]
 human-appraise: false
 deadlock-appraise: true
@@ -652,7 +652,7 @@ cycle: create-haiku
 `,
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
-output: haiku
+output-type: haiku
 targets: [create-short-story]
 ---
 `,

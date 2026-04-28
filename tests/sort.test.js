@@ -535,7 +535,7 @@ describe('getAllowedPatterns', () => {
 
   it('adds artefact file-patterns for forge stage', () => {
     const files = {
-      'foundry/cycles/c1.md': '---\noutput: haiku\n---\n',
+      'foundry/cycles/c1.md': '---\noutput-type: haiku\n---\n',
       'foundry/artefacts/haiku/definition.md': '---\nfile-patterns:\n  - "src/**/*.ts"\n  - "src/**/*.tsx"\n---\n',
     };
     const io = {
@@ -557,7 +557,7 @@ describe('getAllowedPatterns', () => {
   it('returns always-allowed when artefact def missing', () => {
     const io = {
       readFile: (p) => {
-        if (p === 'foundry/cycles/c1.md') return '---\noutput: haiku\n---\n';
+        if (p === 'foundry/cycles/c1.md') return '---\noutput-type: haiku\n---\n';
         throw new Error('not found');
       },
       exists: (p) => p === 'foundry/cycles/c1.md',

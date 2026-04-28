@@ -31,9 +31,9 @@ function setupWorktreeWithCycle() {
   };
   writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify(schema, null, 2) + '\n');
   writeFileSync(join(root, 'foundry/cycles/readonly-inspect.md'),
-    `---\noutput: report\nmemory:\n  read: [class]\n---\n\nCycle body.\n`);
+    `---\noutput-type: report\nmemory:\n  read: [class]\n---\n\nCycle body.\n`);
   writeFileSync(join(root, 'foundry/cycles/observe.md'),
-    `---\noutput: report\nmemory:\n  read: [class]\n  write: [finding]\n---\n\nCycle body.\n`);
+    `---\noutput-type: report\nmemory:\n  read: [class]\n  write: [finding]\n---\n\nCycle body.\n`);
   return root;
 }
 

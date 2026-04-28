@@ -184,7 +184,7 @@ function getAllowedPatterns(lastBase, foundryDir, cycleDef, io = defaultIO) {
   try {
     const cycleText = io.readFile(cycleDef);
     const cycleFm = parseFrontmatter(cycleText);
-    const outputType = cycleFm.output;
+    const outputType = cycleFm['output-type'];
     if (!outputType) return always;
 
     const artDefPath = `${foundryDir}/artefacts/${outputType}/definition.md`;

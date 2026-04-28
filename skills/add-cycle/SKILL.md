@@ -112,7 +112,7 @@ Present the foundry cycle definition to the user:
 ---
 id: <id>
 name: <name>
-output: <artefact-type-id>
+output-type: <artefact-type-id>
 inputs:
   type: <any-of|all-of>
   artefacts:

@@ -29,7 +29,7 @@ function setup() {
   writeFileSync(join(root, 'foundry/artefacts/doc/definition.md'),
     `---\ntype: doc\nfile-patterns: [out/**]\n---\n\n# doc\n`);
   writeFileSync(join(root, 'foundry/cycles/c.md'),
-    `---\noutput: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [one]\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n  assay: github-copilot/claude-sonnet-4.6\n---\n\n# c\n`);
+    `---\noutput-type: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [one]\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n  assay: github-copilot/claude-sonnet-4.6\n---\n\n# c\n`);
   writeFileSync(join(root, 'WORK.md'),
     `---\nflow: test-flow\ncycle: c\n---\n\n# Goal\n\nanything\n`);
   execSync('git init -q', { cwd: root, env: GIT_ENV });

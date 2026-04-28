@@ -29,7 +29,7 @@ function setupWorktree() {
   };
   writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify(schema, null, 2) + '\n');
   writeFileSync(join(root, 'foundry/cycles/observe.md'),
-    `---\noutput: report\nmemory:\n  write: [finding]\n---\n\nCycle body.\n`);
+    `---\noutput-type: report\nmemory:\n  write: [finding]\n---\n\nCycle body.\n`);
   writeFileSync(join(root, 'WORK.md'),
     `---\nflow: f\ncycle: observe\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`);
   return root;

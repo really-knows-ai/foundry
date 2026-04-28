@@ -59,7 +59,7 @@ Run `add-artefact-type`. It walks you through:
 
 - `id` (lowercase, hyphenated), `name`, prose description.
 - `file-patterns` — glob patterns describing which files this type owns. The skill refuses patterns that overlap with existing types.
-- `output` — the directory under which forge should write new files of this type.
+- `output-dir` — the directory under which forge should write new files of this type.
 - Appraiser config — how many appraisers evaluate this type and which personalities are allowed.
 - Optional `laws.md` — type-specific criteria.
 - Optional `validation.md` — CLI commands for quench (non-zero exit = failure).
@@ -83,7 +83,7 @@ Appraisers are independent evaluators with named personalities. Run `add-apprais
 
 Run `add-cycle`. A cycle produces one artefact type and declares:
 
-- `output` — the artefact type (must already exist).
+- `output-type` — the artefact type (must already exist).
 - `inputs` — a contract (`any-of` or `all-of`) over other types. Empty for starting cycles.
 - `targets` — the cycle(s) that may run after this one. Empty for terminal cycles.
 - `human-appraise` / `deadlock-appraise` / `deadlock-iterations` — human-gate config.
@@ -95,7 +95,7 @@ Example:
 ---
 id: haiku-creation
 name: Haiku Creation
-output: haiku
+output-type: haiku
 inputs:
   type: any-of
   artefacts:
@@ -214,7 +214,7 @@ Memory is per-cycle opt-in. Add a `memory:` block to any cycle that should see i
 ```yaml
 ---
 id: extract-methods
-output: method-notes
+output-type: method-notes
 memory:
   read:  [class]
   write: [method]

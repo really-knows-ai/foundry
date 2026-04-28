@@ -76,7 +76,7 @@ Emits one class, one method, and a defined-in edge.
 
   writeFileSync(join(root, 'foundry/cycles/doc-java.md'),
 `---
-output: doc
+output-type: doc
 memory:
   read: [class, method]
   write: [class, method]

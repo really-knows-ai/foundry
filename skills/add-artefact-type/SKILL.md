@@ -75,7 +75,7 @@ id: <id>
 name: <name>
 file-patterns:
   - "<pattern>"
-output: <output-dir>
+output-dir: <output-dir>
 appraisers:
   count: 3
 ---

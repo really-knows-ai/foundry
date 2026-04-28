@@ -57,7 +57,7 @@ function setupBasicCycle({ withMemoryRead = false } = {}) {
     : '';
   writeFileSync(
     join(root, 'foundry/cycles/c.md'),
-    `---\noutput: haiku\nstages: [forge, appraise]\nmax-iterations: 3${memBlock}\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n---\n# c\n`,
+    `---\noutput-type: haiku\nstages: [forge, appraise]\nmax-iterations: 3${memBlock}\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n---\n# c\n`,
   );
   writeFileSync(
     join(root, 'foundry/artefacts/haiku/definition.md'),

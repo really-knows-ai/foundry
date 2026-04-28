@@ -67,9 +67,9 @@ function setupWorktree({ embeddingsEnabled, dimensions = 4 } = {}) {
 
   // Cycles for permission scoping.
   writeFileSync(join(root, 'foundry/cycles/class-only.md'),
-    '---\noutput: report\nmemory:\n  read: [class]\n  write: [class]\n---\n\nCycle body.\n');
+    '---\noutput-type: report\nmemory:\n  read: [class]\n  write: [class]\n---\n\nCycle body.\n');
   writeFileSync(join(root, 'foundry/cycles/all-access.md'),
-    '---\noutput: report\nmemory:\n  read: [class, finding]\n  write: [class, finding]\n---\n\nCycle body.\n');
+    '---\noutput-type: report\nmemory:\n  read: [class, finding]\n  write: [class, finding]\n---\n\nCycle body.\n');
 
   return root;
 }

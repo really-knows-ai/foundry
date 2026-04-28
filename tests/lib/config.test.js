@@ -27,10 +27,10 @@ function mockIO(files = {}) {
 describe('getCycleDefinition', () => {
   it('parses cycle with frontmatter', async () => {
     const io = mockIO({
-      'foundry/cycles/build.md': '---\noutput: code\n---\nDo the build.',
+      'foundry/cycles/build.md': '---\noutput-type: code\n---\nDo the build.',
     });
     const result = await getCycleDefinition('foundry', 'build', io);
-    assert.equal(result.frontmatter.output, 'code');
+    assert.equal(result.frontmatter['output-type'], 'code');
     assert.equal(result.body, 'Do the build.');
   });
 

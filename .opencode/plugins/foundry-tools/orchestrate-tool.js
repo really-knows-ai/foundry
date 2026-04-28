@@ -71,7 +71,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
             } catch (e) {
               return { ok: false, error: e.message };
             }
-            const outputType = cycleDoc.frontmatter.output;
+            const outputType = cycleDoc.frontmatter['output-type'];
             const cycleDef = { outputArtefactType: outputType };
             const artefactTypes = {};
             if (outputType) {
