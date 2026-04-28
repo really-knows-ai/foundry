@@ -115,6 +115,15 @@ describe('feedback tag allow-list per stage', () => {
     ));
     assert.match(res.error, /may only add tag "human"/);
   });
+
+  it('assay cannot add feedback (assay no longer produces feedback)', async () => {
+    await beginStage(plugin, dir, 'assay:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
+      { file: 'x.md', text: 't', tag: 'validation' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /assay/);
+    assert.match(res.error, /do not add feedback|cannot add feedback|not permitted/i);
+  });
 });
 
 describe('feedback stage-base allow-list on action/wontfix/resolve', () => {

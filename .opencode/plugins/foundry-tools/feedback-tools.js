@@ -53,8 +53,8 @@ export function createFeedbackTools({ tool }) {
         if (stageBase === 'human-appraise' && args.tag !== 'human') {
           return JSON.stringify({ error: `foundry_feedback_add: human-appraise may only add tag "human"; got "${args.tag}"` });
         }
-        if (stageBase === 'assay' && args.tag !== 'validation') {
-          return JSON.stringify({ error: `foundry_feedback_add: assay may only add tag "validation"; got "${args.tag}"` });
+        if (stageBase === 'assay') {
+          return JSON.stringify({ error: 'foundry_feedback_add: assay stages do not add feedback (extractor failure marks the workfile failed)' });
         }
 
         try {
