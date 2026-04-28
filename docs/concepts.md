@@ -238,7 +238,7 @@ memory:
   write: [method]             # types this cycle can upsert into
 ```
 
-A cycle with no `memory:` block gets no memory tools in its prompt. Edge permissions are derived: an edge is readable if either endpoint type is readable, writable if either endpoint type is writable. `foundry_memory_query` also restricts referenced `ent_*` / `edge_*` relations to the read set.
+A cycle with no `memory:` block gets no memory tools in its prompt. Edge permissions are derived: an edge is readable if either endpoint type is in `read` or `write`, writable if either endpoint type is in `write`. `foundry_memory_query` also restricts referenced `ent_*` / `edge_*` relations to the read set.
 
 ## `foundry/memory/` layout
 
