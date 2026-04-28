@@ -8,7 +8,7 @@ description: Deterministic population of flow memory by running project-authored
 
 Runs the `assay` stage of a cycle. An assay stage executes every extractor listed in the cycle's `assay.extractors` frontmatter, in order. Each extractor is a project-authored CLI script at the path given in its definition file — see the `foundry/memory/extractors/<name>.md` files for what each one does.
 
-The assay stage is **deterministic**. This skill does **not** interpret extractor output. It only calls `foundry_assay_run`, which handles spawning, parsing, validation, and memory upserts. On any failure, `foundry_assay_run` writes a `validation`-tagged feedback item to `WORK.feedback.yaml` with `source: assay:<alias>` and returns an aborted result. Internally this goes through `foundry_feedback_add` with `{ file: 'WORK.md', tag: 'validation', text: '<failure>' }`, which returns `{ ok: true, id, deduped }`. `deduped: true` means an existing non-resolved item with the same `(file, tag, hash(text))` was already present and the returned `id` points at that existing item; `deduped: false` means a new item was created. Either way the item follows the normal resolution path (forge addresses; the assay stage that created it approves or rejects the fix). Your job is to wrap the lifecycle cleanly.
+The assay stage is **deterministic**. This skill does **not** interpret extractor output. It only calls `foundry_assay_run`, which handles spawning, parsing, validation, and memory upserts. On any failure (extractor non-zero exit, parse error, permission violation, timeout, or post-run memory sync failure), `foundry_assay_run` marks the workfile failed (`status: failed`) with a reason describing the failure, and returns `{error, flow_failed: true, ...}`. The cycle is over — extractor scripts live outside any artefact's `file-patterns`, so forge cannot fix them. The user must fix the extractor and start a new cycle. Your job is to wrap the lifecycle cleanly: end the stage with a descriptive summary even on failure, then stop.
 
 ## Protocol
 
@@ -43,8 +43,9 @@ Then return control to the user and stop.
 Call `foundry_assay_run({ cycle, extractors })` passing exactly those values. Do not modify the list. Do not split it into multiple calls. The tool returns one of:
 
 - `{ok: true, perExtractor: [{name, rowsUpserted, durationMs}, ...]}` — all extractors succeeded.
-- `{ok: false, aborted: true, failedExtractor, reason, stderr, perExtractor: [...]}` — the run aborted. The failure has already been recorded as a `validation`-tagged feedback item in `WORK.feedback.yaml`.
-- `{error: "..."}` — a precondition failed (not an active assay stage, memory not enabled, etc.). This should not happen if step 1 succeeded; treat as an error and proceed to step 5 with the error text.
+- `{error, flow_failed: true, aborted: true, failedExtractor, reason, stderr, perExtractor: [...]}` — the run aborted on an extractor failure. The workfile is already marked failed; no further work is permitted until the user abandons the cycle.
+- `{error, flow_failed: true}` — post-run memory sync failed. Same recovery path: workfile is failed, user must abandon.
+- `{error: "..."}` (without `flow_failed`) — a precondition failed (not an active assay stage, etc.). This should not happen if step 1 succeeded; treat as an error and proceed to step 5 with the error text.
 
 ### 4. Prepare the summary
 
@@ -53,7 +54,7 @@ Build a short summary string for `foundry_stage_end`. Examples:
 - On success: `"ran 2 extractors, upserted 47 rows in 1420ms"`.
 - On abort: `"aborted on extractor 'java-symbols': extractor exited with exit code 2"`.
 
-Do not add extra feedback items, do not call `foundry_feedback_add`. The tool has already done that on failure.
+Do not add feedback items, do not call `foundry_feedback_add`. Assay stages cannot file feedback — extractor failure is recorded directly on the workfile (`status: failed`).
 
 ### 5. End the stage
 
@@ -63,9 +64,9 @@ Call `foundry_stage_end({ summary })` with the summary from step 4. Always end t
 
 - **Must not** read or parse extractor output files itself.
 - **Must not** call any memory write tools (`foundry_memory_put`, `foundry_memory_relate`, etc.). All writes go through `foundry_assay_run`.
-- **Must not** invoke `foundry_feedback_add` — `foundry_assay_run` handles failure feedback on its own.
+- **Must not** invoke `foundry_feedback_add`. Assay stages cannot file feedback; extractor failure is signalled by the workfile's `status: failed` field.
 - **Must not** modify any artefact files. The assay stage writes only to flow memory.
 
 ## If something unexpected happens
 
-If `foundry_assay_run` throws an unrelated error (e.g. `error: memory not enabled`), that is a programming error in the cycle configuration — not an expected extractor failure. Do not retry. End the stage with a summary quoting the error, and let the human see the failure as a `validation`-tagged feedback item in `WORK.feedback.yaml`.
+If `foundry_assay_run` throws an unrelated error (e.g. `error: memory not enabled`), that is a programming error in the cycle configuration — not an expected extractor failure. Do not retry. End the stage with a summary quoting the error and stop.
