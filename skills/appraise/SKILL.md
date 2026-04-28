@@ -98,7 +98,7 @@ This prevents a second appraise stage from rubber-stamping work it didn't
 request. For deadlocked items, only human-appraise has the override authority.
 
 **Future work.** Spec §17 notes a planned cycle-level mode that would let
-human-appraise see non-deadlocked unresolved feedback before the orchestrator routes to the next stage.
+human-appraise see non-deadlocked unresolved feedback before sort routes.
 Not available in v2.6.0; appraise stages today are the sole resolver of
 their own non-deadlocked items.
 
@@ -119,7 +119,7 @@ Each appraiser is dispatched as an independent sub-agent. The sub-agent receives
 - If a model is specified: dispatch with `subagent_type: "foundry-<converted-name>"`. If no agent with that name exists, **hard fail**.
 - If no model is specified: dispatch with `subagent_type: "general"` (inherits session model).
 
-Note: per-appraiser `model` overrides are applied here at dispatch time. The cycle-level `models.appraise` value (if set) is consulted by the orchestrator's routing layer for agent-file validation only; this skill does not consult it when iterating appraisers.
+Note: per-appraiser `model` overrides are applied here at dispatch time. The cycle-level `models.appraise` value (if set) is read by sort.js for routing-time agent-file validation only; this skill does not consult it when iterating appraisers.
 
 Dispatch all appraisers in parallel (multiple Task calls in a single response).
 

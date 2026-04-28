@@ -72,12 +72,12 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
 5. Wait for the human's response.
 
 6. Act on the response (tag MUST be `human` on any added feedback — the tool rejects other tags during human-appraise):
-   - **Approve** — "looks good" / "continue" — no feedback added, the orchestrator will advance.
-   - **Provide feedback** — `foundry_feedback_add({ file, text, tag: 'human' })`. The orchestrator will route back to forge.
+   - **Approve** — "looks good" / "continue" — no feedback added, sort will advance.
+   - **Provide feedback** — `foundry_feedback_add({ file, text, tag: 'human' })`. Sort will route back to forge.
    - **Resolve feedback** — `foundry_feedback_resolve({ id, resolution, reason? })` for items in `{actioned, wont-fix, deadlocked}`. See "Feedback handling" below for the legal transitions and authority rules.
-   - **Abort** — human-appraise cannot directly mark the artefact `blocked` (the `foundry_artefacts_set_status` tool refuses calls during an active stage). To abort: end the stage with a summary explaining the abort, then either (a) instruct the user to call `foundry_workfile_delete({ confirm: true })` to discard the cycle, or (b) reject outstanding feedback so routing exhausts iterations and the orchestrator marks the artefact blocked on its own.
+   - **Abort** — human-appraise cannot directly mark the artefact `blocked` (the `foundry_artefacts_set_status` tool refuses calls during an active stage). To abort: end the stage with a summary explaining the abort, then either (a) instruct the user to call `foundry_workfile_delete({ confirm: true })` to discard the cycle, or (b) reject outstanding feedback so routing exhausts iterations and sort marks the artefact blocked on its own.
 
-7. `foundry_stage_end({summary})` — describe what the human decided so the orchestrator can log it.
+7. `foundry_stage_end({summary})` — describe what the human decided so sort can log it.
 
 ## Feedback handling
 
@@ -86,7 +86,7 @@ items (including deadlock overrides). **Human-appraise can resolve any
 non-resolved source-stage item regardless of source** — this is the
 universal override authority recorded in spec §5.1 rule 5. It is not
 limited to deadlocked items, though in practice most overrides today are
-on deadlocked items because default orchestrator routing only surfaces deadlocked
+on deadlocked items because default sort routing only surfaces deadlocked
 items to human-appraise (see §17 future-work note below).
 
 What human-appraise can NOT do:
@@ -95,10 +95,10 @@ What human-appraise can NOT do:
   `foundry_feedback_wontfix` move items from `{open, rejected}` to
   `{actioned, wont-fix}` — that is forge's lane (spec §5.1 rule 1) and
   the tools reject calls from any non-forge stage. If an open or rejected
-  item needs work, the orchestrator will route to forge after this stage ends.
+  item needs work, sort will route to forge after this stage ends.
 - **No artefact status writes.** `foundry_artefacts_set_status` requires
   no active stage; it refuses calls while human-appraise is open. Status
-  promotion to `done`/`blocked` is owned by the orchestrator based on
+  promotion to `done`/`blocked` is owned by sort/orchestrate based on
   routing.
 
 What human-appraise CAN do:
@@ -119,7 +119,7 @@ What human-appraise CAN do:
    source.
 
 3. **Resolve deadlocked items.** When items reach `state: deadlocked`
-   (written by the orchestrator when an item's history depth hits
+   (written by sort when an item's history depth hits
    `deadlock-iterations`), human-appraise is the ONLY stage authorised
    to resolve them. Call `foundry_feedback_resolve` with
    `{ id, resolution: 'approved' | 'rejected', reason: '...' }`.
@@ -137,9 +137,9 @@ the deadlock is being broken.
 
 **Future work.** Spec §17 notes that a cycle-level mode flag letting
 human-appraise see all unresolved feedback (not just deadlocked items)
-before the orchestrator routes is planned for a future release. In v2.6.0 the
+before sort routes is planned for a future release. In v2.6.0 the
 authority is universal but reachability is limited — you typically only
-see deadlocked items on the route from the orchestrator. If you do see non-deadlocked
+see deadlocked items on the route from sort. If you do see non-deadlocked
 items (e.g. you were invoked directly by the user), the same authority
 applies.
 
