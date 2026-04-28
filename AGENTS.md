@@ -1,0 +1,60 @@
+# AGENTS.md
+
+Project-wide writing rules for any agent producing prose, comments, doc
+strings, commit messages, or user-facing text in this repository.
+
+## Voice: define things affirmatively
+
+Define things on their own terms. Lead with what something **is** and
+what it **does**. Confident, direct, affirmative.
+
+Drop the legacy-docs habit of defining systems by what they aren't. It
+assumes the reader brought baggage you need to unpack, and it wastes
+the reader's attention on a strawman before getting to the actual
+definition.
+
+### The rule
+
+If Bob is blue, write "Bob is blue." Skip "Bob, who isn't pink and is
+in fact blue…".
+
+### Patterns to avoid
+
+- "X is not Y, it is Z" → just say "X is Z"
+- "Unlike Y, X does Z" → just say "X does Z"
+- "rather than Y, X does Z" → just say "X does Z"
+- "X doesn't do Y; instead it does Z" → just say "X does Z"
+- "not just Y but also Z" → just say "X covers Y and Z"
+- "This isn't your typical foo" / "Don't think of this as a bar" → name
+  what it is, in one phrase
+- Strawman comparisons the reader did not bring up
+
+### Negation that stays
+
+Negation as the actual semantic content is welcome:
+
+- Constraints and prohibitions ("the tool must not be called during X",
+  "do not commit secrets")
+- Guard messages and error strings
+- API contracts ("returns null when not found")
+- Imperatives in skills, runbooks, and policy documents
+
+The rule targets *definitional* prose, not behavioural rules.
+
+## Spelling: British English
+
+Use British English spelling throughout: prose, comments, doc strings,
+tool descriptions, commit messages.
+
+Common forms:
+
+- behaviour, colour, defence, honour, centre, grey, fulfil, favour,
+  honour, labour, neighbour, licence (noun) / license (verb)
+- travelled, modelled, cancelled, labelled, signalled
+- modelling, labelling, travelling, cancelling, signalling
+- analyse, organise (Oxford `-ize` is also acceptable; pick one and
+  stay consistent within a file)
+
+Code identifiers, package names, and external API names keep their
+upstream spelling (`color: '#fff'` in CSS, `initialize()` from a
+third-party library, etc.).
