@@ -105,8 +105,8 @@ The six states and the legal transitions are:
 
 | From \ Caller | forge (any source) | source-stage (quench / appraise / human-appraise where stageId === item.source) | sort | human-appraise (override authority, any source) |
 |---|---|---|---|---|
-| `open` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | -> `{actioned, wont-fix}` |
-| `rejected` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | -> `{actioned, wont-fix}` |
+| `open` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | — |
+| `rejected` | -> `actioned` always; -> `wont-fix` only if `item.source` base is `appraise` | — | -> `deadlocked` (if depth >= threshold) | — |
 | `actioned` | — | -> `{resolved, rejected}` | -> `deadlocked` (if depth >= threshold) | -> `{resolved, rejected}` |
 | `wont-fix` | — | -> `{resolved, rejected}` | -> `deadlocked` (if depth >= threshold) | -> `{resolved, rejected}` |
 | `deadlocked` | — | — | — | -> `{resolved, rejected}` |
