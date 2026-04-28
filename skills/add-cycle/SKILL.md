@@ -33,7 +33,7 @@ Verify the flow exists. If it doesn't, tell the user and ask if they want to cre
 From the user's prompt, establish:
 - `id` — lowercase, hyphenated identifier for the foundry cycle
 - `name` — human-readable name
-- `output` — the artefact type this foundry cycle produces (must exist in `foundry/artefacts/`)
+- `output-type` — the artefact type this foundry cycle produces (must exist in `foundry/artefacts/`)
 - `inputs` — artefact types this cycle reads, with a contract type:
   - `type`: `any-of` (at least one must exist) or `all-of` (all must exist)
   - `artefacts`: list of artefact type IDs
@@ -72,7 +72,7 @@ Ask the user:
 
 ### 5. Validate artefact types
 
-For `output` and each entry in `inputs`:
+For `output-type` and each entry in `inputs`:
 - Verify the artefact type exists in `foundry/artefacts/<type>/definition.md`
 - If it doesn't, tell the user and ask if they want to create it first (separate skill)
 
