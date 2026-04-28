@@ -228,7 +228,12 @@ Input artefacts are read-only. Files outside any artefact type's patterns are re
 
 When an unrecoverable error occurs (currently: `foundry_stage_end` cannot flush the in-memory memory DB to its NDJSON source of truth), the orchestrator marks `WORK.md` frontmatter with `status: failed` and a `reason`. The flow is then locked:
 
-- **Blocked tools.** Every mutating tool refuses to run and returns an error referencing the failure: `foundry_stage_begin`, `foundry_orchestrate`, `foundry_assay_run`, `foundry_artefacts_set_status`, `foundry_workfile_create`, the `foundry_feedback_*` tools, and the memory write tools (`foundry_memory_put` / `_relate` / `_unrelate`).
+- **Blocked tools.** Every mutating tool refuses to run and returns an error referencing the failure:
+  - **Lifecycle:** `foundry_stage_begin`, `foundry_orchestrate`, `foundry_workfile_create`, `foundry_artefacts_set_status`
+  - **Stage work:** `foundry_assay_run`, `foundry_validate_run`
+  - **Feedback writes:** `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, `foundry_feedback_resolve` (`foundry_feedback_list` remains callable)
+  - **Memory writes:** `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`
+  - **Memory admin:** `foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type`, `foundry_extractor_create` (read-only `foundry_memory_validate` and `foundry_memory_dump` remain callable)
 - **Allowed escape hatches.** `foundry_workfile_get` (to read the state) and `foundry_workfile_delete({confirm: true})` (to abandon the cycle) remain callable. `foundry_git_finish` is also allowed so the work branch can be cleaned up. Read-only memory and config tools continue to work.
 - **Recovery.** The supported path is: read the reason via `foundry_workfile_get`, then `foundry_workfile_delete({confirm: true})`, check out the base branch, delete the work branch, fix the root cause, and start a fresh flow. There is no in-place "retry" — failed-flow is intentionally terminal.
 
