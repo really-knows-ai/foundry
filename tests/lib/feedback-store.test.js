@@ -470,10 +470,19 @@ describe('store.add — source format validation (RED target)', () => {
   test('accepts all valid source bases', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
-    for (const base of ['forge', 'quench', 'appraise', 'human-appraise', 'assay']) {
+    for (const base of ['forge', 'quench', 'appraise', 'human-appraise']) {
       const r = store.add({ file: `${base}.md`, tag: 'law:x', text: 't', source: `${base}:alias`, cycle: 'c' });
       assert.equal(typeof r.id, 'string');
     }
+  });
+
+  test('rejects assay as a source base (assay does not produce feedback)', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.throws(
+      () => store.add({ file: 'a.md', tag: 'validation', text: 't', source: 'assay:c', cycle: 'c' }),
+      /unknown source base.*assay/,
+    );
   });
 });
 
