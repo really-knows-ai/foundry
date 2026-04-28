@@ -139,7 +139,7 @@ Starting a flow creates a work branch and a fresh `WORK.md`.
 
 A cycle lives in `foundry/cycles/`. It declares:
 
-- `output` — the artefact type the cycle produces (read-write).
+- `output-type` — the artefact type the cycle produces (read-write).
 - `inputs` — a contract (`any-of` or `all-of`) over artefact types from other cycles. Inputs are discovered on disk by filesystem scan against each input type's file-patterns; they are read-only.
 - `targets` — which cycle(s) may run next after this one completes.
 - `human-appraise` / `deadlock-appraise` / `deadlock-iterations` — human-in-the-loop configuration.
