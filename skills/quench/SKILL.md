@@ -21,7 +21,7 @@ Quench runs inside an enforced stage. Your **first** and **last** tool calls are
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt. Any other tool call before this will be blocked.
 2. **Last:** `foundry_stage_end({summary})`.
 
-Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`, never by creating or modifying files. `foundry_stage_finalize` (run by the orchestrator after you return) will flag any unexpected writes as a violation.
+Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`, never by creating or modifying files. The orchestrator's internal finalize step (run after `stage_end`) will flag any unexpected writes as a violation.
 
 ## Protocol
 

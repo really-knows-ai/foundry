@@ -19,7 +19,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 Forge runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — the orchestrator hands you `stage`, `cycle`, and an opaque `token` string in the dispatch prompt. Copy the token verbatim; never invent, edit, or re-sign it. No other tool call is permitted before this one. Any writes before `stage_begin` will be blocked by preconditions.
-2. **Last:** `foundry_stage_end({summary})` — return control to the orchestrator. After `stage_end`, the orchestrator calls `foundry_stage_finalize` which scans the disk and registers your output artefact. **You do not register artefacts yourself.**
+2. **Last:** `foundry_stage_end({summary})` — return control to the orchestrator. After `stage_end`, the orchestrator's internal finalize step scans the disk and registers your output artefact. **You do not register artefacts yourself.**
 
 ## Protocol
 
@@ -97,7 +97,7 @@ Forge may only write to:
 - Files matching the output artefact type's `file-patterns`.
 - `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` (tool-managed).
 
-Everything else on disk — including files of the cycle's input types, files of unrelated artefact types, and files outside any artefact type — is read-only for this stage. This is not an honor-system rule: `foundry_stage_finalize` returns `{error: 'unexpected_files'}` and `sort`'s `checkModifiedFiles` routes a violation on the next call. Either outcome marks the cycle's target artefact `blocked` and you do not get a retry.
+Everything else on disk — including files of the cycle's input types, files of unrelated artefact types, and files outside any artefact type — is read-only for this stage. This is not an honor-system rule: the orchestrator's internal finalize step returns `{error: 'unexpected_files'}` and `sort`'s `checkModifiedFiles` routes a violation on the next call. Either outcome marks the cycle's target artefact `blocked` and you do not get a retry.
 
 When a cycle's output type overlaps with one of its input types (e.g. a `refine-haiku` cycle with input `haiku` and output `haiku`), the overlap is intentional: the cycle's job is to modify existing files of that type. The write invariant still holds — you may only touch files matching the output type's patterns, which in this case includes the files you read as inputs.
 
@@ -113,7 +113,7 @@ items in the list output.
 
 - You normally do not add feedback — that is the quench and appraise skills' job.
 - You do not `foundry_feedback_resolve` — that belongs to quench/appraise/human-appraise.
-- You do not register artefacts — `foundry_stage_finalize` handles that automatically.
+- You do not register artefacts — the orchestrator's internal finalize step handles that automatically.
 - You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` does (those tools are not registered publicly).
 - You do not evaluate or score the artefact.
 - You do not mark feedback as actioned unless you actually changed the artefact to address it.

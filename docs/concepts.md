@@ -39,7 +39,7 @@ Stage bases:
 - **human-appraise** — human quality gate. Can run every iteration, only on deadlock, or both.
 - **assay** — deterministic population of flow memory by running project-authored extractor scripts (iteration 0 only, opt-in per cycle). See the [Assay](#assay) and [Extractor](#extractor) entries below.
 
-Every stage runs inside a token-gated lifecycle (`foundry_stage_begin` / `foundry_stage_end` / `foundry_stage_finalize`). Mutation tools are stage-locked: a forge stage can't add feedback, a quench stage can't register artefacts. See the enforcement section of the [README](../README.md#enforcement-model).
+Every stage runs inside a token-gated lifecycle bracketed by `foundry_stage_begin` and `foundry_stage_end`, with an internal finalize step run by `foundry_orchestrate` after `stage_end` to scan the disk and register artefacts. Mutation tools are stage-locked: a forge stage can't add feedback, a quench stage can't register artefacts. See the enforcement section of the [README](../README.md#enforcement-model).
 
 ## Assay
 

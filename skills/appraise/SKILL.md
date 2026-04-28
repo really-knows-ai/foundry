@@ -21,7 +21,7 @@ Appraise runs inside an enforced stage. Your **first** and **last** tool calls a
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
 2. **Last:** `foundry_stage_end({summary})`.
 
-Appraise makes **no disk writes**. Feedback output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. `foundry_stage_finalize` flags any unexpected writes as a violation.
+Appraise makes **no disk writes**. Feedback output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. The orchestrator's internal finalize step flags any unexpected writes as a violation.
 
 ## Protocol
 
@@ -166,4 +166,4 @@ When reviewing an artefact, check the feedback history for `#human` tagged items
 - You do not revise the artefact.
 - You do not check deterministic rules — that is the quench skill's job.
 - You do not filter out feedback because only one appraiser raised it — one is enough.
-- You do not register artefacts — that happens automatically via `foundry_stage_finalize`.
+- You do not register artefacts — that happens automatically via the orchestrator's internal finalize step.
