@@ -52,7 +52,7 @@ Properties:
 - **Opt-in per cycle.** A cycle declares `assay: { extractors: [name, ...] }`. Cycles without this block behave exactly as they always have.
 - **Iteration 0 only.** Runs once, before the first forge. Re-extraction on later iterations is out of scope for v1.
 - **Requires memory.** A cycle with `assay:` but no `foundry/memory/` fails to load with a clear error.
-- **Strict failure.** Any non-zero exit, parse error, permission violation, or timeout aborts the cycle and writes a validation-tagged feedback item to `WORK.feedback.yaml`.
+- **Strict failure.** Any non-zero exit, parse error, permission violation, or timeout marks the workfile failed and aborts the cycle. The user must fix the extractor and start a new cycle.
 
 See also: [Extractor](#extractor).
 
@@ -219,7 +219,7 @@ No other fields are permitted on edge rows.
 
 **Failure semantics:**
 
-Any of the following abort the assay stage with a `#validation`-tagged feedback item and mark the cycle blocked:
+Any of the following mark the workfile failed (`status: failed` with a `reason`) and abort the cycle. No feedback item is written — extractor scripts live outside any artefact's `file-patterns`, so forge cannot fix them. The user must fix the extractor and start a new cycle (`foundry_workfile_delete` to abandon, then re-run the flow):
 
 - Extractor exits non-zero.
 - Extractor exceeds the configured `timeout`.
