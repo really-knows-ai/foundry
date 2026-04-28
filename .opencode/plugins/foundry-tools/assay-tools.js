@@ -1,7 +1,5 @@
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { markWorkfileFailed, requireNotFailed } from '../../../scripts/lib/failed-flow.js';
-import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
-import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { runAssay } from '../../../scripts/lib/assay/run.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../../scripts/lib/memory/writes.js';
@@ -11,7 +9,7 @@ import { makeIO, errorJson } from './helpers.js';
 export function createAssayTools({ tool }) {
   return {
     foundry_assay_run: tool({
-      description: 'Run extractors to populate flow memory. Only callable during an active assay stage. Aborts on first failure; emits a validation feedback item on abort.',
+      description: 'Run extractors to populate flow memory. Only callable during an active assay stage. Aborts on first failure; marks the workfile failed.',
       args: {
         cycle: tool.schema.string().describe('Cycle name'),
         extractors: tool.schema.array(tool.schema.string()).describe('Extractor names, executed in order'),
@@ -57,28 +55,25 @@ export function createAssayTools({ tool }) {
               return JSON.stringify({ error: msg, flow_failed: true });
             }
           } else {
-            try {
-              if (io.exists('WORK.md')) {
-                const fm = parseFrontmatter(io.readFile('WORK.md'));
-                const cycle = fm.cycle;
-                if (cycle) {
-                  const msg = `assay aborted on extractor \`${res.failedExtractor}\`: ${res.reason}` +
-                    (res.stderr ? ` (stderr: ${res.stderr.trim().slice(0, 500)})` : '');
-                  const fbStore = openFeedbackStore('WORK.feedback.yaml', io);
-                  fbStore.add({
-                    file: 'WORK.md',
-                    tag: 'validation',
-                    text: msg,
-                    source: guard.active.stage,
-                    cycle,
-                  });
-                } else {
-                  console.error('assay validation feedback skipped: WORK.md frontmatter has no cycle');
-                }
-              }
-            } catch (err) {
-              console.error(`assay validation feedback failed: ${err.message ?? err}`);
-            }
+            // Extractor failure is a deterministic infrastructure failure.
+            // The extractor scripts live under foundry/memory/extractors/ —
+            // outside any artefact's file-patterns and outside forge's allowed
+            // write scope — so forge cannot fix them. Treat this the same as
+            // a memory-sync failure: mark the workfile failed and surface
+            // flow_failed. The user must fix the extractor and start a new
+            // cycle.
+            const msg = `assay aborted on extractor \`${res.failedExtractor}\`: ${res.reason}` +
+              (res.stderr ? ` (stderr: ${res.stderr.trim().slice(0, 500)})` : '');
+            try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone? nothing we can do */ }
+            return JSON.stringify({
+              error: msg,
+              flow_failed: true,
+              aborted: true,
+              failedExtractor: res.failedExtractor,
+              reason: res.reason,
+              stderr: res.stderr,
+              perExtractor: res.perExtractor,
+            });
           }
           return JSON.stringify(res);
         } catch (err) {

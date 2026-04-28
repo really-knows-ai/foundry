@@ -4,7 +4,6 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import yaml from 'js-yaml';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
 import { disposeStores } from '../../scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
@@ -190,19 +189,25 @@ describe('assay end-to-end: extractor failure', () => {
       { stage: dispatch.stage, cycle: 'doc-java', token }, ctx);
     const runRes = JSON.parse(await plugin.tool.foundry_assay_run.execute(
       { cycle: 'doc-java', extractors: ['java-syms'] }, ctx));
-    await plugin.tool.foundry_stage_end.execute({ summary: 'aborted' }, ctx);
+    try { await plugin.tool.foundry_stage_end.execute({ summary: 'aborted' }, ctx); } catch {}
 
-    assert.equal(runRes.ok, false);
+    // Extractor failure marks the workfile failed and surfaces flow_failed.
+    // The abort detail (failedExtractor / reason) is preserved alongside the
+    // failed-flow envelope so the caller can report a useful error.
     assert.equal(runRes.aborted, true);
+    assert.equal(runRes.flow_failed, true);
     assert.equal(runRes.failedExtractor, 'java-syms');
     assert.match(runRes.reason, /exit code 4/);
+    assert.ok(runRes.error, `expected error message; got ${JSON.stringify(runRes)}`);
 
-    // validation feedback was written to WORK.feedback.yaml.
-    const doc = yaml.load(readFileSync(join(root, 'WORK.feedback.yaml'), 'utf-8'));
-    const validationItems = (doc.items || []).filter(it => it.tag === 'validation');
-    assert.ok(validationItems.length > 0, 'expected validation feedback');
-    assert.match(validationItems[0].text, /java-syms/);
-    assert.ok(validationItems[0].source.startsWith('assay:'),
-      `expected source to start with assay:; got ${validationItems[0].source}`);
+    // No feedback file is written for an assay-sourced abort.
+    const fbPath = join(root, 'WORK.feedback.yaml');
+    const fbExists = (() => { try { readFileSync(fbPath); return true; } catch { return false; } })();
+    assert.equal(fbExists, false, 'assay must not write WORK.feedback.yaml on abort');
+
+    // WORK.md is marked failed so subsequent mutating tools refuse.
+    const work = readFileSync(join(root, 'WORK.md'), 'utf-8');
+    assert.match(work, /status: failed/);
+    assert.match(work, /reason: /);
   });
 });

@@ -4,7 +4,6 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import yaml from 'js-yaml';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
 import { signToken } from '../../scripts/lib/token.js';
 import { disposeStores } from '../../scripts/lib/memory/singleton.js';
@@ -102,77 +101,63 @@ echo '{"kind":"entity","type":"class","name":"com.Hello","value":"hi"}'
     assert.equal(got.value, 'hi');
   });
 
-  it('aborts on extractor non-zero exit and writes validation feedback to WORK.feedback.yaml', async () => {
+  it('aborts on extractor non-zero exit, marks WORK.md failed, returns flow_failed, writes no feedback', async () => {
     writeScript(root, 'scripts/fail.sh', `#!/bin/sh\necho err >&2\nexit 3\n`);
     writeExtractor(root, 'bad', { command: 'scripts/fail.sh', write: ['class'] });
 
     writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
 
     await beginAssay(plugin, root);
-    const res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
-      { cycle: 'c', extractors: ['bad'] }, { worktree: root }));
-    await endStage(plugin, root);
+    let res;
+    try {
+      res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['bad'] }, { worktree: root }));
+    } finally {
+      try { await endStage(plugin, root); } catch {}
+    }
 
-    assert.equal(res.ok, false);
+    // Result must surface the failure with the abort detail still visible
+    // (failedExtractor / reason / stderr / perExtractor) AND with the
+    // failed-flow envelope (error + flow_failed).
+    assert.notEqual(res.ok, true, `expected non-ok; got ${JSON.stringify(res)}`);
     assert.equal(res.aborted, true);
     assert.equal(res.failedExtractor, 'bad');
     assert.match(res.reason, /exit code 3/);
+    assert.equal(res.flow_failed, true);
+    assert.ok(res.error, `expected error message; got ${JSON.stringify(res)}`);
+    assert.match(res.error, /bad/);
 
-    const doc = yaml.load(readFileSync(join(root, 'WORK.feedback.yaml'), 'utf-8'));
-    const validationItems = (doc.items || []).filter(it => it.tag === 'validation');
-    assert.ok(validationItems.length > 0, 'expected at least one validation feedback item');
-    const item = validationItems[0];
-    assert.ok(item.source.startsWith('assay:'), `expected source to start with assay:; got ${item.source}`);
-    assert.match(item.text, /bad/);
-    assert.match(item.text, /assay aborted/);
+    // WORK.md must be marked failed with a reason.
+    const work = readFileSync(join(root, 'WORK.md'), 'utf-8');
+    assert.match(work, /status: failed/);
+    assert.match(work, /reason: /);
+
+    // No feedback file must be written for an assay-sourced abort.
+    assert.equal(existsSync(join(root, 'WORK.feedback.yaml')), false,
+      'assay must not write WORK.feedback.yaml on extractor abort');
   });
 
-  it('logs and preserves abort result when WORK.md has no cycle for validation feedback', async (t) => {
-    writeScript(root, 'scripts/fail-missing-cycle.sh', `#!/bin/sh\necho no-cycle >&2\nexit 5\n`);
-    writeExtractor(root, 'bad-missing-cycle', { command: 'scripts/fail-missing-cycle.sh', write: ['class'] });
-
-    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\n---\n\n# Goal\n\ntest\n');
-
-    const errors = [];
-    t.mock.method(console, 'error', (...args) => { errors.push(args.join(' ')); });
-
-    await beginAssay(plugin, root);
-    const res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
-      { cycle: 'c', extractors: ['bad-missing-cycle'] }, { worktree: root }));
-    await endStage(plugin, root);
-
-    assert.equal(res.ok, false);
-    assert.equal(res.aborted, true);
-    assert.equal(res.failedExtractor, 'bad-missing-cycle');
-    assert.match(res.reason, /exit code 5/);
-    assert.match(errors.join('\n'), /assay validation feedback skipped.*cycle/i);
-  });
-
-  it('logs and preserves abort result when validation feedback write fails', async (t) => {
-    writeScript(root, 'scripts/fail-feedback-write.sh', `#!/bin/sh\necho feedback-write >&2\nexit 6\n`);
-    writeExtractor(root, 'bad-feedback-write', { command: 'scripts/fail-feedback-write.sh', write: ['class'] });
+  it('refuses subsequent mutating tools after extractor abort (failed-flow guard)', async () => {
+    writeScript(root, 'scripts/fail-guard.sh', `#!/bin/sh\necho boom >&2\nexit 4\n`);
+    writeExtractor(root, 'bad-guard', { command: 'scripts/fail-guard.sh', write: ['class'] });
 
     writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
-    mkdirSync(join(root, 'WORK.feedback.yaml.tmp'));
 
-    const errors = [];
-    t.mock.method(console, 'error', (...args) => { errors.push(args.join(' ')); });
-
+    await beginAssay(plugin, root);
     try {
-      await beginAssay(plugin, root);
       const res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
-        { cycle: 'c', extractors: ['bad-feedback-write'] }, { worktree: root }));
-      await endStage(plugin, root);
-
-      assert.equal(res.ok, false);
-      assert.equal(res.aborted, true);
-      assert.equal(res.failedExtractor, 'bad-feedback-write');
-      assert.match(res.reason, /exit code 6/);
-      assert.match(errors.join('\n'), /assay validation feedback failed/i);
-      assert.match(errors.join('\n'), /WORK\.feedback\.yaml\.tmp|EISDIR|directory/i);
+        { cycle: 'c', extractors: ['bad-guard'] }, { worktree: root }));
+      assert.equal(res.flow_failed, true);
     } finally {
-      rmSync(join(root, 'WORK.feedback.yaml.tmp'), { recursive: true, force: true });
+      try { await endStage(plugin, root); } catch {}
     }
+
+    // A subsequent mutating tool (foundry_memory_put) must refuse.
+    const blocked = JSON.parse(await plugin.tool.foundry_memory_put.execute(
+      { type: 'class', name: 'com.AfterFail', value: 'should not write' },
+      { worktree: root }));
+    assert.ok(blocked.error, `expected error; got ${JSON.stringify(blocked)}`);
+    assert.match(blocked.error, /failed/i);
   });
 
   it('flushes NDJSON immediately after a successful assay run (defence-in-depth, before stage_end)', async () => {
