@@ -2,9 +2,89 @@
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **Cycle frontmatter key renamed: `output:` → `output-type:`.** The cycle
+  frontmatter key that names the produced artefact type is now
+  `output-type:`. The orchestrator emits a typed migration diagnostic when
+  it sees the old key. Migration: rename `output:` to `output-type:` in
+  every `foundry/flows/*/cycles/*.md` file. (`b92f866`)
+- **Artefact-type frontmatter `output:` is removed.** The field had zero
+  runtime consumers — forge's write scope is governed by `file-patterns`,
+  and `file-patterns` legitimately spans multiple directories so a single
+  `output:` (or earlier-proposed `output-dir:`) cannot honestly describe
+  artefact location. Migration: delete the `output:` line from every
+  `foundry/artefact-types/*.md` definition. (`b92f866`, `88aad11`)
+- **Assay extractor failure now marks the workfile failed.** When an
+  extractor exits non-zero, parses incorrectly, violates permissions, or
+  times out, `foundry_assay_run` calls `markWorkfileFailed` and returns
+  `{flow_failed: true, error, …}`. It no longer files a `#validation`
+  feedback item. Rationale: the failure cause (a project-authored script
+  under `foundry/memory/extractors/`) lives outside any artefact's
+  `file-patterns`, so forge has no way to act on assay-sourced feedback;
+  the prior behaviour produced unsatisfiable state-machine items. Assay
+  is also rejected as a `source` base in `foundry_feedback_add` and in
+  `WORK.feedback.yaml`. Migration: any tooling that pattern-matched
+  assay-sourced feedback items must instead detect `flow_failed: true`
+  on the assay-run response. (`0e8b248`, `5dd69e8`, `08934a8`)
+
+### Added
+
+- **Failed-flow guard on `foundry_validate_run`.** Treats validation as
+  state-changing for the purposes of the failed-flow guard; the tool now
+  refuses on a failed workfile. (`1e58f8f`)
+- **Failed-flow guard on 11 mutating memory admin tools.** `foundry_memory_init`,
+  `_reset`, `_vacuum`, `_change_embedding_model`, `_create_entity_type`,
+  `_create_edge_type`, `_rename_entity_type`, `_rename_edge_type`,
+  `_drop_entity_type`, `_drop_edge_type`, and `foundry_extractor_create`
+  now refuse on a failed workfile, matching the existing gating on
+  `foundry_memory_put` / `_relate` / `_unrelate`. Read-only memory tools
+  (`_dump`, `_validate`) remain callable. (`5a8f150`)
+
+### Changed
+
+- **`foundry_memory_dump` response wrapped in a JSON envelope.** The tool
+  now returns `{ dump: "<text>" }` instead of a raw string, matching the
+  contract of every other plugin tool. Callers that previously consumed
+  the raw string must read `.dump`. (`b9b4be1`)
+- **`foundry_git_branch` errors now return a JSON envelope.**
+  Failures are returned as `{ error: "<message>" }` instead of throwing
+  raw `execFileSync` errors at the caller. (`4a01a9d`)
+
 ### Fixed
 
-- **Stage-end memory sync failure is now a hard flow failure.** When `foundry_stage_end` cannot flush the in-memory memory DB to the NDJSON source of truth, WORK.md is marked `status: failed` with the sync error as `reason`, and every mutating tool (`stage_begin`, `orchestrate`, `assay_run`, `forge`/`quench`/`appraise`/`human-appraise` helpers, `memory_put` / `_relate` / `_unrelate`, `feedback_*`, `artefacts_set_status`, `workfile_create`) refuses until the cycle is abandoned via `foundry_workfile_delete`. Read-only tools and the escape hatches (`workfile_delete`, `git_finish`) remain callable. Skills driving each stage (`forge`, `quench`, `appraise`, `human-appraise`, `orchestrate`, `assay`, `flow`) were updated to check for the failed state at the top of their procedure and hand control back to the user. Previously, sync failures were silently swallowed (`console.error` + `{ok:true}`) and the Cozo DB was allowed to drift ahead of on-disk NDJSON. See REVIEW.md P0 #3.
+- **Stage-end memory sync failure is now a hard flow failure.** When
+  `foundry_stage_end` cannot flush the in-memory memory DB to the NDJSON
+  source of truth, WORK.md is marked `status: failed` with the sync error
+  as `reason`, and every mutating tool (`stage_begin`, `orchestrate`,
+  `assay_run`, `forge`/`quench`/`appraise`/`human-appraise` helpers,
+  `memory_put` / `_relate` / `_unrelate`, `feedback_*`,
+  `artefacts_set_status`, `workfile_create`) refuses until the cycle is
+  abandoned via `foundry_workfile_delete`. Read-only tools and the
+  escape hatches (`workfile_delete`, `git_finish`) remain callable.
+  Skills driving each stage (`forge`, `quench`, `appraise`,
+  `human-appraise`, `orchestrate`, `assay`, `flow`) were updated to check
+  for the failed state at the top of their procedure and hand control
+  back to the user. Previously, sync failures were silently swallowed
+  (`console.error` + `{ok:true}`) and the Cozo DB was allowed to drift
+  ahead of on-disk NDJSON. See REVIEW.md P0 #3.
+- **`foundry_orchestrate` catches `requireNotFailed` violations.** Moved
+  the failed-flow check inside the wrapper try/catch so a malformed
+  frontmatter `YAMLException` collapses to `{action: 'violation'}` instead
+  of bubbling out as an uncaught throw. (`fc3340e`)
+- **Missing artefact-type definitions surface a typed finalize error.**
+  The orchestrator's finalize bridge now returns
+  `{ok: false, error: "missing_artefact_type: <type> (<reason>)"}` when
+  `getArtefactType` fails, instead of swallowing the error and falsely
+  reporting an `unexpected_files` violation. (`cd028eb`)
+
+### Migration
+
+In addition to the per-entry migration notes above, finish or discard any
+in-flight cycle started under v2.6.x before upgrading: assay-sourced
+feedback items in an existing `WORK.feedback.yaml` are no longer reachable
+by the state machine. `foundry_workfile_delete` + re-flow is the supported
+path.
 
 ## 2.6.0 — 2026-04-24
 
