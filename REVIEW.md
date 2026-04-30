@@ -122,17 +122,17 @@ These break users or tools at runtime, or contradict shipped behaviour.
   README locations and `docs/tools.md:5` say "46 tools"; actual
   count is **60**. README:71, README:434, README:478, tools.md:5.
 
-- [ ] **A8. README "Stage write scopes" assay row stale.**
+- [x] **A8. README "Stage write scopes" assay row stale.**
   README.md:233 still says assay writes `WORK.feedback.yaml for
   #validation feedback on abort`. Per 3.0 (`08934a8`), assay marks
   the workfile failed on abort and writes no feedback. (F2 in prior
   review.)
 
-- [ ] **A9. README forge wont-fix exclusion lists `assay` as a
+- [x] **A9. README forge wont-fix exclusion lists `assay` as a
   source base.** README.md:276 and :281. Assay is no longer a valid
   feedback source. (F3.)
 
-- [ ] **A10. README "Stages" reference table assay row stale.**
+- [x] **A10. README "Stages" reference table assay row stale.**
   README.md:450 says `foundry_assay_run … writes #validation
   feedback on abort`. Should say "marks the workfile failed on
   abort". (F4.)

@@ -230,7 +230,7 @@ Per-stage write rules:
 | `quench` | `WORK.feedback.yaml` via feedback tools; `WORK.history.yaml` via stage finalization |
 | `appraise` | `WORK.feedback.yaml` via feedback tools; `WORK.history.yaml` via stage finalization |
 | `human-appraise` | `WORK.feedback.yaml` via feedback tools; `WORK.history.yaml` via stage finalization |
-| `assay` | Flow memory (via `foundry_assay_run` only — not direct `foundry_memory_put`); `WORK.feedback.yaml` for `#validation` feedback on abort |
+| `assay` | Flow memory (via `foundry_assay_run` only — not direct `foundry_memory_put`); marks the workfile failed on abort (no feedback writes) |
 
 Input artefacts are read-only. Files outside any artefact type's patterns are read-only. Violations hard-stop the cycle.
 
@@ -273,12 +273,11 @@ The state machine's transition rules are **source-based, not tag-based**. Tags a
 
 | Source stage | Forge can `wont-fix`? | Resolved by |
 |--------------|------------------------|-------------|
-| `assay` (extractor failure) | No — must `actioned` | the originating `assay` stage, or `human-appraise` override |
 | `quench` (CLI validation failure) | No — must `actioned` | the originating `quench` stage, or `human-appraise` override |
 | `appraise` (subjective law) | Yes (with reason) | the originating `appraise` stage, or `human-appraise` override |
 | `human-appraise` (direct user instruction) | No — must `actioned` | the originating `human-appraise` stage |
 
-Conventional tags (`#validation`, `#law:<id>`, `#human`) are still emitted for human-readable categorisation, but the state machine consults `source`, not tags. Items whose `source` base is `assay`, `quench`, or `human-appraise` are not wont-fix-able by forge regardless of tag; `appraise`-sourced items are. See [`docs/work-spec.md`](./docs/work-spec.md#state-machine) for the full transition table.
+Conventional tags (`validation`, `law:<id>`, `human`) are still emitted for human-readable categorisation, but the state machine consults `source`, not tags. Items whose `source` base is `quench` or `human-appraise` are not wont-fix-able by forge regardless of tag; `appraise`-sourced items are. Assay does not file feedback — extractor failure marks the workfile failed instead. See [`docs/work-spec.md`](./docs/work-spec.md#state-machine) for the full transition table.
 
 Feedback is append-only: items are never deleted, only resolved. Sort writes `deadlocked` when repeated forge/appraise iterations exceed the configured depth. `human-appraise` can override any non-resolved feedback, though default routing usually surfaces deadlocked items for that authority.
 
@@ -447,7 +446,7 @@ For per-tool args, return shapes, stage requirements, failure modes, and side ef
 | **History** | `foundry_history_list` |
 | **Config** | `foundry_config_cycle`, `foundry_config_artefact_type`, `foundry_config_laws`, `foundry_config_validation`, `foundry_config_appraisers`, `foundry_config_flow` |
 | **Validation** | `foundry_validate_run`, `foundry_appraisers_select` |
-| **Assay** | `foundry_assay_run` (runs extractors for the active assay stage; writes `#validation` feedback on abort), `foundry_extractor_create` (authors a new extractor definition) |
+| **Assay** | `foundry_assay_run` (runs extractors for the active assay stage; marks the workfile failed on abort), `foundry_extractor_create` (authors a new extractor definition) |
 | **Git** | `foundry_git_branch`, `foundry_git_finish` |
 
 ### Memory tools
