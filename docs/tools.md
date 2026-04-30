@@ -42,6 +42,36 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
   `scripts/lib/memory/permissions.js`). Reads of disallowed types return
   empty results; writes return an `error`. When no cycle is active the
   call is unscoped (full access).
+- **Branch requirements**: every mutating tool also enforces the
+  branch-namespace split at call time (`scripts/lib/branch-guard.js`).
+  The guard is applied per family, so per-tool blocks below do not
+  repeat it:
+  - **Config branch** (`config/<description>`):
+    `foundry_config_create_*` (5), `foundry_memory_create_entity_type`,
+    `foundry_memory_create_edge_type`, `foundry_memory_rename_*`,
+    `foundry_memory_drop_*`, `foundry_memory_reset`,
+    `foundry_memory_init`, `foundry_memory_validate`,
+    `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`,
+    `foundry_extractor_create`.
+  - **Flow branch** (`work/<flow>-<desc>` or `dry-run/<x>/<y>`):
+    `foundry_orchestrate`, `foundry_stage_begin`, `foundry_stage_end`,
+    `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`,
+    `foundry_assay_run`, `foundry_validate_run`,
+    `foundry_appraisers_select`, `foundry_memory_put`,
+    `foundry_memory_relate`, `foundry_memory_unrelate`.
+  - **Any branch (read-only diagnostics)**:
+    `foundry_history_list`, `foundry_config_*` (read-only),
+    `foundry_memory_get`, `foundry_memory_list`,
+    `foundry_memory_neighbours`, `foundry_memory_query`,
+    `foundry_memory_search`, `foundry_memory_dump`,
+    `foundry_snapshot_*`. These have no branch guard.
+  - **Self-classifying**: `foundry_git_branch` (refuses based on
+    `kind` and current branch) and `foundry_git_finish` (classifies
+    by current branch). They have their own branch logic and are
+    not gated by the family guards above.
+
+  Off-namespace calls return a structured refusal envelope naming
+  the required namespace and the current branch.
 
 ## Tool index
 

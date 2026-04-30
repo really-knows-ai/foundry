@@ -234,19 +234,20 @@ These break users or tools at runtime, or contradict shipped behaviour.
   layout` heading — was already corrected to `## Memory layout` with
   the two-tree split under A11.
 
-- [ ] **B5. `docs/getting-started.md` walkthrough does not mention
-  config branches.** Authoring section (lines 56–137) walks through
-  `add-artefact-type`, `add-law`, `add-appraiser`, `add-cycle`,
-  `add-flow` with no instruction to first run
-  `foundry_git_branch({ kind: "config", ... })`. The skills now
-  require it; new users will hit guard rejections. Same problem at
-  lines 212–264 (memory walkthrough).
+- [x] **B5. `docs/getting-started.md` walkthrough does not mention
+  config branches.** Added a "Step 0. Open a config branch"
+  subsection before the artefact-type/law/appraiser/cycle/flow
+  walkthrough, and a one-paragraph note on the memory walkthrough's
+  Initialize subsection pointing at `foundry_git_branch({ kind:
+  "config", ... })`.
 
-- [ ] **B6. `docs/tools.md` does not document branch-guard
-  requirements per tool.** Each per-tool block has "Stage
-  requirements"; there is no "Branch requirements". Branch guards
-  are now first-class enforcement, but no tool block names them.
-  Add a sub-heading or extend the stage-requirements line.
+- [x] **B6. `docs/tools.md` does not document branch-guard
+  requirements per tool.** Per-tool annotation across 46 blocks would
+  duplicate; instead extended the Conventions section with a
+  "Branch requirements" entry that lists which tool families gate on
+  config / flow / any-branch, parallel to the existing "Failed flow"
+  preamble. Self-classifying tools (`foundry_git_branch`,
+  `foundry_git_finish`) are called out separately.
 
 - [ ] **B7. `docs/tools.md` failed-flow gating preamble is stale.**
   Lines 26–36 list the gated tools but miss the
@@ -434,15 +435,21 @@ apply).
   with edits in progress have no skill-discovery path to dry-run.
   Add a one-paragraph note to flow:1–10 and/or orchestrate.
 
-- [ ] **C18. `docs/getting-started.md` no mention of
+- [x] **C18. `docs/getting-started.md` no mention of
   `foundry_config_validate_*` (the validate-then-create authoring
-  loop).**
+  loop).** Added a "Step 6. Validate before writing (optional)"
+  subsection covering all five validators. (Folded into B5/B6 commit
+  per grouping #17.)
 
 - [ ] **C19. `docs/getting-started.md:174` "three places" but lists
   four bullets.** (Was D4.)
 
-- [ ] **C20. `docs/getting-started.md` no mention of failed-flow
-  recovery / `foundry_workfile_delete` escape hatch.**
+- [x] **C20. `docs/getting-started.md` no mention of failed-flow
+  recovery / `foundry_workfile_delete` escape hatch.** Added a
+  "Recovering a failed flow" subsection under "Inspecting progress"
+  describing the `status: failed` flag, which read-only diagnostics
+  remain available, and the `foundry_workfile_delete({ confirm: true
+  })` escape hatch. (Folded into B5/B6 commit per grouping #17.)
 
 - [ ] **C21. `docs/concepts.md:138` links to `README.md#custom-tools`.**
   `docs/tools.md` is the canonical tool reference. Relink.

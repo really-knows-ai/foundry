@@ -53,6 +53,23 @@ The `.foundry/` runtime directory (holding `.secret` for stage tokens) is create
 
 Foundry's configuration is five things: artefact types, laws, appraisers, cycles, and flows. You can write the files by hand, but the authoring skills do conflict checking, scaffolding, and validation — use them.
 
+### 0. Open a config branch
+
+All schema-mutation tools (`foundry_config_create_*`,
+`foundry_memory_create_*`, `foundry_extractor_create`, the memory
+admin family) refuse off `main` and off flow branches. Open a config
+branch first:
+
+```text
+foundry_git_branch({ kind: "config", description: "<short-name>" })
+```
+
+This puts you on `config/<short-name>` from `main`. Make all the
+edits below on this branch, then `foundry_git_finish({ message: "...",
+baseBranch: "main", confirm: true })` squashes the work back to
+`main` in one commit. To trial the in-progress edits against a real
+flow before merging, see "Trial config edits with dry-run" below.
+
 ### 1. Define an artefact type
 
 Run `add-artefact-type`. It walks you through:
@@ -138,6 +155,26 @@ End-to-end flow: petition → haiku, with a human quality gate.
 
 Routing between cycles is owned by individual cycles via their `targets`, not by the flow.
 
+### 6. Validate before writing (optional)
+
+Each `add-*` skill calls `foundry_config_create_*` under the hood,
+which writes the file and commits it in one step. To check a body
+without committing — useful when iterating on a tricky cycle or
+appraiser — call the matching validator first:
+
+```text
+foundry_config_validate_artefact_type({ id, body })
+foundry_config_validate_law({ body })
+foundry_config_validate_appraiser({ id, body })
+foundry_config_validate_cycle({ id, body })
+foundry_config_validate_flow({ id, body })
+```
+
+Validators return `{ok: true}` on success or
+`{ok: false, error}` on a parse / schema / overlap problem; nothing
+is written either way. Once the validator is happy, call the
+matching `_create_*` tool to commit it.
+
 ---
 
 ## Run the flow
@@ -201,6 +238,21 @@ While a flow is running, the state of the world is in three places:
 
 You can pause and resume: if the flow skill sees an existing `WORK.md` when you start, it asks whether to resume, discard, or abort. Resume is only offered if the existing flow and cycle match the current request.
 
+### Recovering a failed flow
+
+A guard violation, a broken extractor in `assay`, or any other
+unrecoverable error marks the workfile failed (`status: failed` in
+`WORK.md` frontmatter, with a `reason`). Every mutating tool refuses
+once that flag is set; read-only diagnostics
+(`foundry_workfile_get`, `foundry_history_list`, `foundry_memory_*`
+read-side, `foundry_config_*`) keep working so you can figure out
+what went wrong.
+
+Recovery is one tool: `foundry_workfile_delete({ confirm: true })`.
+This removes `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml`
+from the work branch. The work branch itself stays put; either
+delete it manually or run the flow again from scratch.
+
 ---
 
 ## Cleaning up
@@ -216,6 +268,10 @@ If you used `foundry_git_finish`, it handles this for you. The tool is destructi
 Foundry ships a typed, graph-shaped memory store that persists across cycles. It's strictly opt-in — skip this section if your project doesn't need shared state across flows.
 
 ### Initialize
+
+Memory init and vocabulary edits are schema mutations, so they run
+on a config branch — open one first if you are not already on it
+(`foundry_git_branch({ kind: "config", description: "memory-setup" })`).
 
 Run the `init-memory` skill. It asks whether to enable embeddings (default: yes, targeting local Ollama `nomic-embed-text` on `http://localhost:11434/v1`) and then invokes `foundry_memory_init`, which deterministically:
 
