@@ -25,7 +25,7 @@ describe('store with embeddings', () => {
   let root, store;
   before(async () => {
     root = mkdtempSync(join(tmpdir(), 'emb-'));
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
     const schema = {
       version: 1,
       entities: { class: {} },
@@ -61,7 +61,7 @@ describe('store without embeddings (back-compat)', () => {
   let root, store;
   before(async () => {
     root = mkdtempSync(join(tmpdir(), 'noemb-'));
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
     const schema = { version: 1, entities: { class: {} }, edges: {} };
     store = await openStore({
       foundryDir: 'foundry',

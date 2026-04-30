@@ -15,7 +15,7 @@ function setupWorktree() {
   execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, 'foundry/cycles'), { recursive: true });
   mkdirSync(join(root, '.foundry'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
@@ -45,7 +45,7 @@ describe('end-of-flow memory sync', () => {
       { type: 'finding', name: 'f-flow-end', value: 'pending' }, ctx);
     assert.equal(JSON.parse(putOut).ok, true);
 
-    const ndPath = join(root, 'foundry/memory/relations/finding.ndjson');
+    const ndPath = join(root, 'foundry-memory/relations/finding.ndjson');
     // Before stage end: file should either not exist, or not contain the record yet.
     const beforeContent = existsSync(ndPath) ? readFileSync(ndPath, 'utf-8') : '';
     assert.doesNotMatch(beforeContent, /f-flow-end/);

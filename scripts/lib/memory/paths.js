@@ -4,7 +4,7 @@ export function memoryPaths(foundryDir) {
   const root = join(foundryDir, 'memory');
   const entitiesDir = join(root, 'entities');
   const edgesDir = join(root, 'edges');
-  const relationsDir = join(root, 'relations');
+  const relationsDir = 'foundry-memory/relations';
   const extractorsDir = join(root, 'extractors');
   return {
     root,

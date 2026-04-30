@@ -17,7 +17,7 @@ function setupWorktree() {
   const root = mkdtempSync(join(tmpdir(), 'assay-tool-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/extractors'), { recursive: true });
   mkdirSync(join(root, 'foundry/cycles'), { recursive: true });
   mkdirSync(join(root, 'scripts'), { recursive: true });
@@ -30,7 +30,7 @@ function setupWorktree() {
   writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify({
     version: 1, entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } }, edges: {}, embeddings: null,
   }, null, 2));
-  writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'), '');
+  writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'), '');
   // Git init so stage_begin can resolve baseSha.
   execSync('git init -q', { cwd: root, env: GIT_ENV });
   execSync('git add -A && git commit -q -m init', { cwd: root, env: GIT_ENV });
@@ -167,7 +167,7 @@ echo '{"kind":"entity","type":"class","name":"com.Flushed","value":"durable"}'
     writeExtractor(root, 'flush-ext', { command: 'scripts/emit-flush.sh', write: ['class'] });
     writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
 
-    const ndPath = join(root, 'foundry/memory/relations/class.ndjson');
+    const ndPath = join(root, 'foundry-memory/relations/class.ndjson');
     // Baseline: the relation file must not already contain the marker.
     const before = existsSync(ndPath) ? readFileSync(ndPath, 'utf-8') : '';
     assert.doesNotMatch(before, /com\.Flushed/);
@@ -207,8 +207,8 @@ echo '{"kind":"entity","type":"class","name":"com.Flushed","value":"durable"}'
     // No chmod required.
     writeScript(root, 'scripts/emit-then-poison.sh', `#!/bin/sh
 echo '{"kind":"entity","type":"class","name":"com.Poisoned","value":"v"}'
-rm -f foundry/memory/relations/class.ndjson
-mkdir foundry/memory/relations/class.ndjson
+rm -f foundry-memory/relations/class.ndjson
+mkdir foundry-memory/relations/class.ndjson
 `);
     writeExtractor(root, 'poison-sync', { command: 'scripts/emit-then-poison.sh', write: ['class'] });
     writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');

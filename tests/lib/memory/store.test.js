@@ -15,7 +15,7 @@ describe('store lifecycle', () => {
     root = mkdtempSync(join(tmpdir(), 'mem-store-'));
     mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
     mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   });
   after(() => rmSync(root, { recursive: true, force: true }));
 
@@ -35,7 +35,7 @@ describe('store lifecycle', () => {
       edges: {},
       embeddings: null,
     };
-    writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'),
+    writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'),
       '{"name":"com.Foo","value":"A class"}\n');
 
     const io = diskIO(root);
@@ -58,13 +58,13 @@ describe('store lifecycle', () => {
     // Use a fresh tmp dir + db to avoid state leaking from the previous test.
     const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-3-'));
     try {
-      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
       const io = diskIO(localRoot);
       const store = await openStore({ foundryDir: 'foundry', schema, io, dbAbsolutePath: join(localRoot, 'foundry/memory/memory.db') });
       await store.db.run('?[name, value] <- [["com.Bar", "Another"], ["com.Aaa", "First"]]\n:put ent_class { name => value }');
       await syncStore({ store, io });
 
-      const ndjson = readFileSync(join(localRoot, 'foundry/memory/relations/class.ndjson'), 'utf-8');
+      const ndjson = readFileSync(join(localRoot, 'foundry-memory/relations/class.ndjson'), 'utf-8');
       // Sorted by name: Aaa before Bar.
       assert.match(ndjson, /^{"name":"com.Aaa","value":"First"}\n{"name":"com.Bar","value":"Another"}\n$/);
       closeStore(store);
@@ -76,7 +76,7 @@ describe('store lifecycle', () => {
   it('closes the db handle when an NDJSON import throws mid-init (entity)', async () => {
     const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-crash-ent-'));
     try {
-      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
       const dbPath = join(localRoot, 'foundry/memory/memory.db');
       const schema = {
         version: 1,
@@ -85,7 +85,7 @@ describe('store lifecycle', () => {
         embeddings: null,
       };
       // NDJSON file exists so importRelation is reached.
-      writeFileSync(join(localRoot, 'foundry/memory/relations/class.ndjson'),
+      writeFileSync(join(localRoot, 'foundry-memory/relations/class.ndjson'),
         '{"name":"com.Foo","value":"A class"}\n');
 
       // Wrap diskIO so readFile throws specifically for the entity NDJSON.
@@ -137,7 +137,7 @@ describe('store lifecycle', () => {
   it('closes the db handle when an NDJSON import throws mid-init (edge)', async () => {
     const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-crash-edge-'));
     try {
-      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
       const dbPath = join(localRoot, 'foundry/memory/memory.db');
       const schema = {
         version: 1,
@@ -145,7 +145,7 @@ describe('store lifecycle', () => {
         edges: { calls: { frontmatterHash: hashFrontmatter({ type: 'calls', sources: ['class'], targets: ['class'] }) } },
         embeddings: null,
       };
-      writeFileSync(join(localRoot, 'foundry/memory/relations/calls.ndjson'),
+      writeFileSync(join(localRoot, 'foundry-memory/relations/calls.ndjson'),
         '{"from_type":"class","from_name":"A","to_type":"class","to_name":"B"}\n');
 
       const baseIO = diskIO(localRoot);
@@ -185,7 +185,7 @@ describe('store lifecycle', () => {
   it('does not double-close on the happy path', async () => {
     const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-happy-'));
     try {
-      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
       const schema = {
         version: 1,
         entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
@@ -221,7 +221,7 @@ describe('store lifecycle', () => {
   it('drops orphan ent_/edge_ relations not present in the schema on reopen', async () => {
     const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-orphan-'));
     try {
-      mkdirSync(join(localRoot, 'foundry/memory/relations'), { recursive: true });
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
       const io = diskIO(localRoot);
       const dbPath = join(localRoot, 'foundry/memory/memory.db');
 

@@ -29,7 +29,7 @@ describe('reembed', () => {
     try {
       mkdirSync(join(root2, 'foundry/memory/entities'), { recursive: true });
       mkdirSync(join(root2, 'foundry/memory/edges'), { recursive: true });
-      mkdirSync(join(root2, 'foundry/memory/relations'), { recursive: true });
+      mkdirSync(join(root2, 'foundry-memory/relations'), { recursive: true });
       writeFileSync(join(root2, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
       const initialSchema = {
         version: 1,
@@ -66,7 +66,7 @@ describe('reembed', () => {
       await syncStore({ store, io });
       closeStore(store);
 
-      const ndjsonPath = join(root2, 'foundry/memory/relations/class.ndjson');
+      const ndjsonPath = join(root2, 'foundry-memory/relations/class.ndjson');
       const schemaPath = join(root2, 'foundry/memory/schema.json');
       const schemaBefore = readFileSync(schemaPath, 'utf-8');
       const ndjsonBefore = readFileSync(ndjsonPath, 'utf-8');
@@ -131,7 +131,7 @@ describe('reembed', () => {
     root = mkdtempSync(join(tmpdir(), 'reemb-'));
     mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
     mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
     writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
     const initialSchema = {
       version: 1,

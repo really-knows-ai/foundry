@@ -15,7 +15,7 @@ function setupWorktree({ withMemory = true, edges = true } = {}) {
   if (!withMemory) return root;
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/extractors'), { recursive: true });
   // memory enabled; embeddings null in schema.json so no provider needed.
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
@@ -33,8 +33,8 @@ function setupWorktree({ withMemory = true, edges = true } = {}) {
     schema.edges.calls = { frontmatterHash: hashFrontmatter({ type: 'calls', sources: ['class'], targets: ['class'] }) };
   }
   writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify(schema, null, 2) + '\n');
-  if (edges) writeFileSync(join(root, 'foundry/memory/relations/calls.ndjson'), '');
-  writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'), '');
+  if (edges) writeFileSync(join(root, 'foundry-memory/relations/calls.ndjson'), '');
+  writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'), '');
   return root;
 }
 
@@ -301,7 +301,7 @@ describe('plugin foundry_memory_init', () => {
     assert.ok(existsSync(join(root, 'foundry/memory/schema.json')));
     assert.ok(existsSync(join(root, 'foundry/memory/entities')));
     assert.ok(existsSync(join(root, 'foundry/memory/edges')));
-    assert.ok(existsSync(join(root, 'foundry/memory/relations')));
+    assert.ok(existsSync(join(root, 'foundry-memory/relations')));
   });
 
   it('fails (returns error JSON) when foundry/memory already exists', async () => {

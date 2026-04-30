@@ -17,7 +17,7 @@ function setup() {
   const root = mkdtempSync(join(tmpdir(), 'drop-e-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
   return root;
@@ -31,9 +31,9 @@ describe('dropEntityType', () => {
     await createEntityType({ worktreeRoot: root, io, name: 'method', body: 'b' });
     await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class', 'method'], targets: ['class', 'method'], body: 'b' });
     await createEdgeType({ worktreeRoot: root, io, name: 'writes', sources: ['class'], targets: ['method'], body: 'b' });
-    writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'),
+    writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'),
       '{"name":"a","value":"v"}\n{"name":"b","value":"v"}\n');
-    writeFileSync(join(root, 'foundry/memory/relations/calls.ndjson'),
+    writeFileSync(join(root, 'foundry-memory/relations/calls.ndjson'),
       '{"from_name":"a","from_type":"class","to_name":"b","to_type":"method"}\n' +
       '{"from_name":"a","from_type":"method","to_name":"b","to_type":"method"}\n');
 
@@ -71,18 +71,18 @@ describe('dropEntityType', () => {
     await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
     await createEntityType({ worktreeRoot: root, io, name: 'method', body: 'b' });
     await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class', 'method'], targets: ['class', 'method'], body: 'b' });
-    writeFileSync(join(root, 'foundry/memory/relations/calls.ndjson'),
+    writeFileSync(join(root, 'foundry-memory/relations/calls.ndjson'),
       '{"from_name":"a","from_type":"class","to_name":"b","to_type":"method"}\n' +
       '{"from_name":"a","from_type":"method","to_name":"b","to_type":"method"}\n');
 
     await dropEntityType({ worktreeRoot: root, io, name: 'class', confirm: true });
 
     assert.ok(!existsSync(join(root, 'foundry/memory/entities/class.md')));
-    assert.ok(!existsSync(join(root, 'foundry/memory/relations/class.ndjson')));
+    assert.ok(!existsSync(join(root, 'foundry-memory/relations/class.ndjson')));
     const callsMd = readFileSync(join(root, 'foundry/memory/edges/calls.md'), 'utf-8');
     assert.match(callsMd, /sources: \[method\]/);
     assert.match(callsMd, /targets: \[method\]/);
-    const callsRel = readFileSync(join(root, 'foundry/memory/relations/calls.ndjson'), 'utf-8');
+    const callsRel = readFileSync(join(root, 'foundry-memory/relations/calls.ndjson'), 'utf-8');
     assert.doesNotMatch(callsRel, /"class"/);
     rmSync(root, { recursive: true, force: true });
   });

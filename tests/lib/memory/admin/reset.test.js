@@ -17,16 +17,16 @@ describe('resetMemory', () => {
     const root = mkdtempSync(join(tmpdir(), 'reset-'));
     mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
     mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
     writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
     writeFileSync(join(root, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
     const io = diskIO(root);
     await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
-    writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'), '{"name":"com.A","value":"v"}\n');
+    writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'), '{"name":"com.A","value":"v"}\n');
 
     await resetMemory({ worktreeRoot: root, io, confirm: true });
 
-    assert.equal(readFileSync(join(root, 'foundry/memory/relations/class.ndjson'), 'utf-8'), '');
+    assert.equal(readFileSync(join(root, 'foundry-memory/relations/class.ndjson'), 'utf-8'), '');
     const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
     assert.ok(schema.entities.class);
     rmSync(root, { recursive: true, force: true });

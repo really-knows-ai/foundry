@@ -29,18 +29,24 @@ Set up the `foundry/` directory structure in the current project.
      appraisers/.gitkeep
    ```
 
-3. **Generate foundry agent files**
+3. **Update `.gitignore`**
+
+   Append `.snapshots/` to the project's `.gitignore` (creating the file if absent). This directory is where dry-run snapshots are written and must never be committed.
+
+   The plugin will idempotently append `.foundry/` itself on first boot, so you do not need to add that line.
+
+4. **Generate foundry agent files**
 
    Run the `refresh-agents` skill to generate `.opencode/agents/foundry-*.md` files for multi-model routing.
 
-4. **Commit the structure**
+5. **Commit the structure**
 
    ```bash
-   git add foundry/ .opencode/agents/foundry-*.md
+   git add foundry/ .gitignore .opencode/agents/foundry-*.md
    git commit -m "feat: initialize Foundry project structure"
    ```
 
-5. **Guide next steps**
+6. **Guide next steps**
 
    Tell the user:
 
@@ -49,7 +55,8 @@ Set up the `foundry/` directory structure in the current project.
    > The first time the plugin boots in this project, it will create the
    > `.foundry/` runtime directory (which holds the per-worktree HMAC key) and
    > idempotently append `.foundry/` to your `.gitignore` so the secret never
-   > gets committed. No manual gitignore step is required.
+   > gets committed. The `.snapshots/` line was added by this skill to keep
+   > dry-run snapshots out of git.
    >
    > Here's how to set up your first pipeline:
    >

@@ -16,7 +16,7 @@ function setup() {
   const root = mkdtempSync(join(tmpdir(), 'cdt-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
   return root;
@@ -30,7 +30,7 @@ describe('createEdgeType', () => {
     await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class'], targets: ['class'], body: 'calls body' });
     const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
     assert.ok(schema.edges.calls);
-    assert.ok(existsSync(join(root, 'foundry/memory/relations/calls.ndjson')));
+    assert.ok(existsSync(join(root, 'foundry-memory/relations/calls.ndjson')));
     rmSync(root, { recursive: true, force: true });
   });
 

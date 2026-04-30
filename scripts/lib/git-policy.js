@@ -77,7 +77,7 @@ export function partitionDirty(files, allowedPatterns = []) {
   const unexpected = [];
   for (const f of files) {
     if (isToolManaged(f)) { allowed.push(f); continue; }
-    if (allowedPatterns.some((p) => minimatch(f, p))) { allowed.push(f); continue; }
+    if (allowedPatterns.some((p) => minimatch(f, p, { dot: true }))) { allowed.push(f); continue; }
     unexpected.push(f);
   }
   return { allowed, unexpected };
@@ -87,13 +87,13 @@ export function partitionDirty(files, allowedPatterns = []) {
  * Compute the allowed glob patterns for a given stage.
  *
  * - forge: artefact type's file-patterns (caller resolves; passed in).
- * - assay: writes under foundry/memory/**.
+ * - assay: writes under foundry-memory/**.
  * - quench / appraise / human-appraise: no surface files allowed; only
  *   tool-managed files may change.
  * - setup (no stage): no surface files allowed.
  */
 export function allowedPatternsForStage({ stageBase, forgeFilePatterns = [] } = {}) {
   if (stageBase === 'forge') return forgeFilePatterns;
-  if (stageBase === 'assay') return ['foundry/memory/**'];
+  if (stageBase === 'assay') return ['foundry-memory/**'];
   return [];
 }

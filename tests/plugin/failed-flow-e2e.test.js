@@ -15,7 +15,7 @@ function setup() {
   execFileSync('git', ['config', 'user.name', 'T'], { cwd: root });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, 'foundry/cycles'), { recursive: true });
   mkdirSync(join(root, '.foundry'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
@@ -54,7 +54,7 @@ describe('failed-flow e2e', () => {
     // Deterministic write-failure injection: directory at the NDJSON path
     // forces EISDIR from writeFileSync inside syncStore. Platform-agnostic
     // and matches the convention used by the assay-tools failure test.
-    const poisonPath = join(root, 'foundry/memory/relations/finding.ndjson');
+    const poisonPath = join(root, 'foundry-memory/relations/finding.ndjson');
     mkdirSync(poisonPath);
 
     const end = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 's' }, ctx));

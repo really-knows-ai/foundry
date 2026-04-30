@@ -15,7 +15,7 @@ function setupWorktree() {
   execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, 'foundry/cycles'), { recursive: true });
   mkdirSync(join(root, '.foundry'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
@@ -56,7 +56,7 @@ describe('stage_end: sync failure marks flow failed', () => {
     // expects to writeFileSync the entity NDJSON. writeFileSync against a
     // directory path raises EISDIR on every platform/filesystem, unlike chmod
     // which depends on POSIX permissions and user privileges.
-    mkdirSync(join(root, 'foundry/memory/relations/finding.ndjson'));
+    mkdirSync(join(root, 'foundry-memory/relations/finding.ndjson'));
 
     const endOut = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, ctx));
     assert.equal(endOut.flow_failed, true, `expected flow_failed:true, got ${JSON.stringify(endOut)}`);

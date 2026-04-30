@@ -15,7 +15,7 @@ function setupWorktree() {
   const root = mkdtempSync(join(tmpdir(), 'plug-mem-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/entities/class.md'),
     '---\ntype: class\n---\n\n# class\nA class.\n');
@@ -55,7 +55,7 @@ describe('plugin memory tools', () => {
     const got = JSON.parse(await plugin.tool.foundry_memory_get.execute({ type: 'class', name: 'com.Foo' }, ctx));
     assert.equal(got.value, 'hello');
 
-    const nd = readFileSync(join(root, 'foundry/memory/relations/class.ndjson'), 'utf-8');
+    const nd = readFileSync(join(root, 'foundry-memory/relations/class.ndjson'), 'utf-8');
     assert.match(nd, /com\.Foo/);
   });
 

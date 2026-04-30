@@ -21,10 +21,11 @@ const DEFAULT_GITIGNORE_ENTRIES = [
 ];
 
 /**
- * Scaffold `foundry/memory/` deterministically.
+ * Scaffold `foundry/memory/` and `foundry-memory/relations/` deterministically.
  *
  * Creates:
- *   - entities/.gitkeep, edges/.gitkeep, relations/.gitkeep
+ *   - entities/.gitkeep, edges/.gitkeep under foundry/memory/
+ *   - foundry-memory/relations/.gitkeep (sibling of foundry/, holds row data)
  *   - config.md (frontmatter derived from DEFAULT_CONFIG)
  *   - schema.json (version 1, empty entities/edges, embeddings block
  *     populated from DEFAULT_CONFIG when enabled, null otherwise)
@@ -49,6 +50,9 @@ export async function initMemory({ io, embeddingsEnabled = true, probe = true })
   }
   if (await io.exists(p.root)) {
     throw new Error('foundry/memory/ already exists');
+  }
+  if (await io.exists('foundry-memory')) {
+    throw new Error('foundry-memory/ already exists');
   }
 
   const created = [];

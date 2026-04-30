@@ -17,7 +17,7 @@ function setup() {
   const root = mkdtempSync(join(tmpdir(), 'ren-e-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
   return root;
@@ -32,8 +32,8 @@ describe('renameEntityType', () => {
     await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['klass', 'method'], targets: ['klass', 'method'], body: 'b' });
 
     // Seed data manually.
-    writeFileSync(join(root, 'foundry/memory/relations/klass.ndjson'), '{"name":"com.A","value":"va"}\n');
-    writeFileSync(join(root, 'foundry/memory/relations/calls.ndjson'),
+    writeFileSync(join(root, 'foundry-memory/relations/klass.ndjson'), '{"name":"com.A","value":"va"}\n');
+    writeFileSync(join(root, 'foundry-memory/relations/calls.ndjson'),
       '{"from_name":"com.A","from_type":"klass","to_name":"com.A","to_type":"klass"}\n');
 
     await renameEntityType({ worktreeRoot: root, io, from: 'klass', to: 'class' });
@@ -42,11 +42,11 @@ describe('renameEntityType', () => {
     assert.ok(existsSync(join(root, 'foundry/memory/entities/class.md')));
     assert.ok(readFileSync(join(root, 'foundry/memory/entities/class.md'), 'utf-8').includes('type: class'));
 
-    assert.ok(!existsSync(join(root, 'foundry/memory/relations/klass.ndjson')));
-    const entRows = readFileSync(join(root, 'foundry/memory/relations/class.ndjson'), 'utf-8');
+    assert.ok(!existsSync(join(root, 'foundry-memory/relations/klass.ndjson')));
+    const entRows = readFileSync(join(root, 'foundry-memory/relations/class.ndjson'), 'utf-8');
     assert.match(entRows, /com\.A/);
 
-    const edgeText = readFileSync(join(root, 'foundry/memory/relations/calls.ndjson'), 'utf-8');
+    const edgeText = readFileSync(join(root, 'foundry-memory/relations/calls.ndjson'), 'utf-8');
     assert.match(edgeText, /"from_type":"class"/);
     assert.match(edgeText, /"to_type":"class"/);
 

@@ -26,7 +26,7 @@ describe('search', () => {
   let root, store;
   before(async () => {
     root = mkdtempSync(join(tmpdir(), 'search-'));
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
     store = await openStore({
       foundryDir: 'foundry',
       schema: {

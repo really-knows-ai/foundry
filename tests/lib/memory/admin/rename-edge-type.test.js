@@ -17,7 +17,7 @@ function setup() {
   const root = mkdtempSync(join(tmpdir(), 'ren-ed-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
   return root;
@@ -29,7 +29,7 @@ describe('renameEdgeType', () => {
     const io = diskIO(root);
     await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
     await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class'], targets: ['class'], body: 'b' });
-    writeFileSync(join(root, 'foundry/memory/relations/calls.ndjson'),
+    writeFileSync(join(root, 'foundry-memory/relations/calls.ndjson'),
       '{"from_name":"com.A","from_type":"class","to_name":"com.B","to_type":"class"}\n');
 
     await renameEdgeType({ worktreeRoot: root, io, from: 'calls', to: 'invokes' });
@@ -37,7 +37,7 @@ describe('renameEdgeType', () => {
     assert.ok(!existsSync(join(root, 'foundry/memory/edges/calls.md')));
     assert.ok(existsSync(join(root, 'foundry/memory/edges/invokes.md')));
     assert.ok(readFileSync(join(root, 'foundry/memory/edges/invokes.md'), 'utf-8').includes('type: invokes'));
-    assert.ok(existsSync(join(root, 'foundry/memory/relations/invokes.ndjson')));
+    assert.ok(existsSync(join(root, 'foundry-memory/relations/invokes.ndjson')));
     const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
     assert.ok(schema.edges.invokes);
     assert.ok(!schema.edges.calls);

@@ -39,7 +39,7 @@ function setupWorktree({ embeddingsEnabled, dimensions = 4 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'plug-search-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, 'foundry/cycles'), { recursive: true });
 
   // Two entity types so we can exercise type_filter intersection with cycle

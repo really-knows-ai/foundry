@@ -10,7 +10,7 @@ function setup() {
   const root = mkdtempSync(join(tmpdir(), 'create-ext-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/entities/class.md'),
     '---\ntype: class\n---\n\n# class\n');
   writeFileSync(join(root, 'foundry/memory/entities/method.md'),

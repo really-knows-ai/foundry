@@ -38,6 +38,16 @@ describe('initMemory', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('rejects when foundry-memory/ already exists', async () => {
+    const root = setupFoundry();
+    mkdirSync(join(root, 'foundry-memory'), { recursive: true });
+    await assert.rejects(
+      () => initMemory({ io: diskIO(root), probe: false }),
+      /foundry-memory\/ already exists/,
+    );
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it('creates the full scaffold with embeddings enabled', async () => {
     const root = setupFoundry();
     const out = await initMemory({
@@ -47,9 +57,12 @@ describe('initMemory', () => {
     });
     assert.ok(existsSync(join(root, 'foundry/memory/entities/.gitkeep')));
     assert.ok(existsSync(join(root, 'foundry/memory/edges/.gitkeep')));
-    assert.ok(existsSync(join(root, 'foundry/memory/relations/.gitkeep')));
+    assert.ok(existsSync(join(root, 'foundry-memory/relations/.gitkeep')));
     assert.ok(existsSync(join(root, 'foundry/memory/config.md')));
     assert.ok(existsSync(join(root, 'foundry/memory/schema.json')));
+
+    assert.ok(out.created.includes('foundry-memory/relations/.gitkeep'),
+      'init should create foundry-memory/relations/.gitkeep');
 
     const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
     assert.equal(schema.version, 1);

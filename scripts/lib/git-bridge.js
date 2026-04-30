@@ -37,16 +37,27 @@ export { UnexpectedFilesError };
  * @param {object} opts
  * @param {string} opts.message      Commit message.
  * @param {string[]} [opts.allowedPatterns]  Globs allowed to be dirty for this phase.
+ * @param {string[]} [opts.extraAllowedPatterns]
+ *   Additional globs allowed to be dirty, merged with `allowedPatterns` before
+ *   partitioning. Lets a caller (e.g. memory initialisation) authorise paths
+ *   outside the phase's normal scope without rewriting the phase's allow list.
+ *   Defaults to an empty array, preserving existing behaviour.
  * @param {(args: string[]) => string} opts.execFile
  *   Synchronous git runner: receives argv (no `git`), returns stdout as utf-8.
  * @returns {string}  Short SHA of the new commit.
  * @throws {UnexpectedFilesError} if the worktree contains any file outside
- *   the tool-managed list and `allowedPatterns`. Nothing is staged in this case.
+ *   the tool-managed list and the merged allow list. Nothing is staged in this case.
  */
-export function commitWithPolicy({ message, allowedPatterns = [], execFile }) {
+export function commitWithPolicy({
+  message,
+  allowedPatterns = [],
+  extraAllowedPatterns = [],
+  execFile,
+}) {
   const porcelain = execFile(['status', '-z', '--porcelain', '--untracked-files=all']);
   const dirty = parsePorcelainZ(porcelain);
-  const { allowed, unexpected } = partitionDirty(dirty, allowedPatterns);
+  const mergedPatterns = [...allowedPatterns, ...extraAllowedPatterns];
+  const { allowed, unexpected } = partitionDirty(dirty, mergedPatterns);
   if (unexpected.length) throw new UnexpectedFilesError(unexpected);
 
   // Reset the index so a previous `git add` of an unexpected file (e.g. left

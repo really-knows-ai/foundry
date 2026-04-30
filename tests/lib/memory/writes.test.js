@@ -24,7 +24,7 @@ describe('writes', () => {
   let root, store;
   before(async () => {
     root = mkdtempSync(join(tmpdir(), 'writes-'));
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
     store = await openStore({ foundryDir: 'foundry', schema, io: diskIO(root), dbAbsolutePath: join(root, 'memory.db') });
   });
   after(() => {

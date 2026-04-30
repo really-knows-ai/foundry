@@ -76,6 +76,18 @@ describe('partitionDirty', () => {
     assert.deepEqual(allowed, ['WORK.md']);
     assert.deepEqual(unexpected, ['secret.env', 'src/foo.js']);
   });
+  it('dotfiles under matched directories are allowed', () => {
+    // `foundry_memory_init` writes `.gitkeep` placeholders so the empty
+    // relations directory survives in git. Without { dot: true } minimatch
+    // skips dotfiles when expanding `**`, which would let those placeholders
+    // surface as unexpected dirty files.
+    const { allowed, unexpected } = partitionDirty(
+      ['foundry-memory/relations/.gitkeep'],
+      ['foundry-memory/**'],
+    );
+    assert.deepEqual(allowed, ['foundry-memory/relations/.gitkeep']);
+    assert.deepEqual(unexpected, []);
+  });
 });
 
 describe('allowedPatternsForStage', () => {
@@ -85,8 +97,8 @@ describe('allowedPatternsForStage', () => {
       ['haikus/*.md'],
     );
   });
-  it('assay: returns foundry/memory/**', () => {
-    assert.deepEqual(allowedPatternsForStage({ stageBase: 'assay' }), ['foundry/memory/**']);
+  it('assay: returns foundry-memory/**', () => {
+    assert.deepEqual(allowedPatternsForStage({ stageBase: 'assay' }), ['foundry-memory/**']);
   });
   it('quench / appraise / human-appraise / setup: empty', () => {
     assert.deepEqual(allowedPatternsForStage({ stageBase: 'quench' }), []);

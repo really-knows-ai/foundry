@@ -17,7 +17,7 @@ describe('query', () => {
   let root, store;
   before(async () => {
     root = mkdtempSync(join(tmpdir(), 'q-'));
-    mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
     store = await openStore({ foundryDir: 'foundry', schema, io: diskIO(root), dbAbsolutePath: join(root, 'memory.db') });
     await putEntity(store, { type: 'class', name: 'com.A', value: 'va' }, vocab);
   });

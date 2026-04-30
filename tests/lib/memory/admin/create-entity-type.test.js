@@ -15,7 +15,7 @@ function setup() {
   const root = mkdtempSync(join(tmpdir(), 'cet-'));
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
   return root;
@@ -26,8 +26,8 @@ describe('createEntityType', () => {
     const root = setup();
     await createEntityType({ worktreeRoot: root, io: diskIO(root), name: 'class', body: 'A Java class body, non-empty.' });
     assert.ok(existsSync(join(root, 'foundry/memory/entities/class.md')));
-    assert.ok(existsSync(join(root, 'foundry/memory/relations/class.ndjson')));
-    assert.equal(readFileSync(join(root, 'foundry/memory/relations/class.ndjson'), 'utf-8'), '');
+    assert.ok(existsSync(join(root, 'foundry-memory/relations/class.ndjson')));
+    assert.equal(readFileSync(join(root, 'foundry-memory/relations/class.ndjson'), 'utf-8'), '');
     const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
     assert.ok(schema.entities.class);
     assert.equal(schema.version, 2);

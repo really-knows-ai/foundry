@@ -4,3 +4,4 @@ __pycache__/
 *.tgz
 .foundry/
 .worktrees/
+.snapshots/

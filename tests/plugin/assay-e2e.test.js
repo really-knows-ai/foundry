@@ -19,7 +19,7 @@ function setup() {
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/extractors'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, 'scripts'), { recursive: true });
   mkdirSync(join(root, 'out'), { recursive: true });
   mkdirSync(join(root, '.opencode/agents'), { recursive: true });
@@ -32,9 +32,9 @@ function setup() {
     '---\ntype: method\n---\n\n# method\nA method.\n');
   writeFileSync(join(root, 'foundry/memory/edges/defines.md'),
     '---\ntype: defines\nsources: [class]\ntargets: [method]\n---\n\n# defines\nA class defines a method.\n');
-  writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'), '');
-  writeFileSync(join(root, 'foundry/memory/relations/method.ndjson'), '');
-  writeFileSync(join(root, 'foundry/memory/relations/defines.ndjson'), '');
+  writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'), '');
+  writeFileSync(join(root, 'foundry-memory/relations/method.ndjson'), '');
+  writeFileSync(join(root, 'foundry-memory/relations/defines.ndjson'), '');
   writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify({
     version: 1,
     entities: {
@@ -107,6 +107,11 @@ Generate docs.
 | File | Type | Cycle | Status |
 |------|------|-------|--------|
 `);
+
+  // Ignore the cozo backing store so it doesn't surface as an unexpected
+  // dirty file when the orchestrator scans the worktree after stage_end.
+  writeFileSync(join(root, '.gitignore'),
+    'foundry/memory/memory.db\nfoundry/memory/memory.db-wal\nfoundry/memory/memory.db-shm\n');
 
   execSync('git init -q', { cwd: root, env: GIT_ENV });
   execSync('git add -A && git commit -q -m init', { cwd: root, env: GIT_ENV });

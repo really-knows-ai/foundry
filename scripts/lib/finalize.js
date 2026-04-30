@@ -45,7 +45,7 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
   const allowedPatterns = stageBase === 'forge'
     ? (artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [])
     : stageBase === 'assay'
-      ? ['foundry/memory/**']
+      ? ['foundry-memory/**']
       : [];
   const unexpected = [];
   const matched = [];

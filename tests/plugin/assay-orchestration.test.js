@@ -16,12 +16,12 @@ function setup() {
   mkdirSync(join(root, 'foundry/artefacts/doc'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/extractors'), { recursive: true });
-  mkdirSync(join(root, 'foundry/memory/relations'), { recursive: true });
+  mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
   mkdirSync(join(root, '.opencode/agents'), { recursive: true });
   writeFileSync(join(root, '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md'), '# agent\n');
   writeFileSync(join(root, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
   writeFileSync(join(root, 'foundry/memory/entities/class.md'), '---\ntype: class\n---\n\n# class\nA class.\n');
-  writeFileSync(join(root, 'foundry/memory/relations/class.ndjson'), '');
+  writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'), '');
   writeFileSync(join(root, 'foundry/memory/schema.json'),
     JSON.stringify({ version: 1, entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } }, edges: {}, embeddings: null }, null, 2));
   writeFileSync(join(root, 'foundry/memory/extractors/one.md'),

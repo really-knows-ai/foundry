@@ -221,6 +221,32 @@ describe('commitWithPolicy', () => {
     assert.equal(existsSync(join(dir, 'leftover.txt')), true);
   });
 
+  it('honours extraAllowedPatterns alongside allowedPatterns', () => {
+    // Simulates foundry_memory_init's setup commit covering both
+    // foundry/** (allowedPatterns) and foundry-memory/** (extraAllowedPatterns).
+    mkdirSync(join(dir, 'foundry/memory'), { recursive: true });
+    mkdirSync(join(dir, 'foundry-memory/relations'), { recursive: true });
+    writeFileSync(join(dir, 'foundry/memory/config.md'), '# config\n');
+    writeFileSync(join(dir, 'foundry-memory/relations/keep.md'), 'placeholder\n');
+    writeFileSync(join(dir, 'WORK.md'), '---\n---\n');
+
+    const sha = commitWithPolicy({
+      message: 'init memory',
+      allowedPatterns: ['foundry/**'],
+      extraAllowedPatterns: ['foundry-memory/**'],
+      execFile: run,
+    });
+    assert.match(sha, /^[0-9a-f]{4,}$/);
+
+    const lastFiles = git(dir, ['show', '--name-only', '--pretty=format:', 'HEAD'])
+      .split('\n').filter(Boolean).sort();
+    assert.deepEqual(lastFiles, [
+      'WORK.md',
+      'foundry-memory/relations/keep.md',
+      'foundry/memory/config.md',
+    ]);
+  });
+
   it('resets a stale index of allowed files before staging the current set', () => {
     // Pre-stage an old version of an allowed file, then change the worktree
     // so only the new version is current. The bridge must not commit stale
