@@ -24,6 +24,7 @@ import { validate as validateCycle } from '../../../scripts/lib/config-validator
 import { requireGitRepo, requireFoundryRoot } from '../../../scripts/lib/foundational-guards.js';
 import { requireOnConfigBranch } from '../../../scripts/lib/branch-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { UnexpectedFilesError } from '../../../scripts/lib/git-bridge.js';
 import { makeIO, makeAsyncIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 // --- guard helpers ---------------------------------------------------------
@@ -85,6 +86,14 @@ export function createConfigCreateTools({ tool }) {
           const out = await creator({ ...args, io, execFile });
           return JSON.stringify(out);
         } catch (err) {
+          // Preserve the structured file list from commit-policy refusals
+          // so callers can surface an actionable diagnostic instead of
+          // re-running just to learn which paths offended the gate.
+          // Mirrors the `affected_files` envelope produced by
+          // foundry_orchestrate's violation path.
+          if (err instanceof UnexpectedFilesError) {
+            return JSON.stringify({ error: err.message, affected_files: err.files });
+          }
           return errorJson(err);
         }
       }, { branchIo: branchIoFactory, io: asyncIoFactory }),

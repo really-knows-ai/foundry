@@ -211,7 +211,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   test.js:224` exercises it. Resolved by removing the parameter
   and its unit test (1037 → 1036 tests, 0 failing).
 
-- [ ] **B2. `config-create-tools.js` collapses structured
+- [x] **B2. `config-create-tools.js` collapses structured
   `UnexpectedFilesError` to plain `{error: msg}`.** When the
   unexpected-files guard fires inside `makeCreate`, the catch calls
   `errorJson(err)` which keeps only `err.message`. Other tools
@@ -698,7 +698,7 @@ Each line is one commit.
 ## Verification
 
 ```bash
-npm test         # 1036 tests passing, 0 failing (post-B1 baseline)
+npm test         # 1037 tests passing, 0 failing (post-B2 baseline)
 git status       # clean working tree
 ```
 

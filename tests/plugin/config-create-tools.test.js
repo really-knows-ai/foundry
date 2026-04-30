@@ -99,6 +99,30 @@ test('foundry_config_create_law happy path on config/* branch', async () => {
   } finally { cleanup(dir); }
 });
 
+test('foundry_config_create_law preserves affected_files on UnexpectedFilesError', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/init-laws', { cwd: dir, env: GIT_ENV });
+    // Stray untracked file outside the config-tier allow list. The
+    // commit-policy gate refuses, throws UnexpectedFilesError, and the
+    // tool envelope must surface the structured file list rather than
+    // collapsing to a plain message.
+    writeFileSync(join(dir, 'stray.txt'), 'stray\n');
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_config_create_law.execute(
+      { name: 'rules', body: VALID_LAW_BODY, target: { kind: 'global', file: 'rules.md' } },
+      makeCtx(dir),
+    ));
+    assert.ok(res.error, `expected error envelope, got ${JSON.stringify(res)}`);
+    assert.match(res.error, /unexpected_files/);
+    assert.ok(Array.isArray(res.affected_files),
+      `expected affected_files array, got ${JSON.stringify(res)}`);
+    assert.ok(res.affected_files.includes('stray.txt'),
+      `expected stray.txt in affected_files, got ${JSON.stringify(res.affected_files)}`);
+  } finally { cleanup(dir); }
+});
+
 test('foundry_config_create_law refuses if target file already exists', async () => {
   const dir = setupRepoWithFoundry();
   try {
