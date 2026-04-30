@@ -249,18 +249,18 @@ These break users or tools at runtime, or contradict shipped behaviour.
   preamble. Self-classifying tools (`foundry_git_branch`,
   `foundry_git_finish`) are called out separately.
 
-- [ ] **B7. `docs/tools.md` failed-flow gating preamble is stale.**
+- [x] **B7. `docs/tools.md` failed-flow gating preamble is stale.**
   Lines 26–36 list the gated tools but miss the
   `foundry_config_create_*` family (5 tools). Confirm in
   `config-create-tools.js:48,56` and add. (Related to but distinct
   from prior B4 / new A7.)
 
-- [ ] **B8. `docs/tools.md` index does not list the 14 new Phase 1–5
+- [x] **B8. `docs/tools.md` index does not list the 14 new Phase 1–5
   tools.** Lines 46–115. Missing: 5 `foundry_config_create_*`,
   5 `foundry_config_validate_*`, 4 `foundry_snapshot_*`. The index
   needs to enumerate them or be regenerated.
 
-- [ ] **B9. `docs/tools.md` new tools have only table-row coverage,
+- [x] **B9. `docs/tools.md` new tools have only table-row coverage,
   not per-tool blocks.** Lines 619–649, 651–664. Every other tool
   gets a `### foundry_X` section with Args / Returns / Stage
   requirements / Failure modes / Side effects. The 14 new tools
@@ -270,12 +270,12 @@ These break users or tools at runtime, or contradict shipped behaviour.
   the v2.6.x public plugin API. … Total: 46 tools." Update to
   3.0.x and 60.
 
-- [ ] **B11. README "Pipeline tools" / "Memory tools" tables omit
+- [x] **B11. README "Pipeline tools" / "Memory tools" tables omit
   the 14 new Phase 1–5 tools.** README.md:438–451. Catalogue tables
   must list `foundry_config_create_*`, `foundry_config_validate_*`,
   `foundry_snapshot_*`.
 
-- [ ] **B12. README failed-flow blocked-tools list missing
+- [x] **B12. README failed-flow blocked-tools list missing
   `foundry_config_create_*`.** README.md:240–249. The 5 config-
   creator tools enforce `gateNotFailed`; the README list is missing
   them.

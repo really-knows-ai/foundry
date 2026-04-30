@@ -244,6 +244,7 @@ When an unrecoverable error occurs (currently: `foundry_stage_end` cannot flush 
   - **Feedback writes:** `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, `foundry_feedback_resolve` (`foundry_feedback_list` remains callable)
   - **Memory writes:** `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`
   - **Memory admin:** `foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type`, `foundry_extractor_create` (read-only `foundry_memory_validate` and `foundry_memory_dump` remain callable)
+  - **Config schema mutation:** `foundry_config_create_artefact_type`, `foundry_config_create_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle` (read-only `foundry_config_validate_*` peers remain callable)
 - **Allowed escape hatches.** `foundry_workfile_get` (to read the state) and `foundry_workfile_delete({confirm: true})` (to abandon the cycle) remain callable. `foundry_git_finish` is also allowed so the work branch can be cleaned up. Read-only memory and config tools continue to work.
 - **Recovery.** The supported path is: read the reason via `foundry_workfile_get`, then `foundry_workfile_delete({confirm: true})`, check out the base branch, delete the work branch, fix the root cause, and start a fresh flow. There is no in-place "retry" — failed-flow is intentionally terminal.
 
@@ -446,10 +447,13 @@ For per-tool args, return shapes, stage requirements, failure modes, and side ef
 | **Artefacts** | `foundry_artefacts_set_status`, `foundry_artefacts_list` |
 | **Feedback** | `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, `foundry_feedback_resolve`, `foundry_feedback_list` |
 | **History** | `foundry_history_list` |
-| **Config** | `foundry_config_cycle`, `foundry_config_artefact_type`, `foundry_config_laws`, `foundry_config_validation`, `foundry_config_appraisers`, `foundry_config_flow` |
+| **Config (read-only)** | `foundry_config_cycle`, `foundry_config_artefact_type`, `foundry_config_laws`, `foundry_config_validation`, `foundry_config_appraisers`, `foundry_config_flow` |
+| **Config — Schema validation** | `foundry_config_validate_artefact_type`, `foundry_config_validate_law`, `foundry_config_validate_appraiser`, `foundry_config_validate_flow`, `foundry_config_validate_cycle` |
+| **Config — Schema mutation** | `foundry_config_create_artefact_type`, `foundry_config_create_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle` |
 | **Validation** | `foundry_validate_run`, `foundry_appraisers_select` |
 | **Assay** | `foundry_assay_run` (runs extractors for the active assay stage; marks the workfile failed on abort), `foundry_extractor_create` (authors a new extractor definition) |
 | **Git** | `foundry_git_branch`, `foundry_git_finish` |
+| **Snapshots** | `foundry_snapshot_list`, `foundry_snapshot_show`, `foundry_snapshot_delete`, `foundry_snapshot_prune` |
 
 ### Memory tools
 

@@ -25,10 +25,13 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
   (`forge`, `quench`, `appraise`, `human-appraise`, `assay`).
 - **Failed flow**: when `WORK.md` frontmatter has `status: failed`, every
   mutating tool refuses to run and returns an error prefixed with the
-  tool name. This covers both work-branch FS writers and memory writers
+  tool name. This covers work-branch FS writers, memory writers
   (data and admin alike — `memory_put`, `memory_reset`, `memory_drop_*`,
   `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`,
-  `memory_change_embedding_model`). Read-only diagnostics remain
+  `memory_change_embedding_model`), and the config-creator family
+  (`foundry_config_create_artefact_type`, `foundry_config_create_law`,
+  `foundry_config_create_appraiser`, `foundry_config_create_flow`,
+  `foundry_config_create_cycle`). Read-only diagnostics remain
   available so the caller can figure out what went wrong:
   `foundry_workfile_get`, `foundry_memory_dump`, `foundry_memory_validate`,
   `foundry_memory_list`, `foundry_memory_get`, `foundry_memory_neighbours`,
@@ -104,6 +107,26 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - [`foundry_config_validation`](#foundry_config_validation)
 - [`foundry_config_appraisers`](#foundry_config_appraisers)
 - [`foundry_config_flow`](#foundry_config_flow)
+
+**Config — Schema validation**
+- [`foundry_config_validate_artefact_type`](#foundry_config_validate_artefact_type)
+- [`foundry_config_validate_law`](#foundry_config_validate_law)
+- [`foundry_config_validate_appraiser`](#foundry_config_validate_appraiser)
+- [`foundry_config_validate_flow`](#foundry_config_validate_flow)
+- [`foundry_config_validate_cycle`](#foundry_config_validate_cycle)
+
+**Config — Schema mutation**
+- [`foundry_config_create_artefact_type`](#foundry_config_create_artefact_type)
+- [`foundry_config_create_law`](#foundry_config_create_law)
+- [`foundry_config_create_appraiser`](#foundry_config_create_appraiser)
+- [`foundry_config_create_flow`](#foundry_config_create_flow)
+- [`foundry_config_create_cycle`](#foundry_config_create_cycle)
+
+**Snapshots**
+- [`foundry_snapshot_list`](#foundry_snapshot_list)
+- [`foundry_snapshot_show`](#foundry_snapshot_show)
+- [`foundry_snapshot_delete`](#foundry_snapshot_delete)
+- [`foundry_snapshot_prune`](#foundry_snapshot_prune)
 
 **Validation**
 - [`foundry_validate_run`](#foundry_validate_run)
@@ -650,33 +673,181 @@ NDJSON files, may mark `WORK.md` failed.
 
 These five tools each create one named config artefact and produce a
 single git commit on the current `config/*` branch. All five refuse
-off `config/*`. Each is paired with a read-only `_validate_*` form that
-runs the same schema checks without writing.
+off `config/*` and refuse on failed flow. Each is paired with a
+read-only `_validate_*` form (next section) that runs the same schema
+checks without writing.
 
-| tool                                     | creates                          | required `target`                                       |
-| ---------------------------------------- | -------------------------------- | ------------------------------------------------------- |
-| `foundry_config_create_artefact_type`    | `foundry/artefacts/<typeId>/`    | `{ typeId }`                                            |
-| `foundry_config_create_law`              | a law markdown file              | `{ kind: "global", file }` or `{ kind: "type-specific", typeId }` |
-| `foundry_config_create_appraiser`        | `foundry/appraisers/<id>.md`     | `{ id }`                                                |
-| `foundry_config_create_flow`             | `foundry/flows/<flowId>/`        | `{ flowId }`                                            |
-| `foundry_config_create_cycle`            | `foundry/flows/<flowId>/cycles/<cycleId>.md` | `{ flowId, cycleId }`                       |
+Common args across all five: `name` (string), `body` (string,
+markdown). `foundry_config_create_law` also takes a `target` argument
+described below. Common returns: `{ ok: true, path, sha }` on success;
+`{ ok: false, errors: [...] }` on validation failure;
+`{ error, affected_files: [...] }` on commit-policy refusal (the
+worktree was dirty with files outside `foundry/**`). Updates to
+existing files are not exposed as MCP tools — operators edit by hand on
+the current `config/*` branch.
 
-Common args: `name`, `body` (markdown), `target` (per the table above).
-Returns `{ ok: true, hash, path }` on success;
-`{ ok: false, errors: [...] }` on validation or TOCTOU failure.
-Updates (editing existing files) are not yet exposed as MCP tools;
-operators edit by hand on the current `config/*` branch.
+### `foundry_config_create_artefact_type`
 
-| tool                                       | what it does                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------- |
-| `foundry_config_validate_artefact_type`    | runs the artefact-type schema check on a candidate body, writes nothing. |
-| `foundry_config_validate_law`              | runs the law schema check on a candidate body, writes nothing.            |
-| `foundry_config_validate_appraiser`        | runs the appraiser schema check, writes nothing.                          |
-| `foundry_config_validate_flow`             | runs the flow schema check, writes nothing.                               |
-| `foundry_config_validate_cycle`            | runs the cycle schema check (including memory permissions, target validity), writes nothing. |
+> Create a new artefact-type definition under
+> `foundry/artefacts/<typeId>/`.
 
-Returns `{ ok: true }` or `{ ok: false, errors: [...] }`. Callable on
-any branch.
+**Args:**
+- `name` (string, required): typeId (kebab-case slug).
+- `body` (string, required): markdown body with frontmatter
+  (`file-patterns`, optional `description`, etc.).
+
+**Returns:** `{ ok: true, path, sha }` on success;
+`{ ok: false, errors: [...] }` on schema failure;
+`{ error, affected_files }` on commit-policy refusal.
+
+**Stage requirements:** none (no active stage); requires a
+`config/*` branch.
+
+**Failure modes:**
+- Off `config/*` branch → branch-guard refusal envelope.
+- Failed flow → tool-name-prefixed error.
+- Body fails artefact-type schema (missing `file-patterns`, glob
+  overlap with an existing type, …) → `{ ok: false, errors: [...] }`.
+- Target file already exists → `{ ok: false, errors: ["… already
+  exists; updates are not supported in 3.0.0 — edit by hand on this
+  config/* branch"] }`.
+- Worktree has changes outside `foundry/**` →
+  `{ error, affected_files }`.
+
+**Side effects:** writes the artefact-type file and commits it on the
+current `config/*` branch.
+
+### `foundry_config_create_law`
+
+> Create a new law markdown file. Locator depends on `target.kind`.
+
+**Args:**
+- `name` (string, required): law id (kebab-case slug).
+- `body` (string, required): markdown body.
+- `target` (object, required):
+  - `{ kind: "global", file }` — writes `foundry/laws/<file>`.
+  - `{ kind: "type-specific", typeId }` — writes
+    `foundry/artefacts/<typeId>/laws.md`.
+
+**Returns / Stage requirements / Side effects:** as for
+`foundry_config_create_artefact_type`.
+
+**Failure modes:** as for `foundry_config_create_artefact_type`, plus
+`target` shape errors:
+- Missing or non-object `target` → `{ ok: false, errors: ["target
+  argument is required (object with kind + locator)"] }`.
+- Unknown `target.kind` → `{ ok: false, errors: ["unknown
+  target.kind: <kind>"] }`.
+- Missing `target.file` for `global` / missing `target.typeId` for
+  `type-specific` → `{ ok: false, errors: [...] }`.
+
+### `foundry_config_create_appraiser`
+
+> Create a new appraiser personality at `foundry/appraisers/<id>.md`.
+
+**Args:**
+- `name` (string, required): appraiser id.
+- `body` (string, required): markdown body with frontmatter
+  (`description`, optional `model`, …).
+
+**Returns / Stage requirements / Side effects:** as for
+`foundry_config_create_artefact_type`.
+
+**Failure modes:** as for `foundry_config_create_artefact_type`,
+applied to the appraiser schema (missing description, semantic overlap
+with an existing appraiser, …).
+
+### `foundry_config_create_flow`
+
+> Create a new flow definition under `foundry/flows/<flowId>/`.
+
+**Args:**
+- `name` (string, required): flowId (kebab-case slug).
+- `body` (string, required): markdown body with frontmatter
+  (`description`, `cycles: [...]`).
+
+**Returns / Stage requirements / Side effects:** as for
+`foundry_config_create_artefact_type`.
+
+**Failure modes:** as for `foundry_config_create_artefact_type`,
+applied to the flow schema.
+
+### `foundry_config_create_cycle`
+
+> Create a new cycle markdown file under
+> `foundry/flows/<flowId>/cycles/<cycleId>.md`.
+
+**Args:**
+- `name` (string, required): cycleId (kebab-case slug).
+- `body` (string, required): markdown body with frontmatter
+  (`flowId`, `output`, optional `inputs`, `memory`, `models`, …).
+
+**Returns / Stage requirements / Side effects:** as for
+`foundry_config_create_artefact_type`.
+
+**Failure modes:** as for `foundry_config_create_artefact_type`,
+applied to the cycle schema (unknown `output` artefact-type, unknown
+`memory.read` / `memory.write` types, unknown referenced appraisers,
+…).
+
+---
+
+## Config — Schema validation
+
+These five tools run the same schema checks as their `_create_*`
+peers but write nothing and produce no commit. They have no branch
+guard and do not refuse on failed flow — authors can iterate on a
+draft body from any branch.
+
+Common args: `name` (string), `body` (string).
+`foundry_config_validate_law` does NOT require a `target` — schema
+validation is target-agnostic.
+Common returns: `{ ok: true }` on a valid body;
+`{ ok: false, errors: [...] }` otherwise.
+
+### `foundry_config_validate_artefact_type`
+
+> Validate a candidate artefact-type body. Writes nothing.
+
+**Args:** `name`, `body`.
+
+**Returns:** `{ ok: true }` or `{ ok: false, errors: [...] }`.
+
+**Stage requirements:** none. Callable on any branch.
+
+**Failure modes:** schema validation only; never raises.
+
+### `foundry_config_validate_law`
+
+> Validate a candidate law body. Writes nothing.
+
+**Args:** `name`, `body`. (No `target` — schema-only.)
+
+**Returns / Stage requirements / Failure modes:** as for
+`foundry_config_validate_artefact_type`.
+
+### `foundry_config_validate_appraiser`
+
+> Validate a candidate appraiser body. Writes nothing.
+
+**Args / Returns / Stage requirements / Failure modes:** as for
+`foundry_config_validate_artefact_type`, applied to the appraiser
+schema.
+
+### `foundry_config_validate_flow`
+
+> Validate a candidate flow body. Writes nothing.
+
+**Args / Returns / Stage requirements / Failure modes:** as for
+`foundry_config_validate_artefact_type`, applied to the flow schema.
+
+### `foundry_config_validate_cycle`
+
+> Validate a candidate cycle body. Writes nothing.
+
+**Args / Returns / Stage requirements / Failure modes:** as for
+`foundry_config_validate_artefact_type`, applied to the cycle schema
+(memory permissions, target validity, appraiser references).
 
 ---
 
@@ -684,14 +855,104 @@ any branch.
 
 Forensic artefacts of dry-run finishes. Stored under `.snapshots/`
 (gitignored). All four tools are foundational and callable on every
-branch.
+branch — they carry only `gitRepo` and `foundryRoot` guards.
 
-| tool                       | purpose                                                                              |
-| -------------------------- | ------------------------------------------------------------------------------------ |
-| `foundry_snapshot_list`    | list snapshots — returns `[{ runId, branch, parent, flow, goal, startedAt, finishedAt, exitReason }]`. |
-| `foundry_snapshot_show`    | read snapshot contents — args `{ runId }`, returns `{ runId, readme, metadata, diff, trace, missing }`. |
-| `foundry_snapshot_delete`  | delete a snapshot — args `{ runId, confirm: true }`.                                 |
-| `foundry_snapshot_prune`   | bulk-delete by age — args `{ olderThanDays, confirm: true }` (`olderThanDays` is required and must be a positive integer). |
+### `foundry_snapshot_list`
+
+> List all snapshots under `.snapshots/`, sorted by `startedAt`
+> descending.
+
+**Args:** none.
+
+**Returns:** an array of metadata objects, one per snapshot:
+`[{ runId, branch, parent, flow, goal, startedAt, finishedAt,
+exitReason }]`. Incomplete snapshots include `error: "incomplete"`
+and a `missing: [...]` array. Returns `[]` if `.snapshots/` does not
+exist.
+
+**Stage requirements:** none. Callable on any branch.
+
+**Failure modes:** none under normal operation.
+
+**Side effects:** none (read-only).
+
+### `foundry_snapshot_show`
+
+> Read a structured summary of one snapshot: README metadata, diff
+> stats, trace stats.
+
+**Args:**
+- `runId` (string, required): the snapshot's run id (typically a
+  ULID; matches the directory name under `.snapshots/`).
+
+**Returns:** `{ runId, readme, metadata, diff, trace, missing }` —
+- `readme`: raw README.md text (or `null` if missing).
+- `metadata`: `{ branch, parent, flow, goal, startedAt, finishedAt,
+  exitReason }` parsed from the README frontmatter.
+- `diff`: `{ files, insertions, deletions }` summarising
+  `diff.patch`.
+- `trace`: `{ lineCount, firstTs, lastTs }` summarising
+  `trace.jsonl`.
+- `missing`: array of any of `["README.md", "work/WORK.md",
+  "diff.patch", "trace.jsonl"]` that are absent.
+
+When `runId` does not exist, returns
+`{ runId, error: "unknown_runId", missing: [...all four files] }`.
+
+**Stage requirements:** none. Callable on any branch.
+
+**Failure modes:** unknown runId returns the error envelope above.
+
+**Side effects:** none (read-only).
+
+### `foundry_snapshot_delete`
+
+> Delete one snapshot directory. Requires `confirm: true`.
+
+**Args:**
+- `runId` (string, required).
+- `confirm` (boolean, optional): must be `true` to actually delete.
+
+**Returns:**
+- Plan (when `confirm` is not true):
+  `{ ok: false, error: "foundry_snapshot_delete requires {confirm:
+  true}", planned: { runId, path } }`.
+- Success: `{ ok: true, runId, removed: ".snapshots/<runId>" }`.
+- Unknown runId: `{ ok: false, error: "unknown runId '<id>'" }`.
+
+**Stage requirements:** none. Callable on any branch.
+
+**Failure modes:** unknown runId returns the error envelope above.
+
+**Side effects (when confirmed):** removes the
+`.snapshots/<runId>/` directory recursively.
+
+### `foundry_snapshot_prune`
+
+> Bulk-delete snapshots whose runId ULID is older than
+> `olderThanDays`. Requires `confirm: true`.
+
+**Args:**
+- `olderThanDays` (number, required): positive integer; days
+  threshold.
+- `confirm` (boolean, optional): must be `true` to actually delete.
+
+**Returns:**
+- Plan (when `confirm` is not true):
+  `{ ok: false, error: "foundry_snapshot_prune requires {confirm:
+  true}", candidates: [...runIds...], cutoff }`.
+- Success: `{ ok: true, removed: [...runIds...] }`.
+- Bad input: `{ ok: false, error: "olderThanDays must be a positive
+  integer" }`.
+
+**Stage requirements:** none. Callable on any branch.
+
+**Failure modes:** non-integer or non-positive `olderThanDays` is
+rejected. Snapshots whose runId does not end in a valid 26-char ULID
+are silently skipped (treated as untouchable).
+
+**Side effects (when confirmed):** removes each candidate
+`.snapshots/<runId>/` directory recursively.
 
 ---
 
