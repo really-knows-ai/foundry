@@ -149,7 +149,7 @@
   for the failed state at the top of their procedure and hand control
   back to the user. Previously, sync failures were silently swallowed
   (`console.error` + `{ok:true}`) and the Cozo DB was allowed to drift
-  ahead of on-disk NDJSON. See REVIEW.md P0 #3.
+  ahead of on-disk NDJSON.
 - **`foundry_orchestrate` catches `requireNotFailed` violations.** Moved
   the failed-flow check inside the wrapper try/catch so a malformed
   frontmatter `YAMLException` collapses to `{action: 'violation'}` instead

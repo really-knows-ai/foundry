@@ -309,9 +309,11 @@ These break users or tools at runtime, or contradict shipped behaviour.
   README for the recovery path. C31 (the line 3-4 self-deprecating
   framing) deferred to the C-cluster sweep.
 
-- [ ] **B16. CHANGELOG.md:138** still references `REVIEW.md P0 #3`
-  internally. No `REVIEW.md` ships with the package; this internal
-  pointer is unhelpful in a public CHANGELOG. Drop or rephrase.
+- [x] **B16. CHANGELOG.md:138** still references `REVIEW.md P0 #3`
+  internally. (Actual line at HEAD: 152.) Dropped the trailing
+  `See REVIEW.md P0 #3.` sentence — the surrounding paragraph
+  describes the prior behaviour (silent swallow + drift) on its
+  own and the cross-reference adds nothing for a public reader.
 
 - [ ] **B17. `docs/tools.md` "Follow-ups / inconsistencies spotted"
   section is stale framing.** Lines 970–974. The only remaining
