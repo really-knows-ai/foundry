@@ -155,7 +155,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   validation feedback.** Same drift as A8/A12; the tool now marks the
   workfile failed.
 
-- [ ] **A14. `docs/tools.md:660–664` snapshot tools have wrong arg
+- [x] **A14. `docs/tools.md:660–664` snapshot tools have wrong arg
   names + return shapes.**
   - All four tools: arg name `id` documented; code uses `runId`.
   - `foundry_snapshot_show` return: docs say `{readme, work, diff,

@@ -658,10 +658,10 @@ branch.
 
 | tool                       | purpose                                                                              |
 | -------------------------- | ------------------------------------------------------------------------------------ |
-| `foundry_snapshot_list`    | list snapshots — returns `[{ id, branch, parentConfig, createdAt, size }]`.          |
-| `foundry_snapshot_show`    | read snapshot contents — args `{ id }`, returns `{ readme, work, diff, trace }`.     |
-| `foundry_snapshot_delete`  | delete a snapshot — args `{ id, confirm: true }`.                                    |
-| `foundry_snapshot_prune`   | bulk-delete by age or count — args `{ olderThanDays?, keepLast?, confirm: true }`.   |
+| `foundry_snapshot_list`    | list snapshots — returns `[{ runId, branch, parent, flow, goal, startedAt, finishedAt, exitReason }]`. |
+| `foundry_snapshot_show`    | read snapshot contents — args `{ runId }`, returns `{ runId, readme, metadata, diff, trace, missing }`. |
+| `foundry_snapshot_delete`  | delete a snapshot — args `{ runId, confirm: true }`.                                 |
+| `foundry_snapshot_prune`   | bulk-delete by age — args `{ olderThanDays, confirm: true }` (`olderThanDays` is required and must be a positive integer). |
 
 ---
 
