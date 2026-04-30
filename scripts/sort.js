@@ -173,7 +173,7 @@ function getAllowedPatterns(lastBase, foundryDir, cycleDef, io = defaultIO) {
   const always = ['WORK.md', 'WORK.feedback.yaml', 'WORK.history.yaml'];
 
   if (lastBase === 'assay') {
-    return [...always, '.foundry/**', 'foundry/memory/**'];
+    return [...always, '.foundry/**', 'foundry-memory/**'];
   }
 
   if (lastBase !== 'forge') {

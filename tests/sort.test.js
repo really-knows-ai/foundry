@@ -533,6 +533,12 @@ describe('getAllowedPatterns', () => {
     assert.deepEqual(getAllowedPatterns('quench', 'foundry', 'foundry/cycles/c1.md', io), alwaysAllowed);
   });
 
+  it('allows foundry-memory/** and .foundry/** for assay stage (post-Phase 2 relations relocation)', () => {
+    const io = { readFile: () => { throw new Error('should not read'); }, exists: () => true };
+    const result = getAllowedPatterns('assay', 'foundry', 'foundry/cycles/c1.md', io);
+    assert.deepEqual(result, [...alwaysAllowed, '.foundry/**', 'foundry-memory/**']);
+  });
+
   it('adds artefact file-patterns for forge stage', () => {
     const files = {
       'foundry/cycles/c1.md': '---\noutput-type: haiku\n---\n',
