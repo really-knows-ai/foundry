@@ -189,7 +189,7 @@ A gitignored directory created on first plugin boot, holding runtime state:
 
 - `.secret` — the HMAC key.
 - `active-stage.json` — present only during an active stage.
-- `last-stage.json` — used by `foundry_stage_finalize` after `stage_end`.
+- `last-stage.json` — used by the orchestrator's internal finalize step after `stage_end`.
 - `trace/<branch-slug>.jsonl` — per-branch tool-call trace (see Tracing).
 
 ## Tracing

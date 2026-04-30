@@ -280,12 +280,15 @@ These break users or tools at runtime, or contradict shipped behaviour.
   creator tools enforce `gateNotFailed`; the README list is missing
   them.
 
-- [ ] **B13. `docs/concepts.md:164`, `docs/work-spec.md:168`, and
+- [x] **B13. `docs/concepts.md:164`, `docs/work-spec.md:168`, and
   README.md (3 places) reference deleted tool `foundry_stage_finalize`
   as if user-callable.** Per the prior B10–B13 won't-fix on internal
   finalize step, the *concept* is fine — but these surfaces still
   name the deleted tool by literal token rather than calling it "the
-  orchestrator's internal finalize step".
+  orchestrator's internal finalize step". Reframed README:219+298,
+  work-spec:168+172, concepts:192. README:469 retained — that line
+  factually catalogues the "intentionally not registered" set by
+  literal name, which is its purpose.
 
 - [ ] **B14. CHANGELOG 3.0.0 entry contradicts itself on dry-run.**
   CHANGELOG.md:21–23 says "the handler currently returns 'dry-run

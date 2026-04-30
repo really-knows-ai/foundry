@@ -216,11 +216,11 @@ Every dispatched stage (forge, quench, appraise, human-appraise, assay) runs und
 2. The sub-agent's **first** call must be `foundry_stage_begin({stage, cycle, token})`. The token is redeemed; mutation tools now check that the active stage matches.
 3. The sub-agent does its work (reads WORK.md, writes artefact files / feedback, etc.).
 4. The sub-agent's **last** call is `foundry_stage_end({summary})`.
-5. The orchestrator then calls `foundry_stage_finalize`, which:
+5. The orchestrator's internal finalize step then:
    - Scans the git diff against the stage's allowed file-patterns.
    - Registers any new files matching the output artefact type as `draft` artefacts.
    - Returns `{error: 'unexpected_files'}` if the stage wrote anywhere it shouldn't have.
-6. The cycle is committed (`foundry_git_commit` internally) and routing advances.
+6. The orchestrator commits the cycle and routing advances.
 
 Per-stage write rules:
 
@@ -295,7 +295,7 @@ Foundry is designed around "trust the tool, not the LLM". The following guarante
 - **Stage-locked mutations.** `foundry_feedback_*`, `foundry_artefacts_*`, and `foundry_workfile_*` tools require the caller's role to match the active stage. A forge sub-agent cannot add feedback; a quench sub-agent cannot register artefacts.
 - **Single-use tokens.** `foundry_stage_begin` verifies an HMAC token minted at dispatch time. Replays, forgery, and cross-stage reuse all fail closed. Keys live in `.foundry/.secret` (mode 0600, gitignored, one per worktree).
 - **Commit-per-stage contract.** `foundry_orchestrate` refuses to proceed if there are uncommitted changes to `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, or anything under `.foundry/` at the start of a sort call and history is non-empty.
-- **Write invariants.** `foundry_stage_finalize` scans the git diff and rejects stray writes with `{error: 'unexpected_files'}`.
+- **Write invariants.** The orchestrator's internal finalize step scans the git diff and rejects stray writes with `{error: 'unexpected_files'}`.
 - **Feedback state machine.** Only legal transitions are accepted: `resolved` is terminal; quench cannot approve/reject a `wont-fix`; validation cannot be wont-fixed.
 - **Artefact-type glob uniqueness.** `add-artefact-type` refuses to create a type whose file patterns overlap with an existing type; the enforcer can't determine file ownership otherwise.
 

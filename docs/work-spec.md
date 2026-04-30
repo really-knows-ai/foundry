@@ -165,11 +165,11 @@ A crash between the two steps leaves the live file untouched.
 | Frontmatter (`flow`, `cycle`, `goal`) | `foundry_workfile_create` (flow skill) | `foundry_workfile_delete` + re-create between cycles |
 | Frontmatter (`stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models`) | `foundry_orchestrate` (first call of each cycle, internally) | reset on each new cycle |
 | Goal | `foundry_workfile_create` (flow skill) | nobody |
-| Artefacts | `foundry_stage_finalize` (orchestrator, after forge closes) | `foundry_artefacts_set_status` (orchestrator → `done`/`blocked`) |
+| Artefacts | the orchestrator's internal finalize step (after forge closes) | `foundry_artefacts_set_status` (orchestrator → `done`/`blocked`) |
 | `WORK.feedback.yaml` | `foundry_feedback_add` (`quench` / `appraise` / `human-appraise`) | `foundry_feedback_action` / `foundry_feedback_wontfix` (forge), `foundry_feedback_resolve` (source stage / human-appraise override); sort writes only deadlocked snapshots |
 | `WORK.history.yaml` | `foundry_orchestrate` | `foundry_orchestrate` |
 
-Note: `foundry_artefacts_add` no longer exists as a public tool — artefact registration is automatic via `stage_finalize`, which scans the git diff and registers files matching the output type's `file-patterns` as `draft`.
+Note: `foundry_artefacts_add` no longer exists as a public tool — artefact registration is automatic via the orchestrator's internal finalize step, which scans the git diff and registers files matching the output type's `file-patterns` as `draft`.
 
 ## WORK.history.yaml
 
