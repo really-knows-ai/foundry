@@ -18,11 +18,12 @@
 - **`foundry_git_finish` dispatches on the current branch prefix.**
   `work/<x>` retains existing semantics (squash-merge plus WORK
   cleanup); `config/<x>` is new (squash-merge, no WORK cleanup);
-  `dry-run/<x>/<y>` is recognised but the handler currently returns
-  "dry-run finish not yet implemented" pending Phase 5. Any other
-  branch is refused with "nothing to finish". `baseBranch` is
-  rejected for dry-run finish (the parent config branch is encoded
-  in the dry-run branch name).
+  `dry-run/<x>/<y>` writes a forensic snapshot under `.snapshots/`
+  on the parent `config/<x>` working tree and force-deletes the
+  dry-run branch (see "Dry-run finish writes a forensic snapshot"
+  below). Any other branch is refused with "nothing to finish".
+  `baseBranch` is rejected for dry-run finish (the parent config
+  branch is encoded in the dry-run branch name).
 - **Dry-run namespace is `dry-run/<parent>/<flowId>-<desc>`, not
   nested under `config/<parent>`.** Originally specified as
   `config/<x>/dry-run/<y>`; git refuses to coexist a parent ref with

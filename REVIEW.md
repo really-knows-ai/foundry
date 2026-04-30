@@ -290,11 +290,13 @@ These break users or tools at runtime, or contradict shipped behaviour.
   factually catalogues the "intentionally not registered" set by
   literal name, which is its purpose.
 
-- [ ] **B14. CHANGELOG 3.0.0 entry contradicts itself on dry-run.**
-  CHANGELOG.md:21–23 says "the handler currently returns 'dry-run
+- [x] **B14. CHANGELOG 3.0.0 entry contradicts itself on dry-run.**
+  CHANGELOG.md:21–23 said "the handler currently returns 'dry-run
   finish not yet implemented' pending Phase 5". Phase 5 landed in
-  the same release (`c5a236b`). Lines 46–51 describe the
-  implemented behaviour. Drop the parenthetical.
+  the same release (`c5a236b`). Replaced the parenthetical with a
+  one-line summary of the implemented behaviour and a forward
+  pointer to the "Dry-run finish writes a forensic snapshot" entry
+  later in the changelog.
 
 - [ ] **B15. `docs/memory-maintenance.md` no longer matches reality.**
   Whole file. (a) No mention of `foundry-memory/` relocation;
