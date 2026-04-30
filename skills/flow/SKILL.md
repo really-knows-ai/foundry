@@ -18,7 +18,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 ## Starting a flow
 
 1. Call `foundry_config_flow` with the flow ID — get the flow definition
-2. Call `foundry_git_branch` with the flow ID and a short description — create the work branch
+2. Call `foundry_git_branch` with `kind: "work"`, the flow ID, and a short description — create the work branch (e.g. `foundry_git_branch({ kind: "work", flowId, description })`)
 3. Determine the starting cycle:
    - Any cycle listed in the flow can be the starting cycle. The flow's `starting-cycles` list is a hint for when the user's request is ambiguous.
    - Map the user's goal to a cycle by matching the requested output (e.g. "write a short story from the tennis haiku" → `create-short-story`; "write a haiku" → `create-haiku`).

@@ -88,7 +88,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   v2.3+. LLM-visible drift; the LLM will look for a tool that isn't
   registered.
 
-- [ ] **A3. `skills/flow/SKILL.md:21` calls `foundry_git_branch`
+- [x] **A3. `skills/flow/SKILL.md:21` calls `foundry_git_branch`
   without `kind`.** The kind-typed `foundry_git_branch` (Phase 1)
   rejects calls missing `kind` with
   `"foundry_git_branch: kind is required (one of: config, work,
