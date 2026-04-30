@@ -93,17 +93,18 @@ If nothing needs migration, say so and stop.
 
 ### 4. Choose your starting version
 
-The current target version is **v2.7.0**. Identify the version you're upgrading from (check the `@really-knows-ai/foundry` entry in `package.json`) and read only the sections you need.
+The current target version is **v3.0.0**. Identify the version you're upgrading from (check the `@really-knows-ai/foundry` entry in `package.json`) and read only the sections you need.
 
-| From    | To 2.7.0 | Sections to read (in order)                                |
-|---------|----------|------------------------------------------------------------|
-| 2.6.x   | 2.7.0    | §7a (v2.6 → v2.7 output-key rename)                        |
-| 2.5.x   | 2.7.0    | §7 (v2.5 → v2.6), §7a                                      |
-| 2.4.x   | 2.7.0    | §6 (v2.4 → v2.5), §7, §7a                                  |
-| 2.3.x   | 2.7.0    | §5 (v2.3 → v2.4), §6, §7, §7a                              |
-| 2.2.x   | 2.7.0    | §8c (v2.2.x → v2.3), §5, §6, §7, §7a                       |
-| 2.1.x   | 2.7.0    | §8 (v2.1 agents), §8a, §8b, §8c, §5, §6, §7, §7a           |
-| pre-2.1 | 2.7.0    | All historical migrations (§8 → §8c), then §5 → §7a        |
+| From    | To 3.0.0 | Sections to read (in order)                                     |
+|---------|----------|-----------------------------------------------------------------|
+| 2.7.x   | 3.0.0    | §7b (v2.7 → v3.0 branch namespaces, dry-run, snapshots, assay)  |
+| 2.6.x   | 3.0.0    | §7a (v2.6 → v2.7), §7b                                          |
+| 2.5.x   | 3.0.0    | §7 (v2.5 → v2.6), §7a, §7b                                      |
+| 2.4.x   | 3.0.0    | §6 (v2.4 → v2.5), §7, §7a, §7b                                  |
+| 2.3.x   | 3.0.0    | §5 (v2.3 → v2.4), §6, §7, §7a, §7b                              |
+| 2.2.x   | 3.0.0    | §8c (v2.2.x → v2.3), §5, §6, §7, §7a, §7b                       |
+| 2.1.x   | 3.0.0    | §8 (v2.1 agents), §8a, §8b, §8c, §5, §6, §7, §7a, §7b           |
+| pre-2.1 | 3.0.0    | All historical migrations (§8 → §8c), then §5 → §7b             |
 
 Each section labels the source-version range it applies to and the target version. A migration becomes a no-op once you have already passed through it.
 
@@ -210,6 +211,128 @@ Same as §7: clean tree, on base branch, no `WORK.md` in repo root.
    diagnostic — apply the rename and re-run.
 6. Commit: `chore: upgrade foundry to 2.7.0`.
 
+### 7b. v2.7.x → v3.0.0
+
+v3.0.0 is a **breaking** release that introduces typed git branches,
+dry-run flows with forensic snapshots, verbose tracing, expanded
+failed-flow guards, JSON error envelopes, and a relocation of memory
+row data. The plugin tool surface grows from 46 to 60 tools.
+
+Each change is summarised below; the full rationale lives in the
+3.0.0 CHANGELOG entry.
+
+**(a) Failed-flow guard expansion.** `foundry_validate_run` and 11
+mutating memory admin tools (`_init`, `_reset`, `_vacuum`,
+`_change_embedding_model`, `_create_entity_type`, `_create_edge_type`,
+`_rename_entity_type`, `_rename_edge_type`, `_drop_entity_type`,
+`_drop_edge_type`, `foundry_extractor_create`) now refuse on a failed
+workfile. No config migration; agents driving these tools must check
+for `flow_failed: true` in error envelopes and either run
+`foundry_workfile_delete` or finish the cycle before retrying.
+
+**(b) `foundry_git_branch` requires explicit `kind` (BREAKING).**
+The previous `{ flowId, description }` signature is removed. Callers
+must pass `kind: 'config' | 'work' | 'dry-run'`:
+
+- `kind: 'config'` — needs `description`; starting branch must not be
+  `config/*` or `work/*`. `flowId` is invalid.
+- `kind: 'work'` — needs `flowId` and `description`; starting branch
+  must not be `config/*` or `work/*`.
+- `kind: 'dry-run'` — needs `flowId` and `description`; the operator
+  must already be on a `config/<x>` branch.
+
+Any skill or wrapper script that calls `foundry_git_branch` without
+`kind` will hit a tool refusal. The shipped skills are already
+updated; project-local automation needs the same treatment.
+
+**(c) `foundry_git_finish` dispatches on the current branch.**
+`work/<x>` retains existing semantics (squash-merge plus WORK
+cleanup). `config/<x>` is new (squash-merge to base, no WORK
+cleanup). `dry-run/<x>/<y>` writes a forensic snapshot under
+`.snapshots/<runId>/` on the parent `config/<x>` working tree and
+force-deletes the dry-run branch — no merge, no commit. Any other
+branch is refused with "nothing to finish". `baseBranch` is rejected
+for dry-run finishes (the parent is encoded in the branch name).
+
+**(d) `foundry_git_branch`/`_finish` JSON error envelopes.**
+Failures from both tools now return `{ error: "<message>" }` instead
+of throwing raw `execFileSync` errors. Wrappers parsing tool output
+must read the envelope; pre-3.0 try/catch around raw throws will see
+clean returns instead of exceptions.
+
+**(e) Dry-run + snapshot tools as new public surface.** Four new
+tools — `foundry_snapshot_list`, `_show`, `_delete`, `_prune` — let
+operators inspect and prune the `.snapshots/<runId>/` artefacts left
+behind by dry-run finishes. The tracing layer also writes
+`.foundry/trace/<branch-slug>.jsonl` while on a dry-run branch and
+copies it into the snapshot at finish. The new `dry-run` skill
+documents the config-edit → dry-run → finish → inspect-snapshot
+loop.
+
+**(f) `foundry_memory_dump` JSON envelope.** The tool now returns
+`{ dump: "<text>" }` instead of a raw string, matching the contract
+of every other plugin tool. Callers that previously consumed the raw
+string must read `.dump`.
+
+**(g) Assay no longer files validation feedback (BREAKING).**
+When an extractor exits non-zero, parses incorrectly, violates
+permissions, or times out, `foundry_assay_run` calls
+`markWorkfileFailed` and returns `{flow_failed: true, error, …}`.
+It no longer files a `#validation` feedback item. Assay is also
+rejected as a `source` base in `foundry_feedback_add`. Tooling that
+pattern-matched assay-sourced feedback must instead detect
+`flow_failed: true` on the assay-run response.
+
+**(h) Memory NDJSON relations relocated to `foundry-memory/` (BREAKING).**
+Per-type row data (`<entity-type>.ndjson`, `<edge-type>.ndjson`) now
+lives at top-level `foundry-memory/relations/`, sibling to
+`foundry/`. The rest of the memory tree (`config.md`, `schema.json`,
+`entities/`, `edges/`, `extractors/`, the gitignored `memory.db*`
+runtime files) stays under `foundry/memory/`.
+
+#### Pre-flight checks
+
+Same as §7: clean tree, on base branch, no `WORK.md` in repo root.
+
+For projects with an existing populated memory store, also verify
+that `foundry/memory/relations/` is up-to-date with the on-disk Cozo
+DB (`foundry_memory_validate` returns clean). The migration moves
+files; a desynced store would carry stale rows into the new path.
+
+#### Upgrade steps
+
+1. `npm install @really-knows-ai/foundry@3.0.0 --save-dev`.
+2. Replace `.opencode/plugins/foundry.js` from the new package.
+3. **Memory relations relocation** (skip if memory was never
+   initialized in this project):
+   ```bash
+   git mv foundry/memory/relations foundry-memory/relations
+   git commit -m "chore: relocate memory relations to foundry-memory/"
+   ```
+   Projects that have not yet populated memory can simply re-run
+   `foundry_memory_init` on a fresh `config/*` branch — the new
+   layout is created automatically.
+4. **Add `.snapshots/` to `.gitignore`.** Append a line `.snapshots/`
+   to the project `.gitignore` (do not duplicate). The directory
+   appears only after the first dry-run finish; projects that
+   re-run `init-foundry` get this entry automatically, but upgraded
+   projects need it added by hand.
+5. **Audit project-local wrappers** that call `foundry_git_branch`,
+   `foundry_git_finish`, or `foundry_memory_dump`. Update them to
+   pass `kind:` and to read JSON envelopes. Skills shipped with the
+   package are already updated.
+6. **Audit assay-feedback consumers.** Anything pattern-matching
+   `#validation` feedback items sourced from assay must instead read
+   `flow_failed: true` from the assay-run response.
+7. **No `foundry/` config migration required.** Cycle, flow,
+   artefact, law, and appraiser definitions are unchanged from v2.7.
+8. Commit: `chore: upgrade foundry to 3.0.0`.
+
+In-flight cycles from v2.6.x or earlier carrying assay-sourced
+feedback items in `WORK.feedback.yaml` are no longer reachable by the
+state machine. `foundry_workfile_delete` followed by re-flow is the
+supported recovery path.
+
 ## Historical migrations (pre-2.3.0)
 
 The following sections cover migrations that only matter if you are upgrading from a version older than 2.3.0. Skip them if you are already on 2.3.x or later.
@@ -227,7 +350,7 @@ After renaming, remind the user: **Restart OpenCode** for the new agent filename
 
 ### 8a. v2.1.x → v2.2.0 lifecycle upgrade
 
-Foundry v2.2.0 introduces a tool-enforced stage lifecycle (`stage_begin` / `stage_end` / `stage_finalize`) backed by a per-project state directory and HMAC-signed dispatch tokens. The upgrade is non-destructive — no WORK.md or artefact migration is required — but the project needs three small changes:
+Foundry v2.2.0 introduces a tool-enforced stage lifecycle (`stage_begin` / `stage_end` / `stage_finalize`, since v2.3 internal to `foundry_orchestrate`) backed by a per-project state directory and HMAC-signed dispatch tokens. The upgrade is non-destructive — no WORK.md or artefact migration is required — but the project needs three small changes:
 
 1. **Create `.foundry/`** (if absent):
    - `mkdir -p .foundry`
@@ -236,7 +359,7 @@ Foundry v2.2.0 introduces a tool-enforced stage lifecycle (`stage_begin` / `stag
    - Ensure `.gitignore` contains a line `.foundry/` (append if missing; do not duplicate). The directory holds a per-worktree HMAC secret and transient active-stage state — neither should be committed.
 3. **Pre-existing state:** v2.2.0 is a fresh state system. There is no `active-stage.json` to migrate. If one happens to exist from a manually-aborted prior run, leave it alone — the new plugin treats its absence as "no active stage" and its presence as a legitimate in-flight stage.
 
-The `foundry_artefacts_add` tool has been removed in v2.2.0 — artefact registration now happens automatically via `foundry_stage_finalize`. No existing config references this tool, so there is nothing to migrate in `foundry/`.
+The `foundry_artefacts_add` tool has been removed in v2.2.0 — artefact registration now happens automatically via `foundry_stage_finalize` (since v2.3 internal to `foundry_orchestrate`). No existing config references this tool, so there is nothing to migrate in `foundry/`.
 
 ### 8b. v2.2.0 → v2.2.1 cycle-definition flat human-appraise keys
 
@@ -253,7 +376,7 @@ For each `foundry/cycles/*.md` whose frontmatter has the old nested form, migrat
 - `human-appraise.enabled: true` → `human-appraise: true`
 - `human-appraise.enabled: false` (or missing) → `human-appraise: false`
 - `human-appraise.deadlock-threshold: N` → `deadlock-iterations: N`
-- Always add `deadlock-appraise: true` unless the user explicitly wants the stricter "no human ever" behavior (`deadlock-appraise: false` → deadlock marks the cycle `blocked`).
+- Always add `deadlock-appraise: true` unless the user explicitly wants the stricter "no human ever" behaviour (`deadlock-appraise: false` → deadlock marks the cycle `blocked`).
 
 The old nested form is no longer read. After migration, verify by asking: "cycle `<id>`: human-appraise every iteration? deadlock-appraise on? deadlock-iterations = N?".
 

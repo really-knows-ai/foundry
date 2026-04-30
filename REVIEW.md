@@ -176,7 +176,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   or re-init. No entry in the breaking-changes list. Migration note
   required.
 
-- [ ] **A16. `skills/upgrade-foundry/SKILL.md` is stuck on v2.7.0
+- [x] **A16. `skills/upgrade-foundry/SKILL.md` is stuck on v2.7.0
   while package is v3.0.0.** Lines 96, 98–106 (version table),
   165–211 (§7a). No §7b for v2.7→v3.0 covering: (a) failed-flow
   guard expansion, (b) kind-typed `foundry_git_branch` (breaking),
@@ -515,7 +515,7 @@ all 48 still applicable at HEAD with three drifts:
   appraise and quench, you are NOT restricted…".** Rewrite to lead
   with what authority human-appraise has. (Was E25.)
 
-- [ ] **C35. `skills/upgrade-foundry/SKILL.md:256` Americanism
+- [x] **C35. `skills/upgrade-foundry/SKILL.md:256` Americanism
   `behavior`.** (Was E46.) → `behaviour`. (Folded into A16's
   rewrite.)
 
@@ -578,7 +578,7 @@ Only pull in if trivially adjacent to other work.
   IS tracked) is not, by design.** Add a comment documenting the
   asymmetry.
 
-- [ ] **D7. `skills/dry-run/SKILL.md:76` says snapshots are
+- [x] **D7. `skills/dry-run/SKILL.md:76` says snapshots are
   gitignored.** Correct *after* re-running init-foundry on an
   upgraded project. Pre-3.0.0 projects upgrading need an explicit
   `.snapshots/` line added to `.gitignore`. Cover in upgrade-foundry
@@ -590,7 +590,7 @@ Only pull in if trivially adjacent to other work.
   prohibition" exception, but for a 3.0 release prefer "These are
   not registered tools; orchestrate handles them internally."
 
-- [ ] **D9. `skills/upgrade-foundry/SKILL.md:230, 239` historical
+- [x] **D9. `skills/upgrade-foundry/SKILL.md:230, 239` historical
   references to `foundry_stage_finalize`.** Acceptable as
   v2.2→v2.3 migration narrative. Add a parenthetical "(since v2.3
   internal to `foundry_orchestrate`)".
