@@ -17,6 +17,7 @@ import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../
 import { withStore } from './memory-helpers.js';
 import { makeMemoryIO, makeIO, errorJson } from './helpers.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { guarded } from '../../../scripts/lib/guards.js';
 
 // Failed-flow guard policy for memory admin tools.
 //
@@ -32,13 +33,8 @@ import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 // requireNotFailed expects a sync IO (it parses WORK.md synchronously),
 // so we use makeIO here rather than the async makeMemoryIO that the
 // admin tool bodies themselves consume.
-function gateAdmin(toolName, fn) {
-  return async (args, context) => {
-    const io = makeIO(context.worktree);
-    const guard = requireNotFailed(io);
-    if (!guard.ok) return JSON.stringify({ error: `${toolName}: ${guard.error}` });
-    return fn(args, context);
-  };
+function notFailedGuard(_args, context) {
+  return requireNotFailed(makeIO(context.worktree));
 }
 
 export function createMemoryAdminTools({ tool }) {
@@ -49,7 +45,7 @@ export function createMemoryAdminTools({ tool }) {
         name: tool.schema.string(),
         body: tool.schema.string(),
       },
-      execute: gateAdmin('foundry_memory_create_entity_type', async (args, context) => {
+      execute: guarded('foundry_memory_create_entity_type', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admCreateEntity({ worktreeRoot: context.worktree, io, ...args });
@@ -66,7 +62,7 @@ export function createMemoryAdminTools({ tool }) {
         body: tool.schema.string(),
         timeout: tool.schema.string().optional(),
       },
-      execute: gateAdmin('foundry_extractor_create', async (args, context) => {
+      execute: guarded('foundry_extractor_create', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admCreateExtractor({ worktreeRoot: context.worktree, io, ...args });
@@ -82,7 +78,7 @@ export function createMemoryAdminTools({ tool }) {
         targets: tool.schema.union([tool.schema.literal('any'), tool.schema.array(tool.schema.string())]),
         body: tool.schema.string(),
       },
-      execute: gateAdmin('foundry_memory_create_edge_type', async (args, context) => {
+      execute: guarded('foundry_memory_create_edge_type', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admCreateEdge({ worktreeRoot: context.worktree, io, ...args });
@@ -93,7 +89,7 @@ export function createMemoryAdminTools({ tool }) {
     foundry_memory_rename_entity_type: tool({
       description: 'Rename an entity type and cascade updates to edges and rows.',
       args: { from: tool.schema.string(), to: tool.schema.string() },
-      execute: gateAdmin('foundry_memory_rename_entity_type', async (args, context) => {
+      execute: guarded('foundry_memory_rename_entity_type', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admRenameEntity({ worktreeRoot: context.worktree, io, ...args });
@@ -104,7 +100,7 @@ export function createMemoryAdminTools({ tool }) {
     foundry_memory_rename_edge_type: tool({
       description: 'Rename an edge type.',
       args: { from: tool.schema.string(), to: tool.schema.string() },
-      execute: gateAdmin('foundry_memory_rename_edge_type', async (args, context) => {
+      execute: guarded('foundry_memory_rename_edge_type', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admRenameEdge({ worktreeRoot: context.worktree, io, ...args });
@@ -116,7 +112,7 @@ export function createMemoryAdminTools({ tool }) {
       description:
         'Destructive. Delete an entity type and cascade to affected edges. Call without confirm (or confirm:false) to get a preview of what would be deleted. Pass confirm:true to actually drop.',
       args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
-      execute: gateAdmin('foundry_memory_drop_entity_type', async (args, context) => {
+      execute: guarded('foundry_memory_drop_entity_type', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admDropEntity({ worktreeRoot: context.worktree, io, ...args });
@@ -128,7 +124,7 @@ export function createMemoryAdminTools({ tool }) {
       description:
         'Destructive. Delete an edge type. Call without confirm (or confirm:false) to preview row count. Pass confirm:true to actually drop.',
       args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
-      execute: gateAdmin('foundry_memory_drop_edge_type', async (args, context) => {
+      execute: guarded('foundry_memory_drop_edge_type', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admDropEdge({ worktreeRoot: context.worktree, io, ...args });
@@ -139,7 +135,7 @@ export function createMemoryAdminTools({ tool }) {
     foundry_memory_reset: tool({
       description: 'Destructive. Purge all memory data (keeps type definitions). Requires confirm: true.',
       args: { confirm: tool.schema.boolean() },
-      execute: gateAdmin('foundry_memory_reset', async (args, context) => {
+      execute: guarded('foundry_memory_reset', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admReset({ worktreeRoot: context.worktree, io, ...args });
@@ -164,7 +160,7 @@ export function createMemoryAdminTools({ tool }) {
         embeddings_enabled: tool.schema.boolean().optional(),
         probe: tool.schema.boolean().optional(),
       },
-      execute: gateAdmin('foundry_memory_init', async (args, context) => {
+      execute: guarded('foundry_memory_init', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           const out = await admInitMemory({
@@ -194,7 +190,7 @@ export function createMemoryAdminTools({ tool }) {
     foundry_memory_vacuum: tool({
       description: 'Compact the Cozo database.',
       args: {},
-      execute: gateAdmin('foundry_memory_vacuum', async (_args, context) => {
+      execute: guarded('foundry_memory_vacuum', [notFailedGuard], async (_args, context) => {
         try {
           const { store } = await withStore(context);
           return JSON.stringify(await admVacuum({ store }));
@@ -209,7 +205,7 @@ export function createMemoryAdminTools({ tool }) {
         baseURL: tool.schema.string().optional(),
         apiKey: tool.schema.string().optional(),
       },
-      execute: gateAdmin('foundry_memory_change_embedding_model', async (args, context) => {
+      execute: guarded('foundry_memory_change_embedding_model', [notFailedGuard], async (args, context) => {
         try {
           const io = makeMemoryIO(context.worktree);
           // Load config fresh from disk: the singleton context is only

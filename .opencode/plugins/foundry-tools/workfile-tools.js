@@ -1,9 +1,11 @@
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../../scripts/lib/workfile.js';
 import { makeIO } from './helpers.js';
+
+const gateNotFailed = notFailedGuard(makeIO);
 
 export function createWorkfileTools({ tool }) {
   return {
@@ -17,10 +19,8 @@ export function createWorkfileTools({ tool }) {
         goal: tool.schema.string().describe('Goal text'),
         models: tool.schema.string().optional().describe('Per-stage model overrides as JSON object, e.g. \'{"forge":"openai/gpt-4o"}\''),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_workfile_create', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_workfile_create: ${failedGuard.error}` });
         const guard = requireNoActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_create ${guard.error}` });
         const workPath = path.join(context.worktree, 'WORK.md');
@@ -40,7 +40,7 @@ export function createWorkfileTools({ tool }) {
         const content = createWorkfile(fm, args.goal);
         writeFileSync(workPath, content, 'utf-8');
         return JSON.stringify({ ok: true });
-      },
+      }),
     }),
 
     foundry_workfile_get: tool({

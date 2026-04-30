@@ -5,7 +5,10 @@ import { verifyToken } from '../../../scripts/lib/token.js';
 import { getContext } from '../../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO } from './helpers.js';
-import { markWorkfileFailed, requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
+import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+
+const gateNotFailed = notFailedGuard(makeIO);
 
 export function createStageTools({ tool, secret, pending }) {
   return {
@@ -16,10 +19,8 @@ export function createStageTools({ tool, secret, pending }) {
         cycle: tool.schema.string().describe('Cycle name'),
         token: tool.schema.string().describe('Token received from foundry_sort via the dispatch prompt'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_stage_begin', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_stage_begin: ${failedGuard.error}` });
         // Precondition: no active stage.
         const current = readActiveStage(io);
         if (current) {
@@ -59,7 +60,7 @@ export function createStageTools({ tool, secret, pending }) {
         };
         writeActiveStage(io, active);
         return JSON.stringify({ ok: true, active });
-      },
+      }),
     }),
 
     foundry_stage_end: tool({

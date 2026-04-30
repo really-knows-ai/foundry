@@ -1,9 +1,11 @@
 import path from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { parseArtefactsTable, setArtefactStatus } from '../../../scripts/lib/artefacts.js';
 import { makeIO } from './helpers.js';
+
+const gateNotFailed = notFailedGuard(makeIO);
 
 export function createArtefactTools({ tool }) {
   return {
@@ -16,10 +18,8 @@ export function createArtefactTools({ tool }) {
         file: tool.schema.string().describe('Artefact file path'),
         status: tool.schema.string().describe('New status (done|blocked)'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_artefacts_set_status', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_artefacts_set_status: ${failedGuard.error}` });
         const guard = requireNoActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_artefacts_set_status ${guard.error}` });
         const workPath = path.join(context.worktree, 'WORK.md');
@@ -31,7 +31,7 @@ export function createArtefactTools({ tool }) {
         } catch (e) {
           return JSON.stringify({ error: e.message });
         }
-      },
+      }),
     }),
 
     foundry_artefacts_list: tool({

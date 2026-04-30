@@ -5,7 +5,9 @@ import { checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from
 import { search as memSearch } from '../../../scripts/lib/memory/search.js';
 import { withStore } from './memory-helpers.js';
 import { errorJson, makeIO } from './helpers.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+
+const gateNotFailed = notFailedGuard(makeIO);
 
 export function createMemoryTools({ tool }) {
   return {
@@ -16,10 +18,7 @@ export function createMemoryTools({ tool }) {
         name: tool.schema.string().describe('Entity name (unique within type)'),
         value: tool.schema.string().describe('Free-text intrinsic description (≤4KB)'),
       },
-      async execute(args, context) {
-        const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_memory_put: ${failedGuard.error}` });
+      execute: guarded('foundry_memory_put', [gateNotFailed], async (args, context) => {
         try {
           const { store, vocabulary, permissions, writeEmbedder, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEntityWrite(permissions, args.type)) {
@@ -29,7 +28,7 @@ export function createMemoryTools({ tool }) {
           await syncIfOutOfCycle();
           return JSON.stringify({ ok: true });
         } catch (err) { return errorJson(err); }
-      },
+      }),
     }),
 
     foundry_memory_relate: tool({
@@ -41,10 +40,7 @@ export function createMemoryTools({ tool }) {
         to_type: tool.schema.string(),
         to_name: tool.schema.string(),
       },
-      async execute(args, context) {
-        const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_memory_relate: ${failedGuard.error}` });
+      execute: guarded('foundry_memory_relate', [gateNotFailed], async (args, context) => {
         try {
           const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {
@@ -54,7 +50,7 @@ export function createMemoryTools({ tool }) {
           await syncIfOutOfCycle();
           return JSON.stringify({ ok: true });
         } catch (err) { return errorJson(err); }
-      },
+      }),
     }),
 
     foundry_memory_unrelate: tool({
@@ -66,10 +62,7 @@ export function createMemoryTools({ tool }) {
         to_type: tool.schema.string(),
         to_name: tool.schema.string(),
       },
-      async execute(args, context) {
-        const io = makeIO(context.worktree);
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_memory_unrelate: ${failedGuard.error}` });
+      execute: guarded('foundry_memory_unrelate', [gateNotFailed], async (args, context) => {
         try {
           const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {
@@ -79,7 +72,7 @@ export function createMemoryTools({ tool }) {
           await syncIfOutOfCycle();
           return JSON.stringify({ ok: true });
         } catch (err) { return errorJson(err); }
-      },
+      }),
     }),
 
     foundry_memory_get: tool({

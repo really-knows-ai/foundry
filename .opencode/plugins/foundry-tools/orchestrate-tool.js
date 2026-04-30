@@ -28,10 +28,14 @@ export function createOrchestrateTool({ tool, secret, pending }) {
         const cwd = context.worktree;
 
         try {
-          // Failed-flow guard. Inside the try so a malformed WORK.md (which
-          // requireNotFailed parses) surfaces as a violation rather than an
-          // uncaught exception, preserving the wrapper's catch-to-violation
-          // contract.
+          // Failed-flow guard. Stays inline rather than composed via guarded()
+          // because requireNotFailed parses WORK.md frontmatter, which throws
+          // on malformed YAML. The surrounding try/catch (line 30) converts
+          // that throw into a violation-shaped envelope per the contract
+          // exercised by tests/plugin/orchestrate-wrapper.test.js. A guarded()
+          // wrapper would let the throw escape to a plain { error } envelope
+          // and break that contract. orchestrate-tool is the one Phase 1.5
+          // exception to the inline-gate refactor.
           const failedGuard = requireNotFailed(io);
           if (!failedGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${failedGuard.error}` });
 

@@ -1,8 +1,10 @@
 import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { makeIO } from './helpers.js';
+
+const gateNotFailed = notFailedGuard(makeIO);
 
 function readCycle(io) {
   if (!io.exists('WORK.md')) return null;
@@ -14,8 +16,6 @@ function readCycle(io) {
 // Returns {ok:true, activeStage, stageBase, cycle} or {ok:false, error}.
 // Caller is responsible for any tool-specific stage-base / tag checks.
 function preflight(io, toolName) {
-  const failedGuard = requireNotFailed(io);
-  if (!failedGuard.ok) return { ok: false, error: `${toolName}: ${failedGuard.error}` };
   const guard = requireActiveStage(io);
   if (!guard.ok) return { ok: false, error: `${toolName} requires active stage; ${guard.error}` };
   const activeStage = guard.active.stage;
@@ -34,7 +34,7 @@ export function createFeedbackTools({ tool }) {
         text: tool.schema.string().describe('Feedback text'),
         tag: tool.schema.string().describe('Tag for the feedback item'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_feedback_add', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_add');
         if (!pre.ok) return JSON.stringify({ error: pre.error });
@@ -70,7 +70,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_add: ${err.message}` });
         }
-      },
+      }),
     }),
 
     foundry_feedback_action: tool({
@@ -78,7 +78,7 @@ export function createFeedbackTools({ tool }) {
       args: {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_feedback_action', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_action');
         if (!pre.ok) return JSON.stringify({ error: pre.error });
@@ -100,7 +100,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_action: ${err.message}` });
         }
-      },
+      }),
     }),
 
     foundry_feedback_wontfix: tool({
@@ -109,7 +109,7 @@ export function createFeedbackTools({ tool }) {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
         reason: tool.schema.string().describe('Reason for wont-fix'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_feedback_wontfix', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_wontfix');
         if (!pre.ok) return JSON.stringify({ error: pre.error });
@@ -132,7 +132,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_wontfix: ${err.message}` });
         }
-      },
+      }),
     }),
 
     foundry_feedback_resolve: tool({
@@ -142,7 +142,7 @@ export function createFeedbackTools({ tool }) {
         resolution: tool.schema.enum(['approved', 'rejected']).describe('Resolution type'),
         reason: tool.schema.string().optional().describe('Reason (required if rejected, or for deadlock override)'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_feedback_resolve', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_resolve');
         if (!pre.ok) return JSON.stringify({ error: pre.error });
@@ -170,7 +170,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_resolve: ${err.message}` });
         }
-      },
+      }),
     }),
 
     foundry_feedback_list: tool({

@@ -1,7 +1,9 @@
 import { execSync } from 'child_process';
 import { getValidation } from '../../../scripts/lib/config.js';
 import { makeIO } from './helpers.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+
+const gateNotFailed = notFailedGuard(makeIO);
 
 /**
  * Shell-quote a string for POSIX `/bin/sh` so it is treated as a single literal
@@ -21,13 +23,11 @@ export function createValidateTools({ tool }) {
         typeId: tool.schema.string().describe('Artefact type ID'),
         file: tool.schema.string().describe('File path to validate'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_validate_run', [gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         // Validation commands are project-defined subprocesses with arbitrary
         // side effects (linters with --fix, formatters, codegen). Treat the
         // tool as state-changing: gate it on failed flow.
-        const failedGuard = requireNotFailed(io);
-        if (!failedGuard.ok) return JSON.stringify({ error: `foundry_validate_run: ${failedGuard.error}` });
         const commands = await getValidation('foundry', args.typeId, io);
         if (!commands || commands.length === 0) return JSON.stringify({ error: 'No validation defined for type: ' + args.typeId });
         const results = [];
@@ -45,7 +45,7 @@ export function createValidateTools({ tool }) {
           }
         }
         return JSON.stringify(results);
-      },
+      }),
     }),
   };
 }
