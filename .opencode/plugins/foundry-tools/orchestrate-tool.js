@@ -10,6 +10,7 @@ import { finalizeStage } from '../../../scripts/lib/finalize.js';
 import { commitWithPolicy, UnexpectedFilesError } from '../../../scripts/lib/git-bridge.js';
 import { makeIO, buildCyclePromptExtras } from './helpers.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 export function createOrchestrateTool({ tool, secret, pending }) {
   return {
@@ -28,6 +29,17 @@ export function createOrchestrateTool({ tool, secret, pending }) {
         const cwd = context.worktree;
 
         try {
+          // Branch guard. Inline rather than composed via guarded() because
+          // the orchestrate tool surfaces all errors through its violation
+          // envelope (see comment on the failed-flow guard below). A
+          // wrong-branch refusal is a more fundamental error than failed
+          // flow, so it runs first.
+          const branchGuard = requireOnFlowBranch({
+            exec: (argv) => execFileSync(argv[0], argv.slice(1),
+              { cwd, encoding: 'utf8', stdio: 'pipe' }),
+          });
+          if (!branchGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${branchGuard.error}` });
+
           // Failed-flow guard. Stays inline rather than composed via guarded()
           // because requireNotFailed parses WORK.md frontmatter, which throws
           // on malformed YAML. The surrounding try/catch (line 30) converts

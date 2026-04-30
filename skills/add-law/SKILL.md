@@ -108,21 +108,46 @@ Present the drafted law to the user before writing it. Ask:
 
 Iterate until the user is happy.
 
-### 5. Write the law
+### 5. Validate the draft
 
-Append the law to the appropriate file:
-- Global: the specified file in `foundry/laws/`, or a new file
-- Type-specific: `foundry/artefacts/<type>/laws.md`
+Call `foundry_config_validate_law({ name: "<file-name-without-extension>", body: "<full markdown>" })`.
 
-If the target file doesn't exist yet, create it with a top-level heading.
+If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types that don't exist yet.
 
-### 6. Verify uniqueness
+### 6. Create the file
 
-After writing, confirm the law id is unique. If there's a collision, ask the user to rename.
+Pick the target. The user has already chosen scope in step 1 — translate that into the `target` argument:
+
+- Global → `target: { kind: "global", file: "<file-name>.md" }` (lives at `foundry/laws/<file-name>.md`).
+- Type-specific → `target: { kind: "type-specific", typeId: "<artefact-type>" }` (lives at `foundry/artefacts/<typeId>/laws.md`).
+
+Then call:
+
+```
+foundry_config_create_law({
+  name: "<file-name-without-extension>",
+  body: "<full markdown>",
+  target: { kind: "global", file: "<file-name>.md" }   // OR
+           { kind: "type-specific", typeId: "<artefact-type>" }
+})
+```
+
+The tool:
+
+- re-validates the body (TOCTOU);
+- writes the law file at the path determined by `target`;
+- produces one git commit on the current `config/*` branch.
+
+If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_law` does not support updates (including appending to an existing law file).
+
+Show the user the resulting commit hash from the response.
+
+### 7. Verify uniqueness
+
+After the file is created, confirm the law id is unique across all law files. If a collision exists, ask the user to rename and edit by hand on this branch.
 
 ## What you do NOT do
 
-- You do not write the law without showing the user first
 - You do not skip the conflict check
 - You do not silently overwrite existing laws
 - You do not create artefact types — that is a separate skill

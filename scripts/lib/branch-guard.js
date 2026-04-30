@@ -3,9 +3,22 @@ const WORK_RE     = /^work\/.+$/;
 const DRY_RUN_RE  = /^dry-run\/[^/]+\/[^/]+$/;
 
 export function currentBranch(io) {
-  const out = io.exec(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).trim();
-  if (!out || out === 'HEAD') return null;
-  return out;
+  // `git rev-parse --abbrev-ref HEAD` exits non-zero on a fresh repo with
+  // no commits (unborn branch) and on a non-repo directory. Fall back to
+  // `git symbolic-ref --short HEAD` which still resolves the unborn
+  // branch's name; if that also fails (truly detached or non-repo), treat
+  // as "no current branch" so the guard returns a structured refusal
+  // instead of bubbling a thrown ExecError.
+  let out;
+  try {
+    out = io.exec(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).trim();
+    if (out && out !== 'HEAD') return out;
+  } catch { /* fall through to symbolic-ref */ }
+  try {
+    const sym = io.exec(['git', 'symbolic-ref', '--short', 'HEAD']).trim();
+    if (sym) return sym;
+  } catch { /* truly detached or not a repo */ }
+  return null;
 }
 
 function describe(branch) {

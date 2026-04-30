@@ -31,9 +31,12 @@ function setupWorktree() {
     version: 1, entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } }, edges: {}, embeddings: null,
   }, null, 2));
   writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'), '');
-  // Git init so stage_begin can resolve baseSha.
-  execSync('git init -q', { cwd: root, env: GIT_ENV });
+  // Git init so stage_begin can resolve baseSha. Branch guard requires
+  // work/<x> for assay_run + stage_begin (flow-tier mutations); the
+  // extractor-creation suite below switches to a config/<x> branch.
+  execSync('git init -q -b main', { cwd: root, env: GIT_ENV });
   execSync('git add -A && git commit -q -m init', { cwd: root, env: GIT_ENV });
+  execSync('git checkout -q -b work/assay-tools-test', { cwd: root, env: GIT_ENV });
   return root;
 }
 
@@ -238,7 +241,12 @@ mkdir foundry-memory/relations/class.ndjson
 
 describe('foundry_extractor_create', () => {
   let root, plugin;
-  beforeEach(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
+  beforeEach(async () => {
+    root = setupWorktree();
+    // extractor_create requires a config/<x> branch (Phase 4 branch policy).
+    execSync('git checkout -q -b config/add-extractor', { cwd: root, env: GIT_ENV });
+    plugin = await FoundryPlugin({ directory: root });
+  });
   afterEach(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
 
   it('creates an extractor file via the admin helper', async () => {

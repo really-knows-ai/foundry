@@ -1,9 +1,19 @@
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { getValidation } from '../../../scripts/lib/config.js';
 import { makeIO } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+
+function makeBranchExec(cwd) {
+  return (argv) => execFileSync(argv[0], argv.slice(1), {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+function flowBranchGuard(_args, context) {
+  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+}
 
 /**
  * Shell-quote a string for POSIX `/bin/sh` so it is treated as a single literal
@@ -23,7 +33,7 @@ export function createValidateTools({ tool }) {
         typeId: tool.schema.string().describe('Artefact type ID'),
         file: tool.schema.string().describe('File path to validate'),
       },
-      execute: guarded('foundry_validate_run', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_validate_run', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         // Validation commands are project-defined subprocesses with arbitrary
         // side effects (linters with --fix, formatters, codegen). Treat the

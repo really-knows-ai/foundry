@@ -32,8 +32,10 @@ function setup() {
     `---\noutput-type: doc\nmemory:\n  read: [class]\n  write: [class]\nassay:\n  extractors: [one]\nmodels:\n  forge: github-copilot/claude-sonnet-4.6\n  appraise: github-copilot/claude-sonnet-4.6\n  assay: github-copilot/claude-sonnet-4.6\n---\n\n# c\n`);
   writeFileSync(join(root, 'WORK.md'),
     `---\nflow: test-flow\ncycle: c\n---\n\n# Goal\n\nanything\n`);
-  execSync('git init -q', { cwd: root, env: GIT_ENV });
+  execSync('git init -q -b main', { cwd: root, env: GIT_ENV });
   execSync('git add -A && git commit -q -m init', { cwd: root, env: GIT_ENV });
+  // Branch guard: orchestrate is flow-tier mutation.
+  execSync('git checkout -q -b work/assay-orch-test', { cwd: root, env: GIT_ENV });
   return root;
 }
 

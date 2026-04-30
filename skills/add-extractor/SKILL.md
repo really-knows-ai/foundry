@@ -10,11 +10,37 @@ Use this skill to register a new extractor — a script that reads the codebase 
 
 ## Prerequisites
 
-Before running this skill, verify all of the following. If any fails, stop and tell the user what to do first.
+Before running this skill, verify all of the following:
 
-1. `foundry/` exists (run `init-foundry` first if not).
-2. `foundry/memory/config.md` exists and has `enabled: true` (run `init-memory` first if not).
-3. Every entity type the extractor will populate has already been declared in `foundry/memory/entities/` (use `add-memory-entity-type` to create any that are missing).
+1. The `foundry/` directory exists in the project root. If it does not
+   exist, stop and tell the user:
+
+   > Foundry is not initialized in this project. Run the
+   > `init-foundry` skill first to create the foundry/ directory
+   > structure.
+
+2. The current git branch is a `config/*` branch. Run
+   `git rev-parse --abbrev-ref HEAD` and confirm it matches
+   `config/<description>` (a single segment, not `config/.../dry-run/...`).
+
+3. If the branch does not start with `config/`, instruct the user to
+   create one before continuing:
+
+   > Foundry configuration changes must be made on a config/* branch.
+   > From a clean main branch, call:
+   >
+   > `foundry_git_branch({ kind: "config", description: "<short-name>" })`
+   >
+   > Then re-run this skill.
+
+   If the user is on a `config/*/dry-run/*` branch, they must finish
+   that dry-run first (`foundry_git_finish({ message, confirm: true })`)
+   before re-running this skill on the parent `config/*`.
+
+4. `foundry/memory/config.md` exists and has `enabled: true` (run
+   `init-memory` first if not). Every entity type the extractor will
+   populate must already be declared in `foundry/memory/entities/`
+   (use `add-memory-entity-type` to create any that are missing).
 
 ## Steps
 

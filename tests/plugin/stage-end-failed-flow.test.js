@@ -10,9 +10,12 @@ import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
 
 function setupWorktree() {
   const root = mkdtempSync(join(tmpdir(), 'failed-flow-'));
-  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
   execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
   execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
+  // Branch guard: stage_end + foundry_memory_put need work/<x>.
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: root });
+  execFileSync('git', ['checkout', '-q', '-b', 'work/stage-end-failed-test'], { cwd: root });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
   mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });

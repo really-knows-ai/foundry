@@ -1,6 +1,8 @@
+import { execFileSync } from 'child_process';
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { runAssay } from '../../../scripts/lib/assay/run.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../../scripts/lib/memory/writes.js';
@@ -8,6 +10,15 @@ import { withStore } from './memory-helpers.js';
 import { makeIO, errorJson } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+
+function makeBranchExec(cwd) {
+  return (argv) => execFileSync(argv[0], argv.slice(1), {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+function flowBranchGuard(_args, context) {
+  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+}
 
 export function createAssayTools({ tool }) {
   return {
@@ -17,7 +28,7 @@ export function createAssayTools({ tool }) {
         cycle: tool.schema.string().describe('Cycle name'),
         extractors: tool.schema.array(tool.schema.string()).describe('Extractor names, executed in order'),
       },
-      execute: guarded('foundry_assay_run', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_assay_run', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const guard = requireActiveStage(io, { stageBase: 'assay', cycle: args.cycle });
         if (!guard.ok) return JSON.stringify({ error: `foundry_assay_run requires active assay stage for cycle '${args.cycle}'; ${guard.error}` });

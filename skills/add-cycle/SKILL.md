@@ -161,19 +161,42 @@ For input validation:
 - Verify that at least one cycle in the flow has the input artefact type(s) as its output
 - If using `all-of`, verify all input types are producible
 
-### 11. Write files
+### 11. Validate the draft
 
-- Create `foundry/cycles/<id>.md` with the cycle definition
-- Update `foundry/flows/<flow-id>.md` to add the cycle to the `## Cycles` list (if not already present)
+Call `foundry_config_validate_cycle({ name: "<id>", body: "<full markdown>" })`.
 
-### 12. Confirm
+If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
 
-Show the user the created/modified files and their contents.
+### 12. Create the cycle file
+
+Call `foundry_config_create_cycle({ name: "<id>", body: "<full markdown>" })`. The tool:
+
+- re-validates the body (TOCTOU);
+- writes `foundry/cycles/<id>.md`;
+- produces one git commit on the current `config/*` branch.
+
+If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_cycle` does not support updates.
+
+Show the user the resulting commit hash from the response.
+
+### 13. Add the cycle to the flow's cycle list
+
+`foundry_config_create_cycle` writes the cycle file only. The cycle still needs to appear in the parent flow's `## Cycles` list.
+
+Edit `foundry/flows/<flow-id>.md` by hand on this same `config/*` branch using the `Edit` tool. Add the new cycle id under `## Cycles` (if not already present). Commit that edit by hand as a separate microcommit, e.g.:
+
+```
+git add foundry/flows/<flow-id>.md
+git commit -m "config(flow): add <cycle-id> to <flow-id>"
+```
+
+### 14. Confirm
+
+Show the user the cycle file, the updated flow file, and both commit hashes.
 
 ## What you do NOT do
 
 - You do not create foundry cycles that output an artefact type already produced by another foundry cycle in the same foundry flow
-- You do not write files without showing the user first
 - You do not skip artefact type validation
 - You do not create artefact types — that is a separate skill
 - You do not create foundry flows — that is a separate skill

@@ -13,6 +13,9 @@ function setupWorktree() {
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
   execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
+  // Branch guard: foundry_memory_put + foundry_stage_end need work/<x>.
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: root });
+  execFileSync('git', ['checkout', '-q', '-b', 'work/mem-end-test'], { cwd: root });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
   mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });

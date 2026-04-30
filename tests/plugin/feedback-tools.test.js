@@ -2,10 +2,17 @@
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+
+const GIT_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
+  GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
+};
 
 // ---------------------------------------------------------------------------
 // Test harness — real plugin, no stub layer.
@@ -27,6 +34,10 @@ function writeActiveStage(dir, { cycle = 'write-haiku', stage, baseSha = 'test-s
 
 function makeWorktree({ stage = 'appraise:write-check', cycle = 'write-haiku', flow = 'creative' } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'fdy-feedback-tools-'));
+  // Flow-tier branch guard: feedback-* tools require a work/<x> branch.
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir, env: GIT_ENV });
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: dir, env: GIT_ENV });
+  execFileSync('git', ['checkout', '-q', '-b', 'work/feedback-test'], { cwd: dir, env: GIT_ENV });
   mkdirSync(path.join(dir, '.foundry'), { recursive: true });
   writeActiveStage(dir, { cycle, stage });
   writeFileSync(

@@ -100,16 +100,25 @@ The `starting-cycles` field lists entry points. `## Cycles` lists all cycles in 
 
 Ask: does this capture the flow correctly?
 
-### 6. Write the file
+### 6. Validate the draft
 
-Create `foundry/flows/<id>.md` with the agreed definition.
+Call `foundry_config_validate_flow({ name: "<id>", body: "<full markdown>" })`.
 
-### 7. Confirm
+If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
 
-Show the user the created file and its contents.
+### 7. Create the file
+
+Call `foundry_config_create_flow({ name: "<id>", body: "<full markdown>" })`. The tool:
+
+- re-validates the body (TOCTOU);
+- writes `foundry/flows/<id>.md`;
+- produces one git commit on the current `config/*` branch.
+
+If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_flow` does not support updates.
+
+Show the user the resulting commit hash from the response.
 
 ## What you do NOT do
 
 - You do not create foundry cycles — that is a separate skill
-- You do not write files without showing the user first
 - You do not skip dependency validation

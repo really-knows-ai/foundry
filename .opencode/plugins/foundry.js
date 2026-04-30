@@ -21,6 +21,7 @@ import { createArtefactTools } from './foundry-tools/artefact-tools.js';
 import { createFeedbackTools } from './foundry-tools/feedback-tools.js';
 import { createGitTools } from './foundry-tools/git-tools.js';
 import { createConfigTools } from './foundry-tools/config-tools.js';
+import { createConfigCreateTools } from './foundry-tools/config-create-tools.js';
 import { createValidateTools } from './foundry-tools/validate-tools.js';
 import { createAssayTools } from './foundry-tools/assay-tools.js';
 import { createAppraiserTools } from './foundry-tools/appraiser-tools.js';
@@ -75,6 +76,7 @@ export const FoundryPlugin = async ({ directory }) => {
       ...createFeedbackTools({ tool }),
       ...createGitTools({ tool }),
       ...createConfigTools({ tool }),
+      ...createConfigCreateTools({ tool }),
       ...createValidateTools({ tool }),
       ...createAssayTools({ tool }),
       ...createAppraiserTools({ tool }),

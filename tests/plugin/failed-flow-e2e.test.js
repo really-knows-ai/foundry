@@ -10,9 +10,12 @@ import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'e2e-failed-'));
-  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
   execFileSync('git', ['config', 'user.email', 't@e.com'], { cwd: root });
   execFileSync('git', ['config', 'user.name', 'T'], { cwd: root });
+  // Branch guard: memory_put + stage_end + workfile_delete are flow-tier.
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: root });
+  execFileSync('git', ['checkout', '-q', '-b', 'work/failed-e2e-test'], { cwd: root });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
   mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });

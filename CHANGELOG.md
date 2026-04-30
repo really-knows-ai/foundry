@@ -26,6 +26,21 @@
   `config/<x>/dry-run/<y>`; git refuses to coexist a parent ref with
   a child-prefixed ref, so the namespace is a flat sibling instead.
   No code outside this release ever shipped the nested form.
+- **Schema/config mutation now requires a `config/*` branch.**
+  Affected tools: `foundry_config_create_artefact_type`/`_law`/
+  `_appraiser`/`_flow`/`_cycle` (new),
+  `foundry_memory_create_entity_type`/`_create_edge_type`/
+  `_rename_entity_type`/`_rename_edge_type`/`_drop_entity_type`/
+  `_drop_edge_type`, `foundry_extractor_create`, `foundry_memory_init`,
+  `foundry_memory_reset`, `foundry_memory_change_embedding_model`. All
+  refuse on any branch other than `config/<description>`.
+- **Flow-data mutation now requires a `work/*` or `dry-run/*/*`
+  branch.** Affected tools: `foundry_orchestrate`,
+  `foundry_workfile_create`/`_delete`, `foundry_artefacts_set_status`,
+  `foundry_feedback_*` (mutating variants), `foundry_assay_run`,
+  `foundry_validate_run`, `foundry_appraisers_select`,
+  `foundry_stage_begin`/`_end`, `foundry_memory_put`/`_relate`/
+  `_unrelate`.
 
 - **Cycle frontmatter key renamed: `output:` → `output-type:`.** The cycle
   frontmatter key that names the produced artefact type is now
@@ -53,6 +68,14 @@
 
 ### Added
 
+- **Five `foundry_config_validate_*` and five `foundry_config_create_*`
+  tools** for the artefact-type, law, appraiser, flow, and cycle config
+  kinds. The five `add-*` config skills (`add-artefact-type`, `add-law`,
+  `add-appraiser`, `add-flow`, `add-cycle`) now use these instead of
+  writing files directly. Each create produces one git commit per
+  invocation. Updates (editing existing config files) are not yet
+  exposed as MCP tools; operators edit by hand on the current
+  `config/*` branch.
 - **Failed-flow guard on `foundry_validate_run`.** Treats validation as
   state-changing for the purposes of the failed-flow guard; the tool now
   refuses on a failed workfile. (`1e58f8f`)

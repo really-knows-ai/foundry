@@ -1,14 +1,25 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
 import { disposeStores } from '../../scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
 
+const GIT_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
+  GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
+};
+
 function setupWorktreeWithCycle() {
   const root = mkdtempSync(join(tmpdir(), 'mem-perms-'));
+  // Flow-tier branch guard: memory mutation requires work/<x>.
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env: GIT_ENV });
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: root, env: GIT_ENV });
+  execFileSync('git', ['checkout', '-q', '-b', 'work/mem-perms-test'], { cwd: root, env: GIT_ENV });
   mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });
   mkdirSync(join(root, 'foundry/memory/edges'), { recursive: true });
   mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });

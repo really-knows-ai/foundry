@@ -21,7 +21,7 @@ function makeCtx(worktree) { return { worktree }; }
 
 function initRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-pre-'));
-  execSync('git init -q', { cwd: dir, env: GIT_ENV });
+  execSync('git init -q -b main', { cwd: dir, env: GIT_ENV });
   writeFileSync(join(dir, 'WORK.md'), [
     '---', 'flow: f', 'cycle: c', '---',
     '', '# Goal', '', 'test', '',
@@ -31,6 +31,8 @@ function initRepo() {
     '',
   ].join('\n'));
   execSync('git add . && git commit -m init -q', { cwd: dir, env: GIT_ENV });
+  // Branch guard: feedback/stage/artefact mutations require work/<x>.
+  execSync('git checkout -q -b work/preconditions-test', { cwd: dir, env: GIT_ENV });
   return dir;
 }
 

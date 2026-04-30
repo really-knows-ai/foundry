@@ -17,8 +17,10 @@ const GIT_ENV = {
 };
 
 function initRepo(dir) {
-  execSync('git init -q', { cwd: dir, env: GIT_ENV });
+  execSync('git init -q -b main', { cwd: dir, env: GIT_ENV });
   execSync('git commit --allow-empty -m init -q', { cwd: dir, env: GIT_ENV });
+  // Branch guard: stage_begin/stage_end require work/<x>.
+  execSync('git checkout -q -b work/stage-tools-test', { cwd: dir, env: GIT_ENV });
 }
 
 describe('foundry_stage_begin', () => {
@@ -92,7 +94,11 @@ describe('foundry_stage_begin', () => {
   it('does not consume nonce when git rev-parse HEAD fails (no commits)', async () => {
     // Fresh repo with no commits — git rev-parse HEAD will fail.
     const noCommitDir = mkdtempSync(join(tmpdir(), 'foundry-nocommit-'));
-    execSync('git init -q', { cwd: noCommitDir, env: GIT_ENV });
+    execSync('git init -q -b main', { cwd: noCommitDir, env: GIT_ENV });
+    // Branch guard requires work/<x>; create an unborn work branch so the
+    // guard passes and we exercise the actual `git rev-parse HEAD` failure
+    // path inside stage_begin.
+    execSync('git checkout -q -b work/no-commits', { cwd: noCommitDir, env: GIT_ENV });
     try {
       const plugin = await FoundryPlugin({ directory: noCommitDir });
       const pending = plugin[Symbol.for('foundry.test.pending')];

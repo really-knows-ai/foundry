@@ -131,6 +131,25 @@ export function errorJson(err) {
 }
 
 /**
+ * Async IO contract consumed by the config-creators layer.
+ *
+ * The creators take an io with `exists, readFile, writeFile, mkdirp,
+ * readDir`. We reuse `makeIO`'s sync fs calls and wrap them in
+ * Promise-returning shims; `makeIO.mkdir` already passes
+ * `{ recursive: true }`, so it satisfies `mkdirp` semantics.
+ */
+export function makeAsyncIO(directory) {
+  const sync = makeIO(directory);
+  return {
+    exists: async (p) => sync.exists(p),
+    readFile: async (p) => sync.readFile(p),
+    writeFile: async (p, c) => sync.writeFile(p, c),
+    mkdirp: async (p) => sync.mkdir(p),
+    readDir: async (p) => { try { return sync.readDir(p); } catch { return []; } },
+  };
+}
+
+/**
  * Build the memory-vocabulary block for a cycle's dispatch prompt.
  * Returns '' on any error (memory not initialised, drifted, etc.) so that
  * flow dispatch never fails due to memory.

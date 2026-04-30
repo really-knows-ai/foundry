@@ -158,26 +158,36 @@ Check the project's `package.json` for `"type": "module"`:
 - If CommonJS (no `"type"` field or `"type": "commonjs"`): `require()` is fine, or use `.cjs` extension
 - When in doubt, use `.mjs` or `.cjs` extensions to be explicit regardless of project settings
 
-### 8. Scaffold
+### 8. Validate the draft
 
-Create the directory and files:
+Call `foundry_config_validate_artefact_type({ name: "<id>", body: "<full markdown>" })`.
 
-```
-foundry/artefacts/<id>/
-  definition.md      # always created
-  laws.md            # created if laws were defined
-  validation.md      # created if validation commands were defined
-```
+If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
 
-If laws or validation were skipped, do not create empty files.
+### 9. Create the file
 
-### 9. Confirm
+Call `foundry_config_create_artefact_type({ name: "<id>", body: "<full markdown>" })`. The tool:
 
-Show the user the complete file listing and contents. Confirm before writing.
+- re-validates the body (TOCTOU);
+- writes `foundry/artefacts/<id>/definition.md`;
+- produces one git commit on the current `config/*` branch.
+
+If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_artefact_type` does not support updates.
+
+Show the user the resulting commit hash from the response.
+
+### 10. Add laws and validation files (if defined)
+
+The create tool writes only `definition.md`. If you drafted any type-specific laws in step 5, append them to `foundry/artefacts/<id>/laws.md` by hand on this same `config/*` branch (use the `Edit` tool to create the file) and commit that as a separate microcommit.
+
+If you drafted validation commands in step 7, write `foundry/artefacts/<id>/validation.md` (and any companion validation script files) by hand and commit as a separate microcommit.
+
+### 11. Confirm
+
+Show the user the complete file listing and the commit hashes.
 
 ## What you do NOT do
 
 - You do not create artefact types with overlapping file patterns — this is a hard block
-- You do not write files without showing the user first
 - You do not skip the naming or glob checks
 - You do not create laws without checking for conflicts (delegate to add-law pattern)

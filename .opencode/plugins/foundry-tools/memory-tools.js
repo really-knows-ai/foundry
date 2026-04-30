@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process';
 import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../../scripts/lib/memory/writes.js';
 import { getEntity, listEntities, neighbours as memNeighbours } from '../../../scripts/lib/memory/reads.js';
 import { runQuery } from '../../../scripts/lib/memory/query.js';
@@ -6,8 +7,18 @@ import { search as memSearch } from '../../../scripts/lib/memory/search.js';
 import { withStore } from './memory-helpers.js';
 import { errorJson, makeIO } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+
+function makeBranchExec(cwd) {
+  return (argv) => execFileSync(argv[0], argv.slice(1), {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+function flowBranchGuard(_args, context) {
+  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+}
 
 export function createMemoryTools({ tool }) {
   return {
@@ -18,7 +29,7 @@ export function createMemoryTools({ tool }) {
         name: tool.schema.string().describe('Entity name (unique within type)'),
         value: tool.schema.string().describe('Free-text intrinsic description (≤4KB)'),
       },
-      execute: guarded('foundry_memory_put', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_memory_put', [flowBranchGuard, gateNotFailed], async (args, context) => {
         try {
           const { store, vocabulary, permissions, writeEmbedder, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEntityWrite(permissions, args.type)) {
@@ -40,7 +51,7 @@ export function createMemoryTools({ tool }) {
         to_type: tool.schema.string(),
         to_name: tool.schema.string(),
       },
-      execute: guarded('foundry_memory_relate', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_memory_relate', [flowBranchGuard, gateNotFailed], async (args, context) => {
         try {
           const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {
@@ -62,7 +73,7 @@ export function createMemoryTools({ tool }) {
         to_type: tool.schema.string(),
         to_name: tool.schema.string(),
       },
-      execute: guarded('foundry_memory_unrelate', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_memory_unrelate', [flowBranchGuard, gateNotFailed], async (args, context) => {
         try {
           const { store, vocabulary, permissions, syncIfOutOfCycle } = await withStore(context);
           if (permissions && !checkEdgeWrite(permissions, args.edge_type)) {

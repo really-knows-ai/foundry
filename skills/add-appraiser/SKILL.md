@@ -104,11 +104,25 @@ Iterate until the user is happy with the personality description. Key things to 
 - Does the description give the LLM enough direction to adopt a consistent voice?
 - Is it clear what this appraiser would flag vs let pass?
 
-### 6. Write the file
+### 6. Validate the draft
 
-Create `foundry/appraisers/<id>.md` with the agreed definition.
+Call `foundry_config_validate_appraiser({ name: "<id>", body: "<full markdown>" })`.
 
-### 7. Mention artefact type configuration
+If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
+
+### 7. Create the file
+
+Call `foundry_config_create_appraiser({ name: "<id>", body: "<full markdown>" })`. The tool:
+
+- re-validates the body (TOCTOU);
+- writes `foundry/appraisers/<id>.md`;
+- produces one git commit on the current `config/*` branch.
+
+If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_appraiser` does not support updates.
+
+Show the user the resulting commit hash from the response.
+
+### 8. Mention artefact type configuration
 
 After creating the appraiser, remind the user:
 
@@ -124,7 +138,6 @@ After creating the appraiser, remind the user:
 
 ## What you do NOT do
 
-- You do not write files without showing the user first
 - You do not skip the semantic overlap check
 - You do not modify artefact type definitions — that is the user's choice
 - You do not create appraisers with duplicate ids

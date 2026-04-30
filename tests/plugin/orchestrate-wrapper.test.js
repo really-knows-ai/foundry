@@ -67,8 +67,10 @@ function setupBasicCycle({ withMemoryRead = false } = {}) {
     join(root, 'WORK.md'),
     `---\nflow: f\ncycle: c\n---\n\n# Goal\n\ntest\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`,
   );
-  execSync('git init -q', { cwd: root, env: GIT_ENV });
+  execSync('git init -q -b main', { cwd: root, env: GIT_ENV });
   execSync('git add -A && git commit -q -m init', { cwd: root, env: GIT_ENV });
+  // Branch guard: foundry_orchestrate is flow-tier; need work/<x>.
+  execSync('git checkout -q -b work/orch-wrapper-test', { cwd: root, env: GIT_ENV });
   return root;
 }
 

@@ -1,14 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+
+const GIT_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
+  GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
+};
 
 function makeCtx(worktree) { return { worktree }; }
 
 function setupFoundry(validationBody) {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-validate-'));
+  // Branch guard: foundry_validate_run is flow-tier (it shells out).
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir, env: GIT_ENV });
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: dir, env: GIT_ENV });
+  execFileSync('git', ['checkout', '-q', '-b', 'work/validate-test'], { cwd: dir, env: GIT_ENV });
   const typeDir = join(dir, 'foundry', 'artefacts', 'doc');
   mkdirSync(typeDir, { recursive: true });
   writeFileSync(join(typeDir, 'definition.md'), '---\nid: doc\n---\nDoc type.\n');
@@ -153,6 +164,9 @@ test('foundry_validate_run runs multiple validations and reports each independen
 test('foundry_validate_run returns error when no validation defined', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-validate-'));
   try {
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir, env: GIT_ENV });
+    execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: dir, env: GIT_ENV });
+    execFileSync('git', ['checkout', '-q', '-b', 'work/validate-novalidation'], { cwd: dir, env: GIT_ENV });
     mkdirSync(join(dir, 'foundry', 'artefacts', 'doc'), { recursive: true });
     writeFileSync(join(dir, 'foundry', 'artefacts', 'doc', 'definition.md'), '---\nid: doc\n---\n');
     const plugin = await FoundryPlugin({ directory: dir });

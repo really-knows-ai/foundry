@@ -1,11 +1,22 @@
 import path from 'path';
+import { execFileSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../../scripts/lib/workfile.js';
 import { makeIO } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+
+function makeBranchExec(cwd) {
+  return (argv) => execFileSync(argv[0], argv.slice(1), {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+function flowBranchGuard(_args, context) {
+  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+}
 
 export function createWorkfileTools({ tool }) {
   return {
@@ -19,7 +30,7 @@ export function createWorkfileTools({ tool }) {
         goal: tool.schema.string().describe('Goal text'),
         models: tool.schema.string().optional().describe('Per-stage model overrides as JSON object, e.g. \'{"forge":"openai/gpt-4o"}\''),
       },
-      execute: guarded('foundry_workfile_create', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_workfile_create', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const guard = requireNoActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_create ${guard.error}` });
@@ -64,7 +75,10 @@ export function createWorkfileTools({ tool }) {
       args: {
         confirm: tool.schema.boolean().describe('Must be true to confirm deletion'),
       },
-      async execute(args, context) {
+      // Branch guard only: workfile_delete is the failed-flow escape hatch,
+      // so it must remain callable when WORK.md has status: failed (no
+      // notFailed gate).
+      execute: guarded('foundry_workfile_delete', [flowBranchGuard], async (args, context) => {
         const io = makeIO(context.worktree);
         const guard = requireNoActiveStage(io);
         if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_delete ${guard.error}` });
@@ -84,7 +98,7 @@ export function createWorkfileTools({ tool }) {
           unlinkSync(feedbackPath);
         }
         return JSON.stringify({ ok: true });
-      },
+      }),
     }),
   };
 }

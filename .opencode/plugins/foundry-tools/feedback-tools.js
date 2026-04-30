@@ -1,10 +1,21 @@
+import { execFileSync } from 'child_process';
 import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { makeIO } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+
+function makeBranchExec(cwd) {
+  return (argv) => execFileSync(argv[0], argv.slice(1), {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+function flowBranchGuard(_args, context) {
+  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+}
 
 function readCycle(io) {
   if (!io.exists('WORK.md')) return null;
@@ -34,7 +45,7 @@ export function createFeedbackTools({ tool }) {
         text: tool.schema.string().describe('Feedback text'),
         tag: tool.schema.string().describe('Tag for the feedback item'),
       },
-      execute: guarded('foundry_feedback_add', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_feedback_add', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_add');
         if (!pre.ok) return JSON.stringify({ error: pre.error });
@@ -78,7 +89,7 @@ export function createFeedbackTools({ tool }) {
       args: {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
       },
-      execute: guarded('foundry_feedback_action', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_feedback_action', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_action');
         if (!pre.ok) return JSON.stringify({ error: pre.error });
@@ -109,7 +120,7 @@ export function createFeedbackTools({ tool }) {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
         reason: tool.schema.string().describe('Reason for wont-fix'),
       },
-      execute: guarded('foundry_feedback_wontfix', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_feedback_wontfix', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_wontfix');
         if (!pre.ok) return JSON.stringify({ error: pre.error });
@@ -142,7 +153,7 @@ export function createFeedbackTools({ tool }) {
         resolution: tool.schema.enum(['approved', 'rejected']).describe('Resolution type'),
         reason: tool.schema.string().optional().describe('Reason (required if rejected, or for deadlock override)'),
       },
-      execute: guarded('foundry_feedback_resolve', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_feedback_resolve', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         const pre = preflight(io, 'foundry_feedback_resolve');
         if (!pre.ok) return JSON.stringify({ error: pre.error });

@@ -113,8 +113,10 @@ Generate docs.
   writeFileSync(join(root, '.gitignore'),
     'foundry/memory/memory.db\nfoundry/memory/memory.db-wal\nfoundry/memory/memory.db-shm\n');
 
-  execSync('git init -q', { cwd: root, env: GIT_ENV });
+  execSync('git init -q -b main', { cwd: root, env: GIT_ENV });
   execSync('git add -A && git commit -q -m init', { cwd: root, env: GIT_ENV });
+  // Branch guard: assay_run + orchestrate are flow-tier mutations.
+  execSync('git checkout -q -b work/assay-e2e-test', { cwd: root, env: GIT_ENV });
   return root;
 }
 

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { createHash } from 'node:crypto';
 import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage } from '../../../scripts/lib/state.js';
 import { verifyToken } from '../../../scripts/lib/token.js';
@@ -7,8 +7,18 @@ import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO } from './helpers.js';
 import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+
+function makeBranchExec(cwd) {
+  return (argv) => execFileSync(argv[0], argv.slice(1), {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+function flowBranchGuard(_args, context) {
+  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+}
 
 export function createStageTools({ tool, secret, pending }) {
   return {
@@ -19,7 +29,7 @@ export function createStageTools({ tool, secret, pending }) {
         cycle: tool.schema.string().describe('Cycle name'),
         token: tool.schema.string().describe('Token received from foundry_sort via the dispatch prompt'),
       },
-      execute: guarded('foundry_stage_begin', [gateNotFailed], async (args, context) => {
+      execute: guarded('foundry_stage_begin', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
         // Precondition: no active stage.
         const current = readActiveStage(io);
@@ -68,7 +78,10 @@ export function createStageTools({ tool, secret, pending }) {
       args: {
         summary: tool.schema.string().describe('Short summary of the work done'),
       },
-      async execute(args, context) {
+      // Branch guard only: stage_end must remain callable even when the
+      // workfile has flipped to failed (it flushes memory state and clears
+      // active-stage; not gating on failed lets cleanup paths complete).
+      execute: guarded('foundry_stage_end', [flowBranchGuard], async (args, context) => {
         const io = makeIO(context.worktree);
         const active = readActiveStage(io);
         if (!active) return JSON.stringify({ error: 'foundry_stage_end requires active stage; current: none' });
@@ -91,7 +104,7 @@ export function createStageTools({ tool, secret, pending }) {
           return JSON.stringify({ error: msg, flow_failed: true });
         }
         return JSON.stringify({ ok: true, summary: args.summary });
-      },
+      }),
     }),
   };
 }
