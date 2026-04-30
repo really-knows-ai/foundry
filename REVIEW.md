@@ -340,12 +340,16 @@ These break users or tools at runtime, or contradict shipped behaviour.
   citation as a read-only diagnostic — it is gated. (And the
   citation was lines 33–36; actual span at HEAD is lines 26–39.)
 
-- [ ] **B19. `docs/tools.md` "every mutating tool refuses on failed
-  flow" preamble overclaims.** Lines 26–31. `foundry_git_branch` and
-  `foundry_git_finish` are mutating but ungated. Either narrow the
-  preamble or list the git-tool exceptions explicitly. (And add a
-  "Not gated on failed flow" annotation to `foundry_git_branch:566`
-  and `foundry_git_finish:612` entries for symmetry — this was C3.)
+- [x] **B19. `docs/tools.md` "every mutating tool refuses on failed
+  flow" preamble overclaims.** Narrowed the preamble (former line 27)
+  from "every mutating tool refuses to run" to "the mutating tool
+  families refuse to run" and appended a sentence calling out
+  `foundry_git_branch` / `foundry_git_finish` as the self-classifying
+  exceptions whose ungating is the failed-flow recovery path. Added
+  "Not gated on failed flow" annotations to both per-tool blocks
+  (under Stage requirements) and extended the "Self-classifying"
+  bullet in the Branch requirements section to match. (Folds prior
+  C3.)
 
 ### Skill drift
 

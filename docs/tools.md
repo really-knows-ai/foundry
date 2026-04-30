@@ -23,15 +23,18 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - **Stage base**: stage aliases have the form `<base>:<cycle>` (e.g.
   `forge:create-haiku`). Some tools restrict to a particular base
   (`forge`, `quench`, `appraise`, `human-appraise`, `assay`).
-- **Failed flow**: when `WORK.md` frontmatter has `status: failed`, every
-  mutating tool refuses to run and returns an error prefixed with the
-  tool name. This covers work-branch FS writers, memory writers
+- **Failed flow**: when `WORK.md` frontmatter has `status: failed`,
+  the mutating tool families refuse to run and return an error prefixed
+  with the tool name. This covers work-branch FS writers, memory writers
   (data and admin alike — `memory_put`, `memory_reset`, `memory_drop_*`,
   `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`,
   `memory_change_embedding_model`), and the config-creator family
   (`foundry_config_create_artefact_type`, `foundry_config_create_law`,
   `foundry_config_create_appraiser`, `foundry_config_create_flow`,
-  `foundry_config_create_cycle`). Every read-only diagnostic remains
+  `foundry_config_create_cycle`). The two self-classifying git tools
+  — `foundry_git_branch` and `foundry_git_finish` — sit outside this
+  guard so the caller can still leave a failed flow's branch and run
+  `foundry_workfile_delete` from a clean namespace. Every read-only diagnostic remains
   callable so the caller can figure out what went wrong: the workfile
   reader (`foundry_workfile_get`), every list-type tool
   (`foundry_artefacts_list`, `foundry_feedback_list`,
@@ -82,8 +85,9 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
     failed-flow guard.
   - **Self-classifying**: `foundry_git_branch` (refuses based on
     `kind` and current branch) and `foundry_git_finish` (classifies
-    by current branch). They have their own branch logic and are
-    not gated by the family guards above.
+    by current branch). They have their own branch logic, are not
+    gated by the family guards above, and are not gated on failed
+    flow — leaving the failed branch is the recovery path.
 
   Off-namespace calls return a structured refusal envelope naming
   the required namespace and the current branch.
@@ -628,7 +632,9 @@ NDJSON files, may mark `WORK.md` failed.
 
 **Returns:** `{ ok: true, branch }`.
 
-**Stage requirements:** requires no active stage.
+**Stage requirements:** requires no active stage. Not gated on failed
+flow — callable while `WORK.md` has `status: failed` so the caller
+can branch away to recover.
 
 **Failure modes:**
 - Missing/invalid `kind` → typed error.
@@ -674,7 +680,9 @@ NDJSON files, may mark `WORK.md` failed.
   failed ...", branch }`. Worktree reset and checked back out to the
   source branch.
 
-**Stage requirements:** requires no active stage.
+**Stage requirements:** requires no active stage. Not gated on failed
+flow — callable while `WORK.md` has `status: failed`, including the
+`work` mode whose cleanup deletes the failed `WORK.md` outright.
 
 **Side effects (when confirmed):** see per-mode dispatch above.
 **Destructive in all three modes.**
