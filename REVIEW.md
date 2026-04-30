@@ -118,7 +118,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
 
 ### Documentation drift
 
-- [ ] **A7. README + tools.md tool-count claim is wrong.** Three
+- [x] **A7. README + tools.md tool-count claim is wrong.** Three
   README locations and `docs/tools.md:5` say "46 tools"; actual
   count is **60**. README:71, README:434, README:478, tools.md:5.
 
@@ -271,7 +271,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   requirements / Failure modes / Side effects. The 14 new tools
   break this template.
 
-- [ ] **B10. `docs/tools.md:1` header is stale.** "Generated from
+- [x] **B10. `docs/tools.md:1` header is stale.** "Generated from
   the v2.6.x public plugin API. … Total: 46 tools." Update to
   3.0.x and 60.
 

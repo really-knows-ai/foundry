@@ -1,8 +1,8 @@
 # Foundry Public Tool Reference
 
-Generated from the v2.6.x public plugin API. The authoritative tool set is
+Generated from the v3.0.x public plugin API. The authoritative tool set is
 enforced by `tests/plugin/tool-registration.test.js` — if that snapshot
-drifts, this doc must be updated. Total: **46 tools**.
+drifts, this doc must be updated. Total: **60 tools**.
 
 All tools accept arguments as a JSON object and return JSON-stringified
 results. Errors are returned as a stringified `{error: "..."}` object (not

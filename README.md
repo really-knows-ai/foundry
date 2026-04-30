@@ -68,7 +68,7 @@ OpenCode resolves plugins listed in `opencode.json` automatically — you typica
 }
 ```
 
-Then **restart OpenCode** (or reload plugins) so the new plugin registers its 46 tools and bundled skills.
+Then **restart OpenCode** (or reload plugins) so the new plugin registers its 60 tools and bundled skills.
 
 If you want the package locally for editor tooling, scripts, or to run `npm test` against the source, install it explicitly:
 
@@ -431,7 +431,7 @@ All authoring skills are interactive and conflict-aware — they explain what th
 
 ## Custom tools
 
-The plugin registers **46 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
+The plugin registers **60 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
 
 For per-tool args, return shapes, stage requirements, failure modes, and side effects, see the full reference at [`docs/tools.md`](./docs/tools.md). The category tables below are an index.
 
@@ -475,7 +475,7 @@ Tools are backed by shared modules in `scripts/lib/` (pipeline) and `scripts/lib
 @really-knows-ai/foundry
 ├── .opencode/
 │   └── plugins/
-│       └── foundry.js          # plugin: skills + 46 custom tools
+│       └── foundry.js          # plugin: skills + 60 custom tools
 ├── skills/                     # skill definitions
 │   ├── flow/                   # pipeline
 │   ├── orchestrate/
