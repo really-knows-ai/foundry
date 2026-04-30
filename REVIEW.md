@@ -2,7 +2,7 @@
 
 Generated: 2026-04-30
 Baseline: working tree clean, on `main`, 178 commits ahead of `origin/main`,
-`package.json` version `3.0.0`, **1037 tests passing** across 216 suites.
+`package.json` version `3.0.0`, **1036 tests passing** across 216 suites.
 
 This file is intentionally untracked. It supersedes the prior REVIEW.md
 (commits A–F sweeps for the v2.6→v2.7 work and the assay-feedback
@@ -202,16 +202,14 @@ These break users or tools at runtime, or contradict shipped behaviour.
 
 ### Code drift
 
-- [ ] **B1. `git-bridge.js` `extraAllowedPatterns` is dead in
+- [x] **B1. `git-bridge.js` `extraAllowedPatterns` is dead in
   production.** Phase 2 commit `db5bfa3` added the parameter
   documenting "memory init can stage both `foundry/**` and
   `foundry-memory/**` in one commit", but `scripts/lib/memory/admin/
   init.js` writes files and never commits, and `foundry_memory_init`
   doesn't either. Only the unit test in `tests/lib/git-bridge.
-  test.js:224` exercises it. Either wire `init.js` to call
-  `commitWithPolicy({ allowedPatterns: ['foundry/**'],
-  extraAllowedPatterns: ['foundry-memory/**'], execFile })`, or
-  remove the parameter and adjust the test.
+  test.js:224` exercises it. Resolved by removing the parameter
+  and its unit test (1037 → 1036 tests, 0 failing).
 
 - [ ] **B2. `config-create-tools.js` collapses structured
   `UnexpectedFilesError` to plain `{error: msg}`.** When the
@@ -654,9 +652,9 @@ gaps only:
   pattern drift** (A1). Added `tests/sort.test.js` case "allows
   foundry-memory/** and .foundry/** for assay stage".
 
-- [ ] **F3. No test confirming `extraAllowedPatterns` is wired into
-  `foundry_memory_init`** (B1). Add when fixing B1, or remove the
-  parameter and test together.
+- [x] **F3. No test confirming `extraAllowedPatterns` is wired into
+  `foundry_memory_init`** (B1). Resolved by removing the parameter
+  and its test together (see B1).
 
 - [ ] **F4. No test asserting that legacy `foundry/memory/relations/`
   layout is rejected / migrated.** If the project intends to forbid
@@ -700,11 +698,11 @@ Each line is one commit.
 ## Verification
 
 ```bash
-npm test         # 1035 tests passing, 0 failing (post-fix new baseline)
+npm test         # 1036 tests passing, 0 failing (post-B1 baseline)
 git status       # clean working tree
 ```
 
-Both must hold before moving on. A1, B1–B3 may shift the test count;
+Both must hold before moving on. B2–B3 may shift the test count;
 record the new baseline here when they do.
 
 ---
