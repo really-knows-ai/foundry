@@ -333,8 +333,13 @@ export function createGitTools({ tool }) {
           return refuse(`foundry_git_finish ${stageGuard.error}`);
 
         const cwd = context.worktree;
-        const branch = execFileSync('git', ['branch', '--show-current'],
-          { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
+        // Route through currentBranch() (same helper used by line 284 and
+        // by the branch guards). Raw `git branch --show-current` returns
+        // '' for both detached HEAD and unborn branches; currentBranch()
+        // distinguishes the two by falling back to symbolic-ref, so an
+        // unborn config/* HEAD is identified as a config branch instead
+        // of slipping into the catch-all 'other' refusal.
+        const branch = currentBranch({ exec: makeExec(cwd) });
         const kind = classifyBranch(branch);
 
         if (kind === 'dry-run') {

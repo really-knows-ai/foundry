@@ -218,7 +218,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   (`orchestrate-tool.js`) preserve `affected_files`. Drift in error
   envelope shape; downstream consumers can't recover the file list.
 
-- [ ] **B3. Two-source branch resolution in `git-tools.js`.**
+- [x] **B3. Two-source branch resolution in `git-tools.js`.**
   `git-tools.js:284` uses `currentBranch({ exec: ... })` (handles
   unborn HEAD + detached); `git-tools.js:336` uses raw
   `git branch --show-current` execFileSync, which returns `''` on
@@ -698,12 +698,11 @@ Each line is one commit.
 ## Verification
 
 ```bash
-npm test         # 1037 tests passing, 0 failing (post-B2 baseline)
+npm test         # 1038 tests passing, 0 failing (post-B3 baseline)
 git status       # clean working tree
 ```
 
-Both must hold before moving on. B2–B3 may shift the test count;
-record the new baseline here when they do.
+Both must hold before moving on.
 
 ---
 

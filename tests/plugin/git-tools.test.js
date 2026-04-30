@@ -426,3 +426,23 @@ test('foundry_git_branch kind=dry-run truncates existing trace file', async () =
     assert.equal(contents, '', `expected trace truncated, got: ${JSON.stringify(contents)}`);
   } finally { cleanup(dir); }
 });
+
+test('foundry_git_finish on detached HEAD names the branch state in its refusal', async () => {
+  // Regression for B3: branch resolution at the finish entry point used
+  // raw `git branch --show-current` which returns '' on detached HEAD.
+  // The refusal envelope must still surface the detached-HEAD state via
+  // currentBranch()'s null-fallback so the caller can act on it.
+  const dir = initRepo();
+  try {
+    // Detach from main onto the same commit.
+    execSync('git checkout --detach HEAD -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish', confirm: true }, makeCtx(dir),
+    ));
+    assert.ok(res.error, `expected refusal envelope, got ${JSON.stringify(res)}`);
+    assert.match(res.error, /detached HEAD/,
+      `expected 'detached HEAD' in error, got: ${res.error}`);
+  } finally { cleanup(dir); }
+});
