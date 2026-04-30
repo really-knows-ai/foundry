@@ -182,4 +182,19 @@ describe('foundry_stage_end', () => {
   });
 });
 
+describe('stage tool descriptions', () => {
+  it('do not reference the deregistered foundry_sort tool', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-stagedesc-'));
+    try {
+      initRepo(dir);
+      const plugin = await FoundryPlugin({ directory: dir });
+      const begin = plugin.tool.foundry_stage_begin.description;
+      const end = plugin.tool.foundry_stage_end.description;
+      assert.ok(!/foundry_sort/.test(begin), `foundry_stage_begin description still mentions foundry_sort: ${begin}`);
+      assert.ok(!/foundry_sort/.test(end), `foundry_stage_end description still mentions foundry_sort: ${end}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 

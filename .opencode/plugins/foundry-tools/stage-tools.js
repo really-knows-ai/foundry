@@ -23,11 +23,11 @@ function flowBranchGuard(_args, context) {
 export function createStageTools({ tool, secret, pending }) {
   return {
     foundry_stage_begin: tool({
-      description: 'Open a subagent work stage; consumes a dispatch token from foundry_sort.',
+      description: 'Open a subagent work stage; consumes a dispatch token from foundry_orchestrate.',
       args: {
         stage: tool.schema.string().describe('Stage alias, e.g. "forge:create-haiku"'),
         cycle: tool.schema.string().describe('Cycle name'),
-        token: tool.schema.string().describe('Token received from foundry_sort via the dispatch prompt'),
+        token: tool.schema.string().describe('Token received from foundry_orchestrate via the dispatch prompt'),
       },
       execute: guarded('foundry_stage_begin', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);

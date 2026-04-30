@@ -2,7 +2,7 @@
 
 Generated: 2026-04-30
 Baseline: working tree clean, on `main`, 178 commits ahead of `origin/main`,
-`package.json` version `3.0.0`, **1036 tests passing** across 215 suites.
+`package.json` version `3.0.0`, **1037 tests passing** across 216 suites.
 
 This file is intentionally untracked. It supersedes the prior REVIEW.md
 (commits A–F sweeps for the v2.6→v2.7 work and the assay-feedback
@@ -81,7 +81,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   effectively dead (then delete it). Add a regression test before
   fixing.
 
-- [ ] **A2. `.opencode/plugins/foundry-tools/stage-tools.js:26, 30`
+- [x] **A2. `.opencode/plugins/foundry-tools/stage-tools.js:26, 30`
   tool descriptions reference deleted `foundry_sort`.** Tool
   description: "Open a subagent work stage; consumes a dispatch token
   from `foundry_sort`". Token comes from `foundry_orchestrate` in
