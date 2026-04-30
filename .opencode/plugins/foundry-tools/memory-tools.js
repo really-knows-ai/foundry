@@ -5,7 +5,7 @@ import { runQuery } from '../../../scripts/lib/memory/query.js';
 import { checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../../scripts/lib/memory/permissions.js';
 import { search as memSearch } from '../../../scripts/lib/memory/search.js';
 import { withStore } from './memory-helpers.js';
-import { errorJson, makeIO } from './helpers.js';
+import { errorJson, makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
@@ -39,7 +39,7 @@ export function createMemoryTools({ tool }) {
           await syncIfOutOfCycle();
           return JSON.stringify({ ok: true });
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_memory_relate: tool({
@@ -61,7 +61,7 @@ export function createMemoryTools({ tool }) {
           await syncIfOutOfCycle();
           return JSON.stringify({ ok: true });
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_memory_unrelate: tool({
@@ -83,7 +83,7 @@ export function createMemoryTools({ tool }) {
           await syncIfOutOfCycle();
           return JSON.stringify({ ok: true });
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_memory_get: tool({

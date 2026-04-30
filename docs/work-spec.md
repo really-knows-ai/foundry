@@ -2,6 +2,25 @@
 
 WORK.md is created at the start of a foundry flow on a work branch. It is the shared state between all stages in all foundry cycles. It is transient — it exists only for the duration of the foundry flow.
 
+## Branch namespaces
+
+WORK.md and its sibling YAML files live on one of two branch kinds:
+
+- **`work/<flowId>-<description>`** — the standard flow run. Created
+  from `main`. Squash-merged to base on `foundry_git_finish`.
+- **`dry-run/<parentConfig>/<flowId>-<description>`** — a trial run
+  used to test in-progress config edits against a real flow. Created
+  from a `config/*` branch. On `foundry_git_finish`, the dry-run
+  branch is force-deleted and a forensic snapshot
+  (`README.md`, `work/WORK*`, `diff.patch`, `trace.jsonl`) is written
+  to `.snapshots/<run-id>/` on the parent `config/*` working tree.
+  No merge, no commit.
+
+WORK.md is identical on both kinds; the dispatching distinction is
+made entirely by `foundry_git_finish`. The third namespace,
+`config/<description>`, owns schema/config mutation and never carries
+WORK files.
+
 ## Frontmatter
 
 ```yaml

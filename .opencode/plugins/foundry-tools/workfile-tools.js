@@ -5,7 +5,7 @@ import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../../scripts/lib/workfile.js';
-import { makeIO } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
@@ -51,7 +51,7 @@ export function createWorkfileTools({ tool }) {
         const content = createWorkfile(fm, args.goal);
         writeFileSync(workPath, content, 'utf-8');
         return JSON.stringify({ ok: true });
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_workfile_get: tool({
@@ -98,7 +98,7 @@ export function createWorkfileTools({ tool }) {
           unlinkSync(feedbackPath);
         }
         return JSON.stringify({ ok: true });
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
 }

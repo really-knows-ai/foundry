@@ -5,7 +5,7 @@ import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { parseArtefactsTable, setArtefactStatus } from '../../../scripts/lib/artefacts.js';
-import { makeIO } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
@@ -42,7 +42,7 @@ export function createArtefactTools({ tool }) {
         } catch (e) {
           return JSON.stringify({ error: e.message });
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_artefacts_list: tool({

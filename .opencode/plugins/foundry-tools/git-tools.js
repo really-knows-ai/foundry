@@ -4,7 +4,9 @@ import { existsSync, unlinkSync } from 'fs';
 import { slugify } from '../../../scripts/lib/slug.js';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { currentBranch } from '../../../scripts/lib/branch-guard.js';
-import { makeIO } from './helpers.js';
+import { finishDryRun } from '../../../scripts/lib/snapshot/finish.js';
+import { truncateTrace } from '../../../scripts/lib/tracing.js';
+import { makeIO, asyncIoFactory } from './helpers.js';
 
 const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];
 
@@ -219,11 +221,35 @@ function finishConfigBranch({ configBranch, base, cwd, args }) {
   return JSON.stringify({ ok: true, hash, branch: base });
 }
 
-function finishDryRunStub() {
-  return JSON.stringify({
-    ok: false,
-    error: 'foundry_git_finish: dry-run finish not yet implemented (Phase 5).',
-  });
+async function finishDryRunBranch({ branch, args, cwd }) {
+  const io = asyncIoFactory({ worktree: cwd });
+  const exec = (argv) => execFileSync('git', argv,
+    { cwd, encoding: 'utf8', stdio: 'pipe' });
+
+  // Confirm gate (matches work/* and config/* preview semantics).
+  if (args.confirm !== true) {
+    return JSON.stringify({
+      ok: false,
+      error: 'foundry_git_finish requires {confirm: true} to perform destructive operations. Re-invoke with confirm:true to apply the plan.',
+      planned: {
+        branch,
+        action: 'snapshot + discard (dry-run finish)',
+        snapshotPath: '.snapshots/<runId> (computed at apply time)',
+      },
+    });
+  }
+
+  try {
+    const out = await finishDryRun({
+      message: args.message, branch, io, execFile: exec,
+    });
+    return JSON.stringify(out);
+  } catch (err) {
+    return JSON.stringify({
+      ok: false,
+      error: `foundry_git_finish: dry-run finish failed: ${err.message ?? String(err)}`,
+    });
+  }
 }
 
 export function createGitTools({ tool }) {
@@ -271,6 +297,18 @@ export function createGitTools({ tool }) {
           return refuse(`foundry_git_branch: failed to create branch ` +
                         `'${built.name}'.${stderr ? ' ' + stderr : ''}`);
         }
+
+        // Truncate any stale trace file when entering a dry-run branch.
+        // Must never break branch creation.
+        if (args.kind === KIND_DRY_RUN) {
+          try {
+            await truncateTrace({
+              branch: built.name,
+              io: asyncIoFactory({ worktree: context.worktree }),
+            });
+          } catch { /* swallow */ }
+        }
+
         return JSON.stringify({ ok: true, branch: built.name });
       },
     }),
@@ -280,7 +318,7 @@ export function createGitTools({ tool }) {
         'Finish the current foundry branch. ' +
         'work/<x>: squash-merge + WORK cleanup. ' +
         'config/<x>: squash-merge. ' +
-        'config/<x>/dry-run/<y>: snapshot + discard (Phase 5).',
+        'dry-run/<x>/<y>: snapshot + discard.',
       args: {
         message: tool.schema.string().describe('Squash merge / snapshot message'),
         baseBranch: tool.schema.string().optional()
@@ -306,7 +344,7 @@ export function createGitTools({ tool }) {
               'finish; the parent config branch is determined by the dry-run ' +
               'branch name.');
           }
-          return finishDryRunStub();
+          return finishDryRunBranch({ branch, args, cwd });
         }
 
         const base = args.baseBranch || 'main';
@@ -328,7 +366,7 @@ export function createGitTools({ tool }) {
 
         return refuse(
           `foundry_git_finish: nothing to finish on '${branch || 'detached HEAD'}' ` +
-          `(expected work/<x>, config/<x>, or config/<x>/dry-run/<y>).`);
+          `(expected work/<x>, config/<x>, or dry-run/<x>/<y>).`);
       },
     }),
   };

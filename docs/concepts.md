@@ -121,6 +121,36 @@ Human feedback is tagged `#human` and takes priority over LLM feedback on the sa
 
 Every stage ends with a commit made by the orchestrator. This enables two things: file-modification enforcement (the write-invariant check compares the stage's diff to its allowed patterns) and recoverability (a crash mid-flow leaves a clean commit boundary to resume from). Orchestration refuses to proceed if uncommitted work is lingering in `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, or `.foundry/`.
 
+## Branch namespaces
+
+Foundry partitions mutation across three disjoint branch kinds, and the
+plugin enforces the split at tool-call time.
+
+- **`config/<description>`** — schema and config mutation. Owns
+  `foundry/`. Created from `main` via
+  `foundry_git_branch({ kind: "config", description })`. The
+  `foundry_config_create_*`, `foundry_memory_create_*`,
+  `foundry_extractor_create`, and the schema-mutating memory admin
+  tools all refuse off this kind.
+- **`work/<flowId>-<description>`** — flow-data mutation. Owns
+  `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, and
+  `foundry-memory/` row data. Created from `main` via
+  `foundry_git_branch({ kind: "work", flowId, description })`. The
+  `foundry_orchestrate`, workfile, feedback, artefact-status,
+  assay/validate/appraisers-select, stage-begin/end, and
+  `foundry_memory_put`/`_relate`/`_unrelate` tools refuse off this
+  kind (and off dry-run, see below).
+- **`dry-run/<parentConfig>/<flowId>-<description>`** — trial run of
+  in-progress config against a real flow. Created from a `config/*`
+  branch via
+  `foundry_git_branch({ kind: "dry-run", flowId, description })`. Has
+  the same flow-data write permissions as `work/*`, but on
+  `foundry_git_finish` it writes a forensic snapshot
+  (`README.md`, `work/WORK*`, `diff.patch`, `trace.jsonl`) under
+  `.snapshots/<run-id>/` on the parent `config/*` working tree and
+  force-deletes the dry-run branch. No merge, no commit. The two
+  spaces stay deliberately disjoint.
+
 ## Stage token
 
 A single-use HMAC-signed string, minted by `foundry_orchestrate` when a stage is dispatched. The sub-agent must redeem the token via `foundry_stage_begin`; mutation tools then check the active stage matches their role. Keys live in `.foundry/.secret` (mode 0600, gitignored, one per worktree). This prevents out-of-band mutations, replayed stages, and sub-agents skipping the lifecycle.

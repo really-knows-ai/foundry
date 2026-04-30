@@ -24,7 +24,7 @@ import { validate as validateCycle } from '../../../scripts/lib/config-validator
 import { requireGitRepo, requireFoundryRoot } from '../../../scripts/lib/foundational-guards.js';
 import { requireOnConfigBranch } from '../../../scripts/lib/branch-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { makeIO, makeAsyncIO, errorJson } from './helpers.js';
+import { makeIO, makeAsyncIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 // --- guard helpers ---------------------------------------------------------
 
@@ -87,7 +87,7 @@ export function createConfigCreateTools({ tool }) {
         } catch (err) {
           return errorJson(err);
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     });
   }
 
@@ -103,7 +103,7 @@ export function createConfigCreateTools({ tool }) {
         } catch (err) {
           return errorJson(err);
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     });
   }
 

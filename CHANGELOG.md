@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-04-30
+
 ### Breaking changes
 
 - **`foundry_git_branch` requires explicit `kind`.** The previous
@@ -41,6 +43,26 @@
   `foundry_validate_run`, `foundry_appraisers_select`,
   `foundry_stage_begin`/`_end`, `foundry_memory_put`/`_relate`/
   `_unrelate`.
+- **Dry-run finish writes a forensic snapshot.** `foundry_git_finish`
+  on a `dry-run/<x>/<y>` branch now writes
+  `.snapshots/<run-id>/` on the parent `config/<x>` working tree
+  (containing `README.md`, `work/WORK*`, `diff.patch`, `trace.jsonl`)
+  and force-deletes the dry-run branch. No merge, no commit.
+  `baseBranch` remains invalid for this case.
+- **`.snapshots/` is a new gitignored top-level directory.** It
+  appears in projects only after the first dry-run finish. Snapshots
+  are local operator artefacts and never committed by foundry.
+- **Four new `foundry_snapshot_*` tools.** `foundry_snapshot_list`,
+  `_show`, `_delete`, `_prune` — for programmatic snapshot inspection
+  and cleanup. Allowed on every branch (foundational guards only).
+- **Verbose tool-call tracing on dry-run branches.** Every
+  `foundry_*` tool call (except `foundry_orchestrate` which uses
+  inline guards) appends a JSONL record to
+  `.foundry/trace/<branch-slug>.jsonl` while on a dry-run branch.
+  The trace is truncated when the dry-run branch is created and
+  copied into the snapshot at finish.
+- **New `dry-run` skill.** Documents the
+  config-edit → dry-run → finish → inspect-snapshot loop.
 
 - **Cycle frontmatter key renamed: `output:` → `output-type:`.** The cycle
   frontmatter key that names the produced artefact type is now

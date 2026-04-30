@@ -1,6 +1,6 @@
 import { execFileSync, execSync } from 'child_process';
 import { getValidation } from '../../../scripts/lib/config.js';
-import { makeIO } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
@@ -55,7 +55,7 @@ export function createValidateTools({ tool }) {
           }
         }
         return JSON.stringify(results);
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
 }

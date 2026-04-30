@@ -7,7 +7,7 @@ import { runAssay } from '../../../scripts/lib/assay/run.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../../scripts/lib/memory/writes.js';
 import { withStore } from './memory-helpers.js';
-import { makeIO, errorJson } from './helpers.js';
+import { makeIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
@@ -91,7 +91,7 @@ export function createAssayTools({ tool }) {
         } catch (err) {
           return errorJson(err);
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
 }

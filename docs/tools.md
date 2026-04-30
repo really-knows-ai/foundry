@@ -544,52 +544,124 @@ failed.
 
 ### `foundry_git_branch`
 
-> Create and checkout a work branch for a flow.
+> Create and checkout a branch in one of three namespaces.
 
 **Args:**
-- `flowId` (string, required).
-- `description` (string, required): Branch description suffix.
+- `kind` (string, required): one of `"config"`, `"work"`, `"dry-run"`.
+- `description` (string, required for all kinds): branch description
+  suffix.
+- `flowId` (string, required for `kind: "work"` and `kind: "dry-run"`;
+  invalid for `kind: "config"`).
 
-**Returns:** `{ ok: true, branch }` where `branch` is
-`work/<flow-slug>-<desc-slug>`.
+**Per-kind dispatch:**
+
+| `kind`     | required args                  | required starting branch       | resulting branch                                |
+| ---------- | ------------------------------ | ------------------------------ | ----------------------------------------------- |
+| `config`   | `description`                  | not `config/*`, not `work/*`   | `config/<desc-slug>`                            |
+| `work`     | `flowId`, `description`        | not `config/*`, not `work/*`   | `work/<flow-slug>-<desc-slug>`                  |
+| `dry-run`  | `flowId`, `description`        | `config/<parent>`              | `dry-run/<parent>/<flow-slug>-<desc-slug>`      |
+
+**Returns:** `{ ok: true, branch }`.
 
 **Stage requirements:** requires no active stage.
 
 **Failure modes:**
+- Missing/invalid `kind` → typed error.
+- Wrong starting branch for the requested kind → typed error.
+- `flowId` supplied with `kind: "config"`, or omitted with the other
+  kinds → typed error.
 - Active stage exists → `... requires no active stage; current: <stage>`.
 - `git checkout -b` failure (e.g. branch already exists, dirty state)
   returns `{ error: "foundry_git_branch: failed to create branch '<branch>'. <git stderr>" }`.
 
-**Side effects:** runs `git checkout -b` in the worktree.
+**Side effects:** runs `git checkout -b` in the worktree. For
+`kind: "dry-run"`, also truncates `.foundry/trace/<branch-slug>.jsonl`.
 
 ### `foundry_git_finish`
 
-> Clean up work files, squash-merge to the base branch, and delete the
-> work branch (requires `confirm:true`).
+> Three-mode dispatch keyed on the current branch prefix. Cleans up,
+> integrates, or snapshots — depending on which namespace the branch
+> belongs to (requires `confirm:true`).
 
 **Args:**
-- `message` (string, required): Squash-merge commit message.
-- `baseBranch` (string, optional): Default `main`.
-- `confirm` (boolean, optional): Must be `true` to perform destructive
+- `message` (string, required): commit / snapshot message.
+- `baseBranch` (string, optional): default `main`. Invalid for
+  `dry-run/*/*` (the parent is encoded in the branch name).
+- `confirm` (boolean, optional): must be `true` to perform destructive
   operations; otherwise returns a plan.
+
+**Per-mode dispatch:**
+
+| current branch       | mode      | what happens                                                                                                                              |
+| -------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `work/<x>`           | work      | deletes WORK files, commits cleanup, squash-merges to `baseBranch`, force-deletes the work branch.                                       |
+| `config/<x>`         | config    | squash-merges to `baseBranch`, force-deletes the config branch. No WORK cleanup.                                                          |
+| `dry-run/<x>/<y>`    | dry-run   | writes `.snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}` on the parent `config/<x>` working tree; force-deletes the dry-run branch. No merge, no commit. |
+| anything else        | refused   | `{ ok: false, error: "... nothing to finish ..." }`.                                                                                      |
 
 **Returns:**
 - Plan (when `confirm` is not true): `{ ok: false, error: "...
-  requires {confirm: true}...", planned: { workBranch, baseBranch,
-  filesToDelete, action, commitMessage } }`.
-- No-op (already on base): `{ ok: true, noop: true, message, branch }`.
-- Success: `{ ok: true, hash, branch }`.
-- Dirty worktree: `{ ok: false, error, dirty: [...] }`.
-- Conflict: `{ ok: false, error: "... squash merge failed (likely a
-  conflict). Work branch '<branch>' preserved...." }`. Worktree is reset
-  to HEAD and checked back out to the work branch.
+  requires {confirm: true}...", planned: { ... } }`.
+- Work / config success: `{ ok: true, hash, branch }`.
+- Dry-run success: `{ ok: true, snapshotId, snapshotPath, branch }`.
+- Dirty worktree (work / config): `{ ok: false, error, dirty: [...] }`.
+- Conflict (work / config): `{ ok: false, error: "... squash merge
+  failed ...", branch }`. Worktree reset and checked back out to the
+  source branch.
 
 **Stage requirements:** requires no active stage.
 
-**Side effects (when confirmed):** deletes `WORK.md`,
-`WORK.history.yaml`, `WORK.feedback.yaml` if present; commits cleanup;
-checks out base; squash-merges the work branch; commits; force-deletes
-the work branch. **Destructive.**
+**Side effects (when confirmed):** see per-mode dispatch above.
+**Destructive in all three modes.**
+
+---
+
+## Config — Schema mutation
+
+These five tools each create one named config artefact and produce a
+single git commit on the current `config/*` branch. All five refuse
+off `config/*`. Each is paired with a read-only `_validate_*` form that
+runs the same schema checks without writing.
+
+| tool                                     | creates                          | required `target`                                       |
+| ---------------------------------------- | -------------------------------- | ------------------------------------------------------- |
+| `foundry_config_create_artefact_type`    | `foundry/artefacts/<typeId>/`    | `{ typeId }`                                            |
+| `foundry_config_create_law`              | a law markdown file              | `{ kind: "global", file }` or `{ kind: "type-specific", typeId }` |
+| `foundry_config_create_appraiser`        | `foundry/appraisers/<id>.md`     | `{ id }`                                                |
+| `foundry_config_create_flow`             | `foundry/flows/<flowId>/`        | `{ flowId }`                                            |
+| `foundry_config_create_cycle`            | `foundry/flows/<flowId>/cycles/<cycleId>.md` | `{ flowId, cycleId }`                       |
+
+Common args: `name`, `body` (markdown), `target` (per the table above).
+Returns `{ ok: true, hash, path }` on success;
+`{ ok: false, errors: [...] }` on validation or TOCTOU failure.
+Updates (editing existing files) are not yet exposed as MCP tools;
+operators edit by hand on the current `config/*` branch.
+
+| tool                                       | what it does                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `foundry_config_validate_artefact_type`    | runs the artefact-type schema check on a candidate body, writes nothing. |
+| `foundry_config_validate_law`              | runs the law schema check on a candidate body, writes nothing.            |
+| `foundry_config_validate_appraiser`        | runs the appraiser schema check, writes nothing.                          |
+| `foundry_config_validate_flow`             | runs the flow schema check, writes nothing.                               |
+| `foundry_config_validate_cycle`            | runs the cycle schema check (including memory permissions, target validity), writes nothing. |
+
+Returns `{ ok: true }` or `{ ok: false, errors: [...] }`. Callable on
+any branch.
+
+---
+
+## Snapshots
+
+Forensic artefacts of dry-run finishes. Stored under `.snapshots/`
+(gitignored). All four tools are foundational and callable on every
+branch.
+
+| tool                       | purpose                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| `foundry_snapshot_list`    | list snapshots — returns `[{ id, branch, parentConfig, createdAt, size }]`.          |
+| `foundry_snapshot_show`    | read snapshot contents — args `{ id }`, returns `{ readme, work, diff, trace }`.     |
+| `foundry_snapshot_delete`  | delete a snapshot — args `{ id, confirm: true }`.                                    |
+| `foundry_snapshot_prune`   | bulk-delete by age or count — args `{ olderThanDays?, keepLast?, confirm: true }`.   |
 
 ---
 

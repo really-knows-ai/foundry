@@ -2,8 +2,8 @@
 
 import path from 'path';
 import fs from 'fs';
-import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, renameSync } from 'fs';
-import { execSync } from 'child_process';
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, renameSync, rmSync } from 'fs';
+import { execSync, execFileSync } from 'child_process';
 import { getCycleDefinition } from '../../../scripts/lib/config.js';
 import { getOrOpenStore, getContext } from '../../../scripts/lib/memory/singleton.js';
 import { resolvePermissions } from '../../../scripts/lib/memory/permissions.js';
@@ -112,6 +112,37 @@ export function makeIO(directory) {
   };
 }
 
+/**
+ * Factory used by guarded() to resolve the current branch.
+ * Returns an object exposing `exec(argv: string[]) => string` (stdout).
+ */
+export function branchIoFactory(context) {
+  const cwd = context.worktree;
+  return {
+    exec: (argv) => execFileSync(argv[0], argv.slice(1),
+      { cwd, encoding: 'utf8', stdio: 'pipe' }),
+  };
+}
+
+/**
+ * Factory used by guarded() for tracing IO. Returns the existing
+ * async IO shape (mkdirp/exists/readFile/writeFile) plus an
+ * `appendFile` for trace appends.
+ */
+export function asyncIoFactory(context) {
+  const sync = makeIO(context.worktree);
+  return {
+    exists: async (p) => sync.exists(p),
+    readFile: async (p) => sync.readFile(p),
+    writeFile: async (p, c) => sync.writeFile(p, c),
+    mkdirp: async (p) => sync.mkdir(p),
+    appendFile: async (p, c) => {
+      const existing = sync.exists(p) ? sync.readFile(p) : '';
+      sync.writeFile(p, existing + c);
+    },
+  };
+}
+
 export function makeMemoryIO(directory) {
   // Memory modules use await on every I/O op. Wrap sync fs calls in Promise-returning shims.
   const sync = makeIO(directory);
@@ -140,12 +171,21 @@ export function errorJson(err) {
  */
 export function makeAsyncIO(directory) {
   const sync = makeIO(directory);
+  const resolve = (p) => path.isAbsolute(p) ? p : path.join(directory, p);
   return {
     exists: async (p) => sync.exists(p),
     readFile: async (p) => sync.readFile(p),
     writeFile: async (p, c) => sync.writeFile(p, c),
     mkdirp: async (p) => sync.mkdir(p),
     readDir: async (p) => { try { return sync.readDir(p); } catch { return []; } },
+    // `readdir` (lowercase) alias matching the snapshot inspect.js contract.
+    readdir: async (p) => { try { return sync.readDir(p); } catch { return []; } },
+    rm: async (p, opts = {}) => {
+      const full = resolve(p);
+      if (existsSync(full)) {
+        rmSync(full, { recursive: !!opts.recursive, force: true });
+      }
+    },
   };
 }
 

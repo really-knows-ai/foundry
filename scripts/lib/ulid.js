@@ -76,3 +76,24 @@ export function createUlidGenerator() {
 // Default shared generator — preserves ergonomic `import { ulid }` usage.
 // Tests that need deterministic, isolated state should call createUlidGenerator().
 export const ulid = createUlidGenerator();
+
+/**
+ * Reverses encodeTime — first 10 chars of a ULID encode 48-bit ms since epoch.
+ * Returns the integer ms. Throws if any of the first 10 chars is not in the
+ * Crockford alphabet.
+ *
+ * @param {string} id ULID string (only first 10 chars are inspected).
+ * @returns {number} milliseconds since epoch.
+ */
+export function decodeUlidTime(id) {
+  let time = 0;
+  for (let i = 0; i < 10; i++) {
+    const ch = id[i];
+    const idx = ALPHABET.indexOf(ch);
+    if (idx === -1) {
+      throw new Error(`decodeUlidTime: invalid Crockford base32 char '${ch}' at position ${i}`);
+    }
+    time = time * 32 + idx;
+  }
+  return time;
+}

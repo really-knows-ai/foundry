@@ -4,7 +4,7 @@ import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
-import { makeIO } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
@@ -81,7 +81,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_add: ${err.message}` });
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_feedback_action: tool({
@@ -111,7 +111,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_action: ${err.message}` });
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_feedback_wontfix: tool({
@@ -143,7 +143,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_wontfix: ${err.message}` });
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_feedback_resolve: tool({
@@ -181,7 +181,7 @@ export function createFeedbackTools({ tool }) {
         } catch (err) {
           return JSON.stringify({ error: `foundry_feedback_resolve: ${err.message}` });
         }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_feedback_list: tool({

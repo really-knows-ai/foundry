@@ -16,7 +16,7 @@ import { initMemory as admInitMemory } from '../../../scripts/lib/memory/admin/i
 import { loadMemoryConfig, writeMemoryConfig } from '../../../scripts/lib/memory/config.js';
 import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../../scripts/lib/memory/embeddings.js';
 import { withStore } from './memory-helpers.js';
-import { makeMemoryIO, makeIO, errorJson } from './helpers.js';
+import { makeMemoryIO, makeIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { requireOnConfigBranch } from '../../../scripts/lib/branch-guard.js';
 import { guarded } from '../../../scripts/lib/guards.js';
@@ -70,7 +70,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admCreateEntity({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_extractor_create: tool({
       description: 'Create a new extractor definition under foundry/memory/extractors/.',
@@ -87,7 +87,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admCreateExtractor({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_create_edge_type: tool({
       description: 'Create a new edge type.',
@@ -103,7 +103,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admCreateEdge({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_rename_entity_type: tool({
       description: 'Rename an entity type and cascade updates to edges and rows.',
@@ -114,7 +114,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admRenameEntity({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_rename_edge_type: tool({
       description: 'Rename an edge type.',
@@ -125,7 +125,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admRenameEdge({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_drop_entity_type: tool({
       description:
@@ -137,7 +137,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admDropEntity({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_drop_edge_type: tool({
       description:
@@ -149,7 +149,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admDropEdge({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_reset: tool({
       description: 'Destructive. Purge all memory data (keeps type definitions). Requires confirm: true.',
@@ -160,7 +160,7 @@ export function createMemoryAdminTools({ tool }) {
           const out = await admReset({ worktreeRoot: context.worktree, io, ...args });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_validate: tool({
       description: 'Run load-time and drift checks; returns a report.',
@@ -189,7 +189,7 @@ export function createMemoryAdminTools({ tool }) {
           });
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_dump: tool({
       description: 'Human-readable snapshot of memory. Optional type + name.',
@@ -214,7 +214,7 @@ export function createMemoryAdminTools({ tool }) {
           const { store } = await withStore(context);
           return JSON.stringify(await admVacuum({ store }));
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_memory_change_embedding_model: tool({
       description: 'Swap the embedding model and re-embed all existing entities.',
@@ -259,7 +259,7 @@ export function createMemoryAdminTools({ tool }) {
           await writeMemoryConfig('foundry', { embeddings: newConfig }, io);
           return JSON.stringify(out);
         } catch (err) { return errorJson(err); }
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
 }

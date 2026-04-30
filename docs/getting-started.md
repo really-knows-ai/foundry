@@ -163,6 +163,33 @@ Every stage ends with a micro-commit. Violations of the write invariant (writing
 
 ---
 
+## Trial config edits with dry-run
+
+When you've changed a law, an appraiser, or a cycle on a `config/*`
+branch and want to see how the change behaves end-to-end before
+merging, use dry-run mode.
+
+```text
+# starting on a config/* branch with the in-progress edit
+foundry_git_branch({ kind: "dry-run", flowId: "make-haiku",
+                     description: "stricter-imagery-law" })
+# now on dry-run/<parent>/make-haiku-stricter-imagery-law
+
+# run the flow as you normally would
+# every foundry_* call is traced to .foundry/trace/<branch>.jsonl
+
+foundry_git_finish({ message: "trial: stricter imagery law", confirm: true })
+# writes .snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}
+# on the parent config/* working tree and force-deletes the dry-run branch
+```
+
+Inspect the snapshot at `.snapshots/<run-id>/`, decide whether to keep
+the config edit, and either commit/merge from the parent `config/*`
+branch or revise and trial again. Snapshots are local artefacts and
+never committed by foundry. See the `dry-run` skill for the full loop.
+
+---
+
 ## Inspecting progress
 
 While a flow is running, the state of the world is in three places:

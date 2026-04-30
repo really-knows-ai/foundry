@@ -4,7 +4,7 @@ import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage } f
 import { verifyToken } from '../../../scripts/lib/token.js';
 import { getContext } from '../../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
-import { makeIO, makeMemoryIO } from './helpers.js';
+import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
@@ -70,7 +70,7 @@ export function createStageTools({ tool, secret, pending }) {
         };
         writeActiveStage(io, active);
         return JSON.stringify({ ok: true, active });
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_stage_end: tool({
@@ -104,7 +104,7 @@ export function createStageTools({ tool, secret, pending }) {
           return JSON.stringify({ error: msg, flow_failed: true });
         }
         return JSON.stringify({ ok: true, summary: args.summary });
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
 }

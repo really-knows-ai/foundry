@@ -1,7 +1,7 @@
 // tests/lib/ulid.test.js
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { ulid, createUlidGenerator } from '../../scripts/lib/ulid.js';
+import { ulid, createUlidGenerator, decodeUlidTime } from '../../scripts/lib/ulid.js';
 
 describe('ulid', () => {
   test('returns a 26-character string', () => {
@@ -39,6 +39,19 @@ describe('ulid', () => {
     // First 10 chars = timestamp component; should match across calls with same ts.
     const id2 = gen(1700000000000);
     assert.equal(id.slice(0, 10), id2.slice(0, 10));
+  });
+
+  test('decodeUlidTime round-trips with ulid(now)', () => {
+    const gen = createUlidGenerator();
+    for (const t of [0, 1, 1000, 1700000000000]) {
+      const id = gen(t);
+      assert.equal(decodeUlidTime(id), t);
+    }
+  });
+
+  test('decodeUlidTime throws on invalid character', () => {
+    // 'I' is not in the Crockford alphabet.
+    assert.throws(() => decodeUlidTime('IIIIIIIIIIXXXXXXXXXXXXXXXX'), /invalid Crockford/);
   });
 
   test('createUlidGenerator instances are independent (no shared state)', () => {

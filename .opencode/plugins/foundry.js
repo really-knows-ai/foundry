@@ -27,6 +27,7 @@ import { createAssayTools } from './foundry-tools/assay-tools.js';
 import { createAppraiserTools } from './foundry-tools/appraiser-tools.js';
 import { createMemoryTools } from './foundry-tools/memory-tools.js';
 import { createMemoryAdminTools } from './foundry-tools/memory-admin-tools.js';
+import { createSnapshotTools } from './foundry-tools/snapshot-tools.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -82,6 +83,7 @@ export const FoundryPlugin = async ({ directory }) => {
       ...createAppraiserTools({ tool }),
       ...createMemoryTools({ tool }),
       ...createMemoryAdminTools({ tool }),
+      ...createSnapshotTools({ tool }),
     },
   };
 

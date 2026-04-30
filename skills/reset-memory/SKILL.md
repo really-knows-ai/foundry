@@ -22,7 +22,7 @@ Before running this skill, verify all of the following:
 
 2. The current git branch is a `config/*` branch. Run
    `git rev-parse --abbrev-ref HEAD` and confirm it matches
-   `config/<description>` (a single segment, not `config/.../dry-run/...`).
+   `config/<description>`.
 
 3. If the branch does not start with `config/`, instruct the user to
    create one before continuing:
@@ -34,7 +34,7 @@ Before running this skill, verify all of the following:
    >
    > Then re-run this skill.
 
-   If the user is on a `config/*/dry-run/*` branch, they must finish
+   If the user is on a `dry-run/*/*` branch, they must finish
    that dry-run first (`foundry_git_finish({ message, confirm: true })`)
    before re-running this skill on the parent `config/*`.
 

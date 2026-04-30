@@ -91,6 +91,16 @@ That step is optional — OpenCode does not require it.
 7. **Define a flow** — `add-flow` groups cycles and declares entry points.
 8. **Run** — invoke the `flow` skill with your goal. It creates a work branch, picks the right cycle, and hands off to `orchestrate`.
 
+> **Branch namespaces.** Foundry partitions mutation across three branch
+> kinds. First-time config edits start with
+> `foundry_git_branch({ kind: "config", description: "<short-name>" })`
+> from `main` and may modify `foundry/`. Flow runs use
+> `foundry_git_branch({ kind: "work", flowId, description })` and may
+> modify WORK files and `foundry-memory/`. Trial in-progress config
+> against a real flow run via dry-run mode
+> (`foundry_git_branch({ kind: "dry-run", flowId, description })` from
+> a `config/*` branch); see the `dry-run` skill.
+
 ---
 
 ## How it works

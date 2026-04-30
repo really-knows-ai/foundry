@@ -404,3 +404,25 @@ test('foundry_git_branch: refuses kind="config" while on a dry-run branch', asyn
     assert.match(r.error, /cannot nest deeper/);
   } finally { cleanup(dir); }
 });
+
+test('foundry_git_branch kind=dry-run truncates existing trace file', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/foo -q', { cwd: dir, env: GIT_ENV });
+    // Seed a leftover trace from a prior dry-run with the same target slug.
+    const traceDir = join(dir, '.foundry', 'trace');
+    execSync(`mkdir -p "${traceDir}"`, { cwd: dir });
+    const tracePath = join(traceDir, 'dry-run-foo-flow-x.jsonl');
+    writeFileSync(tracePath, 'leftover line\n');
+
+    const r = await callBranch(dir, {
+      kind: 'dry-run', flowId: 'flow', description: 'x',
+    });
+    assert.equal(r.ok, true, r.error);
+    assert.equal(r.branch, 'dry-run/foo/flow-x');
+
+    const { readFileSync } = await import('node:fs');
+    const contents = readFileSync(tracePath, 'utf-8');
+    assert.equal(contents, '', `expected trace truncated, got: ${JSON.stringify(contents)}`);
+  } finally { cleanup(dir); }
+});

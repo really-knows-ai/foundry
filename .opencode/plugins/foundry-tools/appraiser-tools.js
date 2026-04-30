@@ -1,6 +1,6 @@
 import { execFileSync } from 'child_process';
 import { selectAppraisers } from '../../../scripts/lib/config.js';
-import { makeIO } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
@@ -32,7 +32,7 @@ export function createAppraiserTools({ tool }) {
           ? await selectAppraisers('foundry', args.typeId, args.count, io)
           : await selectAppraisers('foundry', args.typeId, io);
         return JSON.stringify(result);
-      }),
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
 }

@@ -88,16 +88,34 @@ test('foundry_git_finish on config/foo: refuses dirty tree even with confirm', a
   }
 });
 
-test('foundry_git_finish on dry-run/foo/bar-baz: stubbed (Phase 5)', async () => {
+test('foundry_git_finish on dry-run/foo/bar-baz: snapshots and discards', async () => {
   const dir = initRepo();
   try {
     execSync('git checkout -b config/foo -q', { cwd: dir, env: GIT_ENV });
-    execSync('git commit --allow-empty -m noop -q', { cwd: dir, env: GIT_ENV });
     execSync('git checkout -b dry-run/foo/bar-baz -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'WORK.md'),
+      '---\nflow: x\ngoal: g\nstatus: done\n---\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    const r = await callFinish(dir, { message: 'try', confirm: true });
-    assert.equal(r.ok, false);
-    assert.match(r.error, /dry-run finish not yet implemented/);
+    // Preview without confirm.
+    const preview = await callFinish(dir, { message: 'tested it' });
+    assert.equal(preview.ok, false);
+    assert.match(preview.error, /requires \{confirm: true\}/);
+
+    // Apply.
+    const r = await callFinish(dir, { message: 'tested it', confirm: true });
+    assert.equal(r.ok, true, r.error);
+    assert.equal(r.branch, 'config/foo');
+    assert.match(r.runId, /^dry-run-foo-bar-baz-[0-9A-HJKMNP-TV-Z]{26}$/);
+    assert.ok(existsSync(join(dir, r.snapshotPath, 'README.md')));
+    assert.ok(existsSync(join(dir, r.snapshotPath, 'work', 'WORK.md')));
+    assert.ok(existsSync(join(dir, r.snapshotPath, 'diff.patch')));
+    assert.ok(existsSync(join(dir, r.snapshotPath, 'trace.jsonl')));
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(!branches.includes('dry-run/foo/bar-baz'));
+    const cur = execSync('git branch --show-current',
+      { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(cur, 'config/foo');
   } finally {
     cleanup(dir);
   }
