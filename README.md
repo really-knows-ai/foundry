@@ -324,15 +324,17 @@ Foundry ships an optional, typed, graph-shaped memory store that persists across
 Scaffold it with the `init-memory` skill:
 
 ```
-foundry/memory/
-├── config.md                 # frontmatter: enabled, validation, embeddings
-├── schema.json               # canonicalised derivation of the vocabulary
-├── entities/<type>.md        # prose brief per entity type (LLM-facing)
-├── edges/<name>.md           # frontmatter (sources/targets) + prose brief
-├── relations/<type>.ndjson   # committed row data
-├── memory.db                 # live Cozo 0.7 store (gitignored)
-├── memory.db-wal             # (gitignored)
-└── memory.db-shm             # (gitignored)
+foundry/memory/                # config (committed)
+├── config.md                  # frontmatter: enabled, validation, embeddings
+├── schema.json                # canonicalised derivation of the vocabulary
+├── entities/<type>.md         # prose brief per entity type (LLM-facing)
+├── edges/<name>.md            # frontmatter (sources/targets) + prose brief
+├── memory.db                  # live Cozo 0.7 store (gitignored)
+├── memory.db-wal              # (gitignored)
+└── memory.db-shm              # (gitignored)
+
+foundry-memory/                # row data (committed; top-level sibling of foundry/)
+└── relations/<type>.ndjson    # one line per row, source of truth for memory contents
 ```
 
 ### Model
@@ -358,7 +360,7 @@ memory:
 - `foundry_memory_query` rejects Datalog that references `ent_*` / `edge_*` relations outside the read set.
 - A cycle with no `memory:` block sees no memory tools — injection no-ops.
 
-Writes are persisted to `relations/<type>.ndjson` so knowledge is committed alongside artefacts and survives across flows.
+Writes are persisted to `foundry-memory/relations/<type>.ndjson` so knowledge is committed alongside artefacts and survives across flows.
 
 ### Semantic search (optional)
 
@@ -558,13 +560,14 @@ your-project/
 │   │       └── validation.md   # optional
 │   ├── laws/                   # global laws
 │   ├── appraisers/             # appraiser personalities
-│   └── memory/                 # optional flow memory (init-memory)
+│   └── memory/                 # optional flow memory config (init-memory)
 │       ├── config.md
 │       ├── schema.json
 │       ├── entities/<type>.md
 │       ├── edges/<name>.md
-│       ├── relations/<type>.ndjson
 │       └── memory.db*          # gitignored
+├── foundry-memory/             # flow memory row data (top-level sibling)
+│   └── relations/<type>.ndjson
 ├── .foundry/                   # runtime state (gitignored)
 │   └── .secret                 # per-worktree HMAC key (mode 0600)
 ├── .opencode/

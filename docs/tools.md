@@ -164,7 +164,7 @@ failed.
 
 **Side effects:** writes `.foundry/last-stage.json`, clears
 `.foundry/active-stage.json`, flushes any pending memory writes to
-`foundry/memory/{entities,edges}/*.ndjson`. May mark `WORK.md` as
+`foundry-memory/relations/<name>.ndjson`. May mark `WORK.md` as
 `status: failed` on sync failure.
 
 ### `foundry_orchestrate`

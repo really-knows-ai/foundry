@@ -137,7 +137,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   feedback on abort`. Should say "marks the workfile failed on
   abort". (F4.)
 
-- [ ] **A11. README + concepts.md memory layout trees nest
+- [x] **A11. README + concepts.md memory layout trees nest
   `relations/` under `foundry/memory/`.** README.md:325–337,
   README.md:362, README.md:567, concepts.md:281,
   getting-started.md:222, getting-started.md:234, tools.md:167.

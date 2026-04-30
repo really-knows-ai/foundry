@@ -219,7 +219,7 @@ Foundry ships a typed, graph-shaped memory store that persists across cycles. It
 
 Run the `init-memory` skill. It asks whether to enable embeddings (default: yes, targeting local Ollama `nomic-embed-text` on `http://localhost:11434/v1`) and then invokes `foundry_memory_init`, which deterministically:
 
-- creates `foundry/memory/entities/`, `edges/`, and `relations/` (each with `.gitkeep`),
+- creates `foundry/memory/entities/` and `edges/` (each with `.gitkeep`) plus the top-level sibling `foundry-memory/relations/` for committed row data,
 - writes `foundry/memory/config.md` (frontmatter driven by your embeddings choice) and `foundry/memory/schema.json`,
 - appends `foundry/memory/memory.db*` entries to `.gitignore` (idempotent),
 - probes the embedding provider if enabled; if the probe fails, the skill offers three remedies (install/start Ollama, point at a different OpenAI-compatible endpoint, or disable embeddings).
@@ -231,7 +231,7 @@ Two concepts: **entity types** (things memory knows about, e.g. `class`, `method
 - `add-memory-entity-type` — name + prose body (naming convention, what `value` should contain, likely related edges). The body is injected into the prompt of every cycle that reads/writes this type, so write it for an LLM reader.
 - `add-memory-edge-type` — name, `sources` (list of entity types or `any`), `targets` (list or `any`), and a prose body that describes **when** the edge holds and **what it does not cover**.
 
-Both skills commit their work. The vocabulary lives in `foundry/memory/entities/` and `foundry/memory/edges/`; committed row data lives in `foundry/memory/relations/<name>.ndjson`.
+Both skills commit their work. The vocabulary lives in `foundry/memory/entities/` and `foundry/memory/edges/`; committed row data lives in the top-level sibling `foundry-memory/relations/<name>.ndjson`.
 
 ### Give cycles memory permissions
 
