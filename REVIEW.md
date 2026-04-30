@@ -189,7 +189,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   user-facing doc gap for the release. (Was C9 in prior review;
   severity escalated since polarity flipped.)
 
-- [ ] **A17. `skills/init-memory/SKILL.md` writes/`git add`s do not
+- [x] **A17. `skills/init-memory/SKILL.md` writes/`git add`s do not
   reflect the foundry-memory/ split.** Lines 9, 42, 55, 77, 84–88
   reference `foundry/memory/` for both config and data. The relations
   side now goes under `foundry-memory/relations/` per

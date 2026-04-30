@@ -1,14 +1,16 @@
 ---
 name: init-memory
 type: atomic
-description: Initialize flow memory by creating the foundry/memory/ directory structure
+description: Initialize flow memory by creating the foundry/memory/ and foundry-memory/ directory structures
 ---
 
 # Initialize Flow Memory
 
-Scaffold `foundry/memory/` in the current project. This prepares the directory
-for entity types, edge types, committed NDJSON relations, and a gitignored
-Cozo database.
+Scaffold `foundry/memory/` (config) and `foundry-memory/relations/` (row data)
+in the current project. `foundry/memory/` holds entity-type and edge-type
+definitions, the schema, the config, and the gitignored Cozo database.
+`foundry-memory/relations/` is a top-level sibling of `foundry/` that holds
+the committed NDJSON relations.
 
 ## Prerequisites
 
@@ -39,7 +41,7 @@ Before running this skill, verify all of the following:
    that dry-run first (`foundry_git_finish({ message, confirm: true })`)
    before re-running this skill on the parent `config/*`.
 
-`foundry/memory/` must not already exist.
+Neither `foundry/memory/` nor `foundry-memory/` may already exist.
 
 ## Steps
 
@@ -52,14 +54,15 @@ Before running this skill, verify all of the following:
 2. **Invoke `foundry_memory_init`** with `{ embeddings_enabled, probe: true }`.
 
    The tool deterministically:
-   - creates `entities/`, `edges/`, `relations/` with `.gitkeep`,
-   - writes `config.md` (frontmatter set from the embeddings choice),
-   - writes `schema.json` (`embeddings: {...}` when enabled, `null` when not),
+   - creates `foundry/memory/entities/` and `foundry/memory/edges/` with `.gitkeep`,
+   - creates `foundry-memory/relations/` (top-level sibling of `foundry/`) with `.gitkeep`,
+   - writes `foundry/memory/config.md` (frontmatter set from the embeddings choice),
+   - writes `foundry/memory/schema.json` (`embeddings: {...}` when enabled, `null` when not),
    - appends the three `foundry/memory/memory.db*` entries to `.gitignore`
      idempotently,
    - probes the embedding provider (only when enabled) and returns the result.
 
-   It fails if `foundry/memory/` already exists.
+   It fails if either `foundry/memory/` or `foundry-memory/` already exists.
 
 3. **Handle the probe result** (field `probe` in the return value).
    - `probe == null`: embeddings disabled, skip.
@@ -74,7 +77,7 @@ Before running this skill, verify all of the following:
 4. **Commit the scaffold**:
 
    ```bash
-   git add foundry/memory/ .gitignore
+   git add foundry/memory/ foundry-memory/ .gitignore
    git commit -m "feat: initialise flow memory"
    ```
 
