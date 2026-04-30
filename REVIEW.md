@@ -97,7 +97,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   flow skill on a new project will hit a tool refusal. Fix:
   `foundry_git_branch({ kind: "work", flowId, description })`.
 
-- [ ] **A4. `skills/human-appraise/SKILL.md:4` frontmatter description
+- [x] **A4. `skills/human-appraise/SKILL.md:4` frontmatter description
   uses `#human` (hashtag).** Per `docs/tools.md:324`, the canonical
   feedback tag is the bare string `human`. The skill body (lines
   74–76) is correct; only the YAML description is wrong. (Was B21 in

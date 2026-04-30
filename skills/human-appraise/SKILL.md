@@ -1,7 +1,7 @@
 ---
 name: human-appraise
 type: atomic
-description: Human quality gate. Presents the artefact to the human for review and collects feedback tagged #human.
+description: Human quality gate. Presents the artefact to the human for review and collects feedback tagged `human`.
 ---
 
 # Human Appraise
