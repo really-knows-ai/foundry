@@ -31,12 +31,19 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
   `memory_change_embedding_model`), and the config-creator family
   (`foundry_config_create_artefact_type`, `foundry_config_create_law`,
   `foundry_config_create_appraiser`, `foundry_config_create_flow`,
-  `foundry_config_create_cycle`). Read-only diagnostics remain
-  available so the caller can figure out what went wrong:
-  `foundry_workfile_get`, `foundry_memory_dump`, `foundry_memory_validate`,
-  `foundry_memory_list`, `foundry_memory_get`, `foundry_memory_neighbours`,
-  `foundry_memory_query`, `foundry_memory_search`. The escape hatch is
-  `foundry_workfile_delete`.
+  `foundry_config_create_cycle`). Every read-only diagnostic remains
+  callable so the caller can figure out what went wrong: the workfile
+  reader (`foundry_workfile_get`), every list-type tool
+  (`foundry_artefacts_list`, `foundry_feedback_list`,
+  `foundry_history_list`, `foundry_memory_list`), every `foundry_config_*`
+  read tool (`_cycle`, `_artefact_type`, `_laws`, `_validation`,
+  `_appraisers`, `_flow`), every `foundry_config_validate_*` schema
+  validator, every memory read tool (`_get`, `_neighbours`, `_query`,
+  `_search`, `_dump`, `_validate`), and every `foundry_snapshot_*`
+  tool. The escape hatch is `foundry_workfile_delete`.
+  `foundry_appraisers_select` is gated (it mutates `WORK.history.yaml`)
+  despite the "select" verb. See "Branch requirements" below for the
+  full any-branch / read-only enumeration.
 - **Worktree context**: every tool reads `context.worktree` (the project
   root) and operates on `foundry/`, `WORK.md`, `WORK.feedback.yaml`,
   `WORK.history.yaml`, and `.foundry/` relative to it.
@@ -63,11 +70,16 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
     `foundry_appraisers_select`, `foundry_memory_put`,
     `foundry_memory_relate`, `foundry_memory_unrelate`.
   - **Any branch (read-only diagnostics)**:
-    `foundry_history_list`, `foundry_config_*` (read-only),
+    `foundry_workfile_get`, `foundry_artefacts_list`,
+    `foundry_feedback_list`, `foundry_history_list`,
+    `foundry_config_*` (six read tools: `_cycle`, `_artefact_type`,
+    `_laws`, `_validation`, `_appraisers`, `_flow`),
+    `foundry_config_validate_*` (five schema validators),
     `foundry_memory_get`, `foundry_memory_list`,
     `foundry_memory_neighbours`, `foundry_memory_query`,
     `foundry_memory_search`, `foundry_memory_dump`,
-    `foundry_snapshot_*`. These have no branch guard.
+    `foundry_snapshot_*`. These have no branch guard and no
+    failed-flow guard.
   - **Self-classifying**: `foundry_git_branch` (refuses based on
     `kind` and current branch) and `foundry_git_finish` (classifies
     by current branch). They have their own branch logic and are

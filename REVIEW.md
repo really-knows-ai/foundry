@@ -321,11 +321,24 @@ These break users or tools at runtime, or contradict shipped behaviour.
   violation bullet affirmatively — it documents an intentional
   design choice, no longer framed as a TODO/inconsistency.
 
-- [ ] **B18. `docs/tools.md` read-only diagnostics list is curated,
-  not exhaustive.** Lines 33–36. Missing: `foundry_artefacts_list`,
-  `foundry_feedback_list`, `foundry_history_list`, all
-  `foundry_config_*`, `foundry_appraisers_select`. Either complete
-  it or label it explicitly as illustrative.
+- [x] **B18. `docs/tools.md` read-only diagnostics list is curated,
+  not exhaustive.** Verified the actual gated set against the plugin
+  source: `feedback-tools.js`, `artefact-tools.js`, `appraiser-tools.js`,
+  and `config-create-tools.js` are gated; `config-tools.js`,
+  `history-tools.js`, and `workfile-tools.js`'s `_get` are wholly
+  ungated. Rewrote both surfaces:
+  (a) the failed-flow preamble (lines 26–39 at HEAD) now lists every
+      callable diagnostic by category — `_workfile_get`, every
+      `_list` tool, all six read-only `_config_*`, all five
+      `_config_validate_*`, all read-only memory tools, and all
+      `_snapshot_*` — with a cross-reference to the Branch
+      requirements section. `appraisers_select` is called out as
+      gated despite the "select" verb.
+  (b) the "Any branch (read-only diagnostics)" enumeration
+      (former lines 65–70) now covers the same set affirmatively.
+  Note: `foundry_appraisers_select` was incorrectly listed in B18's
+  citation as a read-only diagnostic — it is gated. (And the
+  citation was lines 33–36; actual span at HEAD is lines 26–39.)
 
 - [ ] **B19. `docs/tools.md` "every mutating tool refuses on failed
   flow" preamble overclaims.** Lines 26–31. `foundry_git_branch` and
