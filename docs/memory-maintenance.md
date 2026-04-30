@@ -93,6 +93,55 @@ handler is fine; *reading through a possibly-uninitialised singleton* is not.
 
 ## Runtime population via extractors
 
-Beyond hand-authored `relations/<type>.ndjson` seed data, flow memory can be populated at runtime by **extractors** — project-authored CLI scripts that emit JSONL describing entities and edges. An extractor runs inside the `assay` stage of a cycle that opts in via its frontmatter.
+Beyond hand-authored `foundry-memory/relations/<type>.ndjson` seed data, flow memory can be populated at runtime by **extractors** — project-authored CLI scripts that emit JSONL describing entities and edges. An extractor runs inside the `assay` stage of a cycle that opts in via its frontmatter.
 
 Extractors are defined at `foundry/memory/extractors/<name>.md` with a `command`, a `memory.write` scope, and a prose brief. Create them with the `add-extractor` skill; reference them from a cycle via `assay: { extractors: [name, ...] }`. See [docs/concepts.md](concepts.md#extractor) for the full spec.
+
+## Memory layout: two trees
+
+Since Phase 2 (3.0.0), memory is split across two top-level trees:
+
+- `foundry/memory/` — *config*. Holds `config.md`, `schema.json`,
+  `entities/<name>.md`, `edges/<name>.md`, `extractors/<name>.md`,
+  and the `memory.db*` runtime files (gitignored). Authored on
+  `config/*` branches via the schema-mutation tools.
+- `foundry-memory/relations/` — *row data*. Top-level sibling of
+  `foundry/`, holding `<name>.ndjson` files. Tracked in git (the
+  source of truth for memory rows). Written by `foundry_stage_end`
+  flushing in-cycle puts, by `foundry_assay_run` flushing extractor
+  output, or by hand-authored seed data.
+
+Source of truth: `scripts/lib/memory/paths.js`, which threads
+`foundryDir` through the `foundry/memory/` config tree but pins
+`relationsDir` at the literal `'foundry-memory/relations'`.
+
+When sweeping memory paths in maintenance scripts, treat the two
+trees as separate: `foundry/memory/` for config, `foundry-memory/`
+for data. Operations that touch both (init, drop, rename, reset,
+embedding-model swap) stage paths under both prefixes in the same
+commit.
+
+## Failed-flow guard on memory admin tools
+
+Every mutating memory tool — both data writes (`foundry_memory_put`,
+`foundry_memory_relate`, `foundry_memory_unrelate`) and admin ops
+(`foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`,
+`foundry_memory_change_embedding_model`,
+`foundry_memory_create_entity_type` / `_create_edge_type`,
+`foundry_memory_rename_entity_type` / `_rename_edge_type`,
+`foundry_memory_drop_entity_type` / `_drop_edge_type`,
+`foundry_extractor_create`) — refuses to run when `WORK.md`
+frontmatter has `status: failed`. Each tool returns a tool-name-prefixed
+error referencing the failure reason.
+
+This is by design: the failed-flow state is intentionally terminal,
+and admin operations on memory while a flow is in an unrecoverable
+state risk compounding the damage. Read-only diagnostics
+(`foundry_memory_get`, `_list`, `_neighbours`, `_query`, `_search`,
+`_dump`, `_validate`) remain callable so the operator can investigate.
+
+The supported recovery path: read the failure reason via
+`foundry_workfile_get`, abandon the cycle with
+`foundry_workfile_delete({ confirm: true })`, then check out the base
+branch and start a fresh flow. See `scripts/lib/failed-flow.js` and
+the README "Failed flow state" section for the full contract.

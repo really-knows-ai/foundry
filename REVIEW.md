@@ -298,10 +298,16 @@ These break users or tools at runtime, or contradict shipped behaviour.
   pointer to the "Dry-run finish writes a forensic snapshot" entry
   later in the changelog.
 
-- [ ] **B15. `docs/memory-maintenance.md` no longer matches reality.**
-  Whole file. (a) No mention of `foundry-memory/` relocation;
-  line 96 reference to `relations/<type>.ndjson` is ambiguous.
-  (b) No mention of failed-flow guards on memory admin tools.
+- [x] **B15. `docs/memory-maintenance.md` no longer matches reality.**
+  (a) Disambiguated the line-96 `relations/<type>.ndjson` reference
+  to the canonical `foundry-memory/relations/<type>.ndjson` path,
+  and added a "Memory layout: two trees" section pinning the
+  config-vs-data split with a pointer to `paths.js`.
+  (b) Added a "Failed-flow guard on memory admin tools" section
+  enumerating the gated tools, listing the read-only diagnostics
+  that remain callable, and pointing at `failed-flow.js` plus the
+  README for the recovery path. C31 (the line 3-4 self-deprecating
+  framing) deferred to the C-cluster sweep.
 
 - [ ] **B16. CHANGELOG.md:138** still references `REVIEW.md P0 #3`
   internally. No `REVIEW.md` ships with the package; this internal
