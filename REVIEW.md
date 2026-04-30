@@ -169,7 +169,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   Skill `dry-run/SKILL.md:84` correctly uses `runId`. Doc is the
   outlier.
 
-- [ ] **A15. CHANGELOG `[3.0.0]` missing entry for memory-relations
+- [x] **A15. CHANGELOG `[3.0.0]` missing entry for memory-relations
   relocation.** `db5bfa3` moved `foundry/memory/relations/` →
   `foundry-memory/relations/`. This is a breaking change for any
   project with an existing populated memory store: they must `git mv`

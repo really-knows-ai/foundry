@@ -87,6 +87,19 @@
   `WORK.feedback.yaml`. Migration: any tooling that pattern-matched
   assay-sourced feedback items must instead detect `flow_failed: true`
   on the assay-run response. (`0e8b248`, `5dd69e8`, `08934a8`)
+- **Memory NDJSON relations moved to `foundry-memory/relations/`.** The
+  per-type row data (`<entity-type>.ndjson`, `<edge-type>.ndjson`) now
+  lives at the top-level `foundry-memory/relations/` directory, sibling
+  to `foundry/`. The rest of the memory tree (`config.md`,
+  `schema.json`, `entities/`, `edges/`, `extractors/`, the gitignored
+  `memory.db*` runtime files) stays under `foundry/memory/`. Rationale:
+  the relations directory is large, frequently rewritten, and benefits
+  from being separable from the human-authored config. Migration for
+  projects with an existing populated memory store:
+  `git mv foundry/memory/relations foundry-memory/relations` followed
+  by `git commit`. Projects that have not yet populated memory can
+  simply re-run `foundry_memory_init` on a fresh `config/*` branch.
+  (`db5bfa3`)
 
 ### Added
 
