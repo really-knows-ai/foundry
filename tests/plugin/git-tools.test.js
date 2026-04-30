@@ -218,7 +218,7 @@ test('foundry_git_branch returns wrapped error when branch already exists', asyn
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_branch.execute(
-      { flowId: 'myflow', description: 'some desc' }, makeCtx(dir),
+      { kind: 'work', flowId: 'myflow', description: 'some desc' }, makeCtx(dir),
     ));
 
     assert.ok(res.error, `expected error JSON, got ${JSON.stringify(res)}`);
@@ -237,7 +237,7 @@ test('foundry_git_branch returns ok and branch name on success', async () => {
   try {
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_branch.execute(
-      { flowId: 'myflow', description: 'fresh desc' }, makeCtx(dir),
+      { kind: 'work', flowId: 'myflow', description: 'fresh desc' }, makeCtx(dir),
     ));
 
     assert.equal(res.ok, true, res.error);
@@ -247,4 +247,160 @@ test('foundry_git_branch returns ok and branch name on success', async () => {
   } finally {
     cleanup(dir);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Per-kind matrix (Phase 3, spec §8.1)
+// ---------------------------------------------------------------------------
+
+async function callBranch(dir, args) {
+  const plugin = await FoundryPlugin({ directory: dir });
+  return JSON.parse(await plugin.tool.foundry_git_branch.execute(args, makeCtx(dir)));
+}
+
+test('foundry_git_branch: missing kind is refused', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { description: 'x' });
+    assert.ok(r.error);
+    assert.match(r.error, /kind is required/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: unknown kind is refused', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { kind: 'bogus', description: 'x' });
+    assert.match(r.error, /unknown kind/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="config" with flowId is refused', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { kind: 'config', flowId: 'f', description: 'x' });
+    assert.match(r.error, /flowId is not valid for kind="config"/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="config" missing description is refused', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { kind: 'config' });
+    assert.match(r.error, /description is required/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="config" on main creates config/<slug>', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { kind: 'config', description: 'add law' });
+    assert.equal(r.ok, true, r.error);
+    assert.equal(r.branch, 'config/add-law');
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'config/add-law');
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="config" refused while on config/x', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/foo -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, { kind: 'config', description: 'y' });
+    assert.match(r.error, /already on a config\//);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="config" refused from a work branch', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-x -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, { kind: 'config', description: 'y' });
+    assert.match(r.error, /from a work branch/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="work" missing flowId is refused', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { kind: 'work', description: 'x' });
+    assert.match(r.error, /flowId is required for kind="work"/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="work" missing description is refused', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { kind: 'work', flowId: 'f' });
+    assert.match(r.error, /description is required for kind="work"/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="work" refused while on config/x', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/foo -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, { kind: 'work', flowId: 'f', description: 'g' });
+    assert.match(r.error, /cannot start a work branch from a config branch/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="work" refused while on work/x', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/a-b -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, { kind: 'work', flowId: 'f', description: 'g' });
+    assert.match(r.error, /already on a work branch/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="dry-run" requires being on config/<x>', async () => {
+  const dir = initRepo();
+  try {
+    const r = await callBranch(dir, { kind: 'dry-run', flowId: 'f', description: 'x' });
+    assert.match(r.error, /requires a config\//);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="dry-run" refused on work branch', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-x -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, { kind: 'dry-run', flowId: 'f', description: 'x' });
+    assert.match(r.error, /requires a config\//);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: kind="dry-run" on config/foo creates the flat sibling branch', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/foo -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, {
+      kind: 'dry-run', flowId: 'creative-flow', description: 'goal x',
+    });
+    assert.equal(r.ok, true, r.error);
+    assert.equal(r.branch, 'dry-run/foo/creative-flow-goal-x');
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'dry-run/foo/creative-flow-goal-x');
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: refuses any kind while on a dry-run branch', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/foo -q', { cwd: dir, env: GIT_ENV });
+    execSync('git checkout -b dry-run/foo/x-y -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, { kind: 'dry-run', flowId: 'f', description: 'z' });
+    assert.match(r.error, /cannot nest deeper/);
+  } finally { cleanup(dir); }
+});
+
+test('foundry_git_branch: refuses kind="config" while on a dry-run branch', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/foo -q', { cwd: dir, env: GIT_ENV });
+    execSync('git checkout -b dry-run/foo/x-y -q', { cwd: dir, env: GIT_ENV });
+    const r = await callBranch(dir, { kind: 'config', description: 'z' });
+    assert.match(r.error, /cannot nest deeper/);
+  } finally { cleanup(dir); }
 });

@@ -4,6 +4,29 @@
 
 ### Breaking changes
 
+- **`foundry_git_branch` requires explicit `kind`.** The previous
+  `{ flowId, description }` signature is removed. Callers must now pass
+  `kind: 'config' | 'work' | 'dry-run'`. Per-kind requirements:
+  `kind: 'config'` needs `description` and a non-`config/*`,
+  non-`work/*` starting branch; `kind: 'work'` needs `flowId`,
+  `description`, and a non-`config/*`, non-`work/*` starting branch;
+  `kind: 'dry-run'` needs `flowId`, `description`, and the operator
+  must already be on a `config/<x>` branch. `flowId` is invalid for
+  `kind: 'config'`.
+- **`foundry_git_finish` dispatches on the current branch prefix.**
+  `work/<x>` retains existing semantics (squash-merge plus WORK
+  cleanup); `config/<x>` is new (squash-merge, no WORK cleanup);
+  `dry-run/<x>/<y>` is recognised but the handler currently returns
+  "dry-run finish not yet implemented" pending Phase 5. Any other
+  branch is refused with "nothing to finish". `baseBranch` is
+  rejected for dry-run finish (the parent config branch is encoded
+  in the dry-run branch name).
+- **Dry-run namespace is `dry-run/<parent>/<flowId>-<desc>`, not
+  nested under `config/<parent>`.** Originally specified as
+  `config/<x>/dry-run/<y>`; git refuses to coexist a parent ref with
+  a child-prefixed ref, so the namespace is a flat sibling instead.
+  No code outside this release ever shipped the nested form.
+
 - **Cycle frontmatter key renamed: `output:` → `output-type:`.** The cycle
   frontmatter key that names the produced artefact type is now
   `output-type:`. The orchestrator emits a typed migration diagnostic when

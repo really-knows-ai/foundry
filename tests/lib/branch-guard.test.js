@@ -34,11 +34,11 @@ test('requireOnConfigBranch: matches config/foo', () => {
   );
 });
 
-test('requireOnConfigBranch: rejects config/foo/dry-run/bar (strict)', () => {
-  const r = requireOnConfigBranch(ioWithBranch('config/foo/dry-run/bar'));
+test('requireOnConfigBranch: rejects dry-run/foo/bar (strict)', () => {
+  const r = requireOnConfigBranch(ioWithBranch('dry-run/foo/bar'));
   assert.equal(r.ok, false);
   assert.match(r.error, /requires a config\/.* branch/);
-  assert.match(r.error, /currently on 'config\/foo\/dry-run\/bar'/);
+  assert.match(r.error, /currently on 'dry-run\/foo\/bar'/);
 });
 
 for (const bad of ['main', 'work/x-y', 'feature/x', 'HEAD']) {
@@ -57,21 +57,21 @@ test('requireOnFlowBranch: matches work/foo-bar', () => {
   );
 });
 
-test('requireOnFlowBranch: matches config/foo/dry-run/bar-baz', () => {
+test('requireOnFlowBranch: matches dry-run/foo/bar-baz', () => {
   assert.deepEqual(
-    requireOnFlowBranch(ioWithBranch('config/foo/dry-run/bar-baz')),
+    requireOnFlowBranch(ioWithBranch('dry-run/foo/bar-baz')),
     { ok: true },
   );
 });
 
 test('requireOnFlowBranch: rejects deeper nesting', () => {
   const r = requireOnFlowBranch(
-    ioWithBranch('config/foo/dry-run/bar/dry-run/baz')
+    ioWithBranch('dry-run/foo/bar/baz')
   );
   assert.equal(r.ok, false);
 });
 
-test('requireOnFlowBranch: rejects config/foo (no dry-run segment)', () => {
+test('requireOnFlowBranch: rejects config/foo', () => {
   const r = requireOnFlowBranch(ioWithBranch('config/foo'));
   assert.equal(r.ok, false);
 });

@@ -10,15 +10,32 @@ You help the user create a new foundry flow. A foundry flow is a set of foundry 
 
 ## Prerequisites
 
-Before running this skill, verify both of the following:
+Before running this skill, verify all three of the following:
 
-1. The `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
+1. The `foundry/` directory exists in the project root. If it does not
+   exist, stop and tell the user:
 
-   > Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+   > Foundry is not initialized in this project. Run the
+   > `init-foundry` skill first to create the foundry/ directory
+   > structure.
 
-2. The current git branch is not a work branch. Run `git rev-parse --abbrev-ref HEAD` — if it starts with `work/`, stop and tell the user:
+2. The current git branch is a `config/*` branch. Run
+   `git rev-parse --abbrev-ref HEAD` and confirm it matches
+   `config/<description>` (a single segment, not `config/.../dry-run/...`).
 
-   > You're on a work branch (`<branch>`). Foundry configuration changes must be made on the base branch (usually `main`). Complete or discard the in-flight flow (`foundry_git_finish`, or switch branches and delete it), then re-run this skill from the base branch.
+3. If the branch does not start with `config/`, instruct the user to
+   create one before continuing:
+
+   > Foundry configuration changes must be made on a config/* branch.
+   > From a clean main branch, call:
+   >
+   > `foundry_git_branch({ kind: "config", description: "<short-name>" })`
+   >
+   > Then re-run this skill.
+
+   If the user is on a `config/*/dry-run/*` branch, they must finish
+   that dry-run first (`foundry_git_finish({ message, confirm: true })`)
+   before re-running this skill on the parent `config/*`.
 
 ## Protocol
 
