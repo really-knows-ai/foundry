@@ -1258,9 +1258,9 @@ its rows. **Destructive.**
 
 ---
 
-## Follow-ups / inconsistencies spotted while documenting
+## Design exceptions
 
-1. **`foundry_orchestrate` returns `violation` (not `{error}`) when
-   `runOrchestrate` throws.** This is intentional (recoverable=false
-   signals the orchestrator state), but is the only tool whose error
-   path does not use `{error}`.
+1. **`foundry_orchestrate` returns `violation` instead of `{error}`
+   when `runOrchestrate` throws.** Intentional: the `violation`
+   action signals an unrecoverable orchestrator state to the caller's
+   loop. Every other tool uses `{error}` for failure envelopes.

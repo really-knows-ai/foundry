@@ -315,11 +315,11 @@ These break users or tools at runtime, or contradict shipped behaviour.
   describes the prior behaviour (silent swallow + drift) on its
   own and the cross-reference adds nothing for a public reader.
 
-- [ ] **B17. `docs/tools.md` "Follow-ups / inconsistencies spotted"
-  section is stale framing.** Lines 970–974. The only remaining
-  item is the orchestrate violation envelope, which is documented
-  and intentional. Delete the section or rename to "Design
-  exceptions".
+- [x] **B17. `docs/tools.md` "Follow-ups / inconsistencies spotted"
+  section is stale framing.** (Actual line at HEAD: 1261.) Renamed
+  the section to "Design exceptions" and rewrote the orchestrate-
+  violation bullet affirmatively — it documents an intentional
+  design choice, no longer framed as a TODO/inconsistency.
 
 - [ ] **B18. `docs/tools.md` read-only diagnostics list is curated,
   not exhaustive.** Lines 33–36. Missing: `foundry_artefacts_list`,
