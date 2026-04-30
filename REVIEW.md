@@ -146,11 +146,11 @@ These break users or tools at runtime, or contradict shipped behaviour.
   memory.db*) and `foundry-memory/relations/` is a top-level sibling
   holding NDJSON row data. Each tree needs the split rendered.
 
-- [ ] **A12. `docs/tools.md:324` `foundry_feedback_add` per-stage
+- [x] **A12. `docs/tools.md:324` `foundry_feedback_add` per-stage
   table still lists `assay → tag must be exactly validation`.** Per
   3.0 the tool rejects assay outright. (F1.)
 
-- [ ] **A13. `docs/tools.md:516–518, 533–534, 538`
+- [x] **A13. `docs/tools.md:516–518, 533–534, 538`
   `foundry_assay_run` description and failure modes claim it emits
   validation feedback.** Same drift as A8/A12; the tool now marks the
   workfile failed.

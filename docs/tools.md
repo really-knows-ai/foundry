@@ -321,7 +321,8 @@ base:
 - `quench` → tag must be exactly `validation`.
 - `appraise` → tag must start with `law:`.
 - `human-appraise` → tag must be exactly `human`.
-- `assay` → tag must be exactly `validation`.
+- `assay` → forbidden. Extractor failures mark the workfile failed
+  rather than filing feedback.
 
 **Failure modes:** see above tag gates; `WORK.md` missing or no `cycle`
 in frontmatter.
@@ -514,8 +515,8 @@ is gated on failed flow.
 ### `foundry_assay_run`
 
 > Run extractors to populate flow memory. Only callable during an active
-> assay stage. Aborts on the first extractor failure; on abort, emits a
-> `validation` feedback item against `WORK.md`.
+> assay stage. Aborts on the first extractor failure; on abort, marks
+> the workfile failed.
 
 **Args:**
 - `cycle` (string, required).
@@ -531,12 +532,11 @@ flow_failed: true }`.
 
 **Failure modes:**
 - Extractor exits non-zero, exceeds timeout, emits invalid JSONL → assay
-  result has `ok:false` and a `validation` feedback item is added.
+  result has `ok:false` and the workfile is marked failed.
 - Post-run sync to NDJSON fails → workfile marked failed.
 
 **Side effects:** spawns extractor subprocesses, mutates Cozo store and
-NDJSON files, may write `WORK.feedback.yaml`, may mark `WORK.md`
-failed.
+NDJSON files, may mark `WORK.md` failed.
 
 ---
 
