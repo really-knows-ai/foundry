@@ -67,7 +67,7 @@ Before running this skill, verify all of the following:
 5. **Commit**:
 
    ```bash
-   git add foundry/memory/entities/<name>.md foundry/memory/relations/<name>.ndjson foundry/memory/schema.json
+   git add foundry/memory/entities/<name>.md foundry/memory/schema.json
    git commit -m "feat(memory): add entity type <name>"
    ```
 

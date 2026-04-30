@@ -47,6 +47,6 @@ Before running this skill, verify all of the following:
 4. **Commit**:
 
    ```bash
-   git add foundry/memory/edges/<name>.md foundry/memory/relations/<name>.ndjson foundry/memory/schema.json
+   git add foundry/memory/edges/<name>.md foundry/memory/schema.json
    git commit -m "feat(memory): add edge type <name>"
    ```

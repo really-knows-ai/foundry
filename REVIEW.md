@@ -103,7 +103,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   74–76) is correct; only the YAML description is wrong. (Was B21 in
   prior review; carried forward unresolved.)
 
-- [ ] **A5. `skills/add-memory-entity-type/SKILL.md` `git add`
+- [x] **A5. `skills/add-memory-entity-type/SKILL.md` `git add`
   references a non-existent file.** Skill stages `foundry/memory/
   relations/<name>.ndjson` (also wrong path post-Phase 2 — should be
   `foundry-memory/relations/<name>.ndjson`). `foundry_memory_create_
@@ -112,7 +112,7 @@ These break users or tools at runtime, or contradict shipped behaviour.
   `git add` fails with "pathspec did not match any files". Fix: drop
   the relations path entirely from the `git add` command. (Was B18.)
 
-- [ ] **A6. `skills/add-memory-edge-type/SKILL.md:50` same as A5 for
+- [x] **A6. `skills/add-memory-edge-type/SKILL.md:50` same as A5 for
   edges.** Drop `foundry/memory/relations/<name>.ndjson` from the
   `git add` command. (Was B19.)
 
