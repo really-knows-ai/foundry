@@ -151,6 +151,34 @@ plugin enforces the split at tool-call time.
   force-deletes the dry-run branch. No merge, no commit. The two
   spaces stay deliberately disjoint.
 
+## Branch guards
+
+The plugin enforces the branch-namespace split at tool-call time
+through a small library of guards in `scripts/lib/branch-guard.js`.
+Every mutating tool composes one of three guards before its handler
+runs:
+
+- **`requireOnConfigBranch`** — accepts only `config/<description>`.
+  Schema-mutation tools (`foundry_config_create_*`,
+  `foundry_memory_create_*`, `foundry_extractor_create`, the memory
+  admin family) use this guard. `dry-run/<x>/<y>` is rejected by
+  design — schema must change on a real config branch so the change
+  can be merged to `main`.
+- **`requireOnFlowBranch`** — accepts `work/<flow>-<desc>` or
+  `dry-run/<x>/<y>`. Flow-data tools (`foundry_orchestrate`, the
+  workfile / feedback / artefact-status / assay / appraisers
+  families, `foundry_memory_put` / `_relate` / `_unrelate`) use this
+  guard.
+- **`requireOnConfigOrFlowBranch`** — accepts any of the three
+  namespaces. Read-only diagnostic tools that touch files in either
+  tree use this guard.
+
+`currentBranch()` resolves the active branch in a single place,
+including unborn HEADs (fresh repos with no commits) and detached
+HEAD. When no branch can be resolved the guards return a structured
+refusal envelope rather than throwing, so the LLM sees the same
+shape for branch refusals as for any other tool failure.
+
 ## Stage token
 
 A single-use HMAC-signed string, minted by `foundry_orchestrate` when a stage is dispatched. The sub-agent must redeem the token via `foundry_stage_begin`; mutation tools then check the active stage matches their role. Keys live in `.foundry/.secret` (mode 0600, gitignored, one per worktree). This prevents out-of-band mutations, replayed stages, and sub-agents skipping the lifecycle.
@@ -162,6 +190,57 @@ A gitignored directory created on first plugin boot, holding runtime state:
 - `.secret` — the HMAC key.
 - `active-stage.json` — present only during an active stage.
 - `last-stage.json` — used by `foundry_stage_finalize` after `stage_end`.
+- `trace/<branch-slug>.jsonl` — per-branch tool-call trace (see Tracing).
+
+## Tracing
+
+Every `foundry_*` tool call made on a `dry-run/<x>/<y>` branch appends
+one JSONL record to `.foundry/trace/<branch-slug>.jsonl`, where the
+slug is the branch name with `/` replaced by `-`. The trace captures
+tool name, args, result envelope, and timing — enough to reconstruct
+what the dry-run did without rerunning it. The trace file is created
+fresh when the dry-run branch starts (any prior content is truncated)
+and is captured into the snapshot at finish-time. Records on `work/*`
+and `config/*` branches are not written; tracing is a dry-run-only
+concept. Implementation: `scripts/lib/tracing.js`.
+
+## Dry-run
+
+Trial execution of an in-progress `config/*` branch against a real
+flow. Driven by the `dry-run` skill. The user creates a
+`dry-run/<parentConfig>/<flowId>-<description>` branch from the
+config branch via
+`foundry_git_branch({ kind: "dry-run", flowId, description })`,
+then runs the flow normally. The dry-run branch has the same
+flow-data write permissions as `work/*` (forge can edit artefacts,
+memory rows can be written), but `foundry_git_finish` on it neither
+merges nor commits — it captures a snapshot and force-deletes the
+branch. Schema-mutation tools refuse on dry-run by design, so
+config changes always land through `config/*` → `main`. Nesting is
+forbidden: `dry-run/<x>/<y>/<z>` is rejected by the same regex that
+gates depth.
+
+## Snapshot
+
+The forensic record of a finished dry-run, materialised as a
+plain-files directory at `.snapshots/<runId>/` on the parent
+`config/*` working tree. Each snapshot contains:
+
+- `README.md` — rendered metadata (branch, parent, flow, goal,
+  timestamps, exit reason, commit log).
+- `work/WORK.md`, `work/WORK.history.yaml`, `work/WORK.feedback.yaml` —
+  the workfile triple captured before branch deletion (any of these
+  may be absent if the dry-run did not produce them).
+- `diff.patch` — the full `git diff parent...HEAD` from the dry-run.
+- `trace.jsonl` — the full tool-call trace.
+
+`runId` is `<branch-slug>-<ulid>`. Snapshots are gitignored
+(`.snapshots/` is added to `.gitignore` by `init-foundry`) and
+accumulate locally; `foundry_snapshot_list` enumerates them,
+`foundry_snapshot_show` returns a structured summary,
+`foundry_snapshot_delete` removes one, and
+`foundry_snapshot_prune` removes those older than a given age.
+Implementation: `scripts/lib/snapshot/`.
 
 ## Custom tools
 

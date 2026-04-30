@@ -227,16 +227,12 @@ These break users or tools at runtime, or contradict shipped behaviour.
 
 ### Documentation drift
 
-- [ ] **B4. `docs/concepts.md` missing branch-guard / dry-run /
-  snapshot / tracing concept entries.** Phase 1–5 added five
-  first-class concepts not yet in concepts.md:
-  (a) branch namespaces are mentioned at concepts.md:124–153 but the
-  *guard layer* (`requireOnConfigBranch` etc.) is not introduced;
-  (b) no `## Dry-run` entry — only mentioned inline at line 143;
-  (c) no `## Snapshot` entry for `.snapshots/<runId>/`;
-  (d) no `## Tracing` entry for `.foundry/trace/<branch-slug>.jsonl`;
-  (e) the `## foundry/memory/ layout` heading at line 273 is
-  misleading post-Phase 2 because `relations/` lives elsewhere.
+- [x] **B4. `docs/concepts.md` missing branch-guard / dry-run /
+  snapshot / tracing concept entries.** Added `## Branch guards`
+  (after Branch namespaces), `## Tracing`, `## Dry-run`, and
+  `## Snapshot` sections. Subitem (e) — the `## foundry/memory/
+  layout` heading — was already corrected to `## Memory layout` with
+  the two-tree split under A11.
 
 - [ ] **B5. `docs/getting-started.md` walkthrough does not mention
   config branches.** Authoring section (lines 56–137) walks through
