@@ -444,10 +444,11 @@ pass.
   the same value). Vestigial parity with `artefact-type`. Replace
   with single `KIND` constant.
 
-- [ ] **C8. `config-validators/cycle.js` and `creators/law.js`
+- [x] **C8. `config-validators/cycle.js` and `creators/law.js`
   shadow the Node `path` module.** No actual collision (they don't
   import `node:path`), but reuse of the name is confusing. Rename
-  to `filePath`.
+  to `filePath`. (Note: Only `cycle.js` had the issue; `law.js` uses
+  a `pathFor` function, not a `path` variable.)
 
 - [ ] **C9. `git-tools.js` `finishWorkBranch` and `finishConfigBranch`
   duplicate ~80% of scaffolding.** Refactor opportunity.
