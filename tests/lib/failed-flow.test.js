@@ -60,13 +60,14 @@ describe('failed-flow', () => {
       assert.match(out, /\ngo\n/);
     });
 
-    it('is idempotent when already failed (overwrites reason)', () => {
+    it('is idempotent when already failed (preserves first reason)', () => {
       const io = makeIO({
-        'WORK.md': '---\ncycle: c\nstatus: failed\nreason: old\n---\n',
+        'WORK.md': '---\ncycle: c\nstatus: failed\nreason: original diagnostic reason\n---\n',
       });
-      markWorkfileFailed(io, 'new');
-      assert.match(io._store['WORK.md'], /reason: new/);
-      assert.doesNotMatch(io._store['WORK.md'], /reason: old/);
+      markWorkfileFailed(io, 'cascading failure');
+      // First failure reason is the diagnostic one - preserve it
+      assert.match(io._store['WORK.md'], /reason: original diagnostic reason/);
+      assert.doesNotMatch(io._store['WORK.md'], /reason: cascading failure/);
     });
 
     it('throws if WORK.md is missing', () => {

@@ -47,7 +47,9 @@ export function readFailedStatus(io) {
 }
 
 /**
- * Idempotent: overwrites `status` and `reason` whether or not they were set.
+ * Idempotent: sets `status: failed` and `reason` if not already failed.
+ * Preserves the first failure reason when called multiple times - the
+ * initial diagnostic reason is more valuable than cascading failures.
  * @param {object} io - requires exists, readFile, writeFile
  * @param {string} reason
  */
@@ -56,6 +58,14 @@ export function markWorkfileFailed(io, reason) {
     throw new Error('markWorkfileFailed: WORK.md not found');
   }
   const text = io.readFile('WORK.md');
+  
+  // Check if already failed - preserve the first failure reason
+  const failed = readFailedStatus(io);
+  if (failed) {
+    // Already failed - skip overwrite to preserve diagnostic first reason
+    return;
+  }
+  
   const withStatus = setFrontmatterField(text, 'status', 'failed');
   const withReason = setFrontmatterField(withStatus, 'reason', truncateReason(reason));
   io.writeFile('WORK.md', withReason);
