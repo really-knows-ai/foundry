@@ -387,11 +387,16 @@ pass.
 
 ### Code (voice / consistency)
 
-- [ ] **C1. `scripts/lib/guards.js:42-54` `guarded()` fast path is
-  effectively dead.** `if (!opts.branchIo) return execute(args,
-  context);` — every active tool plugin passes `branchIo`. Either
-  preserved deliberately for tests or dead-by-accident. Pick one and
-  add a comment.
+- [x] **C1. `scripts/lib/guards.js:42-54` `guarded()` fast path is
+  effectively dead.** Verified by enumerating callers: all 32
+  production `guarded()` invocations pass
+  `{ branchIo: branchIoFactory, io: asyncIoFactory }` (snapshot tools
+  via the shared `TRACE_OPTS` const, every other plugin inline). The
+  five tests at `tests/lib/guards.test.js:11,19,24,183,190` are the
+  only callers reaching the early return. Reframed the comment from
+  "Backwards-compatible fast path" to "Test-only path", naming the
+  test file and explaining why it skips the tracing IO factories.
+  Voice: original "no tracing work at all" recast affirmatively.
 
 - [ ] **C2. `scripts/lib/guards.js:84` empty `catch {}` swallows all
   tracing errors.** Including programmer errors (bad JSON,

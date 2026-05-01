@@ -48,7 +48,10 @@ export function guarded(toolName, guards, execute, opts = {}) {
       }
     }
 
-    // Backwards-compatible fast path: no branchIo means no tracing work at all.
+    // Test-only path. Every production tool plugin passes
+    // `{ branchIo: branchIoFactory, io: asyncIoFactory }`, so this branch
+    // exists for unit tests in `tests/lib/guards.test.js` that exercise
+    // guard composition without spinning up the tracing IO factories.
     if (!opts.branchIo) {
       return execute(args, context);
     }
