@@ -47,18 +47,12 @@ export function createAssayTools({ tool }) {
             putEntity,
             relate: memRelate,
             writeEmbedder,
+            syncStore, // G29: Pass syncStore so it's called after each extractor
           });
           if (res.ok) {
-            // Defence-in-depth: flush extractor writes to NDJSON immediately
-            // rather than deferring to stage_end. A stage killed before
-            // stage_end would otherwise lose every extractor-written row on
-            // the next process start.
-            //
-            // If this sync fails, the in-memory DB is ahead of the on-disk
-            // NDJSON source of truth — same data-loss risk that stage_end
-            // guards against. Mirror that behaviour: mark the workfile failed
-            // and surface flow_failed to the caller, so subsequent mutating
-            // tools refuse to run until the user abandons the cycle.
+            // G29: runAssay now syncs store after each extractor internally.
+            // Keep this defence-in-depth sync for safety in case of changes.
+            // A final sync ensures all writes are flushed before returning success.
             try {
               await syncStore({ store, io: memIo });
             } catch (err) {

@@ -16,6 +16,7 @@ export async function runAssay({
   putEntity,
   relate,
   writeEmbedder,
+  syncStore, // G29: Accept syncStore function
   spawn = defaultSpawn,
 }) {
   const perExtractor = [];
@@ -37,6 +38,9 @@ export async function runAssay({
 
     if (spawnResult.timedOut) {
       return abort(perExtractor, name, `extractor timed out after ${ext.timeoutMs}ms`, spawnResult.stderr);
+    }
+    if (spawnResult.tooMuchOutput) {
+      return abort(perExtractor, name, `extractor produced too much output (stdout >50MB or stderr >1MB)`, spawnResult.stderr);
     }
     if (!spawnResult.ok) {
       return abort(perExtractor, name, `extractor exited with exit code ${spawnResult.exitCode}`, spawnResult.stderr);
@@ -96,6 +100,17 @@ export async function runAssay({
       rowsUpserted,
       durationMs: Date.now() - startedAt,
     });
+
+    // G29: Sync store after each extractor completes successfully.
+    // This ensures that if extractor B fails, extractor A's writes are already
+    // persisted to NDJSON and won't be lost.
+    if (syncStore) {
+      try {
+        await syncStore({ store, io });
+      } catch (err) {
+        return abort(perExtractor, name, `memory sync failed after upserting ${rowsUpserted} rows: ${err.message}`, spawnResult.stderr);
+      }
+    }
   }
 
   return { ok: true, perExtractor };

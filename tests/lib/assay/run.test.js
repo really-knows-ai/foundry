@@ -223,4 +223,66 @@ describe('runAssay', () => {
     assert.equal(fakes.entities[0].name, 'Good');
     rmSync(root, { recursive: true, force: true });
   });
+
+  // G29: Store must be synced after each extractor, not just at the end
+  it('syncs store after each extractor completes (G29)', async () => {
+    const root = setupProject();
+    writeExtractor(root, 'first', { command: 'f', write: ['class'] });
+    writeExtractor(root, 'second', { command: 's', write: ['method'] });
+    const fakes = makeFakes();
+    const syncCalls = [];
+    const fakeSyncStore = async () => { syncCalls.push(Date.now()); };
+    
+    const res = await runAssay({
+      foundryDir: 'foundry', cwd: root, io: diskIO(root),
+      extractors: ['first', 'second'], 
+      store: fakes.store, 
+      vocabulary,
+      putEntity: fakes.putEntity, 
+      relate: fakes.relate,
+      syncStore: fakeSyncStore,
+      spawn: async ({ command }) => ({
+        ok: true, exitCode: 0, timedOut: false,
+        stdout: command === 'f' 
+          ? '{"kind":"entity","type":"class","name":"C1","value":"v1"}\n'
+          : '{"kind":"entity","type":"method","name":"M1","value":"v1"}\n',
+        stderr: '',
+      }),
+    });
+    
+    assert.equal(res.ok, true);
+    // Critical: syncStore should be called twice (once per extractor)
+    assert.equal(syncCalls.length, 2, 'syncStore must be called after each extractor');
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('persists first extractor writes even when second extractor fails (G29)', async () => {
+    const root = setupProject();
+    writeExtractor(root, 'succeeds', { command: 'ok', write: ['class'] });
+    writeExtractor(root, 'fails', { command: 'boom', write: ['method'] });
+    const fakes = makeFakes();
+    const syncCalls = [];
+    const fakeSyncStore = async () => { syncCalls.push({ entities: [...fakes.entities] }); };
+    
+    const res = await runAssay({
+      foundryDir: 'foundry', cwd: root, io: diskIO(root),
+      extractors: ['succeeds', 'fails'],
+      store: fakes.store,
+      vocabulary,
+      putEntity: fakes.putEntity,
+      relate: fakes.relate,
+      syncStore: fakeSyncStore,
+      spawn: async ({ command }) => command === 'ok'
+        ? { ok: true, exitCode: 0, timedOut: false, stdout: '{"kind":"entity","type":"class","name":"Persisted","value":"data"}\n', stderr: '' }
+        : { ok: false, exitCode: 1, timedOut: false, stdout: '', stderr: 'error' },
+    });
+    
+    assert.equal(res.ok, false);
+    assert.equal(res.failedExtractor, 'fails');
+    // Critical: syncStore was called once (after first extractor succeeded)
+    assert.equal(syncCalls.length, 1, 'first extractor writes must be synced before second runs');
+    assert.equal(syncCalls[0].entities.length, 1);
+    assert.equal(syncCalls[0].entities[0].name, 'Persisted');
+    rmSync(root, { recursive: true, force: true });
+  });
 });
