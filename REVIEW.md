@@ -15,15 +15,15 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1063 tests passing (baseline: 1036)
+**Current progress:** 1067 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
 - [x] **G7+G8** (Context bugs) - Commit db2b859, ad61c8f
+- [x] **G1+G2** (Feedback resolve bugs) - Commit 231b182
 
 ### Priority 2: P0 Feedback/Memory Bugs
 **Next batch:**
-- [ ] **G1+G2** (Feedback resolve bugs) - Tool actively broken
 - [ ] **G3** (Memory paths) - Test leakage (foundryDir ignored)
 - [ ] **G4** (Git atomicity) - commitWithPolicy leaves dirty state
 
