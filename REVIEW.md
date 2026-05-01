@@ -422,9 +422,10 @@ pass.
   any future regression that re-introduces the slash will fail
   loudly. Test count: 1040 → 1041.
 
-- [ ] **C4. `scripts/lib/branch-guard.js:11` strawman-negation
-  comment.** "instead of bubbling a thrown ExecError" — rewrite
-  affirmatively per AGENTS.md.
+- [x] **C4. `scripts/lib/branch-guard.js:11` strawman-negation
+  comment.** Rewrote "instead of bubbling a thrown ExecError" to
+  "envelope rather than throwing" — leading with what the code does
+  (returns a structured refusal envelope) rather than what it avoids.
 
 - [ ] **C5. `scripts/lib/memory/paths.js:7` `relationsDir` is
   hard-coded ignoring `foundryDir` parameter.** Subtle hazard: tests

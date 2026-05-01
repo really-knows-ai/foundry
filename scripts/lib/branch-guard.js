@@ -7,8 +7,8 @@ export function currentBranch(io) {
   // no commits (unborn branch) and on a non-repo directory. Fall back to
   // `git symbolic-ref --short HEAD` which still resolves the unborn
   // branch's name; if that also fails (truly detached or non-repo), treat
-  // as "no current branch" so the guard returns a structured refusal
-  // instead of bubbling a thrown ExecError.
+   // as "no current branch" so the guard returns a structured refusal
+   // envelope rather than throwing.
   let out;
   try {
     out = io.exec(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).trim();
