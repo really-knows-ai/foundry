@@ -398,9 +398,17 @@ pass.
   test file and explaining why it skips the tracing IO factories.
   Voice: original "no tracing work at all" recast affirmatively.
 
-- [ ] **C2. `scripts/lib/guards.js:84` empty `catch {}` swallows all
-  tracing errors.** Including programmer errors (bad JSON,
-  misconfigured io). Add a `console.warn` gated on debug env var.
+- [x] **C2. `scripts/lib/guards.js:84` empty `catch {}` swallows all
+  tracing errors.** Captured the swallowed exception as `traceErr`,
+  kept the silent-by-default contract (tracing still must never break
+  a tool call), and added a `console.warn` gated on
+  `process.env.FOUNDRY_DEBUG` that surfaces tool name and the
+  underlying error message. `FOUNDRY_DEBUG` is a new convention —
+  no prior env-var usage in `scripts/lib/` or
+  `.opencode/plugins/foundry-tools/`. Two regression tests
+  (silent-default and warn-when-set) added with explicit
+  `console.warn` stubbing and `process.env.FOUNDRY_DEBUG`
+  save/restore. Test count: 1038 → 1040.
 
 - [ ] **C3. `scripts/lib/foundational-guards.js:7` trailing-slash
   inconsistency.** `'foundry/'` (with slash) vs `'.git'` (without)
@@ -744,7 +752,7 @@ Each line is one commit.
 ## Verification
 
 ```bash
-npm test         # 1038 tests passing, 0 failing (post-B3 baseline)
+npm test         # 1040 tests passing, 0 failing (post-C2 baseline)
 git status       # clean working tree
 ```
 

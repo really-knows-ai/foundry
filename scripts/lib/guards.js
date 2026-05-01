@@ -83,8 +83,17 @@ export function guarded(toolName, guards, execute, opts = {}) {
           duration_ms: Date.now() - t0,
         };
         await appendTraceRecord({ branch, record, io: opts.io(context) });
-      } catch {
-        // Tracing must never break the tool call.
+      } catch (traceErr) {
+        // Tracing must never break the tool call. Stay silent by default;
+        // surface via console.warn when FOUNDRY_DEBUG is set so operators
+        // can diagnose programmer errors (bad JSON, misconfigured io)
+        // without polluting normal stderr.
+        if (process.env.FOUNDRY_DEBUG) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[foundry] ${toolName}: trace write failed (${traceErr?.message ?? String(traceErr)})`,
+          );
+        }
       }
     }
 
