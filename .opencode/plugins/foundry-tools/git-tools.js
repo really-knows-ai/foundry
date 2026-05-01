@@ -106,16 +106,23 @@ function dirtyTrackedFiles(cwd) {
   return out ? out.split('\n').map((l) => l.slice(3)) : [];
 }
 
-function finishWorkBranch({ workBranch, base, cwd, args }) {
+function finishBranchCommon({ branchName, branchType, base, cwd, args, shouldDeleteWorkFiles }) {
   const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
 
   // Compute planned side effects.
-  const filesToDelete = WORK_FILES.filter((f) => existsSync(path.join(cwd, f)));
+  const filesToDelete = shouldDeleteWorkFiles
+    ? WORK_FILES.filter((f) => existsSync(path.join(cwd, f)))
+    : [];
+  
+  const action = shouldDeleteWorkFiles
+    ? 'delete-work-files, commit-cleanup, checkout-base, squash-merge, commit, delete-work-branch'
+    : `checkout-base, squash-merge, commit, delete-${branchType}-branch`;
+
   const planned = {
-    workBranch,
+    workBranch: branchName,
     baseBranch: base,
     filesToDelete,
-    action: 'delete-work-files, commit-cleanup, checkout-base, squash-merge, commit, delete-work-branch',
+    action,
     commitMessage: args.message,
   };
 
@@ -136,89 +143,65 @@ function finishWorkBranch({ workBranch, base, cwd, args }) {
     });
   }
 
-  // Delete work files
-  for (const f of filesToDelete) {
-    const p = path.join(cwd, f);
-    if (existsSync(p)) unlinkSync(p);
-  }
-
-  // Commit cleanup if there are changes
-  try {
-    execFileSync('git', ['add', '-A'], opts);
-    const status = execFileSync('git', ['status', '--porcelain'], opts).trim();
-    if (status) {
-      const cleanupMsg = `[${workBranch.replace('work/', '')}] cleanup: remove work files`;
-      execFileSync('git', ['commit', '-m', cleanupMsg], opts);
+  // Delete work files if requested
+  if (shouldDeleteWorkFiles) {
+    for (const f of filesToDelete) {
+      const p = path.join(cwd, f);
+      if (existsSync(p)) unlinkSync(p);
     }
-  } catch { /* no changes to commit */ }
+
+    // Commit cleanup if there are changes
+    try {
+      execFileSync('git', ['add', '-A'], opts);
+      const status = execFileSync('git', ['status', '--porcelain'], opts).trim();
+      if (status) {
+        const cleanupMsg = `[${branchName.replace('work/', '')}] cleanup: remove work files`;
+        execFileSync('git', ['commit', '-m', cleanupMsg], opts);
+      }
+    } catch { /* no changes to commit */ }
+  }
 
   // Switch to base and squash merge. Abort on conflict.
   execFileSync('git', ['checkout', base], opts);
   try {
-    execFileSync('git', ['merge', '--squash', workBranch], opts);
+    execFileSync('git', ['merge', '--squash', branchName], opts);
   } catch (err) {
     try { execFileSync('git', ['reset', '--hard', 'HEAD'], opts); } catch { /* best-effort */ }
-    try { execFileSync('git', ['checkout', workBranch], opts); } catch { /* best-effort */ }
+    try { execFileSync('git', ['checkout', branchName], opts); } catch { /* best-effort */ }
     const stderr = (err && (err.stderr || err.stdout)) ? String(err.stderr || err.stdout).trim() : '';
     return JSON.stringify({
       ok: false,
-      error: `foundry_git_finish: squash merge failed (likely a conflict). Work branch '${workBranch}' preserved.${stderr ? ' ' + stderr : ''}`,
+      error: `foundry_git_finish: squash merge failed (likely a conflict). ${branchType === 'work' ? 'Work' : 'Config'} branch '${branchName}' preserved.${stderr ? ' ' + stderr : ''}`,
     });
   }
 
   execFileSync('git', ['commit', '-m', args.message], opts);
   const hash = execFileSync('git', ['rev-parse', '--short', 'HEAD'], opts).trim();
-  execFileSync('git', ['branch', '-D', workBranch], opts);
+  execFileSync('git', ['branch', '-D', branchName], opts);
 
   return JSON.stringify({ ok: true, hash, branch: base });
 }
 
+function finishWorkBranch({ workBranch, base, cwd, args }) {
+  return finishBranchCommon({
+    branchName: workBranch,
+    branchType: 'work',
+    base,
+    cwd,
+    args,
+    shouldDeleteWorkFiles: true,
+  });
+}
+
 function finishConfigBranch({ configBranch, base, cwd, args }) {
-  const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
-
-  const planned = {
-    workBranch: configBranch,
-    baseBranch: base,
-    filesToDelete: [],
-    action: 'checkout-base, squash-merge, commit, delete-config-branch',
-    commitMessage: args.message,
-  };
-
-  if (args.confirm !== true) {
-    return JSON.stringify({
-      ok: false,
-      error: 'foundry_git_finish requires {confirm: true} to perform destructive operations. Re-invoke with confirm:true to apply the plan.',
-      planned,
-    });
-  }
-
-  const dirty = dirtyTrackedFiles(cwd);
-  if (dirty.length) {
-    return JSON.stringify({
-      ok: false,
-      error: 'foundry_git_finish refuses to run on a dirty worktree (uncommitted changes to tracked files). Commit or stash them first.',
-      dirty,
-    });
-  }
-
-  execFileSync('git', ['checkout', base], opts);
-  try {
-    execFileSync('git', ['merge', '--squash', configBranch], opts);
-  } catch (err) {
-    try { execFileSync('git', ['reset', '--hard', 'HEAD'], opts); } catch { /* best-effort */ }
-    try { execFileSync('git', ['checkout', configBranch], opts); } catch { /* best-effort */ }
-    const stderr = (err && (err.stderr || err.stdout)) ? String(err.stderr || err.stdout).trim() : '';
-    return JSON.stringify({
-      ok: false,
-      error: `foundry_git_finish: squash merge failed (likely a conflict). Config branch '${configBranch}' preserved.${stderr ? ' ' + stderr : ''}`,
-    });
-  }
-
-  execFileSync('git', ['commit', '-m', args.message], opts);
-  const hash = execFileSync('git', ['rev-parse', '--short', 'HEAD'], opts).trim();
-  execFileSync('git', ['branch', '-D', configBranch], opts);
-
-  return JSON.stringify({ ok: true, hash, branch: base });
+  return finishBranchCommon({
+    branchName: configBranch,
+    branchType: 'config',
+    base,
+    cwd,
+    args,
+    shouldDeleteWorkFiles: false,
+  });
 }
 
 async function finishDryRunBranch({ branch, args, cwd }) {
