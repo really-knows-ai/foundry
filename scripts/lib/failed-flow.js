@@ -79,7 +79,21 @@ export function markWorkfileFailed(io, reason) {
  * @returns {{ok: true} | {ok: false, error: string}}
  */
 export function requireNotFailed(io) {
-  const failed = readFailedStatus(io);
+  let failed;
+  try {
+    failed = readFailedStatus(io);
+  } catch (err) {
+    // WORK.md is corrupted (malformed YAML) or unreadable (IO error).
+    // This is a trouble signal - refuse to proceed.
+    return {
+      ok: false,
+      error:
+        `WORK.md is corrupted or unreadable. ` +
+        `No mutating tools are permitted. Use foundry_workfile_delete({confirm: true}) ` +
+        `to abandon the cycle, then back out to main and delete the work branch.`,
+    };
+  }
+  
   if (!failed) return { ok: true };
   const reason = failed.reason || '(no reason recorded)';
   return {

@@ -98,6 +98,11 @@ describe('failed-flow', () => {
       assert.deepEqual(requireNotFailed(io), { ok: true });
     });
 
+    it('ok when WORK.md has no frontmatter (treated as clean)', () => {
+      const io = makeIO({ 'WORK.md': '# Goal\n\nSome goal\n' });
+      assert.deepEqual(requireNotFailed(io), { ok: true });
+    });
+
     it('errors when status is failed', () => {
       const io = makeIO({
         'WORK.md': '---\ncycle: c\nstatus: failed\nreason: sync broke\n---\n',
@@ -106,6 +111,27 @@ describe('failed-flow', () => {
       assert.equal(r.ok, false);
       assert.match(r.error, /flow is in failed state/);
       assert.match(r.error, /sync broke/);
+      assert.match(r.error, /foundry_workfile_delete/);
+    });
+
+    it('errors when WORK.md has malformed YAML', () => {
+      const io = makeIO({
+        'WORK.md': '---\ncycle: c\nstatus: [broken yaml without closing\n---\n',
+      });
+      const r = requireNotFailed(io);
+      assert.equal(r.ok, false);
+      assert.match(r.error, /WORK\.md is corrupted or unreadable/);
+      assert.match(r.error, /foundry_workfile_delete/);
+    });
+
+    it('errors when WORK.md read throws IO error', () => {
+      const io = {
+        exists: () => true,
+        readFile: () => { throw new Error('EACCES: permission denied'); },
+      };
+      const r = requireNotFailed(io);
+      assert.equal(r.ok, false);
+      assert.match(r.error, /WORK\.md is corrupted or unreadable/);
       assert.match(r.error, /foundry_workfile_delete/);
     });
   });
