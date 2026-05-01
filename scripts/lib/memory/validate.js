@@ -27,6 +27,9 @@ export function validateEntityWrite({ type, name, value }, vocabulary) {
   if (typeof value !== 'string') {
     throw new Error(`entity value must be a string`);
   }
+  if (value.includes('\0')) {
+    throw new Error(`entity value must not contain NUL`);
+  }
   if (byteLen(value) > MAX_VALUE_BYTES) {
     throw new Error(`entity value is too large: ${byteLen(value)} bytes exceeds 4KB limit`);
   }

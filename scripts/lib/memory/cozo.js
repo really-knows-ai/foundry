@@ -20,8 +20,9 @@ export function closeMemoryDb(db) {
  * round-trip for values containing `"`, `\`, newlines, CR, tabs, etc.
  *
  * Used by every query builder in this package so read and write paths never
- * diverge on what they consider a safe literal. NUL and other control chars
- * are rejected at validation time (see validate.js).
+ * diverge on what they consider a safe literal. NUL characters are rejected
+ * at validation time (see validateEntityWrite in validate.js) because Cozo
+ * single-quoted string literals do not support `\0` escape sequences.
  */
 export function cozoStringLit(s) {
   const escaped = String(s)

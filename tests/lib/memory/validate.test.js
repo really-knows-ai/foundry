@@ -37,6 +37,13 @@ describe('validateEntityWrite', () => {
       );
     }
   });
+
+  it('rejects NUL in value', () => {
+    assert.throws(
+      () => validateEntityWrite({ type: 'class', name: 'x', value: 'before\0after' }, vocab),
+      /value must not contain NUL/,
+    );
+  });
 });
 
 describe('validateEdgeWrite', () => {
