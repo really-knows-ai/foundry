@@ -62,7 +62,17 @@ export function commitWithPolicy({
     // expected to capture. Return null so the caller knows no SHA was made.
     return null;
   }
-  execFile(['add', '--', ...allowed]);
-  execFile(['commit', '-m', message]);
+  
+  // Wrap add + commit in try/catch to maintain atomicity guarantee.
+  // If commit fails (pre-commit hook reject, gpg error, empty commit after
+  // gitignore filtering), we must reset the index to restore "Nothing is
+  // staged or committed" invariant.
+  try {
+    execFile(['add', '--', ...allowed]);
+    execFile(['commit', '-m', message]);
+  } catch (err) {
+    execFile(['reset', '--quiet']);
+    throw err;
+  }
   return execFile(['rev-parse', '--short', 'HEAD']).trim();
 }

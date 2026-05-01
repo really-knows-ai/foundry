@@ -240,4 +240,39 @@ describe('commitWithPolicy', () => {
     const committed = git(dir, ['show', 'HEAD:haikus/a.md']);
     assert.equal(committed, 'new version', 'commits the worktree, not the stale index');
   });
+
+  // G4: Atomicity guarantee - index must be clean if commit fails after add
+  it('maintains atomicity guarantee when commit fails after add succeeds', () => {
+    // Simulate a commit failure (e.g., pre-commit hook reject, gpg error).
+    // The index must be rolled back even though add() succeeded.
+    mkdirSync(join(dir, 'haikus'), { recursive: true });
+    writeFileSync(join(dir, 'haikus/a.md'), 'draft\n');
+    writeFileSync(join(dir, 'WORK.md'), '---\n---\n');
+
+    const failingRun = (args) => {
+      if (args[0] === 'commit') {
+        throw new Error('commit failed: pre-commit hook rejected');
+      }
+      return run(args);
+    };
+
+    assert.throws(
+      () => commitWithPolicy({
+        message: '[c] forge: x',
+        allowedPatterns: ['haikus/*.md'],
+        execFile: failingRun,
+      }),
+      /commit failed/,
+    );
+
+    // Critical: the atomicity contract says "Nothing is staged or committed"
+    // on failure. The index must be clean even though add() succeeded before
+    // the commit failure.
+    const staged = git(dir, ['diff', '--cached', '--name-only']);
+    assert.equal(staged, '', 'index must be clean after commit failure (atomicity guarantee)');
+    
+    // No new commit was created
+    const log = git(dir, ['log', '--oneline']).split('\n').length;
+    assert.equal(log, 1);
+  });
 });
