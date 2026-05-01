@@ -4,11 +4,9 @@ export function memoryPaths(foundryDir) {
   const root = join(foundryDir, 'memory');
   const entitiesDir = join(root, 'entities');
   const edgesDir = join(root, 'edges');
-  // Fixed sibling path — Phase 2 moved relations out of the foundry/
-  // tree entirely. This sits at foundry-memory/relations/ (sibling to the
-  // worktree root, not under foundryDir). No way to derive from foundryDir
-  // without knowing the worktree root, so it's intentionally fixed.
-  const relationsDir = 'foundry-memory/relations';
+  // Phase 2 moved relations out of foundry/ to foundry-memory/relations/
+  // (sibling to foundry/). Derive from foundryDir using '..' to go up one level.
+  const relationsDir = join(foundryDir, '..', 'foundry-memory', 'relations');
   const extractorsDir = join(root, 'extractors');
   return {
     root,

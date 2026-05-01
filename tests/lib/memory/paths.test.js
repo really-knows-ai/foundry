@@ -39,4 +39,10 @@ describe('memoryPaths', () => {
     const p = memoryPaths('foundry');
     assert.equal(p.extractorFile('java-symbols'), 'foundry/memory/extractors/java-symbols.md');
   });
+
+  it('respects foundryDir parameter for relationsDir', () => {
+    const p = memoryPaths('/tmp/test-foundry/foundry');
+    assert.equal(p.relationsDir, '/tmp/test-foundry/foundry-memory/relations');
+    assert.equal(p.relationFile('class'), '/tmp/test-foundry/foundry-memory/relations/class.ndjson');
+  });
 });
