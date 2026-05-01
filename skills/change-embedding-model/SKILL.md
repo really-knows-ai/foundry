@@ -53,6 +53,6 @@ Before running this skill, verify all of the following:
 4. **Commit**:
 
    ```bash
-   git add foundry/memory/config.md foundry/memory/schema.json foundry/memory/relations/
+   git add foundry/memory/config.md foundry/memory/schema.json foundry-memory/relations/
    git commit -m "chore(memory): change embedding model to <model>"
    ```

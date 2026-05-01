@@ -49,6 +49,6 @@ Before running this skill, verify all of the following:
 4. Commit:
 
    ```bash
-   git add foundry/memory/relations/ foundry/memory/schema.json
+   git add foundry-memory/relations/ foundry/memory/schema.json
    git commit -m "chore(memory): reset memory data"
    ```

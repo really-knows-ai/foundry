@@ -52,6 +52,6 @@ Before running this skill, verify all of the following:
 5. Commit:
 
    ```bash
-   git add -A foundry/memory/
+   git add -A foundry/memory/ foundry-memory/relations/
    git commit -m "refactor(memory): drop entity type <name>"
    ```

@@ -353,16 +353,19 @@ These break users or tools at runtime, or contradict shipped behaviour.
 
 ### Skill drift
 
-- [ ] **B20. Eight memory admin skills `git add` `foundry/memory/
-  relations/` (or `relations/<name>.ndjson`).** Path is now
-  `foundry-memory/relations/`. Affected skills:
-  `change-embedding-model:50,56-57`, `reset-memory:52`,
-  `drop-memory-entity-type:55`, `drop-memory-edge-type:52`,
-  `rename-memory-entity-type:49`, `rename-memory-edge-type:48`,
-  plus A5 / A6 (which are P0 because they also stage a non-existent
-  file). Premise verified: Phase 2 only moved the relations
-  directory; the rest of `foundry/memory/` stayed put. Sweep all
-  eight skills.
+- [x] **B20. Eight memory admin skills `git add` `foundry/memory/
+  relations/` (or `relations/<name>.ndjson`).** Updated all six
+  remaining skills (A5 / A6 already done): `change-embedding-model`
+  (line 56) renamed `foundry/memory/relations/` →
+  `foundry-memory/relations/`; `reset-memory` (line 52) likewise;
+  `drop-memory-entity-type` (line 55) and `drop-memory-edge-type`
+  (line 52) extended `git add -A foundry/memory/` to also stage
+  `foundry-memory/relations/` (since both ops `unlink p.relationFile()`
+  under the new tree); `rename-memory-entity-type` (line 49) and
+  `rename-memory-edge-type` (line 48) extended their `git add`
+  commands the same way. Verified each operation's actual file
+  touches via the admin source under `scripts/lib/memory/admin/`
+  before editing.
 
 - [ ] **B21. `skills/flow/SKILL.md:50, 75` finish-time prose stale
   for the new kind-typed model.** `foundry_git_finish` now classifies
@@ -741,8 +744,16 @@ Both must hold before moving on.
 
 ## Follow-ups Found During Review Work
 
-(Empty. Real bugs discovered while working a checklist item go here
-with file:line references — do not expand the active item's scope.)
+- **Rename-memory skills miss deletion staging.**
+  `skills/rename-memory-entity-type/SKILL.md:49` and
+  `skills/rename-memory-edge-type/SKILL.md:48` use plain `git add`
+  (without `-A`). Both rename admin ops `io.unlink(oldRel)` and
+  `io.unlink(oldFile)` (`scripts/lib/memory/admin/rename-entity-type.
+  js:36,43`, `rename-edge-type.js:34,40`), so the suggested commit
+  silently leaves the old type-markdown and old NDJSON file
+  unstaged. Pre-existing drift; surfaced while updating B20 paths.
+  Fix is `git add -A` over the same path list. Out of B20 scope
+  (path correctness only).
 
 ---
 

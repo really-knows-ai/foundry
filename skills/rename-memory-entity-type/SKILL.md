@@ -46,6 +46,6 @@ Before running this skill, verify all of the following:
 4. Commit:
 
    ```bash
-   git add foundry/memory/
+   git add foundry/memory/ foundry-memory/relations/
    git commit -m "refactor(memory): rename entity type <from> -> <to>"
    ```
