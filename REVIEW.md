@@ -450,8 +450,11 @@ pass.
   to `filePath`. (Note: Only `cycle.js` had the issue; `law.js` uses
   a `pathFor` function, not a `path` variable.)
 
-- [ ] **C9. `git-tools.js` `finishWorkBranch` and `finishConfigBranch`
-  duplicate ~80% of scaffolding.** Refactor opportunity.
+- [x] **C9. `git-tools.js` `finishWorkBranch` and `finishConfigBranch`
+  duplicate ~80% of scaffolding.** Extracted common logic into
+  `finishBranchCommon` helper; both functions are now thin wrappers.
+  Added test coverage for config branch path. (Commits: 1ce3452,
+  a92af70)
 
 - [ ] **C10. `snapshot-tools.js:88-90` arg-validation envelope
   inconsistency.** `pruneSnapshots` returns
