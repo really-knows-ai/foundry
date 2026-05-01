@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1069 tests passing (baseline: 1036)
+**Current progress:** 1077 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -24,11 +24,11 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **G3** (Memory paths) - Commit bcfb425
 - [x] **G4** (Git atomicity) - Commit 28f75b2
 
-### Priority 2: P0 Feedback/Memory Bugs
+### Priority 2: P0 Feedback/Memory Bugs (Complete)
 **All complete!**
 
 ### Priority 3: P0 Assay/Memory Subsystems
-- [ ] **Assay cluster**: G24+G25+G26+G27+G28+G29 (spawn bugs, UTF-8, OOM risk)
+- [x] **Assay cluster**: G24+G25+G26+G27+G28+G29 (spawn bugs, UTF-8, OOM risk) - Commit a5c830f
 - [ ] **Memory cluster**: G13+G14+G15 (permissions, unbounded, live store)
 
 ### Priority 4: Voice/Docs Cleanup (Can batch)
@@ -1056,44 +1056,47 @@ sections and are listed for cross-reference only.
 
 ### Assay subsystem
 
-- [ ] **G24. SIGKILL fallback timer is never cleared on natural
+- [x] **G24. SIGKILL fallback timer is never cleared on natural
   exit.** `scripts/lib/assay/spawn-with-timeout.js:43-49`. The inner
   `setTimeout(..., 500)` reference is never captured, so a child
   exiting cleanly between SIGTERM and the 500ms mark leaves the
   timer keeping the Node event loop alive. Capture the inner timer
   id and `clearTimeout` it from `child.on('close')` and
-  `child.on('error')`.
+  `child.on('error')`. Fixed in a5c830f.
 
-- [ ] **G25. `process.kill(-child.pid, ...)` runs with possibly
+- [x] **G25. `process.kill(-child.pid, ...)` runs with possibly
   undefined pid.** `scripts/lib/assay/spawn-with-timeout.js:34-38`.
   If `spawn` fails synchronously (`/bin/sh` missing, EMFILE),
   `child.pid` is undefined. The try/catch wraps `process.kill` but
   the `-undefined` argument coerces to `NaN`. Add
   `if (child.pid == null) return;` at the top of `killGroup`.
+  Fixed in a5c830f.
 
-- [ ] **G26. `child.on('error')` returns whatever `timedOut` is set
+- [x] **G26. `child.on('error')` returns whatever `timedOut` is set
   to.** `scripts/lib/assay/spawn-with-timeout.js:51-63`. A spawn
   error that races with the soft timer reports
   `{ok: false, timedOut: true, ...}` while the real failure was
   spawn (e.g. ENOENT). `runAssay` then reports "extractor timed out
   after Xms". Capture spawn-error explicitly: `timedOut: true`
   requires the timer actually elapsed AND a child existed.
+  Fixed in a5c830f.
 
-- [ ] **G27. Stdout decoding is per-chunk `Buffer.toString`, splitting
+- [x] **G27. Stdout decoding is per-chunk `Buffer.toString`, splitting
   multi-byte UTF-8.** `scripts/lib/assay/spawn-with-timeout.js:40-41`.
   A multi-byte codepoint straddling a chunk boundary decodes as two
   replacement characters. Extractors emitting non-ASCII content
   (emoji, accented chars, CJK identifiers) silently corrupt. Use
-  `StringDecoder` from `node:string_decoder`.
+  `StringDecoder` from `node:string_decoder`. Fixed in a5c830f.
 
-- [ ] **G28. No bound on captured stdout/stderr — extractor can OOM
+- [x] **G28. No bound on captured stdout/stderr — extractor can OOM
   the agent.** `scripts/lib/assay/spawn-with-timeout.js:29-41`. Both
   streams accumulate unbounded into JS strings. A buggy extractor
   printing in a loop exhausts Node heap before the timeout fires.
   Add a byte cap (e.g. 50 MB stdout, 1 MB stderr) and on overflow
   kill the group with a distinguished `tooMuchOutput: true` flag.
+  Fixed in a5c830f.
 
-- [ ] **G29. Partial-write contract violation across extractors.**
+- [x] **G29. Partial-write contract violation across extractors.**
   `.opencode/plugins/foundry-tools/assay-tools.js:62-68`,
   `scripts/lib/assay/run.js:52-92`. The runner validates each row
   before any write *within one extractor*, but the wrapper only
@@ -1103,7 +1106,7 @@ sections and are listed for cross-reference only.
   `markWorkfileFailed` runs, and `syncStore` never fires — every row
   from A is lost. The in-code comment at lines 52-56 says writes are
   flushed immediately; the code says otherwise. Decide which is
-  truth and align.
+  truth and align. Fixed in a5c830f.
 
 - [ ] **G30. `parse-jsonl` rejects valid pretty-printed JSON.**
   `scripts/lib/assay/parse-jsonl.js:59-78`. `text.split(/\r?\n/)` then
