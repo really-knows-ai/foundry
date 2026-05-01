@@ -33,7 +33,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ### Priority 4: Voice/Docs Cleanup (Can batch)
 - [x] **Spelling**: C13+C29 (defense→defence, behavior→behaviour) - Commit e325b30
-- [ ] **Voice sweep**: C14+C15+C16+C28+C30-C34+C36+C37+G38+G52 (strawman negations)
+- [x] **Voice sweep**: C14+C15+C16+C28+C30-C34+C36+C37+G38+G52 (strawman negations) - Commits adef1d9, 5bedd89, cc9d71a, 3a22a3b
 - [ ] **Stale tool refs**: C12+D8+D11+D12+G51 (foundry_sort, foundry_stage_finalize)
 - [ ] **Doc gaps**: C17+C19+C21-C27
 - [ ] **Snapshot tooling**: C10+C11+C38-C40
