@@ -120,6 +120,29 @@ describe('getBootstrapContent', () => {
       const maintenanceSkills = maintenanceMatch[1];
       assert.match(maintenanceSkills, /\binit-memory\b/, 'Maintenance should list init-memory');
       assert.match(maintenanceSkills, /\bchange-embedding-model\b/, 'Maintenance should list change-embedding-model');
+      assert.match(maintenanceSkills, /\bdry-run\b/, 'Maintenance should list dry-run');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('lists all memory admin skills', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
+    try {
+      mkdirSync(path.join(dir, 'foundry'));
+      
+      const content = getBootstrapContent(dir, '/fake/package/root');
+      
+      // Extract the Memory Admin skills line
+      const memoryAdminMatch = content.match(/\*\*Memory Admin:\*\*\s+([^\n]+)/);
+      assert.ok(memoryAdminMatch, 'Should have Memory Admin skills section');
+      
+      const memoryAdminSkills = memoryAdminMatch[1];
+      assert.match(memoryAdminSkills, /\bdrop-memory-entity-type\b/, 'Memory Admin should list drop-memory-entity-type');
+      assert.match(memoryAdminSkills, /\bdrop-memory-edge-type\b/, 'Memory Admin should list drop-memory-edge-type');
+      assert.match(memoryAdminSkills, /\brename-memory-entity-type\b/, 'Memory Admin should list rename-memory-entity-type');
+      assert.match(memoryAdminSkills, /\brename-memory-edge-type\b/, 'Memory Admin should list rename-memory-edge-type');
+      assert.match(memoryAdminSkills, /\breset-memory\b/, 'Memory Admin should list reset-memory');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
