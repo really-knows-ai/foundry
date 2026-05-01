@@ -33,7 +33,7 @@ import { guarded } from '../../../scripts/lib/guards.js';
 // abandoning the cycle.
 //
 // requireNotFailed expects a sync IO (it parses WORK.md synchronously),
-// so we use makeIO here rather than the async makeMemoryIO that the
+// so we use makeIO here in place of the async makeMemoryIO that the
 // admin tool bodies themselves consume.
 function notFailedGuard(_args, context) {
   return requireNotFailed(makeIO(context.worktree));
@@ -41,8 +41,8 @@ function notFailedGuard(_args, context) {
 
 // Schema-mutating admin tools must run on a config/<description> branch
 // so the resulting commits land on a branch that finishes via
-// `foundry_git_finish` (config kind) rather than polluting main directly
-// or contaminating an in-progress flow's work branch.
+// `foundry_git_finish` (config kind) and stay isolated from main and any
+// in-progress flow work branch.
 //
 // Read-only tools (validate, dump) and the meta tool (vacuum) are exempt
 // — vacuum touches no tracked files and the read-only tools are needed

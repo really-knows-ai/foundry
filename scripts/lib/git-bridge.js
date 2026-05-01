@@ -2,9 +2,8 @@
 //
 // Policy-enforcing git commit helper used by the orchestrator.
 //
-// Replaces a previous `git add . && git commit -m msg` flow that would
-// silently capture any unrelated worktree changes (pre-existing user edits,
-// stray untracked files, secrets). This helper:
+// This helper stages exactly the paths allowed for the current phase and
+// creates the commit. It:
 //
 //   1. Reads the worktree status (NUL-terminated) so paths with spaces /
 //      renames are handled safely.
@@ -14,8 +13,8 @@
 //   3. If anything unexpected is dirty, throws a structured error with the
 //      offending file list — the orchestrator turns this into a `violation`
 //      action with `affected_files`. Nothing is staged or committed.
-//   4. Otherwise stages ONLY the allowed paths explicitly via argv (no
-//      `git add .`, no shell strings) and creates the commit.
+//   4. Otherwise stages ONLY the allowed paths explicitly via argv and
+//      creates the commit.
 //
 // `execFile` is injected so tests can drive the helper without spawning git.
 //

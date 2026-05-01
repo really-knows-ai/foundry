@@ -1,9 +1,8 @@
 # Flow memory — maintenance notes
 
-Contributor-facing notes. Not architecture; not a spec. This is the
-"things that weren't obvious from the Cozo docs / plugin surface and cost us
-time to derive" file. Add entries when a fix required non-trivial spelunking,
-so the next maintainer doesn't re-derive it.
+Contributor-facing notes. This file records the derived details from the
+Cozo docs / plugin surface that cost us time to establish. Add entries when a
+fix required non-trivial spelunking, so the next maintainer can reuse the result.
 
 ## Cozo 0.7 adaptations
 

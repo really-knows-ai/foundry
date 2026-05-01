@@ -79,8 +79,8 @@ export function createStageTools({ tool, secret, pending }) {
         summary: tool.schema.string().describe('Short summary of the work done'),
       },
       // Branch guard only: stage_end must remain callable even when the
-      // workfile has flipped to failed (it flushes memory state and clears
-      // active-stage; not gating on failed lets cleanup paths complete).
+      // workfile has flipped to failed (it flushes memory state, clears
+      // active-stage, and completes cleanup paths).
       execute: guarded('foundry_stage_end', [flowBranchGuard], async (args, context) => {
         const io = makeIO(context.worktree);
         const active = readActiveStage(io);

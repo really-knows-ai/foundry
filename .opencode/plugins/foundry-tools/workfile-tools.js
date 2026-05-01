@@ -76,8 +76,8 @@ export function createWorkfileTools({ tool }) {
         confirm: tool.schema.boolean().describe('Must be true to confirm deletion'),
       },
       // Branch guard only: workfile_delete is the failed-flow escape hatch,
-      // so it must remain callable when WORK.md has status: failed (no
-      // notFailed gate).
+      // so it must remain callable when WORK.md has status: failed under
+      // the branch guard alone.
       execute: guarded('foundry_workfile_delete', [flowBranchGuard], async (args, context) => {
         const io = makeIO(context.worktree);
         const guard = requireNoActiveStage(io);

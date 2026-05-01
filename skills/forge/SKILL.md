@@ -97,7 +97,7 @@ Forge may only write to:
 - Files matching the output artefact type's `file-patterns`.
 - `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` (tool-managed).
 
-Everything else on disk — including files of the cycle's input types, files of unrelated artefact types, and files outside any artefact type — is read-only for this stage. This is not an honor-system rule: the orchestrator's internal finalize step returns `{error: 'unexpected_files'}` and `sort`'s `checkModifiedFiles` routes a violation on the next call. Either outcome marks the cycle's target artefact `blocked` and you do not get a retry.
+Everything else on disk — including files of the cycle's input types, files of unrelated artefact types, and files outside any artefact type — is read-only for this stage. This rule is tool-enforced: the orchestrator's internal finalize step returns `{error: 'unexpected_files'}` and `sort`'s `checkModifiedFiles` routes a violation on the next call. Either outcome marks the cycle's target artefact `blocked` and you do not get a retry.
 
 When a cycle's output type overlaps with one of its input types (e.g. a `refine-haiku` cycle with input `haiku` and output `haiku`), the overlap is intentional: the cycle's job is to modify existing files of that type. The write invariant still holds — you may only touch files matching the output type's patterns, which in this case includes the files you read as inputs.
 

@@ -43,7 +43,7 @@ export function createValidateTools({ tool }) {
         const results = [];
         // Substitute {file} with a shell-quoted path so file names containing
         // shell metacharacters (spaces, ;, $(), `, quotes) are passed as a
-        // single literal argument rather than evaluated by the shell.
+        // single literal shell argument.
         const quotedFile = shellQuote(args.file);
         for (const entry of commands) {
           const expanded = entry.command.replace(/\{file\}/g, quotedFile);

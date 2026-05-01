@@ -107,7 +107,7 @@ export function makeIO(directory) {
     // exec: run a shell command in the worktree and return stdout as a UTF-8 string.
     // Used by sort.js (getDirtyToolManagedFiles, getModifiedFiles) for git enforcement.
     // Call sites pass full shell strings (e.g. 'git status --porcelain ...'), so we
-    // must use execSync rather than execFileSync. Throws on non-zero exit; callers
+    // must use execSync here. Throws on non-zero exit; callers
     // already wrap in try/catch.
     exec: (cmd) => execSync(cmd, { cwd: directory, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }),
   };
@@ -206,8 +206,8 @@ export async function buildCyclePromptExtras({ worktree, cycleId, stage }) {
     const perms = resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary: ctx.vocabulary });
 
     // Load extractor prose briefs only for the forge stage of assay-enabled cycles.
-    // Forge is the consumer that reads the populated memory; the assay stage itself
-    // doesn't need the briefs (it just runs commands).
+    // Forge is the consumer that reads the populated memory; the assay stage
+    // only runs commands.
     let extractors;
     const stageBase = typeof stage === 'string' ? stage.split(':')[0] : '';
     const assayBlock = cycleDef?.frontmatter?.assay;

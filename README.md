@@ -9,14 +9,14 @@
 
 ## Governed work for AI
 
-**AI coding tools are great at producing work and terrible at governing it.** They skip checks. They silently drop feedback. They rationalize past constraints because the next token is more interesting than the last one. Run a long agent task and you know the feeling: it declares done, and now *you* have to go verify any of it actually happened.
+**AI coding tools produce work quickly and need explicit governance.** They skip checks. They silently drop feedback. They rationalize past constraints because the next token is more interesting than the last one. Run a long agent task and you know the feeling: it declares done, and now *you* have to go verify any of it actually happened.
 
-Foundry is an opinionated framework for **governed artefact generation** — you get confidence that the things that need to happen actually did. You define what's produced (artefact types), what "good" means (laws), and how work flows (cycles). Foundry enforces the pipeline — routing, commits, write invariants, feedback lifecycle, stage tokens — in tested plugin code. The LLM does the creative work; the framework makes the process non-optional.
+Foundry is an opinionated framework for **governed artefact generation** — you get confidence that the things that need to happen actually did. You define what's produced (artefact types), what "good" means (laws), and how work flows (cycles). Foundry enforces the pipeline — routing, commits, write invariants, feedback lifecycle, stage tokens — in tested plugin code. The LLM does the creative work; the framework makes the process mandatory.
 
 ### What you get
 
-- **Stop babysitting the agent.** Stage transitions, commits, write invariants, and feedback state live in deterministic tools. The LLM can't skip a step, forge a token, or quietly write outside its lane.
-- **Written quality criteria, not vibes.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is non-negotiable.
+- **Deterministic governance for agent work.** Stage transitions, commits, write invariants, and feedback state live in deterministic tools. The LLM can't skip a step, forge a token, or quietly write outside its lane.
+- **Written quality criteria.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is non-negotiable.
 - **Multi-model diversity by default.** Forge on one model, appraise on another, or run every appraiser on a different model. Different blind spots — one flag is enough to raise an issue.
 - **Full audit trail in git.** One commit per stage. `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` record exactly what happened, why, and which model said it. Crashes leave clean boundaries to resume from.
 - **Bring your own pipeline.** Artefact types are yours. Works for code, specs, docs, data, contracts, creative writing — anything you can describe as files with pass/fail criteria.
@@ -24,7 +24,7 @@ Foundry is an opinionated framework for **governed artefact generation** — you
 
 ### For teams
 
-When AI output has to hold up under review — code merging to main, specs going to customers, policy drafts going to counsel — Foundry makes the checks **structural, not cultural**. Point at a commit log and show exactly which quality gate produced this artefact. Change a law, regenerate. Replay a flow under a different model. The discipline doesn't depend on whoever happens to be reviewing today.
+When AI output has to hold up under review — code merging to main, specs going to customers, policy drafts going to counsel — Foundry makes the checks structural. Point at a commit log and show exactly which quality gate produced this artefact. Change a law, regenerate. Replay a flow under a different model. The discipline stays consistent across reviewers.
 
 ---
 
@@ -128,7 +128,7 @@ That step is optional — OpenCode does not require it.
 ```
 
 - A **flow** defines the set of cycles and their entry points.
-- A **cycle** produces exactly one artefact type and declares its own `targets` — Foundry follows a dependency graph, not a linear list.
+- A **cycle** produces exactly one artefact type and declares its own `targets` — Foundry follows a dependency graph.
 - Each cycle loops through **forge → quench → appraise** until there is no unresolved feedback, or an iteration limit is hit.
 - All inter-stage communication goes through `WORK.md` and its sibling YAML files on a dedicated work branch; every stage ends with a micro-commit.
 
@@ -290,7 +290,7 @@ If forge and appraise ping-pong on the same items for `deadlock-iterations` (def
 
 ## Enforcement model
 
-Foundry is designed around "trust the tool, not the LLM". The following guarantees are enforced in plugin code, not prose:
+Foundry is designed around tool-enforced guarantees. The following guarantees are enforced in plugin code:
 
 - **Stage-locked mutations.** `foundry_feedback_*`, `foundry_artefacts_*`, and `foundry_workfile_*` tools require the caller's role to match the active stage. A forge sub-agent cannot add feedback; a quench sub-agent cannot register artefacts.
 - **Single-use tokens.** `foundry_stage_begin` verifies an HMAC token minted at dispatch time. Replays, forgery, and cross-stage reuse all fail closed. Keys live in `.foundry/.secret` (mode 0600, gitignored, one per worktree).
@@ -369,11 +369,11 @@ When `embeddings.enabled: true` in `config.md`, entity values are embedded on wr
 
 ### Operational guarantees
 
-- **Deterministic scaffolding.** `foundry_memory_init` creates directories, config, schema, and gitignore entries in one call — no multi-step skill prose that an LLM could botch.
+- **Deterministic scaffolding.** `foundry_memory_init` creates directories, config, schema, and gitignore entries in one call through a single tool-enforced scaffold.
 - **Self-healing reopen.** On store open, orphan relations left by drops/renames are reconciled (`::relations` filtered to `^(ent|edge)_[^:]+$`, HNSW indices dropped before `::remove`). The live `memory.db` is always rebuildable from the committed NDJSON.
-- **Preview-then-confirm for destructive ops.** Drop tools called without `confirm: true` return an impact report (row counts, affected edges with `cascadeDrop` vs `prune`) instead of deleting anything.
+- **Preview-then-confirm for destructive ops.** Drop tools called without `confirm: true` return an impact report (row counts, affected edges with `cascadeDrop` vs `prune`).
 - **Canonical schema.** `schema.json` is fully key-sorted at every nesting level, making it a diff-friendly artefact of the vocabulary.
-- **Prompt-injection guard.** If memory is misconfigured or drifted, dispatch still succeeds with no vocabulary block rather than failing the cycle.
+- **Prompt-injection guard.** If memory is misconfigured or drifted, dispatch still succeeds with the base prompt.
 
 See [docs/memory-maintenance.md](docs/memory-maintenance.md) for the Cozo 0.7 adaptations (string-literal quote rules, `::compact`, typed vector columns, `?[...] <- [[...]]` syntax) that cost us time to derive.
 
@@ -433,7 +433,7 @@ All authoring skills are interactive and conflict-aware — they explain what th
 
 ## Custom tools
 
-The plugin registers **60 custom tools**. Skills call these rather than manipulating files directly, which keeps format-parsing and state transitions out of LLM hands.
+The plugin registers **60 custom tools**. Skills call these tools, which keeps format-parsing and state transitions out of LLM hands.
 
 For per-tool args, return shapes, stage requirements, failure modes, and side effects, see the full reference at [`docs/tools.md`](./docs/tools.md). The category tables below are an index.
 
@@ -581,17 +581,17 @@ your-project/
 └── ...
 ```
 
-During a flow, a work branch also contains `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` at the repo root. All are ephemeral — delete them before squash-merging.
+During a flow, a work branch also contains `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` at the repo root. These files are ephemeral work state; delete them before squash-merging.
 
 ---
 
 ## Design principles
 
-Foundry's guiding rule is **trust the tool, not the LLM**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code that an LLM can't reason its way past. What follows is how that rule plays out in practice.
+Foundry's guiding rule is **trust the tool**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code. This is how that rule plays out in practice.
 
 ### Everything is markdown
 
-Flows, cycles, artefact types, laws, appraiser personalities, skills — all markdown with YAML frontmatter. Readable by humans, consumable by LLMs, diff-able in git. No bespoke formats, no databases.
+Flows, cycles, artefact types, laws, appraiser personalities, skills — all markdown with YAML frontmatter. Readable by humans, consumable by LLMs, diff-able in git, and stored directly in the repo.
 
 ### Skills are the pipeline, tools are the machinery
 
@@ -599,7 +599,7 @@ Composition happens at the skill layer. `flow` reads a definition and invokes `o
 
 ### WORK.md as shared state
 
-Inter-stage communication goes through `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` via the `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`, and `foundry_history_*` tools. No stage passes output directly to another. This gives a complete audit trail, makes flows resumable after a crash, and lets any stage be re-run independently.
+Inter-stage communication goes through `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` via the `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`, and `foundry_history_*` tools. This gives a complete audit trail, makes flows resumable after a crash, and lets any stage be re-run independently.
 
 ### Cycles own their routing
 
@@ -607,11 +607,11 @@ A flow declares starting points; individual cycles declare `targets` and input c
 
 ### Feedback as structured state
 
-Feedback lives in `WORK.feedback.yaml` with `#validation`, `#law:<id>`, or `#human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions instead of encoding state in markdown checkboxes. Feedback is append-only; history is part of the artefact's story. Nothing is silent — every issue is raised, every decision is recorded, every resolution is auditable.
+Feedback lives in `WORK.feedback.yaml` with `#validation`, `#law:<id>`, or `#human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions as structured state. Feedback is append-only; history is part of the artefact's story. Every issue is raised, every decision is recorded, and every resolution is auditable.
 
 ### Wont-fix requires approval
 
-A forge sub-agent can decline subjective feedback with a justification, but an appraiser must approve or reject that decision on the next iteration. Validation and human feedback cannot be wont-fixed.
+A forge sub-agent can decline subjective feedback with a justification, and an appraiser approves or rejects that decision on the next iteration. Validation and human feedback cannot be wont-fixed.
 
 ### Humans can step in at known points
 

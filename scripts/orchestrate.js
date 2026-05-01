@@ -57,8 +57,8 @@ export function needsSetup(workMdContent) {
 }
 
 // ---------------------------------------------------------------------------
-// Task-6 stub helpers (wired in later). readForgeFilePatterns is real now
-// because the first-call dispatch prompt needs it.
+// Cycle helpers used by orchestration. `readForgeFilePatterns` feeds the
+// first-call dispatch prompt.
 // ---------------------------------------------------------------------------
 
 export function findCycleOutputArtefact(cycleId, io) {
@@ -91,23 +91,10 @@ export async function readForgeFilePatterns(cycleId, io) {
 }
 
 function readRecentFeedback(io, limit = 5) {
-  // CHANGELOG NOTE (2026-04-24): ordering changed.
-  //
-  // Pre-redesign: candidates.slice(-limit) over file order.
-  // Because items were previously stored in WORK.md in creation order and
-  // that order was preserved, callers displayed oldest-first within the tail
-  // window.
-  //
-  // Post-redesign: WORK.feedback.yaml stores items by creation order, but
-  // history[0].timestamp is the authoritative "when did this item most
-  // recently change" signal. Callers of this helper (human-appraise skill
-  // preamble) want the MOST RECENT wont-fix/rejected items -- the last few
-  // that went through the appraise cycle. Sort by history[0].timestamp DESC
-  // and slice the first `limit`.
-  //
-  // Net effect for a same-ms-file: identical items surface, order reversed.
-  // Callers treating this as a set (not a list) are unaffected; callers that
-  // care about display order now see most-recent first.
+  // Return the most recently changed wont-fix/rejected items for the
+  // human-appraise preamble. `WORK.feedback.yaml` preserves creation order,
+  // while `history[0].timestamp` records the latest transition, so this helper
+  // sorts descending by that timestamp and returns the first `limit` items.
   try {
     if (!io.exists('WORK.feedback.yaml')) return [];
     const store = openFeedbackStore('WORK.feedback.yaml', io);

@@ -107,8 +107,8 @@
 - **Five `foundry_config_validate_*` and five `foundry_config_create_*`
   tools** for the artefact-type, law, appraiser, flow, and cycle config
   kinds. The five `add-*` config skills (`add-artefact-type`, `add-law`,
-  `add-appraiser`, `add-flow`, `add-cycle`) now use these instead of
-  writing files directly. Each create produces one git commit per
+  `add-appraiser`, `add-flow`, `add-cycle`) now use these tools to
+  create config entries. Each create produces one git commit per
   invocation. Updates (editing existing config files) are not yet
   exposed as MCP tools; operators edit by hand on the current
   `config/*` branch.
@@ -126,12 +126,12 @@
 ### Changed
 
 - **`foundry_memory_dump` response wrapped in a JSON envelope.** The tool
-  now returns `{ dump: "<text>" }` instead of a raw string, matching the
+  now returns `{ dump: "<text>" }`, matching the
   contract of every other plugin tool. Callers that previously consumed
   the raw string must read `.dump`. (`b9b4be1`)
 - **`foundry_git_branch` errors now return a JSON envelope.**
-  Failures are returned as `{ error: "<message>" }` instead of throwing
-  raw `execFileSync` errors at the caller. (`4a01a9d`)
+  Failures are returned as `{ error: "<message>" }`, giving callers a
+  structured alternative to raw `execFileSync` errors. (`4a01a9d`)
 
 ### Fixed
 
@@ -157,8 +157,8 @@
 - **Missing artefact-type definitions surface a typed finalize error.**
   The orchestrator's finalize bridge now returns
   `{ok: false, error: "missing_artefact_type: <type> (<reason>)"}` when
-  `getArtefactType` fails, instead of swallowing the error and falsely
-  reporting an `unexpected_files` violation. (`cd028eb`)
+  `getArtefactType` fails, preserving the real error and avoiding a false
+  `unexpected_files` violation. (`cd028eb`)
 
 ### Migration
 

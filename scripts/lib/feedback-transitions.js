@@ -9,14 +9,13 @@ import { createHash } from 'node:crypto';
 //   1. Forge operates on {open, rejected} → {actioned, wont-fix}.
 //   2. Source-stage (quench/appraise/human-appraise) operates on {actioned, wont-fix}
 //      → {resolved, rejected}, but only when caller's stageId === item.source.
-//   3. Sort (and only sort) writes 'deadlocked'. NOT validated here — sort bypasses
-//      this function. Included for completeness: no stage-base is allowed to produce
-//      'deadlocked' through this function.
+//   3. Sort (and only sort) writes 'deadlocked'. Sort bypasses this function.
+//      Included for completeness: this function never produces 'deadlocked'.
 //   4. Human-appraise override: on a deadlocked item, transitions to
 //      {resolved, rejected} are legal regardless of source match. The
 //      override authority mirrors the source-stage targets — wont-fix is
-//      a forge declaration ("considered, choosing not to act"), not a
-//      reviewer verdict, so it is intentionally absent here.
+//      a forge declaration ("considered, choosing not to act") and stays
+//      outside reviewer verdicts, so it is intentionally absent here.
 //   5. 'resolved' is terminal.
 //
 // validateTransition takes an options object so new dimensions (sourceMatches,
@@ -91,8 +90,8 @@ export function hashText(text) {
  * For `quench`- or `human-appraise`-sourced items, forge's only legal
  * target from {open, rejected} is `actioned`.
  *
- * The predicate is forge-specific. Non-forge callers always receive
- * `false` — they should use validateTransition directly, not this helper.
+ * The predicate is forge-specific. Forge callers use this helper to check
+ * whether an item may transition to `wont-fix`.
  *
  * @param {{source: string}} item — feedback item; `source` is `base:alias`.
  * @param {string} callerStageBase — the caller's stage base (e.g. 'forge').

@@ -45,7 +45,7 @@ Every stage runs inside a token-gated lifecycle bracketed by `foundry_stage_begi
 
 A deterministic stage that runs before the first `forge` of a cycle. For each extractor listed in the cycle's `assay.extractors` frontmatter, it runs the extractor's `command`, parses the JSONL output, and upserts rows into flow memory via the existing memory write tools.
 
-In metallurgy, to *assay* an ore or alloy is to determine its composition before working it. The stage plays the same role for a codebase: it determines what is there so forge can plan against reality instead of guessing.
+In metallurgy, to *assay* an ore or alloy is to determine its composition before working it. The stage plays the same role for a codebase: it determines what is there so forge can plan against reality.
 
 Properties:
 
@@ -176,8 +176,8 @@ runs:
 `currentBranch()` resolves the active branch in a single place,
 including unborn HEADs (fresh repos with no commits) and detached
 HEAD. When no branch can be resolved the guards return a structured
-refusal envelope rather than throwing, so the LLM sees the same
-shape for branch refusals as for any other tool failure.
+refusal envelope, giving the LLM the same shape for branch refusals as
+for any other tool failure.
 
 ## Stage token
 
@@ -244,7 +244,7 @@ Implementation: `scripts/lib/snapshot/`.
 
 ## Custom tools
 
-All deterministic pipeline operations are exposed as custom tools by the Foundry plugin. Skills call these tools instead of manipulating files directly. Tools are backed by shared library modules in `scripts/lib/` with injectable I/O so they can be unit-tested. This separation ensures state transitions and routing logic are tested code, not LLM interpretation. See the [README](../README.md#custom-tools) for the full catalogue.
+All deterministic pipeline operations are exposed as custom tools by the Foundry plugin. Skills call these tools to run deterministic pipeline operations. Tools are backed by shared library modules in `scripts/lib/` with injectable I/O so they can be unit-tested. This separation ensures state transitions and routing logic are tested code, not LLM interpretation. See the [README](../README.md#custom-tools) for the full catalogue.
 
 ## Skill
 

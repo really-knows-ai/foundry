@@ -113,10 +113,9 @@ What human-appraise CAN do:
 2. **Resolve any non-resolved source-stage item.** For items in
    `{actioned, wont-fix}` (sourced from quench, appraise, or
    human-appraise), call `foundry_feedback_resolve` with
-   `{ id, resolution: 'approved' | 'rejected', reason? }`. Unlike
-   appraise and quench, you are NOT restricted to items whose `source`
-   matches your stage id — you may resolve any such item regardless of
-   source.
+   `{ id, resolution: 'approved' | 'rejected', reason? }`. Human-appraise
+   may resolve any such item regardless of source, including items from
+   other stage ids.
 
 3. **Resolve deadlocked items.** When items reach `state: deadlocked`
    (written by sort when an item's history depth hits

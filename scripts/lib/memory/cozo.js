@@ -14,8 +14,8 @@ export function closeMemoryDb(db) {
  * Canonical Cozo string literal encoder.
  *
  * Emits a **single-quoted** literal because Cozo's `"..."` form is raw
- * (backslash escapes, including `\"`, are not recognised — a `"` embedded in
- * a value produces a parse error, and `\n` stores as literal backslash+n).
+ * and stores backslash sequences literally. Single-quoted literals handle
+ * embedded `"` safely and parse escaped newlines, CR, tabs, and backslashes.
  * Single-quoted literals honour standard escape sequences, giving a safe
  * round-trip for values containing `"`, `\`, newlines, CR, tabs, etc.
  *

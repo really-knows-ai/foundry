@@ -24,8 +24,8 @@ function resolveCycleId(context) {
   } catch {
     // Treat unreadable/corrupt active-stage as no active stage. The stage
     // guard checks elsewhere already cover the integrity case for stage
-    // tools; for memory tools we fall through to unscoped behaviour rather
-    // than blocking unrelated direct calls.
+    // tools; memory tools continue with unscoped behaviour so unrelated
+    // direct calls stay available.
   }
   return { cycleId: null, fromActiveStage: false };
 }
@@ -54,12 +54,11 @@ export async function withStore(context) {
       const cycleDef = await getCycleDefinition('foundry', cycleId, io);
       permissions = resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary: ctx.vocabulary });
     } catch (err) {
-      // Fail closed when an active stage is in flight but its cycle cannot
-      // be resolved — better to block the call than silently grant full
-      // access. When the caller passed `context.cycle` explicitly we
-      // preserve the historical behaviour of treating an unresolvable
-      // cycle as "no permissions" (full access), since that path has
-      // always been a trust-the-caller contract.
+      // Active stages enforce cycle-scoped permissions, so an unresolved
+      // cycle keeps the call within those permissions. Explicit
+      // `context.cycle` calls continue to treat an unresolved cycle as
+      // "no permissions" (full access), because that path is a
+      // trust-the-caller contract.
       if (fromActiveStage) {
         throw new Error(
           `active stage references cycle '${cycleId}' but its definition could not be loaded: ${err.message ?? err}`,

@@ -103,7 +103,7 @@ Each `Item`:
 | `source` | string (`base:alias`) | yes | no |
 | `history` | array, length >= 1 | yes | prepend-only |
 
-`source` bases include `quench`, `appraise`, and `human-appraise`. (`assay` is not a feedback source — extractor failure marks the workfile failed.)
+`source` bases include `quench`, `appraise`, and `human-appraise`. Extractor failure marks the workfile failed, so `assay` does not appear as a feedback source.
 
 Each history snapshot:
 

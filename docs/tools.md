@@ -262,8 +262,8 @@ failed flow.
 
 **Failure modes:**
 - Flow is failed → `foundry_orchestrate: <reason>`.
-- `runOrchestrate` throws → returns a `violation` action with the message
-  rather than an error envelope.
+- `runOrchestrate` throws → returns a `violation` action carrying the
+  message.
 
 **Side effects:** mints/persists dispatch tokens (in-memory pending
 store); commits via `commitWithPolicy` when finalising stages (refuses
@@ -390,8 +390,8 @@ base:
 - `quench` → tag must be exactly `validation`.
 - `appraise` → tag must start with `law:`.
 - `human-appraise` → tag must be exactly `human`.
-- `assay` → forbidden. Extractor failures mark the workfile failed
-  rather than filing feedback.
+- `assay` → forbidden. Extractor failures mark the workfile failed and end
+  the cycle without filing feedback.
 
 **Failure modes:** see above tag gates; `WORK.md` missing or no `cycle`
 in frontmatter.

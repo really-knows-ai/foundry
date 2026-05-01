@@ -1,7 +1,7 @@
 /**
  * Failed-flow lifecycle helpers.
  *
- * When a tool encounters an unrecoverable error (e.g. stage_end could not
+ * When a tool encounters an unrecoverable error (e.g. stage_end cannot
  * flush memory to NDJSON and the on-disk source of truth is now behind
  * the live DB), it marks WORK.md with `status: failed` and a `reason`.
  *
@@ -12,19 +12,17 @@
  * reset, init, vacuum, change_embedding_model). It also includes
  * `validate_run`, since validation commands are project-defined
  * subprocesses with arbitrary side effects (linters with --fix,
- * formatters). The rule: anything that mutates disk or live DB state,
- * or runs unsandboxed subprocesses that could mutate it, is blocked,
- * because the work-branch FS is the source-of-truth that's thrown away
- * on abandon-and-retry.
+ * formatters). The rule is simple: tools that mutate disk or live DB state,
+ * or run unsandboxed subprocesses that could mutate it, stay blocked while
+ * the abandoned work-branch filesystem remains the source of truth.
  *
- * Read-only diagnostics are intentionally exempt: workfile_get,
+ * Read-only diagnostics remain available: workfile_get,
  * memory_list/get/neighbours/query/search, memory_dump, memory_validate.
- * These are needed to figure out what went wrong before abandoning the
- * cycle.
+ * These tools support diagnosis before the cycle is abandoned.
  *
- * The only ways out are `foundry_workfile_delete` (abandon the cycle) or
- * manually editing WORK.md to remove the failed status after fixing the
- * underlying issue.
+ * Recovery paths are `foundry_workfile_delete` to abandon the cycle or
+ * editing WORK.md to remove the failed status after the underlying issue
+ * is fixed.
  */
 import { parseFrontmatter, setFrontmatterField } from './workfile.js';
 

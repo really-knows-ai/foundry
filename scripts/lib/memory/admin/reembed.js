@@ -8,15 +8,7 @@ import { existsSync, renameSync, unlinkSync } from 'node:fs';
 /**
  * Atomic re-embedding via a staging DB.
  *
- * The previous implementation was in-place: Phase 1 harvested old rows and
- * dropped the existing relations/HNSW indexes from the live DB, Phase 2
- * reopened at the new dimensionality and re-embedded, and the schema was
- * written last. If the embedder (provider call) failed mid-flight, the live
- * DB, NDJSON, and on-disk schema could drift out of sync and the NDJSON
- * reimport on the next process start would fail coercion against the new
- * column type, leaving the store unusable.
- *
- * This rewrite builds the new state in a sibling staging DB. The original
+ * Re-embedding builds the new state in a sibling staging DB. The original
  * `memory.db` and on-disk schema remain untouched until every entity has been
  * re-embedded successfully, at which point we swap atomically: rename the
  * staging DB over the live DB, write the new schema, and refresh NDJSON.
@@ -42,8 +34,8 @@ export async function reembed({
   const oldSchema = await loadSchema('foundry', io);
   const entityTypes = Object.keys(oldSchema.entities);
 
-  // Phase 1: harvest existing rows from the live store. Non-destructive —
-  // the live DB is only read, not mutated.
+  // Phase 1: harvest existing rows from the live store. The live DB stays
+  // read-only during this phase.
   const oldStore = await openStore({
     foundryDir: 'foundry',
     schema: oldSchema,
@@ -62,7 +54,7 @@ export async function reembed({
   }
 
   // Phase 2: build the new state in a staging DB sibling to the live one.
-  // Nothing durable is mutated until the embedding loop completes cleanly.
+  // Durable state changes only after the embedding loop completes cleanly.
   const stagingPath = `${dbAbsolutePath}.reembed-tmp`;
   unlinkDbFiles(stagingPath); // clean up any stale prior run
 

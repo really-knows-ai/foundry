@@ -26,9 +26,9 @@ import { openFeedbackStore } from './lib/feedback-store.js';
 // Stage helpers
 // ---------------------------------------------------------------------------
 
-// Spec §6.1: an item is "open" (still in flight) iff its head state is neither
-// 'resolved' nor 'deadlocked'. Used by routing predicates to count items that
-// still need work.
+// Spec §6.1: an item is "open" (still in flight) when its head state is
+// 'open', 'actioned', 'rejected', or 'wont-fix'. Used by routing predicates to
+// count items that still need work.
 const isOpenItem = (f) => f.state !== 'resolved' && f.state !== 'deadlocked';
 
 function baseStage(stage) {
@@ -144,9 +144,8 @@ function getModifiedFiles(cycle, io = defaultIO) {
     // diff is naturally empty.
     //
     // If no matching sort commit is found in recent history (e.g. very first
-    // sort of a cycle, or shallow clone), we return an empty list rather
-    // than diffing against an arbitrary depth — guessing risks false
-    // violations.
+    // sort of a cycle, or shallow clone), we return an empty list and avoid
+    // false violations from guessed diff boundaries.
     const log = io.exec('git log --oneline -20');
     const sortPattern = `[${cycle}] sort:`;
     let sortSha = null;
@@ -356,7 +355,7 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
   // Spec §6.1 — if the deadlock pass produced any deadlocked items, override
   // normal routing and head straight to human-appraise. Runs BEFORE
   // determineRoute so a deadlock detected with last completed stage = forge
-  // still escalates instead of falling through to quench.
+  // routes directly to human-appraise.
   let route;
   if (anyDeadlocked) {
     const currentNonSort = nonSortHistory.length > 0 ? nonSortHistory[nonSortHistory.length - 1].stage : null;

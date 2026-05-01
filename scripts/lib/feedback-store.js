@@ -131,8 +131,7 @@ export function openFeedbackStore(path, io) {
       // Reason requirements per spec §4.3 (updated per REVISION-CONTRACT §A1 + G1):
       // - required when target is {rejected, wont-fix}
       // - required when overriding a deadlocked item (current state is 'deadlocked')
-      // - forbidden on 'open'
-      // - optional on {actioned, resolved} unless deadlock override
+      // - transitions target {actioned, resolved} with an optional reason unless this is a deadlock override
       // Deadlocked state is only written by writeDeadlockedSnapshot; here we
       // validate both the 'target' state and the 'current' state.
       const REASON_REQUIRED_TARGETS = new Set(['rejected', 'wont-fix']);
@@ -140,8 +139,8 @@ export function openFeedbackStore(path, io) {
       if ((REASON_REQUIRED_TARGETS.has(target) || isDeadlockOverride) && (!reason || !reason.trim())) {
         return { ok: false, error: `reason is required for transition → ${target}` };
       }
-      // 'open' is forbidden as a transition target (state machine rejects it
-      // upstream), so no 'reason forbidden on open' branch is needed here.
+      // Reachable transition targets are validated upstream, and this branch
+      // enforces the remaining reason requirements for those targets.
 
       const snapshot = { state: target, stage, cycle, timestamp: nowIso() };
       if (reason && reason.trim()) snapshot.reason = reason;
@@ -155,8 +154,7 @@ export function openFeedbackStore(path, io) {
     },
 
     // Sort-only. Writes deadlocked snapshots atomically in a single pass.
-    // Not validated through validateTransition (sort bypasses the state machine
-    // per spec §6.1).
+    // Sort bypasses validateTransition per spec §6.1.
     writeDeadlockedSnapshot({ id, cycle, reason }) {
       const item = items.find(x => x.id === id);
       if (!item) return { ok: false, error: `feedback item not found: ${id}` };

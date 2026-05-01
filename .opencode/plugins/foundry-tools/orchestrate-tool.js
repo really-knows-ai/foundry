@@ -29,8 +29,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
         const cwd = context.worktree;
 
         try {
-          // Branch guard. Inline rather than composed via guarded() because
-          // the orchestrate tool surfaces all errors through its violation
+          // Branch guard. Kept inline because the orchestrate tool surfaces all errors through its violation
           // envelope (see comment on the failed-flow guard below). A
           // wrong-branch refusal is a more fundamental error than failed
           // flow, so it runs first.
@@ -40,7 +39,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
           });
           if (!branchGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${branchGuard.error}` });
 
-          // Failed-flow guard. Stays inline rather than composed via guarded()
+          // Failed-flow guard. Kept inline to preserve the violation envelope.
           // because requireNotFailed parses WORK.md frontmatter, which throws
           // on malformed YAML. The surrounding try/catch (line 30) converts
           // that throw into a violation-shaped envelope per the contract
@@ -51,7 +50,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
           const failedGuard = requireNotFailed(io);
           if (!failedGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${failedGuard.error}` });
 
-          // Mint: same pattern as removed foundry_sort.
+          // Mint signed dispatch tokens for orchestrator routes.
           const mint = ({ route, cycle, exp }) => {
             const nonce = randomUUID();
             const payload = { route, cycle, nonce, exp };
@@ -79,7 +78,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
             },
           };
 
-          // Finalize bridge: mimics the deleted foundry_stage_finalize body.
+          // Finalize bridge: load the cycle definition and finalise the stage.
           const finalize = async ({ cycleId, stage, baseSha }) => {
             let cycleDoc;
             try {
@@ -95,7 +94,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
                 const artDoc = await getArtefactType('foundry', outputType, io);
                 artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
               } catch (e) {
-                // Surface as a typed finalize error instead of falling back to
+                // Surface as a typed finalize error and avoid falling back to
                 // empty filePatterns. The fallback would let the forge-written
                 // artefact file resurface as a misleading `unexpected_files`
                 // violation, hiding the actual cause: a missing or malformed

@@ -87,8 +87,8 @@ export function createConfigCreateTools({ tool }) {
           return JSON.stringify(out);
         } catch (err) {
           // Preserve the structured file list from commit-policy refusals
-          // so callers can surface an actionable diagnostic instead of
-          // re-running just to learn which paths offended the gate.
+          // so callers can surface an actionable diagnostic with the paths
+          // that offended the gate.
           // Mirrors the `affected_files` envelope produced by
           // foundry_orchestrate's violation path.
           if (err instanceof UnexpectedFilesError) {

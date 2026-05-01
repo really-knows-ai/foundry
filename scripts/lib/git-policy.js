@@ -2,17 +2,15 @@
 //
 // Shared git-commit policy used by the orchestrator's git bridge.
 //
-// The orchestrator commits twice per cycle: once at setup (configures stages
-// in WORK.md) and once after every stage finalize. Both commits historically
-// used `git add .`, which silently captured any unrelated worktree changes
-// (pre-existing user edits, untracked secrets, files left over from a failed
-// finalize). This module provides the building blocks to commit ONLY the
-// files allowed by the current phase and to report a structured violation
-// when the worktree contains anything else.
+// The orchestrator commits twice per cycle: a setup commit that configures
+// stages in WORK.md and a post-finalise commit after each stage finalise.
+// This module defines the phase-specific file allow-lists for those commits
+// and reports a structured violation when the worktree contains any other
+// paths.
 //
-// Intentionally framework-agnostic: takes raw inputs (porcelain string,
-// allowed pattern list) and returns plain data. The bridge wires these
-// helpers to execFileSync / git plumbing.
+// This module accepts raw inputs (porcelain string, allowed pattern list)
+// and returns plain data. The bridge wires these helpers to execFileSync /
+// git plumbing.
 
 import { minimatch } from 'minimatch';
 
