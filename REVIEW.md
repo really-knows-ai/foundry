@@ -869,14 +869,14 @@ sections and are listed for cross-reference only.
   Either stage the writes-only-on-success, or compensate (revert
   in-memory writes) on commit failure.
 
-- [ ] **G7. `<FOUNDRY_CONTEXT>` skills list omits new skill families.**
+- [x] **G7. `<FOUNDRY_CONTEXT>` skills list omits new skill families.**
   `.opencode/plugins/foundry-tools/helpers.js:81-83`. The Pipeline /
   Authoring / Maintenance lists do not include `init-memory`,
   `dry-run`, `add-memory-entity-type`, `add-memory-edge-type`,
   `change-embedding-model`, `add-extractor`, etc. Every agent reads
   this string on session start; missing skills are silently invisible.
 
-- [ ] **G8. `<FOUNDRY_CONTEXT>` pipeline summary omits `assay` and
+- [x] **G8. `<FOUNDRY_CONTEXT>` pipeline summary omits `assay` and
   `human-appraise`.** `.opencode/plugins/foundry-tools/helpers.js:64`
   reads `"forge → quench → appraise → iterate"`. The canonical 3.0
   pipeline is `assay → forge → quench → appraise → human-appraise`
