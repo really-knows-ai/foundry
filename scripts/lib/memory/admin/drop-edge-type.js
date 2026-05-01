@@ -1,6 +1,7 @@
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion } from '../schema.js';
 import { invalidateStore } from '../singleton.js';
+import { withLiveMemoryDb, dropLiveEdgeType } from './live-store.js';
 
 export async function dropEdgeType({ worktreeRoot, io, name, confirm }) {
   const p = memoryPaths('foundry');
@@ -26,6 +27,12 @@ export async function dropEdgeType({ worktreeRoot, io, name, confirm }) {
   bumpVersion(schema);
   await writeSchema('foundry', schema, io);
 
-  invalidateStore(worktreeRoot);
+  try {
+    await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {
+      await dropLiveEdgeType(db, name);
+    });
+  } finally {
+    invalidateStore(worktreeRoot);
+  }
   return { dropped: name };
 }

@@ -3,6 +3,12 @@ import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema
 import { parseEdgeRows, serialiseEdgeRows } from '../ndjson.js';
 import { invalidateStore } from '../singleton.js';
 import { parseFrontmatter } from '../frontmatter.js';
+import {
+  withLiveMemoryDb,
+  dropLiveEntityType,
+  dropLiveEdgeType,
+  replaceLiveEdgeRows,
+} from './live-store.js';
 
 function renderEdgeFrontmatter(fm) {
   const lines = [`type: ${fm.type}`];
@@ -132,6 +138,24 @@ export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
   bumpVersion(schema);
   await writeSchema('foundry', schema, io);
 
-  invalidateStore(worktreeRoot);
+  try {
+    await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {
+      for (const edge of analysis.affectedEdges) {
+        if (edge.action === 'cascadeDrop') {
+          await dropLiveEdgeType(db, edge.name);
+          continue;
+        }
+
+        const relFile = p.relationFile(edge.name);
+        const rows = await io.exists(relFile)
+          ? parseEdgeRows(await io.readFile(relFile))
+          : [];
+        await replaceLiveEdgeRows(db, edge.name, rows);
+      }
+      await dropLiveEntityType(db, name);
+    });
+  } finally {
+    invalidateStore(worktreeRoot);
+  }
   return { dropped: name };
 }

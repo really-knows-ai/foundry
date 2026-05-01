@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createEntityType } from '../../../../scripts/lib/memory/admin/create-entity-type.js';
 import { createEdgeType } from '../../../../scripts/lib/memory/admin/create-edge-type.js';
+import { openStore, closeStore } from '../../../../scripts/lib/memory/store.js';
 
 
 import { diskIO } from '../_helpers.js';
@@ -81,6 +82,19 @@ describe('createEdgeType', () => {
     const edgeMd = readFileSync(join(root, 'foundry/memory/edges/calls.md'), 'utf-8');
     assert.match(edgeMd, /sources: \[class, method\]/);
     assert.match(edgeMd, /targets: \[method\]/);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('creates the live Cozo relation for an already-open store', async () => {
+    const root = setup();
+    const io = diskIO(root);
+    await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'class body' });
+    const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
+    const store = await openStore({ foundryDir: 'foundry', schema, io, dbAbsolutePath: join(root, 'foundry/memory/memory.db') });
+    await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class'], targets: ['class'], body: 'calls body' });
+    const relations = (await store.db.run('::relations')).rows.map((row) => row[0]);
+    assert.ok(relations.includes('edge_calls'));
+    closeStore(store);
     rmSync(root, { recursive: true, force: true });
   });
 });

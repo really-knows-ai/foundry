@@ -150,6 +150,15 @@ describe('plugin foundry_memory_search — embeddings enabled (fake provider)', 
     assert.equal(out.length, 1);
   });
 
+  it('rejects k values above the safety bound', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_memory_search.execute(
+      { query_text: 'alpha', k: 101 },
+      { worktree: root },
+    ));
+    assert.match(out.error, /\bk\b/i);
+    assert.match(out.error, /100/);
+  });
+
   it('type_filter restricts results to the specified types', async () => {
     const out = JSON.parse(await plugin.tool.foundry_memory_search.execute(
       { query_text: 'alpha', k: 10, type_filter: ['class'] },

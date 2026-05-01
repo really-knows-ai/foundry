@@ -1,6 +1,7 @@
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { invalidateStore } from '../singleton.js';
+import { withLiveMemoryDb, createLiveEdgeType } from './live-store.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
 
@@ -59,6 +60,12 @@ export async function createEdgeType({ worktreeRoot, io, name, sources, targets,
   bumpVersion(schema);
   await writeSchema('foundry', schema, io);
 
-  invalidateStore(worktreeRoot);
+  try {
+    await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {
+      await createLiveEdgeType(db, name);
+    });
+  } finally {
+    invalidateStore(worktreeRoot);
+  }
   return { type: name, sources: srcs, targets: tgts };
 }

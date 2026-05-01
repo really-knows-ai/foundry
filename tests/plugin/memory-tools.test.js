@@ -81,6 +81,16 @@ describe('plugin memory tools', () => {
     assert.equal(out.edges.length, 1);
   });
 
+  it('neighbours rejects depth values above the safety bound', async () => {
+    const ctx = { worktree: root };
+    const out = JSON.parse(await plugin.tool.foundry_memory_neighbours.execute(
+      { type: 'class', name: 'com.Src', depth: 6 },
+      ctx,
+    ));
+    assert.match(out.error, /depth/i);
+    assert.match(out.error, /5/);
+  });
+
   it('query rejects write queries', async () => {
     const ctx = { worktree: root };
     const out = await plugin.tool.foundry_memory_query.execute({ datalog: ':put ent_class { name => value } [["x","y"]]' }, ctx);

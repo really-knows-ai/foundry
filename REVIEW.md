@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1077 tests passing (baseline: 1036)
+**Current progress:** 1089 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -29,7 +29,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ### Priority 3: P0 Assay/Memory Subsystems
 - [x] **Assay cluster**: G24+G25+G26+G27+G28+G29 (spawn bugs, UTF-8, OOM risk) - Commit a5c830f
-- [ ] **Memory cluster**: G13+G14+G15 (permissions, unbounded, live store)
+- [x] **Memory cluster**: G13+G14+G15 (permissions, unbounded, live store) - Commits bab78e2, 8d6bfc8
 
 ### Priority 4: Voice/Docs Cleanup (Can batch)
 - [ ] **Spelling**: C13+C29 (defense→defence, behavior→behaviour)
@@ -957,7 +957,7 @@ sections and are listed for cross-reference only.
 
 ### Memory subsystem
 
-- [ ] **G13. `foundry_memory_query` permission filter is bypassable
+- [x] **G13. `foundry_memory_query` permission filter is bypassable
   via Datalog rule aliasing.**
   `.opencode/plugins/foundry-tools/memory-tools.js:169` matches
   literal `\bent_<name>\b` / `\bedge_<name>\b` tokens. Datalog rule
@@ -966,16 +966,17 @@ sections and are listed for cross-reference only.
   without matching the regex. The pre-filter is the *only* permission
   gate. Either ban any unknown `*ent_` / `*edge_` reference, parse
   with a stricter token grammar, or push permission enforcement down
-  into `runQuery`.
+  into `runQuery`. Fixed in bab78e2 and 8d6bfc8.
 
-- [ ] **G14. `foundry_memory_neighbours` and `foundry_memory_search`
+- [x] **G14. `foundry_memory_neighbours` and `foundry_memory_search`
   do not bound `depth` / `k`.**
   `.opencode/plugins/foundry-tools/memory-tools.js:124-154,202`.
   `depth: 1000` runs O(depth × edge_types × frontier) Cozo queries
   and exhausts memory. Same for unbounded `k`. Clamp both
-  (depth ≤ 5, k ≤ 100) or reject with a clear error.
+  (depth ≤ 5, k ≤ 100) or reject with a clear error. Fixed in
+  bab78e2.
 
-- [ ] **G15. `dropEntityType` / `dropEdgeType` leave orphan Cozo
+- [x] **G15. `dropEntityType` / `dropEdgeType` leave orphan Cozo
   relations alive in long-lived processes.**
   `scripts/lib/memory/admin/drop-edge-type.js:23-30`,
   `drop-entity-type.js:96-105`. Both delete markdown + NDJSON +
@@ -989,7 +990,7 @@ sections and are listed for cross-reference only.
   either, so `foundry_memory_put` against a freshly-created type can
   fail with "stored relation not found" until reopen. Make admin
   ops consistently touch the live store, or consistently rely on
-  reconciliation; the current mix is the bug.
+  reconciliation; the current mix is the bug. Fixed in bab78e2.
 
 - [ ] **G16. Embedding probe seeds dimensions from the user's claim,
   not the provider's reality.**
@@ -1408,5 +1409,4 @@ Continuing from the existing 25-item plan:
 54. **`fix(memory/admin): reset.js sidecar existence check; dump.js include edge counts`** — G22 + G23
 55. **`fix(feedback-list): align depth definition with sort, or rename`** — G10
 56. *(P3 nits)* — G47, G48, G49, G50, G51
-
 

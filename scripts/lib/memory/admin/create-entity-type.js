@@ -1,6 +1,7 @@
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { invalidateStore } from '../singleton.js';
+import { withLiveMemoryDb, createLiveEntityType } from './live-store.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
 
@@ -24,6 +25,12 @@ export async function createEntityType({ worktreeRoot, io, name, body }) {
   bumpVersion(schema);
   await writeSchema('foundry', schema, io);
 
-  invalidateStore(worktreeRoot);
+  try {
+    await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {
+      await createLiveEntityType(db, name, { embeddingsDim: schema.embeddings?.dimensions });
+    });
+  } finally {
+    invalidateStore(worktreeRoot);
+  }
   return { type: name };
 }

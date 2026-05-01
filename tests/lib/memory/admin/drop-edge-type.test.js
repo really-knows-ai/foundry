@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { createEntityType } from '../../../../scripts/lib/memory/admin/create-entity-type.js';
 import { createEdgeType } from '../../../../scripts/lib/memory/admin/create-edge-type.js';
 import { dropEdgeType } from '../../../../scripts/lib/memory/admin/drop-edge-type.js';
+import { openStore, closeStore } from '../../../../scripts/lib/memory/store.js';
 
 
 import { diskIO } from '../_helpers.js';
@@ -59,6 +60,22 @@ describe('dropEdgeType', () => {
     assert.ok(!existsSync(join(root, 'foundry-memory/relations/calls.ndjson')));
     const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
     assert.ok(!schema.edges.calls);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('drops the live Cozo relation for an already-open store', async () => {
+    const root = setup();
+    const io = diskIO(root);
+    await createEntityType({ worktreeRoot: root, io, name: 'class', body: 'b' });
+    await createEdgeType({ worktreeRoot: root, io, name: 'calls', sources: ['class'], targets: ['class'], body: 'b' });
+    const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
+    const store = await openStore({ foundryDir: 'foundry', schema, io, dbAbsolutePath: join(root, 'foundry/memory/memory.db') });
+
+    await dropEdgeType({ worktreeRoot: root, io, name: 'calls', confirm: true });
+
+    const relations = (await store.db.run('::relations')).rows.map((row) => row[0]);
+    assert.ok(!relations.includes('edge_calls'));
+    closeStore(store);
     rmSync(root, { recursive: true, force: true });
   });
 });

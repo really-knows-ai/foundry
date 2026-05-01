@@ -10,6 +10,84 @@ import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+const MAX_NEIGHBOUR_DEPTH = 5;
+const MAX_SEARCH_K = 100;
+
+function stripQueryComments(datalog) {
+  let out = '';
+  let inString = false;
+  let quote = '';
+  let escaped = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < datalog.length; i += 1) {
+    const ch = datalog[i];
+    const next = datalog[i + 1];
+
+    if (inLineComment) {
+      if (ch === '\n') {
+        inLineComment = false;
+        out += ch;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        out += ' ';
+        i += 1;
+      } else if (ch === '\n') {
+        out += ch;
+      }
+      continue;
+    }
+
+    if (inString) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        inString = false;
+        quote = '';
+      }
+      continue;
+    }
+
+    if (ch === '/' && next === '*') {
+      inBlockComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (ch === '#') {
+      inLineComment = true;
+      continue;
+    }
+
+    if (ch === '"' || ch === '\'') {
+      inString = true;
+      quote = ch;
+    }
+
+    out += ch;
+  }
+
+  return out;
+}
+
+function referencedStoredRelations(datalog) {
+  const matches = stripQueryComments(datalog).matchAll(/\*([a-z][a-z0-9_]*)\s*\{/g);
+  const names = new Set();
+  for (const match of matches) {
+    const name = match[1];
+    if (name.startsWith('ent_') || name.startsWith('edge_')) names.add(name);
+  }
+  return [...names];
+}
 
 function makeBranchExec(cwd) {
   return (argv) => execFileSync(argv[0], argv.slice(1), {
@@ -131,6 +209,9 @@ export function createMemoryTools({ tool }) {
       },
       async execute(args, context) {
         try {
+          if ((args.depth ?? 1) > MAX_NEIGHBOUR_DEPTH) {
+            throw new Error(`depth must be ≤ ${MAX_NEIGHBOUR_DEPTH}`);
+          }
           const { store, vocabulary, permissions } = await withStore(context);
           if (permissions && !checkEntityRead(permissions, args.type)) {
             return JSON.stringify({ entities: [], edges: [] });
@@ -166,7 +247,7 @@ export function createMemoryTools({ tool }) {
               ...[...permissions.readTypes].map((t) => `ent_${t}`),
               ...Object.keys(vocabulary.edges).filter((e) => checkEdgeRead(permissions, e)).map((e) => `edge_${e}`),
             ]);
-            const referenced = Array.from(args.datalog.matchAll(/\bent_[a-z0-9_]+\b|\bedge_[a-z0-9_]+\b/g)).map((m) => m[0]);
+            const referenced = referencedStoredRelations(args.datalog);
             for (const r of referenced) {
               if (!allowed.has(r)) {
                 return errorJson(new Error(`cycle '${context.cycle}' cannot query relation '${r}' (not in read permissions)`));
@@ -188,6 +269,9 @@ export function createMemoryTools({ tool }) {
       },
       async execute(args, context) {
         try {
+          if ((args.k ?? 5) > MAX_SEARCH_K) {
+            throw new Error(`k must be ≤ ${MAX_SEARCH_K}`);
+          }
           const { store, permissions, embedder, vocabulary } = await withStore(context);
           if (!embedder) return errorJson(new Error('embeddings are disabled in memory config'));
 

@@ -84,6 +84,39 @@ describe('memory tools respect cycle permissions', () => {
     assert.match(parsed.error, /cannot query relation/);
   });
 
+  it('query ignores comment-only relation names when enforcing permissions', async () => {
+    const out = await plugin.tool.foundry_memory_query.execute(
+      {
+        datalog: '?[n] := *ent_class{name: n}\n# ent_finding',
+      },
+      { worktree: root, cycle: 'readonly-inspect' },
+    );
+    const parsed = JSON.parse(out);
+    assert.deepEqual(parsed.rows, []);
+  });
+
+  it('query ignores inline hash comments when enforcing permissions', async () => {
+    const out = await plugin.tool.foundry_memory_query.execute(
+      {
+        datalog: '?[n] := *ent_class{name: n} # *ent_finding{name: n}',
+      },
+      { worktree: root, cycle: 'readonly-inspect' },
+    );
+    const parsed = JSON.parse(out);
+    assert.deepEqual(parsed.rows, []);
+  });
+
+  it('query preserves hash characters inside quoted strings when enforcing permissions', async () => {
+    const out = await plugin.tool.foundry_memory_query.execute(
+      {
+        datalog: '?[n] := *ent_class{name: "#"}, *ent_finding{name: n}',
+      },
+      { worktree: root, cycle: 'readonly-inspect' },
+    );
+    const parsed = JSON.parse(out);
+    assert.match(parsed.error, /cannot query relation 'ent_finding'/);
+  });
+
   it('unscoped direct call (no cycle) has full access', async () => {
     const out = await plugin.tool.foundry_memory_get.execute({ type: 'finding', name: 'f2' }, { worktree: root });
     assert.equal(JSON.parse(out).name, 'f2');
