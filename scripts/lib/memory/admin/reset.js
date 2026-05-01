@@ -11,9 +11,9 @@ export async function resetMemory({ worktreeRoot, io, confirm }) {
     await io.writeFile(p.relationFile(name), '');
   }
   // Delete the live DB so it's re-imported empty on next open.
-  await io.unlink(p.db);
-  await io.unlink(p.db + '-wal');
-  await io.unlink(p.db + '-shm');
+  if (await io.exists(p.db)) await io.unlink(p.db);
+  if (await io.exists(p.db + '-wal')) await io.unlink(p.db + '-wal');
+  if (await io.exists(p.db + '-shm')) await io.unlink(p.db + '-shm');
 
   bumpVersion(schema);
   await writeSchema('foundry', schema, io);
