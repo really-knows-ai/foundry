@@ -1,7 +1,7 @@
 {
   "name": "@really-knows-ai/foundry",
   "version": "3.0.0",
-  "description": "A structured framework for AI-driven artefact creation with deterministic routing, quality gates, and iterative refinement cycles.",
+  "description": "A skill-driven framework for governed artefact generation with AI coding tools. Define your own artefact types, laws, and flows — Foundry handles the forge → quench → appraise pipeline with deterministic routing, quality gates, and iterative refinement.",
   "type": "module",
   "main": ".opencode/plugins/foundry.js",
   "license": "MIT",

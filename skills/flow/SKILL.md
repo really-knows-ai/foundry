@@ -9,6 +9,8 @@ composes: [orchestrate]
 
 A foundry flow reads a flow definition, creates a work branch, and executes cycles by following the dependency graph — each cycle declares its own targets and input contracts.
 
+**Testing uncommitted config changes:** If you are on a `config/<x>` branch with in-progress edits to artefact types, laws, cycles, or flows and want to trial-run a flow against those changes without committing them, use the `dry-run` skill instead. Dry-run creates an isolated `dry-run/<x>/<y>` branch, runs the flow, captures a forensic snapshot, and discards the branch — leaving your config branch clean.
+
 ## Prerequisites
 
 Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:

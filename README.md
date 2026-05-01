@@ -511,17 +511,48 @@ Tools are backed by shared modules in `scripts/lib/` (pipeline) and `scripts/lib
 │   │   ├── workfile.js         # WORK.md frontmatter
 │   │   ├── artefacts.js        # artefact table ops
 │   │   ├── history.js          # WORK.history.yaml ops
-│   │   ├── feedback.js         # feedback lifecycle
+│   │   ├── feedback-store.js   # feedback persistence
 │   │   ├── feedback-transitions.js
 │   │   ├── finalize.js         # stage_finalize implementation
 │   │   ├── stage-guard.js      # stage-lock preconditions
+│   │   ├── branch-guard.js     # git branch preconditions
+│   │   ├── foundational-guards.js
+│   │   ├── guards.js           # guard aggregation
 │   │   ├── token.js            # HMAC token mint/verify
 │   │   ├── secret.js           # .foundry/.secret handling
 │   │   ├── pending.js          # active-stage state
 │   │   ├── state.js            # .foundry state dir
 │   │   ├── config.js           # foundry/ config readers
-│   │   ├── tags.js             # feedback tag extraction
 │   │   ├── slug.js
+│   │   ├── ulid.js             # ULID generation
+│   │   ├── tracing.js          # execution tracing
+│   │   ├── failed-flow.js      # failed flow metadata
+│   │   ├── git-bridge.js       # git operations facade
+│   │   ├── git-policy.js       # git safety policy
+│   │   ├── assay/              # extractor runner
+│   │   │   ├── loader.js
+│   │   │   ├── parse-jsonl.js
+│   │   │   ├── permissions.js
+│   │   │   ├── run.js
+│   │   │   └── spawn-with-timeout.js
+│   │   ├── config-creators/    # foundry config factories
+│   │   │   ├── appraiser.js
+│   │   │   ├── artefact-type.js
+│   │   │   ├── cycle.js
+│   │   │   ├── factory.js
+│   │   │   ├── flow.js
+│   │   │   ├── index.js
+│   │   │   └── law.js
+│   │   ├── config-validators/  # foundry config validators
+│   │   │   ├── appraiser.js
+│   │   │   ├── artefact-type.js
+│   │   │   ├── cycle.js
+│   │   │   ├── flow.js
+│   │   │   └── law.js
+│   │   ├── snapshot/           # dry-run forensics
+│   │   │   ├── finish.js
+│   │   │   ├── inspect.js
+│   │   │   └── render.js
 │   │   └── memory/             # flow memory (Cozo 0.7)
 │   │       ├── config.js       # config.md frontmatter
 │   │       ├── schema.js       # canonical schema.json
@@ -542,6 +573,20 @@ Tools are backed by shared modules in `scripts/lib/` (pipeline) and `scripts/lib
 │   │       ├── drift.js        # schema drift detection
 │   │       ├── query.js        # Datalog read-only guard
 │   │       └── admin/          # init, reset, drop/rename, reembed, dump, vacuum
+│   │           ├── create-edge-type.js
+│   │           ├── create-entity-type.js
+│   │           ├── create-extractor.js
+│   │           ├── drop-edge-type.js
+│   │           ├── drop-entity-type.js
+│   │           ├── dump.js
+│   │           ├── init.js
+│   │           ├── live-store.js
+│   │           ├── reembed.js
+│   │           ├── rename-edge-type.js
+│   │           ├── rename-entity-type.js
+│   │           ├── reset.js
+│   │           ├── vacuum.js
+│   │           └── validate.js
 │   ├── orchestrate.js          # orchestration loop (exports runOrchestrate)
 │   └── sort.js                 # routing engine (exports runSort)
 ├── tests/                      # node:test suite

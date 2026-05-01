@@ -250,7 +250,8 @@ failed.
 
 **Returns:** one of:
 - `{ action: "dispatch", stage, cycle, prompt, token, ... }` — caller
-  should dispatch a subagent.
+  should dispatch a subagent. The `prompt` field is augmented with cycle
+  memory context (entity types, edge types, extractor briefs) when configured.
 - `{ action: "human_appraise", ... }` — surface to the user.
 - `{ action: "done", ... }` — cycle complete.
 - `{ action: "blocked", ... }` — cycle stalled.
@@ -300,7 +301,8 @@ flow.
 **Args:** none.
 
 **Returns:** `{ ...frontmatter, goal }`. Returns `{ error: "WORK.md not
-found" }` if missing.
+found" }` if missing. Note: frontmatter keys like `error` could collide with
+the tool's own error reporting.
 
 **Stage requirements:** none. **Always callable, even on a failed flow.**
 

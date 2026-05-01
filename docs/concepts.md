@@ -244,7 +244,7 @@ Implementation: `scripts/lib/snapshot/`.
 
 ## Custom tools
 
-All deterministic pipeline operations are exposed as custom tools by the Foundry plugin. Skills call these tools to run deterministic pipeline operations. Tools are backed by shared library modules in `scripts/lib/` with injectable I/O so they can be unit-tested. This separation ensures state transitions and routing logic are tested code, not LLM interpretation. See the [README](../README.md#custom-tools) for the full catalogue.
+All deterministic pipeline operations are exposed as custom tools by the Foundry plugin. Skills call these tools to run deterministic pipeline operations. Tools are backed by shared library modules in `scripts/lib/` with injectable I/O so they can be unit-tested. This separation ensures state transitions and routing logic are tested code, not LLM interpretation. See [tools.md](./tools.md) for the full catalogue.
 
 ## Skill
 

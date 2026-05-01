@@ -229,7 +229,7 @@ never committed by foundry. See the `dry-run` skill for the full loop.
 
 ## Inspecting progress
 
-While a flow is running, the state of the world is in three places:
+While a flow is running, the state of the world is in four places:
 
 - `WORK.md` — current cycle, goal, and artefact table.
 - `WORK.feedback.yaml` — feedback items and their lifecycle history.

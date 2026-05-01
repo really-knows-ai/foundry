@@ -67,3 +67,10 @@ Set up the `foundry/` directory structure in the current project.
    > 5. **Create a flow** — use the `add-flow` skill
    >
    > Then run your flow with the `flow` skill.
+   >
+   > **Optional: Flow Memory**
+   >
+   > If your flows need persistent knowledge (entities, relationships, semantic
+   > search), use the `init-memory` skill to scaffold flow memory. Memory is
+   > useful for projects that need to track code structure, dependencies, or
+   > domain knowledge across flow runs.
