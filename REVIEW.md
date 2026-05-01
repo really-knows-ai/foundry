@@ -847,7 +847,7 @@ sections and are listed for cross-reference only.
   `try { add; commit } catch { reset; throw }`, or amend the banner
   contract to acknowledge the post-add window.
 
-- [ ] **G5. Subagent-failure path leaks stale `lastStage`, corrupting
+- [x] **G5. Subagent-failure path leaks stale `lastStage`, corrupting
   the next finalize.** `scripts/orchestrate.js:450-462`. When
   `lastResult.ok === false`, the handler clears `activeStage` but never
   clears `lastStage`. Next happy-path orchestrate call reads the stale
@@ -857,7 +857,7 @@ sections and are listed for cross-reference only.
   `clearActiveStage(io)` in the failure branch, plus a regression test
   using the stub-finalize harness.
 
-- [ ] **G6. Non-atomic stage finalisation: history + artefact rows
+- [x] **G6. Non-atomic stage finalisation: history + artefact rows
   persist before the commit, with no rollback on commit refusal.**
   `scripts/orchestrate.js:499-549`. Order: registerArtefact writes
   artefact rows → `addArtefactRow` (deduped) → two `appendEntry` calls
