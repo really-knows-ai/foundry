@@ -127,6 +127,92 @@ describe('reembed', () => {
     }
   });
 
+  it('leaves schema + DB consistent when writeSchema fails after successful reembed', async () => {
+    const root3 = mkdtempSync(join(tmpdir(), 'reemb-schema-fail-'));
+    try {
+      mkdirSync(join(root3, 'foundry/memory/entities'), { recursive: true });
+      mkdirSync(join(root3, 'foundry/memory/edges'), { recursive: true });
+      mkdirSync(join(root3, 'foundry-memory/relations'), { recursive: true });
+      writeFileSync(join(root3, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
+      const initialSchema = {
+        version: 1,
+        entities: { class: {} },
+        edges: {},
+        embeddings: { model: 'old', dimensions: 3 },
+      };
+      writeFileSync(
+        join(root3, 'foundry/memory/schema.json'),
+        JSON.stringify(initialSchema, null, 2) + '\n',
+      );
+      const io = diskIO(root3);
+      const dbAbsolutePath = join(root3, 'memory.db');
+
+      // Seed: one entity with old-dim vectors.
+      let store = await openStore({ foundryDir: 'foundry', schema: initialSchema, io, dbAbsolutePath });
+      await putEntity(
+        store,
+        { type: 'class', name: 'com.A', value: 'alpha' },
+        { entities: { class: {} }, edges: {} },
+        { embedder: fakeEmbedder(3, 1) },
+      );
+      closeStore(store);
+
+      // Create a broken IO that fails on writeSchema by making foundry/memory read-only
+      // after reembed starts. This simulates writeSchema failing after renameDbFiles succeeds.
+      const schemaPath = join(root3, 'foundry/memory/schema.json');
+      const schemaBefore = readFileSync(schemaPath, 'utf-8');
+
+      // Patch writeFile to fail on schema.json
+      const origWriteFile = io.writeFile;
+      let writeSchemaAttempted = false;
+      io.writeFile = async (path, content) => {
+        if (path.includes('schema.json')) {
+          writeSchemaAttempted = true;
+          throw new Error('EPERM: write permission denied (simulated)');
+        }
+        return origWriteFile(path, content);
+      };
+
+      let reembedError;
+      try {
+        await reembed({
+          worktreeRoot: root3,
+          io,
+          dbAbsolutePath,
+          newModel: 'new',
+          newDimensions: 5,
+          embedder: fakeEmbedder(5, 2),
+        });
+      } catch (err) {
+        reembedError = err;
+      }
+
+      assert.ok(reembedError, 'reembed must reject when writeSchema fails');
+      assert.ok(writeSchemaAttempted, 'writeSchema must have been attempted');
+
+      // Critical: schema.json must still match the DB state.
+      // If writeSchema happened AFTER renameDbFiles, we'd have new-dim DB with old-dim schema.
+      // If writeSchema happens BEFORE renameDbFiles, both should be old-dim (failure rolls back).
+      const schemaAfter = JSON.parse(readFileSync(schemaPath, 'utf-8'));
+      
+      // Schema should be unchanged (old dimensions)
+      assert.equal(schemaAfter.embeddings.dimensions, 3, 
+        'schema dimensions must be unchanged when writeSchema fails');
+      assert.equal(schemaAfter.embeddings.model, 'old',
+        'schema model must be unchanged when writeSchema fails');
+
+      // DB should be openable with the old schema (no rename happened)
+      io.writeFile = origWriteFile; // restore io
+      store = await openStore({ foundryDir: 'foundry', schema: initialSchema, io, dbAbsolutePath });
+      const res = await store.db.run('?[n, e] := *ent_class{name: n, embedding: e}');
+      assert.equal(res.rows.length, 1);
+      assert.equal(res.rows[0][1].length, 3, 'DB embedding must still be old-dim after failed writeSchema');
+      closeStore(store);
+    } finally {
+      rmSync(root3, { recursive: true, force: true });
+    }
+  });
+
   it('re-embeds all entities with new dimension and updates schema', async () => {
     root = mkdtempSync(join(tmpdir(), 'reemb-'));
     mkdirSync(join(root, 'foundry/memory/entities'), { recursive: true });

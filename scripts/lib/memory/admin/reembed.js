@@ -106,16 +106,17 @@ export async function reembed({
   }
 
   // Phase 3: atomic swap. Close the staging DB so sqlite flushes WAL, then
-  // rename the files over the live paths. `writeSchema` is last so that if
-  // the rename fails the on-disk schema still matches the live DB.
+  // write the new schema and rename the DB files over the live paths.
+  // Writing schema first ensures that if it fails, the DB remains untouched.
+  // If rename fails after schema is written, the mismatch will be detected on
+  // next openStore with a clear error.
   closeStore(stagingStore);
 
   try {
-    renameDbFiles(stagingPath, dbAbsolutePath);
     await writeSchema('foundry', newSchema, io);
+    renameDbFiles(stagingPath, dbAbsolutePath);
   } catch (err) {
-    // Rename failed — original files may be partially replaced. Best-effort
-    // cleanup of staging siblings; surface the error.
+    // Best-effort cleanup of staging siblings; surface the error.
     unlinkDbFiles(stagingPath);
     throw err;
   }
