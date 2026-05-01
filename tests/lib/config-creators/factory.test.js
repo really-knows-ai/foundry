@@ -36,7 +36,7 @@ function makeMockValidator(shouldPass = true) {
 }
 
 test('factory: creates a simple creator function', async () => {
-  const pathFor = (name) => `foundry/test/${name}.md`;
+  const pathFor = (args) => `foundry/test/${args.name}.md`;
   const validator = makeMockValidator(true);
   const create = makeCreator({
     kind: { human: 'test-type', underscored: 'test_type' },
@@ -55,7 +55,7 @@ test('factory: creates a simple creator function', async () => {
 });
 
 test('factory: includes correct commit message', async () => {
-  const pathFor = (name) => `foundry/test/${name}.md`;
+  const pathFor = (args) => `foundry/test/${args.name}.md`;
   const validator = makeMockValidator(true);
   const create = makeCreator({
     kind: { human: 'test-type', underscored: 'test_type' },
@@ -73,7 +73,7 @@ test('factory: includes correct commit message', async () => {
 });
 
 test('factory: returns validation errors', async () => {
-  const pathFor = (name) => `foundry/test/${name}.md`;
+  const pathFor = (args) => `foundry/test/${args.name}.md`;
   const validator = makeMockValidator(false);
   const create = makeCreator({
     kind: { human: 'test-type', underscored: 'test_type' },
@@ -92,7 +92,7 @@ test('factory: returns validation errors', async () => {
 });
 
 test('factory: rejects when file already exists', async () => {
-  const pathFor = (name) => `foundry/test/${name}.md`;
+  const pathFor = (args) => `foundry/test/${args.name}.md`;
   const validator = makeMockValidator(true);
   const create = makeCreator({
     kind: { human: 'test-type', underscored: 'test_type' },
@@ -112,7 +112,7 @@ test('factory: rejects when file already exists', async () => {
 });
 
 test('factory: supports custom validation logic', async () => {
-  const pathFor = (target) => `foundry/test/${target.file}`;
+  const pathFor = (args) => `foundry/test/${args.target.file}`;
   const validator = makeMockValidator(true);
   const customValidation = ({ target }) => {
     if (!target || !target.file) {
@@ -137,7 +137,7 @@ test('factory: supports custom validation logic', async () => {
 });
 
 test('factory: custom validation passes with valid input', async () => {
-  const pathFor = (target) => `foundry/test/${target.file}`;
+  const pathFor = (args) => `foundry/test/${args.target.file}`;
   const validator = makeMockValidator(true);
   const customValidation = ({ target }) => {
     if (!target || !target.file) {

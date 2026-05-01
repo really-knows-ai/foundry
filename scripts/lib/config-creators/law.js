@@ -2,11 +2,11 @@ import { join } from 'node:path';
 import { validate } from '../config-validators/law.js';
 import { makeCreator } from './factory.js';
 
-function pathFor(target) {
-  if (target.kind === 'global') return join('foundry', 'laws', target.file);
-  if (target.kind === 'type-specific')
-    return join('foundry', 'artefacts', target.typeId, 'laws.md');
-  throw new Error(`unknown law target kind: ${target.kind}`);
+function pathFor(args) {
+  if (args.target.kind === 'global') return join('foundry', 'laws', args.target.file);
+  if (args.target.kind === 'type-specific')
+    return join('foundry', 'artefacts', args.target.typeId, 'laws.md');
+  throw new Error(`unknown law target kind: ${args.target.kind}`);
 }
 
 function customValidation({ target }) {

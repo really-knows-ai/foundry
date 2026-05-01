@@ -13,8 +13,8 @@ export function makeCreator({ kind, pathFor, validator, customValidation }) {
     const v = await validator({ name: args.name, body: args.body, io: args.io });
     if (!v.ok) return { ok: false, errors: v.errors };
 
-    // Determine path (pathFor may use name or other args like target)
-    const path = pathFor(args.target || args.name);
+    // Determine path (pathFor receives full args and extracts what it needs)
+    const path = pathFor(args);
     
     // Check if file exists
     if (await args.io.exists(path)) {

@@ -4,6 +4,6 @@ import { makeCreator } from './factory.js';
 
 export const create = makeCreator({
   kind: { human: 'cycle', underscored: 'cycle' },
-  pathFor: (name) => join('foundry', 'cycles', `${name}.md`),
+  pathFor: (args) => join('foundry', 'cycles', `${args.name}.md`),
   validator: validate,
 });
