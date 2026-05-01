@@ -61,7 +61,7 @@ Foundry is active in this project. The foundry/ directory contains the project's
 laws, appraisers, cycles, and flows.
 
 Foundry is a skill-driven framework for governed artefact generation and evaluation.
-The pipeline: forge (produce) → quench (deterministic checks) → appraise (subjective evaluation) → iterate.
+The pipeline: assay (populate memory) → forge (produce) → quench (deterministic checks) → appraise (subjective evaluation) → human-appraise (human review) → iterate.
 
 ## Defined flows
 
@@ -78,9 +78,10 @@ new skills). It does NOT apply to running an existing, defined flow.
 
 ## Available skills
 
-- **Pipeline:** forge, quench, appraise, orchestrate, flow, human-appraise
-- **Authoring:** add-artefact-type, add-law, add-appraiser, add-cycle, add-flow, init-foundry
-- **Maintenance:** upgrade-foundry, refresh-agents, list-agents
+- **Pipeline:** assay, forge, quench, appraise, orchestrate, flow, human-appraise
+- **Authoring:** add-artefact-type, add-law, add-appraiser, add-cycle, add-flow, add-memory-entity-type, add-memory-edge-type, add-extractor, init-foundry
+- **Maintenance:** upgrade-foundry, refresh-agents, list-agents, init-memory, change-embedding-model, dry-run
+- **Memory Admin:** drop-memory-entity-type, drop-memory-edge-type, rename-memory-entity-type, rename-memory-edge-type, reset-memory
 
 ## Multi-model routing
 
