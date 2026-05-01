@@ -205,6 +205,35 @@ describe('foundry_feedback_list — new response shape', () => {
     const res = parseResult(await t.foundry_feedback_list.execute({}, { worktree }));
     assert.equal(res.error, 'foundry_feedback_list: WORK.md cycle not found');
   });
+
+  test('resolved item reports actual history.length, not 0 (G10 contract fix)', async () => {
+    // Create feedback item that goes through full cycle: open -> actioned -> resolved
+    worktree = makeWorktree({ stage: 'appraise:write-check' });
+    const t1 = await tools(worktree);
+    const { id } = parseResult(await t1.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'needs work', tag: 'law:dark' },
+      { worktree },
+    ));
+
+    // Action it from forge stage
+    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
+    const t2 = await tools(worktree);
+    await t2.foundry_feedback_action.execute({ id }, { worktree });
+
+    // Resolve it from source stage
+    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
+    const t3 = await tools(worktree);
+    await t3.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved', reason: 'fixed' },
+      { worktree },
+    );
+
+    // List and verify depth = history.length (3: open, actioned, resolved)
+    const items = parseResult(await t3.foundry_feedback_list.execute({}, { worktree }));
+    assert.equal(items.length, 1);
+    assert.equal(items[0].state, 'resolved');
+    assert.equal(items[0].depth, 3, 'resolved item should report actual history.length, not 0');
+  });
 });
 
 describe('foundry_feedback_action — id-based', () => {

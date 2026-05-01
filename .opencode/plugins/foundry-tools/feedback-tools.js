@@ -207,7 +207,7 @@ export function createFeedbackTools({ tool }) {
                 text: it.text,
                 source: it.source,
                 state: head.state,
-                depth: head.state === 'resolved' ? 0 : it.history.length,
+                depth: it.history.length,
               };
               if (head.reason) base.reason = head.reason;
               return base;
