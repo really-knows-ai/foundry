@@ -11,6 +11,43 @@ covering Phase 1–5 work (commits `6525fc9` → `c5a236b`: guard
 composition, branch guards, memory-relations relocation, schema
 validators/creators, dry-run mode + tracing + snapshots).
 
+---
+
+## Work Plan: Grouped Items by Priority
+
+**Current progress:** 1063 tests passing (baseline: 1036)
+
+### Priority 1: P0 Blockers (Complete)
+- [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
+- [x] **G7+G8** (Context bugs) - Commit db2b859, ad61c8f
+
+### Priority 2: P0 Feedback/Memory Bugs
+**Next batch:**
+- [ ] **G1+G2** (Feedback resolve bugs) - Tool actively broken
+- [ ] **G3** (Memory paths) - Test leakage (foundryDir ignored)
+- [ ] **G4** (Git atomicity) - commitWithPolicy leaves dirty state
+
+### Priority 3: P0 Assay/Memory Subsystems
+- [ ] **Assay cluster**: G24+G25+G26+G27+G28+G29 (spawn bugs, UTF-8, OOM risk)
+- [ ] **Memory cluster**: G13+G14+G15 (permissions, unbounded, live store)
+
+### Priority 4: Voice/Docs Cleanup (Can batch)
+- [ ] **Spelling**: C13+C29 (defense→defence, behavior→behaviour)
+- [ ] **Voice sweep**: C14+C15+C16+C28+C30-C34+C36+C37+G38+G52 (strawman negations)
+- [ ] **Stale tool refs**: C12+D8+D11+D12+G51 (foundry_sort, foundry_stage_finalize)
+- [ ] **Doc gaps**: C17+C19+C21-C27
+- [ ] **Snapshot tooling**: C10+C11+C38-C40
+
+### Priority 5: Remaining P0s
+- [ ] **G9-G12** (Feedback subsystem contract issues)
+- [ ] **G16-G23** (Memory subsystem edge cases)
+- [ ] **G30-G37** (Git/validation bugs)
+
+### Priority 6: D-cluster nits (P3)
+- [ ] **D1-D12** (Minor code/doc nits, pull in if adjacent)
+
+---
+
 ## How to use
 
 - One fix per commit. No bundling unrelated changes.
