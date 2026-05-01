@@ -63,4 +63,34 @@ describe('search', () => {
     const out = await search({ store, query_text: 'x', k: 5, type_filter: ['nonexistent'], embedder });
     assert.deepEqual(out, []);
   });
+
+  it('returns global top-k across all types (k-amplification is intentional)', async () => {
+    // This test documents the k-amplification behavior: with N entity types and
+    // k requested results, the implementation fetches k results from each type
+    // (N×k total), then returns the global top-k. This is necessary to get
+    // semantically correct results when the top matches are spread across types.
+    //
+    // Setup: 3 types, k=2, but distribute best matches across types
+    const embedder = charEmbedder(4);
+    
+    // Add a third type with entities
+    await putEntity(store, { type: 'table', name: 't2', value: 'almond' }, vocab, { embedder });
+    
+    // Query for 'alpha' with k=2
+    // Expected: both 'alpha' entities (a1 from class, t1 from table) should be
+    // in top-2, even though we're searching across 2 types. If we only fetched
+    // k/N=1 per type, we might miss one of them.
+    const out = await search({ store, query_text: 'alpha', k: 2, embedder });
+    
+    assert.equal(out.length, 2, 'should return exactly k=2 results');
+    
+    // Both perfect matches should be in the results
+    const names = out.map((r) => r.name).sort();
+    assert.ok(names.includes('a1'), 'should include class entity a1');
+    assert.ok(names.includes('t1'), 'should include table entity t1');
+    
+    // Both should have distance 0 (perfect match for char embedder)
+    assert.equal(out[0].distance, 0, 'top result should be perfect match');
+    assert.equal(out[1].distance, 0, 'second result should be perfect match');
+  });
 });
