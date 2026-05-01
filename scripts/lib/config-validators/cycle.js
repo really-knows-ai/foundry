@@ -35,9 +35,9 @@ export async function validate({ name, body, io }) {
   if (typeof fm['output-type'] !== 'string' || !fm['output-type'].trim()) {
     errors.push('frontmatter.output-type is required and must be a non-empty string');
   } else {
-    const path = join('foundry', 'artefacts', fm['output-type'], 'definition.md');
-    if (!(await io.exists(path)))
-      errors.push(`output-type references artefact type "${fm['output-type']}" but ${path} does not exist`);
+    const filePath = join('foundry', 'artefacts', fm['output-type'], 'definition.md');
+    if (!(await io.exists(filePath)))
+      errors.push(`output-type references artefact type "${fm['output-type']}" but ${filePath} does not exist`);
   }
 
   if (fm.inputs !== undefined) {
@@ -54,9 +54,9 @@ export async function validate({ name, body, io }) {
             errors.push('every frontmatter.inputs.artefacts entry must be a non-empty string');
             continue;
           }
-          const path = join('foundry', 'artefacts', id, 'definition.md');
-          if (!(await io.exists(path)))
-            errors.push(`inputs.artefacts references artefact type "${id}" but ${path} does not exist`);
+          const filePath = join('foundry', 'artefacts', id, 'definition.md');
+          if (!(await io.exists(filePath)))
+            errors.push(`inputs.artefacts references artefact type "${id}" but ${filePath} does not exist`);
         }
       }
     }
@@ -71,9 +71,9 @@ export async function validate({ name, body, io }) {
           errors.push('every frontmatter.targets entry must be a non-empty string');
           continue;
         }
-        const path = join('foundry', 'cycles', `${id}.md`);
-        if (!(await io.exists(path)))
-          errors.push(`targets references cycle "${id}" but ${path} does not exist`);
+        const filePath = join('foundry', 'cycles', `${id}.md`);
+        if (!(await io.exists(filePath)))
+          errors.push(`targets references cycle "${id}" but ${filePath} does not exist`);
       }
     }
   }
