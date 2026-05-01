@@ -32,6 +32,8 @@ export function renderReadme({ branch, parent, message, workfile, traceText }) {
   const fm = parseFrontmatter(workfile) || {};
   const { startedAt, finishedAt } = extractTimestamps(traceText);
 
+  // JSON.stringify the goal string to produce YAML-safe quoted output.
+  // Goals often contain colons, which would break YAML parsing without quotes.
   const goalRaw = fm.goal;
   const goalRendered = typeof goalRaw === 'string'
     ? JSON.stringify(goalRaw)

@@ -2,6 +2,13 @@
  * finishDryRun — captures a dry-run branch as an on-disk snapshot under
  * `.snapshots/<runId>/` on the parent config branch, then deletes the
  * dry-run branch. Implements §11.3 of the config-branch design.
+ *
+ * Recovery: If snapshot write fails (line 73), the function returns early
+ * with {ok: false, ...} after checking out the parent branch but before
+ * deleting the dry-run branch or truncating the trace file. The dry-run
+ * branch and partial `.snapshots/<runId>/` directory (if any) remain.
+ * Manual cleanup: delete the dry-run branch with `git branch -D <branch>`
+ * and remove the incomplete snapshot directory under `.snapshots/` if present.
  */
 
 import { ulid } from '../ulid.js';

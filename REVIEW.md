@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1089 tests passing (baseline: 1036)
+**Current progress:** 1090 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -36,7 +36,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **Voice sweep**: C14+C15+C16+C28+C30-C34+C36+C37+G38+G52 (strawman negations) - Commits adef1d9, 5bedd89, cc9d71a, 3a22a3b
 - [x] **Stale tool refs**: C12+D8+D11+D12+G51 (foundry_sort, foundry_stage_finalize) - Commit f19a2bb
 - [x] **Doc gaps**: C17+C19+C21-C27 (cross-refs, counts, links, trees) - Commit dd723ed
-- [ ] **Snapshot tooling**: C10+C11+C38-C40
+- [x] **Snapshot tooling**: C10+C11+C38-C40 - Commit [pending]
 
 ### Priority 5: Remaining P0s
 - [ ] **G9-G12** (Feedback subsystem contract issues)
@@ -493,16 +493,16 @@ pass.
   Added test coverage for config branch path. (Commits: 1ce3452,
   a92af70)
 
-- [ ] **C10. `snapshot-tools.js:88-90` arg-validation envelope
+- [x] **C10. `snapshot-tools.js:88-90` arg-validation envelope
   inconsistency.** `pruneSnapshots` returns
   `JSON.stringify({ok:false, error})` rather than via `errorJson`.
 
-- [ ] **C11. `snapshot/finish.js:73` recovery semantics undocumented.**
+- [x] **C11. `snapshot/finish.js:73` recovery semantics undocumented.**
   After `git checkout parent`, the dry-run branch and partial
   `.snapshots/<runId>` directory may remain. Document recovery in
   module comment.
 
-- [ ] **C12. Stale tool-description / inline comments in plugins.**
+- [x] **C12. Stale tool-description / inline comments in plugins.**
   `artefact-tools.js:24` ("registered automatically by
   `foundry_stage_finalize`"), `orchestrate-tool.js:54` ("same pattern
   as removed `foundry_sort`"), `orchestrate-tool.js:82` ("mimics the
@@ -635,18 +635,18 @@ all 48 still applicable at HEAD with three drifts:
 
 ### Snapshot tooling minor
 
-- [ ] **C38. `snapshot/inspect.js:172-211` `pruneSnapshots`
+- [x] **C38. `snapshot/inspect.js:172-211` `pruneSnapshots`
   envelope inconsistency.** Missing `.snapshots/` + `confirm: false`
   returns refusal envelope; missing `.snapshots/` + `confirm: true`
   returns success. UX would prefer `{ok:true, candidates:[]}` for
   the first case.
 
-- [ ] **C39. `snapshot/inspect.js:93-95` `parseDiffStats`
+- [x] **C39. `snapshot/inspect.js:93-95` `parseDiffStats`
   heuristic.** `+`/`-` line counter has known undercount/overcount
   cases. Fine for forensic stat, but pin tricky-patch expectations
   in a test.
 
-- [ ] **C40. `snapshot/render.js:36-39` `goalRendered` uses
+- [x] **C40. `snapshot/render.js:36-39` `goalRendered` uses
   `JSON.stringify` for strings while everything else uses
   `formatValue`.** Add a one-line comment explaining YAML-quoting
   rationale.

@@ -180,6 +180,39 @@ describe('snapshot inspect', () => {
     rmSync(root2, { recursive: true, force: true });
   });
 
+  test('parseDiffStats: heuristic edge cases (C39)', async () => {
+    const root2 = mkdtempSync(path.join(tmpdir(), 'snap-inspect-'));
+    const io2 = realFsIo(root2);
+    const gen = createUlidGenerator();
+    const runId = `dry-run-main-x-${gen(1700000000000)}`;
+    // Heuristic counts lines starting with +/- (but not ++/--) as changes.
+    // Known undercount: additions/deletions inside quoted strings or binary patches.
+    // Known overcount: context lines that happen to start with +/- inside actual patch content.
+    const trickyDiff = [
+      'diff --git a/test.txt b/test.txt',
+      '--- a/test.txt',
+      '+++ b/test.txt',
+      '@@ -1,3 +1,4 @@',
+      ' unchanged line',
+      '+added line',  // counted
+      '-removed line',  // counted
+      ' +context line that starts with + but is unchanged',  // NOT counted (no leading +)
+      'diff --git a/binary.dat b/binary.dat',
+      'Binary files differ',  // no +/- lines, not counted
+      '',
+    ].join('\n');
+    await writeSnapshot(io2, runId, { diff: trickyDiff });
+    const result = await showSnapshot({ runId, io: io2 });
+    assert.equal(result.diff.files, 2);  // both files counted
+    assert.equal(result.diff.insertions, 1);  // only the real + line
+    assert.equal(result.diff.deletions, 1);  // only the real - line
+    // The heuristic works for standard unified diff output. Edge case:
+    // If patch content itself contains lines starting with + or -, those
+    // would be miscounted, but this is acceptable for forensic snapshots
+    // where approximate stats suffice.
+    rmSync(root2, { recursive: true, force: true });
+  });
+
   test('showSnapshot: trace stats parse first/last ts', async () => {
     const root2 = mkdtempSync(path.join(tmpdir(), 'snap-inspect-'));
     const io2 = realFsIo(root2);

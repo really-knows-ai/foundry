@@ -175,8 +175,7 @@ export async function pruneSnapshots({ olderThanDays, io, confirm, now = Date.no
   if (!(await io.exists('.snapshots'))) {
     if (confirm === true) return { ok: true, removed: [] };
     return {
-      ok: false,
-      error: 'foundry_snapshot_prune requires {confirm: true}',
+      ok: true,
       candidates: [],
       cutoff: new Date(cutoff).toISOString(),
     };
