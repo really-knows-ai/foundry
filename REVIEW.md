@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1090 tests passing (baseline: 1036)
+**Current progress:** 1094 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -36,10 +36,10 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **Voice sweep**: C14+C15+C16+C28+C30-C34+C36+C37+G38+G52 (strawman negations) - Commits adef1d9, 5bedd89, cc9d71a, 3a22a3b
 - [x] **Stale tool refs**: C12+D8+D11+D12+G51 (foundry_sort, foundry_stage_finalize) - Commit f19a2bb
 - [x] **Doc gaps**: C17+C19+C21-C27 (cross-refs, counts, links, trees) - Commit dd723ed
-- [x] **Snapshot tooling**: C10+C11+C38-C40 - Commit [pending]
+- [x] **Snapshot tooling**: C10+C11+C38-C40 - Commit 22e97ca
 
 ### Priority 5: Remaining P0s
-- [ ] **G9-G12** (Feedback subsystem contract issues)
+- [x] **G9-G12** (Feedback subsystem contract issues) - Commits 586ad0b, 557443c, a3878f4, 91abb29
 - [ ] **G16-G23** (Memory subsystem edge cases)
 - [ ] **G30-G37** (Git/validation bugs)
 
