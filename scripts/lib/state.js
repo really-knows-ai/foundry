@@ -29,3 +29,7 @@ export function writeLastStage(io, payload) {
   ensureFoundryDir(io);
   io.writeFile(LAST, JSON.stringify(payload, null, 2));
 }
+
+export function clearLastStage(io) {
+  io.unlink(LAST);
+}

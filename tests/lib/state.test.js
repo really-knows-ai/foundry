@@ -19,6 +19,7 @@ import {
   clearActiveStage,
   readLastStage,
   writeLastStage,
+  clearLastStage,
 } from '../../scripts/lib/state.js';
 
 function makeRealIO(dir) {
@@ -71,5 +72,12 @@ describe('state.js', () => {
     const io = makeRealIO(dir);
     writeLastStage(io, { cycle: 'c', stage: 'forge:c', baseSha: 'bb' });
     assert.equal(readLastStage(io).baseSha, 'bb');
+  });
+
+  it('clearLastStage makes readLastStage null', () => {
+    const io = makeRealIO(dir);
+    writeLastStage(io, { cycle: 'c', stage: 'forge:c', baseSha: 'bb' });
+    clearLastStage(io);
+    assert.equal(readLastStage(io), null);
   });
 });

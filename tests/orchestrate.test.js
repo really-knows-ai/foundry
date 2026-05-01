@@ -614,6 +614,45 @@ max-iterations: 3
   assert.match(work, /\| haikus\/a\.md \| haiku \| create-haiku \| blocked \|/);
 });
 
+test('runOrchestrate subagent-failure clears both activeStage AND lastStage', async () => {
+  // Regression test for G5: stale lastStage corruption bug.
+  // Setup: prior stage succeeded and wrote lastStage, then new dispatch created activeStage.
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages: [forge:create-haiku, appraise:create-haiku]
+max-iterations: 3
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    '.foundry/active-stage.json': JSON.stringify({
+      cycle: 'create-haiku', stage: 'forge:create-haiku', token: 'T', baseSha: 'xyz123'
+    }),
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku', stage: 'quench:old-cycle', baseSha: 'stale_sha', summary: 'old work'
+    }),
+  });
+  const git = { commit: () => 'x', status: () => ({ clean: true }) };
+  
+  // Subagent fails.
+  const result = await runOrchestrate({
+    git, mint: () => 'T', now: () => 1,
+    lastResult: { kind: 'dispatch', ok: false, error: 'subagent crashed' },
+    finalize: async () => ({ ok: true, artefacts: [] }),
+  }, io);
+  
+  assert.strictEqual(result.action, 'violation');
+  
+  // BOTH state files must be cleared.
+  assert.strictEqual(io.exists('.foundry/active-stage.json'), false, 
+    'activeStage should be cleared on failure');
+  assert.strictEqual(io.exists('.foundry/last-stage.json'), false, 
+    'lastStage should be cleared on failure to prevent corruption');
+});
+
 test('runOrchestrate: active stage with no lastResult returns violation (orphaned)', async () => {
   const io = makeIo({
     'WORK.md': `---

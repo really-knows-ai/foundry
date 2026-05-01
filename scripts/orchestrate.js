@@ -10,7 +10,7 @@ import {
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from './lib/artefacts.js';
-import { readActiveStage, readLastStage, clearActiveStage } from './lib/state.js';
+import { readActiveStage, readLastStage, clearActiveStage, clearLastStage } from './lib/state.js';
 import { appendEntry, getIteration } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { loadExtractor } from './lib/assay/loader.js';
@@ -454,6 +454,7 @@ export async function runOrchestrate(args = {}, io) {
       }
       const blockResult = markArtefactBlocked(cycleId, io);
       if (activeStage) clearActiveStage(io);
+      if (lastStage) clearLastStage(io);
       const art = findCycleOutputArtefact(cycleId, io);
       const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
       return violation(
