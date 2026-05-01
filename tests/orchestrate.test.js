@@ -815,3 +815,129 @@ cycle: create-haiku
     ['newest', 'equal-a', 'equal-b', 'older']
   );
 });
+
+test('runOrchestrate finalize: commit failure does not wedge workflow (G6 regression)', async () => {
+  // Regression test for G6: non-atomic stage finalisation.
+  // Setup: forge stage completed successfully, finalize should:
+  // 1. Write new artefact rows to WORK.md
+  // 2. Append two history entries to WORK.history.yaml
+  // 3. Attempt git commit
+  // 
+  // If commit fails (e.g., unexpected files), WORK.md and WORK.history.yaml must NOT be dirty.
+  // Otherwise the next orchestrate call sees dirty tool-managed files and refuses to run - wedged.
+  
+  const initialWorkMd = `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+---
+# Goal
+
+haiku
+
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+`;
+
+  const initialHistory = `- cycle: create-haiku
+  stage: sort
+  iteration: 0
+  route: forge:create-haiku
+  comment: initial sort
+  timestamp: 2026-01-01T00:00:00.000Z
+  seq: 0
+  open_feedback: 0
+`;
+
+  const io = makeIo({
+    'WORK.md': initialWorkMd,
+    'WORK.history.yaml': initialHistory,
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      baseSha: 'abc',
+      summary: 'wrote haiku',
+    }),
+    'haikus/a.md': 'airport haiku / delayed flights and coffee / rain on the tarmac',
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output-type: haiku
+stages: [forge, appraise]
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+
+  const git = {
+    commit: () => {
+      // Simulate commit failure due to unexpected files
+      const err = new Error('unexpected_files');
+      err.code = 'unexpected_files';
+      err.files = ['stray.bin'];
+      throw err;
+    },
+    status: () => ({ clean: false, dirty: ['stray.bin'] }),
+  };
+
+  const result = await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'TOKEN_2',
+    now: () => 2000000,
+    lastResult: { kind: 'dispatch', ok: true },
+    finalize: async () => ({ 
+      ok: true, 
+      artefacts: [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }] 
+    }),
+  }, io);
+
+  // Should return violation due to commit failure
+  assert.strictEqual(result.action, 'violation');
+  assert.match(result.details, /stray\.bin/);
+
+  // CRITICAL: WORK.md and WORK.history.yaml must be UNCHANGED (rollback happened)
+  const workAfter = io.readFile('WORK.md');
+  const historyAfter = io.readFile('WORK.history.yaml');
+  
+  assert.strictEqual(workAfter, initialWorkMd, 
+    'WORK.md should be rolled back to original state after commit failure');
+  assert.strictEqual(historyAfter, initialHistory, 
+    'WORK.history.yaml should be rolled back to original state after commit failure');
+
+  // Verify that the next orchestrate call can proceed (not wedged)
+  // This would fail in the buggy version because sort would see dirty tool-managed files
+  const result2 = await runOrchestrate({
+    cwd: '/tmp/project',
+    git: {
+      commit: (msg) => 'sha123',
+      status: () => ({ clean: true, dirty: [] }),
+    },
+    mint: () => 'TOKEN_3',
+    now: () => 3000000,
+    finalize: async () => ({ 
+      ok: true, 
+      artefacts: [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }] 
+    }),
+  }, io);
+
+  // Should be able to dispatch to the next stage, not wedged
+  assert.strictEqual(result2.action, 'dispatch', 
+    'Next orchestrate should proceed normally after rollback, not be wedged');
+});

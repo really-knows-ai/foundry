@@ -497,6 +497,13 @@ export async function runOrchestrate(args = {}, io) {
       return violation(`stage_finalize error: ${finalizeResult.error}${blockNote}`, []);
     }
 
+    // Save original state for potential rollback
+    const originalWorkMd = io.readFile('WORK.md');
+    const originalHistory = io.exists('WORK.history.yaml') 
+      ? io.readFile('WORK.history.yaml') 
+      : null;
+
+    // Write WORK.md updates
     for (const a of finalizeResult.artefacts ?? []) {
       let wm = io.readFile('WORK.md');
       const rows = parseArtefactsTable(wm);
@@ -516,6 +523,8 @@ export async function runOrchestrate(args = {}, io) {
     const iteration = getIteration(historyPath, cycleId, io);
 
     const openFeedback = computeOpenFeedback(io);
+    
+    // Append history entries
     appendEntry(historyPath, {
       cycle: cycleId,
       stage: 'sort',
@@ -545,6 +554,13 @@ export async function runOrchestrate(args = {}, io) {
         lastStage.stage,
       );
       if (v) {
+        // Commit failed - rollback WORK.md and WORK.history.yaml
+        io.writeFile('WORK.md', originalWorkMd);
+        if (originalHistory !== null) {
+          io.writeFile('WORK.history.yaml', originalHistory);
+        } else if (io.exists('WORK.history.yaml')) {
+          io.unlink('WORK.history.yaml');
+        }
         if (activeStage) clearActiveStage(io);
         return v;
       }
