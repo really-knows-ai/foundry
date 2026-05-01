@@ -115,8 +115,9 @@ export function openFeedbackStore(path, io) {
       }
 
       // A3 (REVISION-CONTRACT §A3 / spec §5.1 rule 5): human-appraise has
-      // universal authority over non-resolved items, independent of source.
-      // Bypass sourceMatches gating in the matrix for this caller base.
+      // authority over items in {actioned, wont-fix, deadlocked} states,
+      // independent of source. Bypasses sourceMatches gating in the matrix
+      // for this caller base.
       const effectiveSourceMatches =
         stageBase === 'human-appraise' ? true : sourceMatches;
 
