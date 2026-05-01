@@ -4,7 +4,8 @@ export function requireGitRepo(io) {
 }
 
 export function requireFoundryRoot(io) {
-  if (io.exists('foundry/')) return { ok: true };
+  // Probe the bare directory name — matches requireGitRepo's '.git'.
+  if (io.exists('foundry')) return { ok: true };
   return {
     ok: false,
     error: 'foundry/ directory not found at worktree root. Run the init-foundry skill to scaffold it.',

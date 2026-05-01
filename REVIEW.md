@@ -410,9 +410,17 @@ pass.
   `console.warn` stubbing and `process.env.FOUNDRY_DEBUG`
   save/restore. Test count: 1038 → 1040.
 
-- [ ] **C3. `scripts/lib/foundational-guards.js:7` trailing-slash
-  inconsistency.** `'foundry/'` (with slash) vs `'.git'` (without)
-  in `requireGitRepo`. Pick one.
+- [x] **C3. `scripts/lib/foundational-guards.js:7` trailing-slash
+  inconsistency.** Dropped the trailing slash from the probe path:
+  `requireFoundryRoot` now calls `io.exists('foundry')`, matching
+  `requireGitRepo`'s `'.git'` style. The user-facing error message
+  keeps the trailing slash (`'foundry/ directory not found …'`)
+  because that reads naturally as a directory name to a human.
+  Updated the existing test to assert the new probe key, and added
+  a third test pinning the no-trailing-slash invariant — feeding
+  `'foundry/'` into the io stub now correctly fails the guard, so
+  any future regression that re-introduces the slash will fail
+  loudly. Test count: 1040 → 1041.
 
 - [ ] **C4. `scripts/lib/branch-guard.js:11` strawman-negation
   comment.** "instead of bubbling a thrown ExecError" — rewrite
@@ -752,7 +760,7 @@ Each line is one commit.
 ## Verification
 
 ```bash
-npm test         # 1040 tests passing, 0 failing (post-C2 baseline)
+npm test         # 1041 tests passing, 0 failing (post-C3 baseline)
 git status       # clean working tree
 ```
 
