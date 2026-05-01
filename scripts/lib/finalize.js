@@ -13,7 +13,7 @@ const TOOL_MANAGED_PREFIX = ['.foundry/'];
 // argument-injection (--upload-pack=...), and shell metacharacters. The
 // practical attack surface is .foundry/active-stage.json and last-stage.json,
 // which are persisted on disk and may be edited or corrupted; we validate
-// here for defense-in-depth before passing the value to git.
+// here for defence-in-depth before passing the value to git.
 const SHA_RE = /^[0-9a-f]{7,64}$/i;
 
 function assertValidSha(baseSha) {

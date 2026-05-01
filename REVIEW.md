@@ -32,7 +32,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **Memory cluster**: G13+G14+G15 (permissions, unbounded, live store) - Commits bab78e2, 8d6bfc8
 
 ### Priority 4: Voice/Docs Cleanup (Can batch)
-- [ ] **Spelling**: C13+C29 (defense→defence, behavior→behaviour)
+- [x] **Spelling**: C13+C29 (defense→defence, behavior→behaviour) - Commit e325b30
 - [ ] **Voice sweep**: C14+C15+C16+C28+C30-C34+C36+C37+G38+G52 (strawman negations)
 - [ ] **Stale tool refs**: C12+D8+D11+D12+G51 (foundry_sort, foundry_stage_finalize)
 - [ ] **Doc gaps**: C17+C19+C21-C27
@@ -510,8 +510,8 @@ pass.
   orchestrator's internal finalize step" / drop the historical
   comparison. (Was D7/D8.)
 
-- [ ] **C13. `scripts/lib/finalize.js:16` Americanism `defense`** →
-  `defence`. (Was E48.)
+- [x] **C13. `scripts/lib/finalize.js:16` Americanism `defense`** →
+  `defence`. (Was E48.) Fixed in e325b30.
 
 ### Voice — strawman negation in NEW prose
 
@@ -596,8 +596,8 @@ all 48 still applicable at HEAD with three drifts:
   419→434, 569→584, 573→588, 589→604, 597→612 (was E1–E14). All
   still present. Lead each definition affirmatively.
 
-- [ ] **C29. README:312 Americanism `behavior`.** (Was E45.)
-  → `behaviour`.
+- [x] **C29. README:312 Americanism `behavior`.** (Was E45.)
+  → `behaviour`. Fixed in e325b30.
 
 - [ ] **C30. `docs/concepts.md` voice cluster.** Lines 48
   ("instead of guessing"), 168 ("instead of manipulating files
@@ -1409,4 +1409,3 @@ Continuing from the existing 25-item plan:
 54. **`fix(memory/admin): reset.js sidecar existence check; dump.js include edge counts`** — G22 + G23
 55. **`fix(feedback-list): align depth definition with sort, or rename`** — G10
 56. *(P3 nits)* — G47, G48, G49, G50, G51
-

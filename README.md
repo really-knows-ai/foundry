@@ -309,7 +309,7 @@ Different stages can run on different models for genuine cognitive diversity (mi
 - Individual appraisers can declare a `model` field in their personality definition; this overrides the cycle-level appraise model on a per-appraiser basis.
 - `refresh-agents` generates a `foundry-<slug>.md` agent file in `.opencode/agents/` for every model available in the session, where `<slug>` is the model ID with both `/` and `.` replaced by `-`.
 
-Dispatch behavior:
+Dispatch behaviour:
 
 - **Non-appraise stages** (forge, quench, assay, …): if the cycle declares `models.<stage>`, the orchestrator dispatches to `foundry-<slug>` and **hard-fails** if `.opencode/agents/foundry-<slug>.md` is missing. If `models.<stage>` is not set, the stage is dispatched with the `general` subagent (session default).
 - **Appraise stage**: each appraiser is dispatched independently by the `appraise` skill. If an appraiser has its own `model`, the skill dispatches to `foundry-<slug>` and hard-fails if that agent file is missing; otherwise the appraiser runs under the `general` subagent. The cycle-level `models.appraise` value is currently used by sort.js for routing-time agent-file validation only — the appraise skill iterates per-appraiser and does not fall back to it at dispatch time.
