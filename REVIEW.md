@@ -427,11 +427,13 @@ pass.
   "envelope rather than throwing" — leading with what the code does
   (returns a structured refusal envelope) rather than what it avoids.
 
-- [ ] **C5. `scripts/lib/memory/paths.js:7` `relationsDir` is
-  hard-coded ignoring `foundryDir` parameter.** Subtle hazard: tests
-  parameterising `foundryDir` silently bypass the foundryDir scope
-  for relations only. Either compute via `join(...)` or document why
-  it's correct that this directory is fixed.
+- [x] **C5. `scripts/lib/memory/paths.js:7` `relationsDir` is
+  hard-coded ignoring `foundryDir` parameter.** Added a comment
+  explaining why it's fixed: Phase 2 moved relations out of the
+  foundry/ tree to a sibling path (foundry-memory/relations/),
+  which sits at the worktree root level, not under foundryDir.
+  There's no way to derive it from foundryDir without knowing the
+  worktree root, so the fixed string literal is intentional.
 
 - [ ] **C6. `config-creators` are nearly identical (5 files,
   ~33 lines each).** Compress to a 20-line factory. Not a bug;
