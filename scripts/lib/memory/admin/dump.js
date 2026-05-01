@@ -30,5 +30,9 @@ export async function dumpMemory({ store, vocabulary, type, name, depth = 1 }) {
     const rows = await listEntities(store, { type: t });
     lines.push(`- entity ${t}: ${rows.length} rows`);
   }
+  for (const t of Object.keys(vocabulary.edges)) {
+    const res = await store.db.run(`?[ft, fn, tt, tn] := *edge_${t}{from_type: ft, from_name: fn, to_type: tt, to_name: tn}`);
+    lines.push(`- edge ${t}: ${res.rows.length} rows`);
+  }
   return lines.join('\n');
 }
