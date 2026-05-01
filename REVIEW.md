@@ -15,17 +15,17 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1068 tests passing (baseline: 1036)
+**Current progress:** 1069 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
 - [x] **G7+G8** (Context bugs) - Commit db2b859, ad61c8f
 - [x] **G1+G2** (Feedback resolve bugs) - Commit 231b182
 - [x] **G3** (Memory paths) - Commit bcfb425
+- [x] **G4** (Git atomicity) - Commit 28f75b2
 
 ### Priority 2: P0 Feedback/Memory Bugs
-**Next batch:**
-- [ ] **G4** (Git atomicity) - commitWithPolicy leaves dirty state
+**All complete!**
 
 ### Priority 3: P0 Assay/Memory Subsystems
 - [ ] **Assay cluster**: G24+G25+G26+G27+G28+G29 (spawn bugs, UTF-8, OOM risk)
