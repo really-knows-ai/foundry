@@ -143,14 +143,13 @@ describe('store.transition — source-stage authorship', () => {
     assert.equal(store.get(id).history[0].reason, 'addressed');
   });
 
-  test('resolved transition requires a reason (spec §4.3, REVISION-CONTRACT §A1)', () => {
+  test('resolved transition does not require a reason (spec §4.3, REVISION-CONTRACT §A1 + G1)', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
     store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
     const r = store.transition({ id, target: 'resolved', stage: 'appraise:write-check', cycle: 'c' });
-    assert.equal(r.ok, false);
-    assert.match(r.error, /reason is required/);
+    assert.equal(r.ok, true);
   });
 
   test('appraise of a different stage id cannot resolve', () => {
@@ -210,12 +209,21 @@ describe('store.transition — human-appraise universal authority (A3)', () => {
     assert.equal(r.ok, true);
   });
 
-  test('human-appraise override on non-deadlocked items still requires a reason when target needs one', () => {
+  test('human-appraise override on non-deadlocked items does not require reason for approval (G1)', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:other', cycle: 'c' });
     store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
     const r = store.transition({ id, target: 'resolved', stage: 'human-appraise:review', cycle: 'c' });
+    assert.equal(r.ok, true);
+  });
+
+  test('human-appraise override on non-deadlocked items still requires reason for rejection', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:other', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const r = store.transition({ id, target: 'rejected', stage: 'human-appraise:review', cycle: 'c' });
     assert.equal(r.ok, false);
     assert.match(r.error, /reason is required/);
   });

@@ -147,7 +147,7 @@ export function createFeedbackTools({ tool }) {
     }),
 
     foundry_feedback_resolve: tool({
-      description: 'Resolve a feedback item (approved or rejected)',
+      description: 'Resolve a feedback item (approved or rejected). In human-appraise stages, this tool can override deadlocked items by providing a reason.',
       args: {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
         resolution: tool.schema.enum(['approved', 'rejected']).describe('Resolution type'),

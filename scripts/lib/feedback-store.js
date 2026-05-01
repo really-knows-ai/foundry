@@ -128,12 +128,16 @@ export function openFeedbackStore(path, io) {
       });
       if (!check.ok) return { ok: false, error: check.reason };
 
-      // Reason requirements per spec §4.3 (updated per REVISION-CONTRACT §A1):
-      // required on {rejected, wont-fix, deadlocked, resolved}; forbidden on open;
-      // optional on actioned. Deadlocked is only written by writeDeadlockedSnapshot;
-      // here we validate the 'target' state.
-      const REASON_REQUIRED_TARGETS = new Set(['rejected', 'wont-fix', 'resolved']);
-      if (REASON_REQUIRED_TARGETS.has(target) && (!reason || !reason.trim())) {
+      // Reason requirements per spec §4.3 (updated per REVISION-CONTRACT §A1 + G1):
+      // - required when target is {rejected, wont-fix}
+      // - required when overriding a deadlocked item (current state is 'deadlocked')
+      // - forbidden on 'open'
+      // - optional on {actioned, resolved} unless deadlock override
+      // Deadlocked state is only written by writeDeadlockedSnapshot; here we
+      // validate both the 'target' state and the 'current' state.
+      const REASON_REQUIRED_TARGETS = new Set(['rejected', 'wont-fix']);
+      const isDeadlockOverride = current === 'deadlocked';
+      if ((REASON_REQUIRED_TARGETS.has(target) || isDeadlockOverride) && (!reason || !reason.trim())) {
         return { ok: false, error: `reason is required for transition → ${target}` };
       }
       // 'open' is forbidden as a transition target (state machine rejects it

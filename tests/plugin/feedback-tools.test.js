@@ -322,6 +322,47 @@ describe('foundry_feedback_resolve — id-based', () => {
     ));
     assert.match(res.error, /reason/);
   });
+
+  test('approved resolution without reason succeeds (G1 regression)', async () => {
+    const id = await setupToActioned('appraise:write-check');
+    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved' }, // no reason
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'resolved');
+  });
+
+  test('approved resolution with reason still works (G1 regression)', async () => {
+    const id = await setupToActioned('appraise:write-check');
+    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved', reason: 'looks good' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'resolved');
+    assert.equal(doc.items[0].history[0].reason, 'looks good');
+  });
+
+  test('rejected resolution with reason succeeds (G1 regression)', async () => {
+    const id = await setupToActioned('appraise:write-check');
+    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'rejected', reason: 'still broken' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'rejected');
+    assert.equal(doc.items[0].history[0].reason, 'still broken');
+  });
 });
 
 describe('foundry_feedback_resolve — deadlock override', () => {
