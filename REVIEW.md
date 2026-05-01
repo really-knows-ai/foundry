@@ -439,7 +439,7 @@ pass.
   ~33 lines each).** Compress to a 20-line factory. Not a bug;
   consolidation opportunity.
 
-- [ ] **C7. `cycle.js` and `flow.js` config-creators have dead
+- [x] **C7. `cycle.js` and `flow.js` config-creators have dead
   `KIND_HUMAN` / `KIND_UNDERSCORED` parity constants** (both equal
   the same value). Vestigial parity with `artefact-type`. Replace
   with single `KIND` constant.

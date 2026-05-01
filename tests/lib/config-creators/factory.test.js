@@ -165,3 +165,21 @@ test('factory: custom validation passes with valid input', async () => {
   assert.equal(result.ok, true);
   assert.equal(result.path, 'foundry/test/rules.md');
 });
+
+test('factory: accepts string kind when human and underscored are identical', async () => {
+  const pathFor = (args) => `foundry/test/${args.name}.md`;
+  const validator = makeMockValidator(true);
+  const create = makeCreator({
+    kind: 'simple',
+    pathFor,
+    validator,
+  });
+
+  const io = makeAsyncMockIO();
+  const exec = makeFakeExecFile(['foundry/test/bar.md']);
+  const result = await create({ name: 'bar', body: VALID_BODY, io, execFile: exec });
+
+  assert.equal(result.ok, true);
+  const commit = exec.calls.find((c) => c[0] === 'commit');
+  assert.match(commit[2], /^config: add simple bar\n\nvia foundry_config_create_simple$/);
+});

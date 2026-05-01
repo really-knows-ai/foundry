@@ -28,9 +28,13 @@ export function makeCreator({ kind, pathFor, validator, customValidation }) {
     await args.io.mkdirp(dirname(path));
     await args.io.writeFile(path, args.body);
 
+    // Normalise kind to {human, underscored} format
+    // String kind means human and underscored forms are identical
+    const kindNormalised = typeof kind === 'string' ? { human: kind, underscored: kind } : kind;
+
     // Commit
     const sha = commitWithPolicy({
-      message: `config: add ${kind.human} ${args.name}\n\nvia foundry_config_create_${kind.underscored}`,
+      message: `config: add ${kindNormalised.human} ${args.name}\n\nvia foundry_config_create_${kindNormalised.underscored}`,
       allowedPatterns: ['foundry/**'],
       execFile: args.execFile,
     });
