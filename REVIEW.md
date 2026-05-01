@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1094 tests passing (baseline: 1036)
+**Current progress:** 1107 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -40,7 +40,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ### Priority 5: Remaining P0s
 - [x] **G9-G12** (Feedback subsystem contract issues) - Commits 586ad0b, 557443c, a3878f4, 91abb29
-- [ ] **G16-G23** (Memory subsystem edge cases)
+- [x] **G16-G23** (Memory subsystem edge cases) - Commits d4d2950, ce001a7, ef7cc95, 714c26e, 8e19ea7, 937b1ef, c2e05c5, 8017c40
 - [ ] **G30-G37** (Git/validation bugs)
 
 ### Priority 6: D-cluster nits (P3)
