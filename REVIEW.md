@@ -367,11 +367,16 @@ These break users or tools at runtime, or contradict shipped behaviour.
   touches via the admin source under `scripts/lib/memory/admin/`
   before editing.
 
-- [ ] **B21. `skills/flow/SKILL.md:50, 75` finish-time prose stale
-  for the new kind-typed model.** `foundry_git_finish` now classifies
-  by current branch; the destructiveness ("deletes WORK.md…") only
-  applies to `work/<x>` finish. Add a one-line clarification or
-  sub-section.
+- [x] **B21. `skills/flow/SKILL.md:50, 75` finish-time prose stale
+  for the new kind-typed model.** Drift was at line 75 only (line 50
+  is a section header, not stale). Added two sentences to the
+  Squash-merge bullet: a leading clause noting that the flow skill
+  always lands on `work/<flow>-<desc>` and so dispatches to the
+  `work` mode, and a closing parenthetical naming the other two
+  modes (`config` integrates without WORK cleanup, `dry-run`
+  writes a snapshot) so a reader who misroutes the call has the
+  context to recover. The destructive description still applies
+  verbatim to the `work` mode the skill exits on.
 
 ---
 
