@@ -100,4 +100,13 @@ describe('probeEmbeddings', () => {
     assert.equal(r.ok, false);
     assert.match(r.error, /dimension/i);
   });
+
+  it('reports both configured and actual dimensions on mismatch', async () => {
+    restore = installMockFetch(async () =>
+      new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3, 4, 5], index: 0 }] }), { status: 200 }));
+    const r = await probeEmbeddings({ config: baseConfig }); // baseConfig has dimensions: 3
+    assert.equal(r.ok, false);
+    assert.match(r.error, /expected 3/);
+    assert.match(r.error, /got 5/);
+  });
 });
