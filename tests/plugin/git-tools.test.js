@@ -209,6 +209,34 @@ test('foundry_git_finish successful path returns ok with hash and base branch', 
   }
 });
 
+test('foundry_git_finish on config branch does not delete work files', async () => {
+  const dir = initRepo();
+  try {
+    // Set up foundry directory structure.
+    execSync(`mkdir -p "${join(dir, 'foundry', 'laws')}"`, { cwd: dir, env: GIT_ENV });
+    execSync('git checkout -b config/add-law -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'foundry/laws/new.md'), 'content\n');
+    execSync('git add . && git commit -m "add law" -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish config', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    assert.equal(res.branch, 'main');
+    // Verify no cleanup commit was created.
+    const log = execSync('git log --oneline -1', { cwd: dir, env: GIT_ENV }).toString();
+    assert.match(log, /finish config/);
+    assert.doesNotMatch(log, /cleanup/);
+    // Config branch should be deleted.
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(!branches.includes('config/add-law'), `expected config branch deleted, got: ${branches}`);
+  } finally {
+    cleanup(dir);
+  }
+});
+
 test('foundry_git_branch returns wrapped error when branch already exists', async () => {
   const dir = initRepo();
   try {
