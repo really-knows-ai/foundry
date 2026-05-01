@@ -72,6 +72,17 @@ describe('embed', () => {
       /abort|timeout/i,
     );
   });
+
+  it('throws when provider omits index field', async () => {
+    restore = installMockFetch(async () =>
+      new Response(JSON.stringify({
+        data: [{ embedding: [1, 2, 3] }, { embedding: [4, 5, 6] }],
+      }), { status: 200 }));
+    await assert.rejects(
+      () => embed({ config: baseConfig, inputs: ['a', 'b'] }),
+      /embedding provider returned data without index field/i,
+    );
+  });
 });
 
 describe('probeEmbeddings', () => {

@@ -16,8 +16,14 @@ async function callOnce({ config, inputs }) {
     }
     const body = await res.json();
     if (!Array.isArray(body.data)) throw new Error('embeddings provider returned malformed response (no data[])');
+    // Validate that all embeddings have an index field to prevent silent misalignment
+    for (const item of body.data) {
+      if (!('index' in item)) {
+        throw new Error('embedding provider returned data without index field - cannot verify ordering');
+      }
+    }
     return body.data
-      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      .sort((a, b) => a.index - b.index)
       .map((d) => d.embedding);
   } finally {
     clearTimeout(t);
