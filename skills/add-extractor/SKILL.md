@@ -77,11 +77,17 @@ If the user confirms, create the script file at the `command` path with an execu
 ```bash
 #!/bin/sh
 # Emits JSONL describing Java classes and methods.
-# Contract: one JSON object per line, discriminated by "kind".
+#
+# JSONL Contract (one JSON object per line):
+#   - One JSON object per line (JSONL/NDJSON format)
+#   - Pretty-printed multi-line JSON is NOT supported
+#   - Blank lines and lines starting with '#' are ignored
+#   - Each object discriminated by "kind":
+#
 #   Entities: {"kind":"entity","type":"<entity-type>","name":"<id>","value":"<string ≤ 4KB>"}
 #   Edges:    {"kind":"edge","from":{"type":..,"name":..},"edge":"<edge-type>","to":{"type":..,"name":..}}
-# Blank lines and lines starting with '#' are ignored.
-# Exit 0 on success, non-zero on failure.
+#
+# Exit 0 on success, non-zero on failure (aborts the assay stage).
 
 set -euo pipefail
 

@@ -1,6 +1,31 @@
 import yaml from 'js-yaml';
 import { memoryPaths } from '../memory/paths.js';
 
+/**
+ * Extractor Contract
+ * ==================
+ *
+ * An extractor is a project-authored executable (script, binary, etc.) that
+ * emits JSONL (newline-delimited JSON) describing entities and edges to upsert
+ * into flow memory.
+ *
+ * Output Format:
+ * - One JSON object per line (JSONL/NDJSON format)
+ * - Pretty-printed multi-line JSON is NOT supported
+ * - Blank lines and lines starting with '#' are ignored
+ * - Each object must have a "kind" field: "entity" or "edge"
+ *
+ * Entity format:
+ *   {"kind":"entity","type":"<entity-type>","name":"<id>","value":"<string ≤ 4KB>"}
+ *
+ * Edge format:
+ *   {"kind":"edge","from":{"type":"...","name":"..."},"edge":"<edge-type>","to":{"type":"...","name":"..."}}
+ *
+ * Exit codes:
+ * - 0 on success
+ * - Non-zero on failure (aborts the assay stage)
+ */
+
 const IDENT = /^[a-z][a-z0-9_-]*$/;
 
 function parseTimeout(v) {

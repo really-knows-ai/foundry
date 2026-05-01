@@ -201,6 +201,40 @@ echo '{"kind":"entity","type":"class","name":"com.Flushed","value":"durable"}'
     assert.match(res.error, /requires active assay stage/);
   });
 
+  it('rejects pretty-printed multi-line JSON with clear error message', async () => {
+    // G30: parse-jsonl splits by line, so multi-line JSON objects fail.
+    // The error must make it clear that one object per line is required.
+    writeScript(root, 'scripts/emit-pretty.sh', `#!/bin/sh
+cat <<'EOF'
+{
+  "kind": "entity",
+  "type": "class",
+  "name": "com.Pretty",
+  "value": "pretty printed"
+}
+EOF
+`);
+    writeExtractor(root, 'pretty', { command: 'scripts/emit-pretty.sh', write: ['class'] });
+    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
+
+    await beginAssay(plugin, root);
+    let res;
+    try {
+      res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['pretty'] }, { worktree: root }));
+    } finally {
+      try { await endStage(plugin, root); } catch {}
+    }
+
+    // Must fail with a clear message explaining the one-object-per-line requirement.
+    assert.notEqual(res.ok, true, 'expected failure for multi-line JSON');
+    assert.ok(res.error, 'expected error message');
+    assert.match(res.error, /invalid JSON/i, 'error must mention invalid JSON');
+    assert.match(res.error, /line 1/i, 'error must reference the line number');
+    assert.match(res.error, /one JSON object per line/i, 'error must explain JSONL requirement');
+    assert.match(res.error, /JSONL\/NDJSON/i, 'error must mention JSONL/NDJSON format');
+  });
+
   it('marks WORK.md failed and returns flow_failed when post-assay syncStore fails', async () => {
     // Deterministic injection: the extractor emits a valid entity (so runAssay
     // succeeds) and then replaces the relation NDJSON file with a directory of

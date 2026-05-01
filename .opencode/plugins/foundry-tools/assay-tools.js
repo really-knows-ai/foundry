@@ -23,7 +23,7 @@ function flowBranchGuard(_args, context) {
 export function createAssayTools({ tool }) {
   return {
     foundry_assay_run: tool({
-      description: 'Run extractors to populate flow memory. Only callable during an active assay stage. Aborts on first failure; marks the workfile failed.',
+      description: 'Run extractors to populate flow memory. Only callable during an active assay stage. Aborts on first failure; marks the workfile failed. Extractors must output one JSON object per line (JSONL/NDJSON format), not pretty-printed multi-line JSON.',
       args: {
         cycle: tool.schema.string().describe('Cycle name'),
         extractors: tool.schema.array(tool.schema.string()).describe('Extractor names, executed in order'),
