@@ -87,7 +87,7 @@ export function addArtefactRow(text, { file, type, cycle, status }) {
  */
 export function setArtefactStatus(text, file, newStatus) {
   if (newStatus === 'draft') {
-    throw new Error('status draft not permitted; use stage_finalize for registration');
+    throw new Error('status draft not permitted; artefacts are registered automatically during orchestration');
   }
   if (!['done', 'blocked'].includes(newStatus)) {
     throw new Error(`invalid status: ${newStatus}`);

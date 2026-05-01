@@ -119,7 +119,7 @@ Each appraiser is dispatched as an independent sub-agent. The sub-agent receives
 - If a model is specified: dispatch with `subagent_type: "foundry-<converted-name>"`. If no agent with that name exists, **hard fail**.
 - If no model is specified: dispatch with `subagent_type: "general"` (inherits session model).
 
-Note: per-appraiser `model` overrides are applied here at dispatch time. The cycle-level `models.appraise` value (if set) is read by sort.js for routing-time agent-file validation only; this skill does not consult it when iterating appraisers.
+Note: per-appraiser `model` overrides are applied here at dispatch time. The cycle-level `models.appraise` value (if set) is used for routing-time agent-file validation only; this skill does not consult it when iterating appraisers.
 
 Dispatch all appraisers in parallel (multiple Task calls in a single response).
 

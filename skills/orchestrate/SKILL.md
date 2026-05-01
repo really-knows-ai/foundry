@@ -79,7 +79,7 @@ Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<af
 
 - You do NOT inline forge / quench / appraise work. Always dispatch via `task`.
 - You do NOT mint, modify, or cache tokens. The `prompt` from orchestrate already contains the token verbatim.
-- You do NOT call `foundry_history_append`, `foundry_git_commit`, `foundry_stage_finalize`, or `foundry_sort`. These are not registered tools in v2.3+; orchestrate handles them internally.
+- `foundry_history_append`, `foundry_git_commit`, `foundry_stage_finalize`, and `foundry_sort` are not registered tools; orchestrate handles them internally via the loop.
 - You do NOT reorder the protocol. `foundry_orchestrate` returns, you act, you call back. Nothing else between.
 
 ## Feedback visibility

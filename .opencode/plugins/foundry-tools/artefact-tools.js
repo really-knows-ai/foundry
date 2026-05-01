@@ -21,8 +21,8 @@ function flowBranchGuard(_args, context) {
 export function createArtefactTools({ tool }) {
   return {
     // NOTE: `foundry_artefacts_add` was removed in v2.2.0. Artefacts are now
-    // registered automatically by `foundry_stage_finalize` as drafts, then
-    // promoted to done|blocked via `foundry_artefacts_set_status`.
+    // registered automatically by the orchestrator's internal finalize step as drafts,
+    // then promoted to done|blocked via `foundry_artefacts_set_status`.
     foundry_artefacts_set_status: tool({
       description: 'Update the status of an artefact in WORK.md (done|blocked only)',
       args: {
