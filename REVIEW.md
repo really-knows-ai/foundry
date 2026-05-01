@@ -435,7 +435,7 @@ pass.
   There's no way to derive it from foundryDir without knowing the
   worktree root, so the fixed string literal is intentional.
 
-- [ ] **C6. `config-creators` are nearly identical (5 files,
+- [x] **C6. `config-creators` are nearly identical (5 files,
   ~33 lines each).** Compress to a 20-line factory. Not a bug;
   consolidation opportunity.
 
