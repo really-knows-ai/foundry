@@ -1145,7 +1145,7 @@ sections and are listed for cross-reference only.
   and shell metacharacters.
   Fixed in 5d893f5 (detects and strips quotes around standalone {file}).
 
-- [ ] **G34. `commitWithPolicy` returns `null` SHA on a clean
+- [x] **G34. `commitWithPolicy` returns `null` SHA on a clean
   worktree; config-creators silently propagate.**
   `scripts/lib/git-bridge.js:47` JSDoc says "Returns the short commit
   SHA on success" with no mention of `null`.
@@ -1153,6 +1153,7 @@ sections and are listed for cross-reference only.
   return `{ok: true, path, sha: null}` to the caller. Either treat
   `sha === null` as an internal error ("expected to write but
   worktree was clean") or document `null` as part of the contract.
+  Fixed in 4b60e21 (documented null as valid return value).
 
 - [ ] **G35. `parsePorcelainZ` rename-ordering doc contradicts git's
   actual `-z` output.** `scripts/lib/git-policy.js:39-43`. The
