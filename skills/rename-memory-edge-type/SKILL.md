@@ -45,6 +45,6 @@ Before running this skill, verify all of the following:
 3. Commit:
 
    ```bash
-   git add foundry/memory/ foundry-memory/relations/
+   git add -A foundry/memory/ foundry-memory/relations/
    git commit -m "refactor(memory): rename edge type <from> -> <to>"
    ```
