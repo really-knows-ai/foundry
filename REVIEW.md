@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1114 tests passing (baseline: 1036)
+**Current progress:** 1118 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -1133,7 +1133,7 @@ sections and are listed for cross-reference only.
 
 ### Validate / git plumbing
 
-- [ ] **G33. `foundry_validate_run` `{file}` substitution is
+- [x] **G33. `foundry_validate_run` `{file}` substitution is
   positionally naïve.**
   `.opencode/plugins/foundry-tools/validate-tools.js:49`. The
   substituted value is single-quoted; if a config validation entry
@@ -1143,6 +1143,7 @@ sections and are listed for cross-reference only.
   in `command:` strings, or detect surrounding quotes and strip them
   before substituting. Add a fixture covering filenames with spaces
   and shell metacharacters.
+  Fixed in 5d893f5 (detects and strips quotes around standalone {file}).
 
 - [ ] **G34. `commitWithPolicy` returns `null` SHA on a clean
   worktree; config-creators silently propagate.**
