@@ -14,6 +14,8 @@ frontmatter to point at a different OpenAI-compatible endpoint, or set
 \`embeddings.enabled: false\` if you don't want vector search.
 `;
 
+// Gitignore only the runtime DB files under foundry/memory/.
+// foundry-memory/relations/ (NDJSON row data) is intentionally tracked.
 const DEFAULT_GITIGNORE_ENTRIES = [
   'foundry/memory/memory.db',
   'foundry/memory/memory.db-wal',
