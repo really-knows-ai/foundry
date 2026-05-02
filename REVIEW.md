@@ -539,9 +539,10 @@ apply).
   Line 485 (actual location): "propagates as a tool error rather than
   being wrapped". Rewritten affirmatively. Commit 8b89227.
 
-- [ ] **C16. `memory-admin-tools.js:43-44` "land on a branch that
+- [x] **C16. `memory-admin-tools.js:43-44` "land on a branch that
   finishes via foundry_git_finish (config kind) rather than
-  polluting main directly".** Rewrite affirmatively.
+  polluting main directly".** Already fixed in commit 9cf62d8 (voice
+  sweep batch). Current wording: "and stay isolated from main".
 
 ### Doc gaps (not breaking but worth filling)
 
