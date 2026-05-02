@@ -767,8 +767,8 @@ its only failure mode (a broken extractor under
 - [x] **E2. Add a one-paragraph preamble to README's "Stages"
   reference table** (around line 432).
 
-- [ ] **E3. `docs/work-spec.md:106` lead with the rule before the
-  rationale.** (Folded into C32.)
+- [x] **E3. `docs/work-spec.md:106` lead with the rule before the
+  rationale.** (Folded into C32 - already affirmative.)
 
 ---
 
@@ -1160,7 +1160,8 @@ These are bundled into a single voice-sweep commit with the existing
 C36 cluster. Listing the citations here so the commit author can find
 them.
 
-- [ ] **G38. Strawman / "rather than" framing across modules.**
+- [x] **G38. Strawman / "rather than" framing across modules.**
+  Fixed in 8f3956c as part of C37. All items addressed:
   - `scripts/lib/feedback-store.js:153-155` "Not validated through
     validateTransition (sort bypasses the state machine per spec
     §6.1)."
