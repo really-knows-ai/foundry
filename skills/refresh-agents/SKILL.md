@@ -1,6 +1,6 @@
 ---
 name: refresh-agents
-description: Use when initializing Foundry or after adding/removing providers to regenerate foundry-* agent files for multi-model routing.
+description: Use when initialising Foundry or after adding/removing providers to regenerate foundry-* agent files for multi-model routing.
 ---
 
 # Refresh Agents
