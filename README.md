@@ -222,6 +222,8 @@ Every dispatched stage (forge, quench, appraise, human-appraise, assay) runs und
    - Returns `{error: 'unexpected_files'}` if the stage wrote anywhere it shouldn't have.
 6. The orchestrator commits the cycle and routing advances.
 
+The five stages have crisply separated roles: **assay** populates flow memory (no artefact, no feedback); **forge** creates and modifies artefacts and resolves feedback; **quench** validates deterministically; **appraise** evaluates against laws; **human-appraise** provides human review with deadlock-override authority. Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the protocol because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
+
 Per-stage write rules:
 
 | Stage | May write |

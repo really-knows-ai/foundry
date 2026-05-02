@@ -758,7 +758,7 @@ its only failure mode (a broken extractor under
 - [x] **E1. Add a unifying-principle paragraph to `docs/concepts.md`
   Stages section.**
 
-- [ ] **E2. Add a one-paragraph preamble to README's "Stages"
+- [x] **E2. Add a one-paragraph preamble to README's "Stages"
   reference table** (around line 432).
 
 - [ ] **E3. `docs/work-spec.md:106` lead with the rule before the
