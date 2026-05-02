@@ -1012,11 +1012,11 @@ sections and are listed for cross-reference only.
   validateEdgeWrite, import path was vulnerable. Added 7 tests (4 unit +
   3 integration). Test count: 1129 → 1136.
 
-- [ ] **G22. `reset.js` unconditionally `unlink`s `-wal` / `-shm`.**
-  `scripts/lib/memory/admin/reset.js:14-16`. SQLite without WAL or
-  after a clean checkpoint won't have these sidecars; `fs.unlink`
-  throws ENOENT. Fix: existence check first (matches the rest of the
-  codebase style).
+- [x] **G22. `reset.js` unconditionally `unlink`s `-wal` / `-shm`.**
+  Fixed in c2e05c5: Added existence checks before unlinking WAL/SHM sidecar
+  files in reset.js (lines 14-16). Prevents ENOENT when SQLite doesn't create
+  sidecars (clean checkpoint or inactive WAL mode). Test added at
+  reset.test.js (handles missing WAL/SHM gracefully).
 
 - [ ] **G23. `dump.js` summary path enumerates entity counts only.**
   `scripts/lib/memory/admin/dump.js:27-32`. Edge counts are silently
