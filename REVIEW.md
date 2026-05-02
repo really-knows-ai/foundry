@@ -535,8 +535,9 @@ apply).
   333 ("instead of every row…"), 348 ("instead of mutating…").
   All rewritten affirmatively. Commit TBD.
 
-- [ ] **C15. `docs/tools.md:197, 413` use "rather than" framing.**
-  Rewrite affirmatively.
+- [x] **C15. `docs/tools.md:197, 413` use "rather than" framing.**
+  Line 485 (actual location): "propagates as a tool error rather than
+  being wrapped". Rewritten affirmatively. Commit 8b89227.
 
 - [ ] **C16. `memory-admin-tools.js:43-44` "land on a branch that
   finishes via foundry_git_finish (config kind) rather than

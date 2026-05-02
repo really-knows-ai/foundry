@@ -482,8 +482,8 @@ missing.
 ## Config (read-only definition lookups)
 
 These tools throw on missing/malformed definitions; the thrown error
-propagates as a tool error rather than being wrapped in `{error: ...}`
-(no try/catch in the registration).
+propagates as a tool error without `{error: ...}` wrapping (no try/catch
+in the registration).
 
 ### `foundry_config_cycle`
 
