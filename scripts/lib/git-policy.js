@@ -9,8 +9,7 @@
 // paths.
 //
 // This module accepts raw inputs (porcelain string, allowed pattern list)
-// and returns plain data. The bridge wires these helpers to execFileSync /
-// git plumbing.
+// and returns plain data. The bridge wires these helpers to git plumbing.
 
 import { minimatch } from 'minimatch';
 

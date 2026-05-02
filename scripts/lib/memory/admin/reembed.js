@@ -8,10 +8,10 @@ import { existsSync, renameSync, unlinkSync } from 'node:fs';
 /**
  * Atomic re-embedding via a staging DB.
  *
- * Re-embedding builds the new state in a sibling staging DB. The original
- * `memory.db` and on-disk schema remain untouched until every entity has been
- * re-embedded successfully, at which point we swap atomically: rename the
- * staging DB over the live DB, write the new schema, and refresh NDJSON.
+ * Builds the new state in a sibling staging DB while the original `memory.db`
+ * and on-disk schema remain untouched. After every entity is re-embedded
+ * successfully, we swap atomically: rename the staging DB over the live DB,
+ * write the new schema, and refresh NDJSON.
  *
  * On any failure — provider error, unexpected vector length, Cozo error —
  * the staging DB is closed and unlinked and the original state is preserved.

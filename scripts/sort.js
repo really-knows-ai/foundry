@@ -27,8 +27,8 @@ import { openFeedbackStore } from './lib/feedback-store.js';
 // ---------------------------------------------------------------------------
 
 // Spec §6.1: an item is "open" (still in flight) when its head state is
-// 'open', 'actioned', 'rejected', or 'wont-fix'. Used by routing predicates to
-// count items that still need work.
+// 'open', 'actioned', 'rejected', or 'wont-fix' — equivalently, when the
+// state is neither 'resolved' nor 'deadlocked'.
 const isOpenItem = (f) => f.state !== 'resolved' && f.state !== 'deadlocked';
 
 function baseStage(stage) {
@@ -138,14 +138,13 @@ function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations,
 function getModifiedFiles(cycle, io = defaultIO) {
   try {
     // Find the most recent sort commit for this cycle and diff from its SHA
-    // to HEAD. The diff is exclusive of the sort commit itself, so it
-    // captures every file changed by stage commits made AFTER the last sort
-    // invocation. When the sort commit IS HEAD (no stage commits since), the
-    // diff is naturally empty.
+    // to HEAD. The diff captures every file changed by stage commits made
+    // after the last sort invocation; when the sort commit is HEAD (no stage
+    // commits since), the diff is empty.
     //
-    // If no matching sort commit is found in recent history (e.g. very first
-    // sort of a cycle, or shallow clone), we return an empty list and avoid
-    // false violations from guessed diff boundaries.
+    // When no matching sort commit is found in recent history (first sort of
+    // a cycle, or shallow clone), return an empty list to avoid false
+    // violations from guessed diff boundaries.
     const log = io.exec('git log --oneline -20');
     const sortPattern = `[${cycle}] sort:`;
     let sortSha = null;

@@ -129,12 +129,11 @@ export function openFeedbackStore(path, io) {
       });
       if (!check.ok) return { ok: false, error: check.reason };
 
+      // Validate state transitions for all non-deadlock flows.
       // Reason requirements per spec §4.3 (updated per REVISION-CONTRACT §A1 + G1):
       // - required when target is {rejected, wont-fix}
       // - required when overriding a deadlocked item (current state is 'deadlocked')
       // - transitions target {actioned, resolved} with an optional reason unless this is a deadlock override
-      // Deadlocked state is only written by writeDeadlockedSnapshot; here we
-      // validate both the 'target' state and the 'current' state.
       const REASON_REQUIRED_TARGETS = new Set(['rejected', 'wont-fix']);
       const isDeadlockOverride = current === 'deadlocked';
       if ((REASON_REQUIRED_TARGETS.has(target) || isDeadlockOverride) && (!reason || !reason.trim())) {
@@ -154,8 +153,8 @@ export function openFeedbackStore(path, io) {
       return { ok: true };
     },
 
-    // Sort-only. Writes deadlocked snapshots atomically in a single pass.
-    // Sort bypasses validateTransition per spec §6.1.
+    // Sort-only. Writes deadlocked snapshots atomically in a single pass
+    // via its own state machine logic per spec §6.1.
     writeDeadlockedSnapshot({ id, cycle, reason }) {
       const item = items.find(x => x.id === id);
       if (!item) return { ok: false, error: `feedback item not found: ${id}` };
@@ -178,7 +177,7 @@ export function openFeedbackStore(path, io) {
     /**
      * Batch deadlock writer. Used by sort (phase 4) to persist `state=deadlocked`
      * snapshots for N items in a single atomic rename. Either all snapshots
-     * land or none. Bypasses validateTransition — sort owns deadlock per §6.1.
+     * land or none. Implements sort's own state machine logic per §6.1.
      *
      * @param {string[]} ids — feedback item ids to deadlock.
      * @param {string} reason — required; same reason applied to all snapshots.

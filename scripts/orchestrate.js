@@ -57,8 +57,7 @@ export function needsSetup(workMdContent) {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle helpers used by orchestration. `readForgeFilePatterns` feeds the
-// first-call dispatch prompt.
+// Cycle helpers used by orchestration.
 // ---------------------------------------------------------------------------
 
 export function findCycleOutputArtefact(cycleId, io) {
@@ -92,9 +91,9 @@ export async function readForgeFilePatterns(cycleId, io) {
 
 function readRecentFeedback(io, limit = 5) {
   // Return the most recently changed wont-fix/rejected items for the
-  // human-appraise preamble. `WORK.feedback.yaml` preserves creation order,
-  // while `history[0].timestamp` records the latest transition, so this helper
-  // sorts descending by that timestamp and returns the first `limit` items.
+  // human-appraise preamble. `WORK.feedback.yaml` preserves creation order;
+  // `history[0].timestamp` records the latest transition. This helper
+  // sorts descending by timestamp and returns the first `limit` items.
   try {
     if (!io.exists('WORK.feedback.yaml')) return [];
     const store = openFeedbackStore('WORK.feedback.yaml', io);

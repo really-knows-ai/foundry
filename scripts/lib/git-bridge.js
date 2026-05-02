@@ -13,10 +13,9 @@
 //   3. If anything unexpected is dirty, throws a structured error with the
 //      offending file list — the orchestrator turns this into a `violation`
 //      action with `affected_files`. Nothing is staged or committed.
-//   4. Otherwise stages ONLY the allowed paths explicitly via argv and
-//      creates the commit.
+//   4. Stages allowed paths explicitly via argv and creates the commit.
 //
-// `execFile` is injected so tests can drive the helper without spawning git.
+// `execFile` is injected so tests can drive the helper.
 //
 // Returns the short commit SHA on success.
 
@@ -54,8 +53,8 @@ export function commitWithPolicy({
   if (unexpected.length) throw new UnexpectedFilesError(unexpected);
 
   // Reset the index so a previous `git add` of an unexpected file (e.g. left
-  // over from a failed run) cannot leak into our commit. Then add ONLY the
-  // allowed paths explicitly via argv — never `git add .`.
+  // over from a failed run) cannot leak into our commit. Then add the
+  // allowed paths explicitly via argv.
   execFile(['reset', '--quiet']);
   if (allowed.length === 0) {
     // Nothing to commit; the worktree is clean of any change we'd be

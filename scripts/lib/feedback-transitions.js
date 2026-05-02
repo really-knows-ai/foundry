@@ -8,14 +8,14 @@ import { createHash } from 'node:crypto';
 // Transition rules (spec §5.1):
 //   1. Forge operates on {open, rejected} → {actioned, wont-fix}.
 //   2. Source-stage (quench/appraise/human-appraise) operates on {actioned, wont-fix}
-//      → {resolved, rejected}, but only when caller's stageId === item.source.
-//   3. Sort (and only sort) writes 'deadlocked'. Sort bypasses this function.
-//      Included for completeness: this function never produces 'deadlocked'.
+//      → {resolved, rejected}, when caller's stageId === item.source.
+//   3. Sort writes 'deadlocked' via its own state machine logic (spec §6.1).
+//      Forge, quench, appraise, and human-appraise use this validator.
 //   4. Human-appraise override: on a deadlocked item, transitions to
 //      {resolved, rejected} are legal regardless of source match. The
 //      override authority mirrors the source-stage targets — wont-fix is
-//      a forge declaration ("considered, choosing not to act") and stays
-//      outside reviewer verdicts, so it is intentionally absent here.
+//      a forge declaration ("considered, choosing to defer") and stays
+//      outside reviewer verdicts, excluded here per spec.
 //   5. 'resolved' is terminal.
 //
 // validateTransition takes an options object so new dimensions (sourceMatches,
@@ -86,12 +86,12 @@ export function hashText(text) {
 
 /**
  * Per spec §5.1 rule 7 (REVISION-CONTRACT §A2): forge may produce the
- * `wont-fix` target only for items whose source stage base is `appraise`.
- * For `quench`- or `human-appraise`-sourced items, forge's only legal
+ * `wont-fix` target when the source stage base is `appraise`.
+ * For `quench`- or `human-appraise`-sourced items, forge's legal
  * target from {open, rejected} is `actioned`.
  *
- * The predicate is forge-specific. Forge callers use this helper to check
- * whether an item may transition to `wont-fix`.
+ * Forge-specific helper. Forge callers check this before attempting wont-fix
+ * transitions. Other stages use validateTransition directly.
  *
  * @param {{source: string}} item — feedback item; `source` is `base:alias`.
  * @param {string} callerStageBase — the caller's stage base (e.g. 'forge').

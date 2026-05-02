@@ -14,7 +14,8 @@ import { StringDecoder } from 'node:string_decoder';
 //
 // The child is spawned with `detached: true` so it becomes the leader of its
 // own process group. We signal the whole group (via `process.kill(-pid, ...)`)
-// so shell-spawned descendants (e.g. a `sleep` launched by a shell script)
+// to terminate all descendants in the process group tree, ensuring
+// shell-spawned subprocesses (e.g. a `sleep` launched by a shell script)
 // release the inherited stdout/stderr pipes promptly and Node can emit the
 // `close` event as soon as the group exits.
 //

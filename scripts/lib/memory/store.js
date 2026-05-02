@@ -67,9 +67,9 @@ export async function openStore({ foundryDir, schema, io, dbAbsolutePath, cozo =
   try {
     // Reconcile the on-disk Cozo database with the declared schema. Admin
     // operations (drop-*, rename-*) update the schema + type files + NDJSON on
-    // disk and invalidate the singleton. The live .db is refreshed on reopen,
-    // where any `ent_<t>` or `edge_<t>` relation missing from `schema` is
-    // treated as orphan cruft and dropped so `::relations` stays consistent
+    // disk and invalidate the singleton, leaving the .db file outdated until
+    // reopen. On reopen, any `ent_<t>` or `edge_<t>` relation missing from
+    // `schema` is dropped so `::relations` stays consistent with the schema
     // and disk footprint stays bounded.
     await reconcileRelations(db, schema);
 

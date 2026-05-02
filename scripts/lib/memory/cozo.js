@@ -13,18 +13,17 @@ export function closeMemoryDb(db) {
 /**
  * Canonical Cozo string literal encoder.
  *
- * Emits a **single-quoted** literal because Cozo's `"..."` form is raw
- * and stores backslash sequences literally. Single-quoted literals handle
- * embedded `"` safely and parse escaped newlines, CR, tabs, and backslashes.
- * Single-quoted literals honour standard escape sequences, giving a safe
- * round-trip for values containing `"`, `\`, newlines, CR, tabs, etc.
+ * Emits a **single-quoted** literal. Single-quoted literals honour standard
+ * escape sequences and safely handle embedded `"`, `\`, newlines, CR, tabs,
+ * and backslashes, producing a safe round-trip for all supported characters.
+ * (Cozo's `"..."` form is raw and stores backslash sequences literally.)
  *
  * Used by every query builder in this package so read and write paths never
  * diverge on what they consider a safe literal. NUL characters are rejected
- * here because Cozo single-quoted string literals do not support `\0` escape
- * sequences. The write path (putEntity, relate, unrelate) also validates for
- * NUL in validateEntityWrite/validateEdgeWrite, but this check provides
- * defence in depth for import paths and future callers.
+ * here because Cozo single-quoted string literals lack `\0` escape support.
+ * The write path (putEntity, relate, unrelate) also validates for NUL in
+ * validateEntityWrite/validateEdgeWrite, providing defence in depth for
+ * import paths and future callers.
  */
 export function cozoStringLit(s) {
   const str = String(s);

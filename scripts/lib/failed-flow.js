@@ -6,23 +6,23 @@
  * the live DB), it marks WORK.md with `status: failed` and a `reason`.
  *
  * Every mutating tool guards on this state via `requireNotFailed`. This
- * includes both work-branch FS writers (artefacts, feedback, workfile,
- * stage, orchestrate) and memory writers — both row-level (memory_put,
- * memory_relate, memory_unrelate) and admin (create_*, rename_*, drop_*,
- * reset, init, vacuum, change_embedding_model). It also includes
- * `validate_run`, since validation commands are project-defined
- * subprocesses with arbitrary side effects (linters with --fix,
- * formatters). The rule is simple: tools that mutate disk or live DB state,
- * or run unsandboxed subprocesses that could mutate it, stay blocked while
- * the abandoned work-branch filesystem remains the source of truth.
+ * includes work-branch FS writers (artefacts, feedback, workfile, stage,
+ * orchestrate), memory writers — row-level (memory_put, memory_relate,
+ * memory_unrelate) and admin (create_*, rename_*, drop_*, reset, init,
+ * vacuum, change_embedding_model) — and `validate_run`, since validation
+ * commands are project-defined subprocesses with arbitrary side effects
+ * (linters with --fix, formatters). The rule is simple: tools that mutate
+ * disk or live DB state, or run unsandboxed subprocesses that could mutate
+ * it, stay blocked while the abandoned work-branch filesystem remains the
+ * source of truth.
  *
- * Read-only diagnostics remain available: workfile_get,
- * memory_list/get/neighbours/query/search, memory_dump, memory_validate.
- * These tools support diagnosis before the cycle is abandoned.
+ * Read-only diagnostics (workfile_get, memory_list/get/neighbours/query/search,
+ * memory_dump, memory_validate) remain available to support diagnosis before
+ * the cycle is abandoned.
  *
- * Recovery paths are `foundry_workfile_delete` to abandon the cycle or
- * editing WORK.md to remove the failed status after the underlying issue
- * is fixed.
+ * Recovery paths: `foundry_workfile_delete` abandons the cycle; editing
+ * WORK.md to remove the failed status after fixing the underlying issue
+ * restores normal operation.
  */
 import { parseFrontmatter, setFrontmatterField } from './workfile.js';
 
