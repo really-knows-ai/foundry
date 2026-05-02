@@ -45,8 +45,9 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ### Priority 6: D-cluster nits (P3)
 - [x] **D1** (DRY_RUN_DEEPER_RE defensive guard documented) - Commit 4e39f2e
-- [x] **D2** (makeExec moved to helpers.js) - Commit pending
-- [ ] **D3-D12** (Remaining minor code/doc nits)
+- [x] **D2** (makeExec moved to helpers.js) - Commit f13fa7f
+- [x] **D3** (truncateTrace error handling) - N/A: code already correct (single defensive try/catch at git-tools.js:284-289)
+- [ ] **D4-D12** (Remaining minor code/doc nits)
 
 ---
 
