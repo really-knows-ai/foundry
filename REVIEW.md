@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1110 tests passing (baseline: 1036)
+**Current progress:** 1114 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -1125,10 +1125,11 @@ sections and are listed for cross-reference only.
   the memory validator.
   Fixed in 27a8ecb (applied MAX_VALUE_BYTES cap to from.name/to.name).
 
-- [ ] **G32. `parseTimeout` is unbounded.**
+- [x] **G32. `parseTimeout` is unbounded.**
   `scripts/lib/assay/loader.js:6-21`. `timeout: 999999999` is
   accepted; Node clamps to 24.8 days and warns at runtime. Cap at
   e.g. 600000ms with a clear error.
+  Fixed in a223938 (capped at 600000ms with clear error message).
 
 ### Validate / git plumbing
 
