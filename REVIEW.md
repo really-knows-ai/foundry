@@ -987,12 +987,11 @@ sections and are listed for cross-reference only.
   embeddings have an index field and throws if missing, preventing
   silent misalignment.
 
-- [ ] **G18. `foundry_memory_search` fetches `k` from each type then
-  re-slices to `k`.** `scripts/lib/memory/search.js:21-37`. Worst
-  case fetches N×k vectors when only the global top-k matter. For
-  vocabularies with many entity types and no `type_filter`, that's
-  a 10–100× amplification. Either document the cost or distribute
-  the per-type budget.
+- [x] **G18. `foundry_memory_search` fetches `k` from each type then
+  re-slices to `k`.** Fixed in e078af3: enhanced tool description to document
+  the N×k amplification cost and recommend using type_filter. Implementation
+  is correct by design (ensures global top-k accuracy) and already well-
+  documented in code (search.js:21-54) and tests (search.test.js:67-95).
 
 - [x] **G19. `embed()` does no retry on transient failures.**
   Already fixed: embeddings.js:1-71 implements full retry mechanism with
