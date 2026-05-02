@@ -11,6 +11,9 @@ import { renderMemoryPrompt } from '../../../scripts/lib/memory/prompt.js';
 import { loadExtractor } from '../../../scripts/lib/assay/loader.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
+// Track flow files we've already warned about to avoid spamming stderr
+const warnedFlowFiles = new Set();
+
 export function listFlows(foundryDir) {
   const flowsDir = path.join(foundryDir, 'flows');
   if (!fs.existsSync(flowsDir)) return [];
@@ -31,7 +34,12 @@ export function listFlows(foundryDir) {
         ? startingMatch[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
         : [];
       flows.push({ id, name, startingCycles });
-    } catch { /* skip bad files */ }
+    } catch (err) {
+      if (!warnedFlowFiles.has(entry)) {
+        console.warn(`Warning: Skipping malformed flow file ${entry}: ${err.message}`);
+        warnedFlowFiles.add(entry);
+      }
+    }
   }
   return flows;
 }

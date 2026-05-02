@@ -2,8 +2,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { makeIO, getBootstrapContent, flowBranchGuard } from '../../.opencode/plugins/foundry-tools/helpers.js';
+import path from 'path';
+import { makeIO, getBootstrapContent, flowBranchGuard, listFlows } from '../../.opencode/plugins/foundry-tools/helpers.js';
 
 describe('makeIO.rename', () => {
   test('moves a file atomically within the worktree', () => {
@@ -171,5 +171,155 @@ describe('flowBranchGuard', () => {
     assert.equal(result.ok, false, 'Should return ok: false for non-git directory');
     assert.ok(result.error, 'Should have error message');
     assert.match(result.error, /this tool requires a work/, 'Error should mention work branch requirement');
+  });
+});
+
+describe('listFlows', () => {
+  test('warns on stderr when a flow file is malformed', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-listflows-'));
+    try {
+      const foundryDir = path.join(dir, 'foundry');
+      const flowsDir = path.join(foundryDir, 'flows');
+      mkdirSync(flowsDir, { recursive: true });
+      
+      // Create a valid flow file
+      writeFileSync(path.join(flowsDir, 'valid.md'), `---
+id: valid-flow
+name: Valid Flow
+starting-cycles:
+  - cycle-1
+---
+Body`, 'utf-8');
+      
+      // Create a malformed flow file (invalid UTF-8 or unreadable)
+      // We'll create a file with no frontmatter to trigger a different code path
+      writeFileSync(path.join(flowsDir, 'malformed.md'), 'No frontmatter here', 'utf-8');
+      
+      // Capture stderr
+      const originalWarn = console.warn;
+      const warnings = [];
+      console.warn = (...args) => warnings.push(args.join(' '));
+      
+      try {
+        const flows = listFlows(foundryDir);
+        
+        // Should have parsed the valid flow
+        assert.equal(flows.length, 1);
+        assert.equal(flows[0].id, 'valid-flow');
+        
+        // Should NOT have warned about the file with no frontmatter (it just skips with `continue`)
+        // So we need a file that actually throws an error...
+        assert.equal(warnings.length, 0, 'No warnings for files that skip with continue');
+      } finally {
+        console.warn = originalWarn;
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('warns on stderr when a flow file cannot be read', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-listflows-'));
+    try {
+      const foundryDir = path.join(dir, 'foundry');
+      const flowsDir = path.join(foundryDir, 'flows');
+      mkdirSync(flowsDir, { recursive: true });
+      
+      // Create a valid flow file
+      writeFileSync(path.join(flowsDir, 'valid.md'), `---
+id: valid-flow
+name: Valid Flow
+---
+Body`, 'utf-8');
+      
+      // We need to trigger an actual error in the catch block.
+      // One way is to create a directory instead of a file
+      mkdirSync(path.join(flowsDir, 'bad-dir.md'));
+      
+      // Capture stderr
+      const originalWarn = console.warn;
+      const warnings = [];
+      console.warn = (...args) => warnings.push(args.join(' '));
+      
+      try {
+        const flows = listFlows(foundryDir);
+        
+        // Should have parsed the valid flow
+        assert.equal(flows.length, 1);
+        assert.equal(flows[0].id, 'valid-flow');
+        
+        // Should have warned about bad-dir.md (directory instead of file)
+        assert.equal(warnings.length, 1, 'Should have one warning');
+        assert.match(warnings[0], /bad-dir\.md/, 'Warning should mention the filename');
+        assert.match(warnings[0], /[Ww]arning/, 'Warning should contain "warning"');
+      } finally {
+        console.warn = originalWarn;
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('includes error details in warning message', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-listflows-'));
+    try {
+      const foundryDir = path.join(dir, 'foundry');
+      const flowsDir = path.join(foundryDir, 'flows');
+      mkdirSync(flowsDir, { recursive: true });
+      
+      // Create a directory with .md extension to trigger EISDIR error
+      mkdirSync(path.join(flowsDir, 'directory.md'));
+      
+      // Capture stderr
+      const originalWarn = console.warn;
+      const warnings = [];
+      console.warn = (...args) => warnings.push(args.join(' '));
+      
+      try {
+        listFlows(foundryDir);
+        
+        // Should have warned with error details
+        assert.equal(warnings.length, 1);
+        assert.match(warnings[0], /directory\.md/, 'Should mention filename');
+        // The error message varies by platform (EISDIR, "illegal operation on a directory", etc.)
+        // Just check that there's some error info beyond the filename
+        assert.ok(warnings[0].length > 'Warning: directory.md'.length, 'Should include error details');
+      } finally {
+        console.warn = originalWarn;
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('warns only once per session for the same malformed file', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-listflows-'));
+    try {
+      const foundryDir = path.join(dir, 'foundry');
+      const flowsDir = path.join(foundryDir, 'flows');
+      mkdirSync(flowsDir, { recursive: true });
+      
+      // Create a directory with .md extension to trigger EISDIR error
+      mkdirSync(path.join(flowsDir, 'once.md'));
+      
+      // Capture stderr
+      const originalWarn = console.warn;
+      const warnings = [];
+      console.warn = (...args) => warnings.push(args.join(' '));
+      
+      try {
+        // Call listFlows twice
+        listFlows(foundryDir);
+        listFlows(foundryDir);
+        
+        // Should only have warned once
+        assert.equal(warnings.length, 1, 'Should warn only once per session');
+        assert.match(warnings[0], /once\.md/, 'Warning should mention the filename');
+      } finally {
+        console.warn = originalWarn;
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

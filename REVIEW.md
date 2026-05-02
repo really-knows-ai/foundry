@@ -1273,11 +1273,12 @@ them.
   ended naturally at 500 chars or was cut. Add a marker.
   Fixed in e281101 and 9248ca6 (with plural handling).
 
-- [ ] **G43. `helpers.js:33` swallows malformed flow files
-  silently.** `.opencode/plugins/foundry-tools/helpers.js:33` — bare
+- [x] **G43. `helpers.js:33` swallows malformed flow files
+  silently.** `.opencode/plugins/foundry-tools/helpers.js:33` (line 35 in current code) — bare
   `catch { /* skip bad files */ }`. A malformed `flows/*.md` silently
   disappears from `<FOUNDRY_CONTEXT>`, the user-facing flow catalogue.
   Surface a one-line warning on stderr at least once per session.
+  Fixed in 3ee66f9 (with once-per-session deduplication).
 
 - [ ] **G44. `loadItems` malformed-YAML branch chain is brittle.**
   `scripts/lib/feedback-store.js:14-19`. Top-level array document
