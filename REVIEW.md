@@ -1018,10 +1018,11 @@ sections and are listed for cross-reference only.
   sidecars (clean checkpoint or inactive WAL mode). Test added at
   reset.test.js (handles missing WAL/SHM gracefully).
 
-- [ ] **G23. `dump.js` summary path enumerates entity counts only.**
+- [x] **G23. `dump.js` summary path enumerates entity counts only.**
   `scripts/lib/memory/admin/dump.js:27-32`. Edge counts are silently
   omitted from the summary. Either spec'd that way (then add a
   comment) or oversight. Mirror the entity loop for `vocabulary.edges`.
+  Fixed in 8017c40.
 
 ### Assay subsystem
 
