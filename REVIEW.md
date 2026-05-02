@@ -852,51 +852,27 @@ sections and are listed for cross-reference only.
 
 ## G.0 P0 release blockers
 
-- [ ] **G1. `foundry_feedback_resolve` rejects `approved` without a
-  reason — tool description is actively wrong.**
-  `.opencode/plugins/foundry-tools/feedback-tools.js:154` says reason
-  is "required if rejected, or for deadlock override".
-  `feedback-store.js:135` lists `'resolved'` in
-  `REASON_REQUIRED_TARGETS` and rejects empty reason.
-  `args.resolution === 'approved'` maps to target `'resolved'`
-  (line 168), so any approval without a reason 500s. Tests at
-  `tests/plugin/feedback-tools.test.js` always pass a reason and miss
-  this. Pick one: drop `'resolved'` from the required set (approval
-  with no reason is fine), or update the description and require a
-  reason for both resolutions. Add a regression test either way.
+- [x] **G1. `foundry_feedback_resolve` rejects `approved` without a
+  reason — tool description is actively wrong.** Already fixed:
+  feedback-store.js:132-135 documents the fix per REVISION-CONTRACT §A1,
+  REASON_REQUIRED_TARGETS now only includes ['rejected', 'wont-fix'],
+  and regression test exists at tests/plugin/feedback-tools.test.js:355.
 
-- [ ] **G2. `foundry_feedback_resolve` description hides the
-  deadlock-override authority.**
-  `.opencode/plugins/foundry-tools/feedback-tools.js:150` reads
-  `'Resolve a feedback item (approved or rejected)'`. The store
-  (`feedback-store.js:120-128`) gives `human-appraise` the only path
-  out of a deadlocked item. An LLM acting as `human-appraise` reading
-  the description has no surfaced affordance for that role.
-  Promote the parameter-doc hint into the description proper:
-  `'Resolve a feedback item (approved or rejected). human-appraise
-  stages may also use this to override a deadlocked item.'`
+- [x] **G2. `foundry_feedback_resolve` description hides the
+  deadlock-override authority.** Already fixed: feedback-tools.js:144
+  description now reads "Resolve a feedback item (approved or rejected).
+  In human-appraise stages, this tool can override deadlocked items by
+  providing a reason."
 
-- [ ] **G3. `paths.relationsDir` ignores its `foundryDir` argument —
-  silent test/worktree leak.** `scripts/lib/memory/paths.js:7`
-  hard-codes `'foundry-memory/relations'` as a string literal while
-  every other path threads through `join(foundryDir, ...)`. Tests that
-  parameterise `foundryDir` (e.g. `tmp-foo/foundry`) write NDJSON into
-  the *real* `foundry-memory/` at the process cwd, leaking between
-  parallel test workers and polluting the dev tree. Fix:
-  `const relationsDir = join(foundryDir, '..', 'foundry-memory', 'relations')`
-  *or* take a separate `worktreeRoot` parameter and compute from that.
-  Check whether the test suite is currently leaking before/after.
+- [x] **G3. `paths.relationsDir` ignores its `foundryDir` argument —
+  silent test/worktree leak.** Already fixed: scripts/lib/memory/paths.js:7-9
+  now uses `join(foundryDir, '..', 'foundry-memory', 'relations')` with
+  a comment explaining the Phase 2 relocation rationale.
 
-- [ ] **G4. Atomicity hole: `commitWithPolicy` violates its own
-  contract on post-add commit failure.** `scripts/lib/git-bridge.js:66-74`.
-  The banner (line 16) claims "Nothing is staged or committed" on
-  failure. After `reset` succeeds and `add` succeeds, a `commit`
-  failure (pre-commit hook reject, gpg-sign error, empty commit after
-  gitignore filtering) leaves the index dirty with the staged paths.
-  External tools observing `git status` between the failure and the
-  next bridge call see the staged content. Either wrap with
-  `try { add; commit } catch { reset; throw }`, or amend the banner
-  contract to acknowledge the post-add window.
+- [x] **G4. Atomicity hole: `commitWithPolicy` violates its own
+  contract on post-add commit failure.** Already fixed: git-bridge.js:66-76
+  wraps `add` + `commit` in try/catch with `reset --quiet` in the catch
+  block to restore the "Nothing is staged or committed" invariant.
 
 - [x] **G5. Subagent-failure path leaks stale `lastStage`, corrupting
   the next finalize.** `scripts/orchestrate.js:450-462`. When
@@ -938,36 +914,22 @@ sections and are listed for cross-reference only.
 
 ### Feedback subsystem
 
-- [ ] **G9. `human-appraise` override comment overstates authority.**
-  `scripts/lib/feedback-store.js:117-128` claims "universal authority
-  over non-resolved items, independent of source", but
-  `validateTransition` for non-deadlocked items routes via
-  `feedback-transitions.js:68-79` requiring
-  `currentState ∈ {actioned, wont-fix}`. So human-appraise on `open`
-  or `rejected` items is silently refused — they're non-resolved.
-  Either tighten the comment ("over actioned, wont-fix, deadlocked")
-  or extend the override to match the prose.
+- [x] **G9. `human-appraise` override comment overstates authority.**
+  Already fixed: feedback-store.js:117-120 comment now correctly states
+  "authority over items in {actioned, wont-fix, deadlocked} states".
 
-- [ ] **G10. `feedback_list.depth` definition disagrees with sort's
-  depth.** `feedback-tools.js:210` uses
-  `head.state === 'resolved' ? 0 : it.history.length`;
-  `scripts/sort.js:340` uses raw `item.history.length`. Same concept,
-  two formulas. Tool callers can't predict whether a given depth will
-  trip sort's deadlock check. Pick one definition or rename one
-  surface (e.g. tool reports `historyLength`).
+- [x] **G10. `feedback_list.depth` definition disagrees with sort's
+  depth.** Already fixed: both feedback-tools.js and sort.js:339 now
+  consistently use `it.history.length` for depth calculation.
 
-- [ ] **G11. `markWorkfileFailed` overwrites the original failure
-  reason on a second call.** `scripts/lib/failed-flow.js:56-64`.
-  Documented as idempotent, but the *first* failure reason is the
-  diagnostic one — overwriting it with a later guard's reason loses
-  the root cause. Either skip the overwrite when status is already
-  `failed`, or document that the most-recent reason wins.
+- [x] **G11. `markWorkfileFailed` overwrites the original failure
+  reason on a second call.** Already fixed: failed-flow.js:62-67 now
+  checks if already failed and skips the overwrite to preserve the
+  first (diagnostic) failure reason.
 
-- [ ] **G12. `requireNotFailed` swallows IO/parse errors as "ok".**
-  `scripts/lib/failed-flow.js:73-76`. A corrupted `WORK.md` (itself a
-  trouble signal) returns `null` from `readFailedStatus` and
-  mutating tools proceed. The guard's purpose is partially defeated.
-  Distinguish missing/clean from unparseable; refuse on the latter.
+- [x] **G12. `requireNotFailed` swallows IO/parse errors as "ok".**
+  Already fixed: failed-flow.js:83-93 try/catch now detects corrupted
+  WORK.md and returns refusal with recovery instructions.
 
 ### Memory subsystem
 
