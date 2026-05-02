@@ -836,16 +836,11 @@ Both must hold before moving on.
 
 ## Follow-ups Found During Review Work
 
-- **Rename-memory skills miss deletion staging.**
-  `skills/rename-memory-entity-type/SKILL.md:49` and
-  `skills/rename-memory-edge-type/SKILL.md:48` use plain `git add`
-  (without `-A`). Both rename admin ops `io.unlink(oldRel)` and
-  `io.unlink(oldFile)` (`scripts/lib/memory/admin/rename-entity-type.
-  js:36,43`, `rename-edge-type.js:34,40`), so the suggested commit
-  silently leaves the old type-markdown and old NDJSON file
-  unstaged. Pre-existing drift; surfaced while updating B20 paths.
-  Fix is `git add -A` over the same path list. Out of B20 scope
-  (path correctness only).
+- [x] **Rename-memory skills miss deletion staging.** Fixed in f64e517:
+  Changed `git add` to `git add -A` in both rename-memory-entity-type and
+  rename-memory-edge-type skills (lines 49 and 48 respectively). The `-A`
+  flag ensures deletions (old type markdown + NDJSON files) are staged
+  alongside additions (new files), preventing inconsistent repository state.
 
 ---
 
