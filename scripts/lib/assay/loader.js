@@ -61,6 +61,8 @@ function splitFrontmatter(text) {
   }
   if (end === -1) throw new Error(`missing frontmatter: no closing '---'`);
   const fmText = lines.slice(1, end).join('\n');
+  // Strip leading whitespace from body for consistent presentation.
+  // The body field is presentational only (not executed or processed further).
   const body = lines.slice(end + 1).join('\n').replace(/^\s+/, '');
   const fm = yaml.load(fmText) ?? {};
   if (typeof fm !== 'object' || Array.isArray(fm)) throw new Error(`frontmatter must be a mapping`);

@@ -164,6 +164,16 @@ timeout: 10m
     assert.deepEqual(ext.memoryWrite, ['file']);
     assert.match(ext.body, /BOM test content/);
   });
+
+  it('strips leading whitespace from body field', async () => {
+    const io = diskIO(root);
+    // Body has leading newlines and spaces
+    const contentWithLeadingWhitespace = '---\ncommand: scripts/test.sh\nmemory:\n  write: [file]\n---\n\n\n   Body content starts here';
+    writeFileSync(join(root, 'foundry/memory/extractors/leading-ws.md'), contentWithLeadingWhitespace, 'utf8');
+    const ext = await loadExtractor('foundry', 'leading-ws', io);
+    // Leading whitespace should be stripped
+    assert.equal(ext.body, 'Body content starts here');
+  });
 });
 
 describe('listExtractors', () => {
