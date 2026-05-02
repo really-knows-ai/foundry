@@ -1220,22 +1220,17 @@ them.
   - `scripts/sort.js:147-149` "rather than diffing against an
     arbitrary depth".
 
-- [ ] **G39. Dead / test-only code.**
-  - `scripts/lib/feedback-store.js:156-173` `writeDeadlockedSnapshot`
-    (singular) is only called from tests. Remove or rename
-    `writeDeadlockedSnapshotForTest`.
-  - `scripts/lib/assay/permissions.js:8-15` `checkExtractorAgainstCycle`
-    is exported and unit-tested but has no production caller;
-    `scripts/orchestrate.js:376` reimplements the same check inline.
-    Either route orchestrate through the helper, or delete the helper
-    and its tests.
-  - `scripts/lib/git-policy.js:30` `TOOL_MANAGED_PREFIX` exported but
-    only used internally; drop the export.
-  - `scripts/orchestrate.js:499-511` `addArtefactRow` loop is a no-op
-    in production because `registerArtefact` already wrote the row.
-    Either remove the loop or remove `registerArtefact` and let
-    orchestrate own the write.
-  - `scripts/lib/finalize.js:16` `defense` → `defence`. [DUP C13]
+- [x] **G39. Dead / test-only code.** Fixed in dabd449:
+  - Renamed `writeDeadlockedSnapshot` → `writeDeadlockedSnapshotForTest`
+    (test-only helper, production uses batch version)
+  - Routed orchestrate through `checkExtractorAgainstCycle` helper
+    (use tested code instead of inline reimplementation)
+  - Removed `TOOL_MANAGED_PREFIX` export from git-policy.js
+    (internal-only constant)
+  - Removed no-op `addArtefactRow` loop in orchestrate
+    (finalize already writes artefact rows via registerArtefact)
+  - Verified item #5 already fixed in e325b30 (defence spelling)
+  All 1136 tests passing. Net reduction: 15 lines of dead code removed.
 
 - [ ] **G40. Internal naming inconsistency.**
   - `feedback_list.depth` vs sort's depth — see G10.
