@@ -1,13 +1,8 @@
 import { selectAppraisers } from '../../../scripts/lib/config.js';
-import { makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
-
-function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
-}
 
 export function createAppraiserTools({ tool }) {
   return {

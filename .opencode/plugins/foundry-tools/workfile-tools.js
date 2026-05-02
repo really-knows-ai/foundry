@@ -2,15 +2,10 @@ import path from 'path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../../scripts/lib/workfile.js';
-import { makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
-
-function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
-}
 
 export function createWorkfileTools({ tool }) {
   return {

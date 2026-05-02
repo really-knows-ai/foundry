@@ -2,14 +2,9 @@ import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
-import { makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
-
-function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
-}
 
 function readCycle(io) {
   if (!io.exists('WORK.md')) return null;

@@ -4,9 +4,8 @@ import { runQuery } from '../../../scripts/lib/memory/query.js';
 import { checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../../scripts/lib/memory/permissions.js';
 import { search as memSearch } from '../../../scripts/lib/memory/search.js';
 import { withStore } from './memory-helpers.js';
-import { errorJson, makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { errorJson, makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 const MAX_NEIGHBOUR_DEPTH = 5;
@@ -86,10 +85,6 @@ function referencedStoredRelations(datalog) {
     if (name.startsWith('ent_') || name.startsWith('edge_')) names.add(name);
   }
   return [...names];
-}
-
-function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 export function createMemoryTools({ tool }) {

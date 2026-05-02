@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { makeIO, getBootstrapContent } from '../../.opencode/plugins/foundry-tools/helpers.js';
+import { makeIO, getBootstrapContent, flowBranchGuard } from '../../.opencode/plugins/foundry-tools/helpers.js';
 
 describe('makeIO.rename', () => {
   test('moves a file atomically within the worktree', () => {
@@ -146,5 +146,30 @@ describe('getBootstrapContent', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('flowBranchGuard', () => {
+  test('calls requireOnFlowBranch with exec function from context.worktree', () => {
+    // Mock context with a worktree path
+    const context = { worktree: '/fake/worktree' };
+    
+    // Call flowBranchGuard with mock args and context
+    const result = flowBranchGuard({}, context);
+    
+    // The guard should return a result object (ok: false since we're not in a git repo)
+    assert.ok(result, 'Should return a result object');
+    assert.equal(typeof result, 'object', 'Result should be an object');
+    assert.ok('ok' in result, 'Result should have ok property');
+  });
+
+  test('passes makeExec-generated exec function to requireOnFlowBranch', () => {
+    const context = { worktree: '/fake/worktree' };
+    const result = flowBranchGuard({}, context);
+    
+    // Since /fake/worktree is not a git repo, requireOnFlowBranch should return { ok: false, error: ... }
+    assert.equal(result.ok, false, 'Should return ok: false for non-git directory');
+    assert.ok(result.error, 'Should have error message');
+    assert.match(result.error, /this tool requires a work/, 'Error should mention work branch requirement');
   });
 });

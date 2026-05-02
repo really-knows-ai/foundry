@@ -1259,11 +1259,12 @@ them.
      **Already fixed:** Both files now use British spelling (commit 9cf62d8).
 
 
-- [ ] **G41. `flowBranchGuard` scaffold duplicated five times.**
+- [x] **G41. `flowBranchGuard` scaffold duplicated eight times.**
   `appraiser-tools.js`, `artefact-tools.js`, `workfile-tools.js`,
-  `validate-tools.js`, `stage-tools.js` each redefine the same 8-line
+  `validate-tools.js`, `stage-tools.js`, `feedback-tools.js`,
+  `memory-tools.js`, `assay-tools.js` each redefine the same 8-line
   helper. `helpers.js` already exports `branchIoFactory`; consolidate
-  there. Adjacent to D2.
+  there. Adjacent to D2. Fixed in e1ea637.
 
 - [ ] **G42. `stderr` truncation at byte 500 has no marker.**
   `.opencode/plugins/foundry-tools/assay-tools.js:78`.

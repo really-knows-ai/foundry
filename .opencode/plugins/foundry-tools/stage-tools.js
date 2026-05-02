@@ -4,16 +4,11 @@ import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage } f
 import { verifyToken } from '../../../scripts/lib/token.js';
 import { getContext } from '../../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
-import { makeIO, makeExec, makeMemoryIO, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
-
-function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
-}
 
 export function createStageTools({ tool, secret, pending }) {
   return {

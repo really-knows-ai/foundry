@@ -1,18 +1,13 @@
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { runAssay } from '../../../scripts/lib/assay/run.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../../scripts/lib/memory/writes.js';
 import { withStore } from './memory-helpers.js';
-import { makeIO, makeExec, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, errorJson, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
-
-function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
-}
 
 export function createAssayTools({ tool }) {
   return {

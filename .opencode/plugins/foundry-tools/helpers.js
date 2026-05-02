@@ -9,6 +9,7 @@ import { getOrOpenStore, getContext } from '../../../scripts/lib/memory/singleto
 import { resolvePermissions } from '../../../scripts/lib/memory/permissions.js';
 import { renderMemoryPrompt } from '../../../scripts/lib/memory/prompt.js';
 import { loadExtractor } from '../../../scripts/lib/assay/loader.js';
+import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 export function listFlows(foundryDir) {
   const flowsDir = path.join(foundryDir, 'flows');
@@ -103,6 +104,15 @@ export function makeExec(cwd) {
   return (argv) => execFileSync(argv[0], argv.slice(1), {
     cwd, encoding: 'utf8', stdio: 'pipe',
   });
+}
+
+/**
+ * Guard function that ensures a tool is called on a flow branch (work/* or dry-run/*).
+ * Used by guarded() to enforce branch requirements for flow-tier mutations.
+ * Returns the result of requireOnFlowBranch({ exec }).
+ */
+export function flowBranchGuard(_args, context) {
+  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 export function makeIO(directory) {
