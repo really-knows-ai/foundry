@@ -9,13 +9,13 @@
 
 ## Governed work for AI
 
-**AI coding tools produce work quickly and need explicit governance.** They skip checks. They silently drop feedback. They rationalize past constraints because the next token is more interesting than the last one. Run a long agent task and you know the feeling: it declares done, and now *you* have to go verify any of it actually happened.
+**AI coding tools produce work quickly and need explicit governance.** Long agent tasks finish with declarations of completion, leaving verification to you. Feedback disappears between iterations. Constraints fade as attention moves to the next token. The work arrives fast; the accountability doesn't.
 
-Foundry is an opinionated framework for **governed artefact generation** — you get confidence that the things that need to happen actually did. You define what's produced (artefact types), what "good" means (laws), and how work flows (cycles). Foundry enforces the pipeline — routing, commits, write invariants, feedback lifecycle, stage tokens — in tested plugin code. The LLM does the creative work; the framework makes the process mandatory.
+Foundry is an opinionated framework for **governed artefact generation** — you get confidence that the things that need to happen actually did. You define what's produced (artefact types), what "good" means (laws), and how work flows (cycles). Foundry enforces the pipeline — routing, commits, write invariants, feedback lifecycle, stage tokens — in tested plugin code. Creative work happens in the LLM; governance happens in the framework.
 
 ### What you get
 
-- **Deterministic governance for agent work.** Stage transitions, commits, write invariants, and feedback state live in deterministic tools. The LLM can't skip a step, forge a token, or quietly write outside its lane.
+- **Deterministic governance for agent work.** Stage transitions, commits, write invariants, and feedback state live in deterministic tools. Stage tokens gate mutations. Writes follow lane rules. Every step leaves a record.
 - **Written quality criteria.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is non-negotiable.
 - **Multi-model diversity by default.** Forge on one model, appraise on another, or run every appraiser on a different model. Different blind spots — one flag is enough to raise an issue.
 - **Full audit trail in git.** One commit per stage. `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` record exactly what happened, why, and which model said it. Crashes leave clean boundaries to resume from.
@@ -24,7 +24,7 @@ Foundry is an opinionated framework for **governed artefact generation** — you
 
 ### For teams
 
-When AI output has to hold up under review — code merging to main, specs going to customers, policy drafts going to counsel — Foundry makes the checks structural. Point at a commit log and show exactly which quality gate produced this artefact. Change a law, regenerate. Replay a flow under a different model. The discipline stays consistent across reviewers.
+When AI output integrates into production workflows — code merging to main, specs going to customers, policy drafts going to counsel — Foundry makes the checks structural. Point at a commit log and show exactly which quality gate produced this artefact. Change a law, regenerate. Replay a flow under a different model. The discipline stays consistent across reviewers.
 
 ---
 
@@ -361,13 +361,13 @@ memory:
 - `write` types additionally expose `foundry_memory_{put,relate,unrelate}`.
 - **`read` and `write` are independent sets.** Entity reads (`get`, `list`, `neighbours`, `search`) check only the `read` set — a type listed in `write` but not `read` is writable but invisible to those tools. If a cycle needs both, list the type in **both** `read` and `write`. (Edge permissions are looser: an edge is readable when either endpoint type is in `read` *or* `write`, and writable when either endpoint is in `write`.)
 - `foundry_memory_query` rejects Datalog that references `ent_*` / `edge_*` relations outside the read set.
-- A cycle with no `memory:` block sees no memory tools — injection no-ops.
+- A cycle with no `memory:` block runs without memory tools — injection passes through as a no-op.
 
 Writes are persisted to `foundry-memory/relations/<type>.ndjson` so knowledge is committed alongside artefacts and survives across flows.
 
 ### Semantic search (optional)
 
-When `embeddings.enabled: true` in `config.md`, entity values are embedded on write against an OpenAI-compatible endpoint (default: local Ollama `nomic-embed-text`, 768 dims) and stored in a typed `<F32; N>?` column with an HNSW index. `foundry_memory_search` exposes nearest-neighbour search; `change-embedding-model` re-embeds the entire store atomically (nothing is written on failure). With embeddings disabled, graph and query APIs still work.
+When `embeddings.enabled: true` in `config.md`, entity values are embedded on write against an OpenAI-compatible endpoint (default: local Ollama `nomic-embed-text`, 768 dims) and stored in a typed `<F32; N>?` column with an HNSW index. `foundry_memory_search` exposes nearest-neighbour search; `change-embedding-model` re-embeds the entire store atomically (nothing is written on failure). Embeddings off leaves graph and query APIs available.
 
 ### Operational guarantees
 
@@ -650,7 +650,7 @@ Inter-stage communication goes through `WORK.md`, `WORK.feedback.yaml`, and `WOR
 
 ### Cycles own their routing
 
-A flow declares starting points; individual cycles declare `targets` and input contracts. The flow skill walks the resulting graph. This keeps cycles composable across flows and prevents the flow file from becoming a procedural monolith.
+A flow declares starting points; individual cycles declare `targets` and input contracts. The flow skill walks the resulting graph. Cycles stay composable across flows; the flow file stays declarative.
 
 ### Feedback as structured state
 
@@ -662,7 +662,7 @@ A forge sub-agent can decline subjective feedback with a justification, and an a
 
 ### Humans can step in at known points
 
-Human-in-the-loop gates are first-class stages, not afterthoughts. A cycle can declare `human-appraise: true` to run a human quality gate every iteration, or rely on `deadlock-appraise: true` (the default) to pull a human in only when LLM appraisers and forge ping-pong on the same items. Human feedback takes absolute priority — it cannot be wont-fixed.
+Human-in-the-loop gates are first-class stages. A cycle can declare `human-appraise: true` to run a human quality gate every iteration, or rely on `deadlock-appraise: true` (the default) to pull a human in only when LLM appraisers and forge ping-pong on the same items. Human feedback takes absolute priority — it cannot be wont-fixed.
 
 ### Multi-model diversity
 
@@ -678,7 +678,7 @@ Two artefact types cannot have file patterns that match the same files. Hard-blo
 
 ### Flow memory is strictly opt-in and per-cycle
 
-Memory is a separate, optional subsystem — no `foundry/memory/` means no memory, no prompt injection, no tools exposed. Even with memory initialised, a cycle sees it only by declaring a `memory: { read, write }` block in its frontmatter. The live Cozo database is gitignored and rebuildable from committed NDJSON; vocabulary (`entities/<type>.md`, `edges/<name>.md`) and row data (`relations/*.ndjson`) are the durable source of truth. Destructive operations preview before they mutate.
+Memory is a separate, optional subsystem. Without `foundry/memory/`, the system runs with memory features disabled; prompt injection, tools, and vocabulary stay out. With memory initialised, a cycle accesses it by declaring a `memory: { read, write }` block in its frontmatter. The live Cozo database is gitignored and rebuildable from committed NDJSON; vocabulary (`entities/<type>.md`, `edges/<name>.md`) and row data (`relations/*.ndjson`) are the durable source of truth. Destructive operations preview before they mutate.
 
 ---
 
