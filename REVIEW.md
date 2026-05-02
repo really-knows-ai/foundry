@@ -645,10 +645,14 @@ all 48 still applicable at HEAD with three drifts:
   a5c830f. Items #3 and #4 were confirmed as part of the voice sweep,
   not duplicates of C12. All 1136 tests passing.
 
-- [ ] **C37. `scripts/lib/` module-banner voice cluster (10 items,
-  E35–E44).** All still present (E37 has drifted — "never `git add
-  .`" now lives at git-bridge.js:17–18 banner instead of cited
-  L52–54).
+- [x] **C37. `scripts/lib/` module-banner voice cluster (10 items,
+  E35–E44).** Fixed in commit 8f3956c. Converted 17 strawman negations
+  and "rather than" framings across 11 files (feedback-store.js,
+  feedback-transitions.js, memory/cozo.js, memory/admin/reembed.js,
+  memory/store.js, assay/spawn-with-timeout.js, git-bridge.js,
+  git-policy.js, failed-flow.js, orchestrate.js, sort.js). Initial
+  implementation had 4 residual negation patterns in feedback subsystem;
+  fixed in amended commit. All 1136 tests passing.
 
 ### Snapshot tooling minor
 
