@@ -605,10 +605,11 @@ apply).
 REVIEW.md prior section E catalogued 48 voice/spelling items;
 all 48 still applicable at HEAD with three drifts:
 
-- [ ] **C28. README hero + design-principles voice cluster.**
-  README:12, 14, 18, 19, 27, 121→131, 278→293, 357→372, 359→374,
-  419→434, 569→584, 573→588, 589→604, 597→612 (was E1–E14). All
-  still present. Lead each definition affirmatively.
+- [x] **C28. README hero + design-principles voice cluster.**
+  Fixed in 771b8f7: Converted 9 instances of strawman negation to affirmative
+  definitions per AGENTS.md (lines 12, 14, 18, 27, 364, 370, 653, 665, 681).
+  Hero section now leads with what problems ARE; design principles define
+  features on their own terms. Constraints/prohibitions preserved per guidelines.
 
 - [x] **C29. README:312 Americanism `behavior`.** (Was E45.)
   → `behaviour`. Fixed in e325b30.
