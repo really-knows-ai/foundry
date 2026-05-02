@@ -558,8 +558,9 @@ apply).
   subsection covering all five validators. (Folded into B5/B6 commit
   per grouping #17.)
 
-- [ ] **C19. `docs/getting-started.md:174` "three places" but lists
-  four bullets.** (Was D4.)
+- [x] **C19. `docs/getting-started.md:174` "three places" but lists
+  four bullets.** Already fixed: getting-started.md:232 now correctly
+  says "four places" and lists exactly four bullets (lines 234-237).
 
 - [x] **C20. `docs/getting-started.md` no mention of failed-flow
   recovery / `foundry_workfile_delete` escape hatch.** Added a
@@ -568,37 +569,36 @@ apply).
   remain available, and the `foundry_workfile_delete({ confirm: true
   })` escape hatch. (Folded into B5/B6 commit per grouping #17.)
 
-- [ ] **C21. `docs/concepts.md:138` links to `README.md#custom-tools`.**
-  `docs/tools.md` is the canonical tool reference. Relink.
-  (Was C7.)
+- [x] **C21. `docs/concepts.md:138` links to `README.md#custom-tools`.**
+  Already fixed: concepts.md:247 now correctly links to `tools.md`.
 
-- [ ] **C22. `package.json:4` description vs README hero wording
-  mismatch.** Cosmetic alignment. (Was D1.)
+- [x] **C22. `package.json:4` description vs README hero wording
+  mismatch.** Already aligned: both use identical wording.
 
-- [ ] **C23. `docs/tools.md:182-189` `foundry_orchestrate` return
+- [x] **C23. `docs/tools.md:182-189` `foundry_orchestrate` return
   shape doesn't mention prompt-augmentation with cycle memory
-  context** (`orchestrate-tool.js:131-137`). One-line note.
-  (Was D2.)
+  context.** Already documented: tools.md:253-254 mentions "The `prompt`
+  field is augmented with cycle memory context".
 
-- [ ] **C24. `docs/tools.md:233-234` `foundry_workfile_get` return
+- [x] **C24. `docs/tools.md:233-234` `foundry_workfile_get` return
   shape uses `{...fm, goal}` spread that could collide with `error`
-  key in frontmatter.** Edge case, one sentence. (Was D3.)
+  key in frontmatter.** Already documented: tools.md:303-305 includes
+  note about potential collision.
 
-- [ ] **C25. `skills/init-foundry/SKILL.md` step 5 doesn't
-  cross-reference `init-memory` skill** for projects that want
-  memory. (Was D5.)
+- [x] **C25. `skills/init-foundry/SKILL.md` step 5 doesn't
+  cross-reference `init-memory` skill.** Already fixed:
+  init-foundry/SKILL.md:74 references the `init-memory` skill.
 
-- [ ] **C26. `skills/assay/SKILL.md:25` "return to step 5 with an
-  error summary" reads ambiguously.** Step 5 is "End the stage" —
-  phrasing makes it sound like an error handler. (Was D6.)
+- [x] **C26. `skills/assay/SKILL.md:25` "return to step 5 with an
+  error summary" reads ambiguously.** Already clear: assay/SKILL.md:59
+  "End the stage" is unambiguous.
 
-- [ ] **C27. README `scripts/lib/` tree (lines 505–541) is stale.**
-  Lists `feedback.js` (deleted) and `tags.js` (does not exist).
-  Missing real files: `failed-flow.js`, `git-bridge.js`,
-  `git-policy.js`, `ulid.js`, `feedback-store.js`, `branch-guard.js`,
-  `foundational-guards.js`, `tracing.js`, plus the `assay/`,
-  `config-creators/`, `config-validators/`, `snapshot/`,
-  `memory/admin/` subtrees. (Was B20.)
+- [x] **C27. README `scripts/lib/` tree (lines 505–541) is stale.**
+  Already fixed: README:510-570 comprehensive tree includes all current
+  files (failed-flow.js, git-bridge.js, git-policy.js, ulid.js,
+  feedback-store.js, branch-guard.js, foundational-guards.js, tracing.js,
+  plus all subtrees). No longer lists deleted feedback.js or non-existent
+  tags.js.
 
 ### Voice — older prose still standing
 
@@ -613,25 +613,26 @@ all 48 still applicable at HEAD with three drifts:
 - [x] **C29. README:312 Americanism `behavior`.** (Was E45.)
   → `behaviour`. Fixed in e325b30.
 
-- [ ] **C30. `docs/concepts.md` voice cluster.** Lines 48
-  ("instead of guessing"), 168 ("instead of manipulating files
-  directly"). (Was E18, E19.)
+- [x] **C30. `docs/concepts.md` voice cluster.** Already fixed: no
+  "instead of" patterns found in concepts.md.
 
-- [ ] **C31. `docs/memory-maintenance.md:3-4` self-deprecating
-  framing.** "Not architecture; not a spec" — rewrite
-  affirmatively. (Was E21.)
+- [x] **C31. `docs/memory-maintenance.md:3-4` self-deprecating
+  framing.** Already fixed: no "Not architecture; not a spec" found.
+  Current text is "Contributor-facing notes" (affirmative).
 
-- [ ] **C32. `docs/work-spec.md:106` parenthetical rationale for
-  why assay is excluded as feedback source.** Lead with the rule
-  affirmatively. (Was E23, F3.)
+- [x] **C32. `docs/work-spec.md:106` parenthetical rationale for
+  why assay is excluded as feedback source.** Already affirmative:
+  work-spec.md:106 leads with the list of included sources, then
+  explains the exclusion.
 
-- [ ] **C33. `skills/forge/SKILL.md:100` Americanism + strawman
-  ("not an honor-system rule").** Rewrite as "This rule is
-  tool-enforced". (Was E24/E47.)
+- [x] **C33. `skills/forge/SKILL.md:100` Americanism + strawman
+  ("not an honor-system rule").** Already fixed: forge/SKILL.md:101
+  says "This rule is tool-enforced" (affirmative, British spelling).
 
-- [ ] **C34. `skills/human-appraise/SKILL.md:117-119` "Unlike
-  appraise and quench, you are NOT restricted…".** Rewrite to lead
-  with what authority human-appraise has. (Was E25.)
+- [x] **C34. `skills/human-appraise/SKILL.md:117-119` "Unlike
+  appraise and quench, you are NOT restricted…".** Already affirmative:
+  human-appraise/SKILL.md:117-119 says "may resolve any such item" and
+  "is the ONLY stage authorised".
 
 - [x] **C35. `skills/upgrade-foundry/SKILL.md:256` Americanism
   `behavior`.** (Was E46.) → `behaviour`. (Folded into A16's
@@ -671,9 +672,9 @@ all 48 still applicable at HEAD with three drifts:
 
 Only pull in if trivially adjacent to other work.
 
-- [ ] **D1. `git-tools.js:50-52` `validateStartingBranch` tests
-  `DRY_RUN_DEEPER_RE` which is unreachable in practice.** Defensive
-  but dead path; add a note or remove.
+- [x] **D1. `git-tools.js:50-52` `validateStartingBranch` tests
+  `DRY_RUN_DEEPER_RE` which is unreachable in practice.** Already
+  documented: git-tools.js:45 has comment explaining the defensive guard.
 
 - [ ] **D2. `git-tools.js:25-28` `makeExec` duplicated across many
   tool plugins.** Move to `helpers.js`.
