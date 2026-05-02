@@ -255,7 +255,7 @@ export function createMemoryTools({ tool }) {
     }),
 
     foundry_memory_search: tool({
-      description: 'Semantic nearest-neighbour search over entity values. Requires embeddings enabled.',
+      description: 'Semantic nearest-neighbour search over entity values. Requires embeddings enabled. Performance: fetches k results from each entity type then merges to global top-k (N×k amplification). Use type_filter to limit search to specific types when possible.',
       args: {
         query_text: tool.schema.string(),
         k: tool.schema.number().optional().describe('Default 5'),
