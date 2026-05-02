@@ -48,7 +48,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **D2** (makeExec moved to helpers.js) - Commit f13fa7f
 - [x] **D3** (truncateTrace error handling) - N/A: code already correct (single defensive try/catch at git-tools.js:284-289)
 - [x] **D4** (law.js JSDoc clarified) - Commit 3707dae
-- [x] **D5** (lawTargetSchema workaround - added target structure example to tool description) - Commit pending
+- [x] **D5** (lawTargetSchema workaround - added target structure example to tool description) - Commit e3028f1
 - [ ] **D6-D12** (Remaining minor code/doc nits)
 
 ---
