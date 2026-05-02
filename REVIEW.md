@@ -1005,13 +1005,12 @@ sections and are listed for cross-reference only.
   will be detected on next openStore (better than silent corruption). Test
   added at reembed.test.js:130-237.
 
-- [ ] **G21. `cozoStringLit` claims NUL/control-char rejection lives
+- [x] **G21. `cozoStringLit` claims NUL/control-char rejection lives
   in `validate.js`, but `validate.js` only does drift detection.**
-  `scripts/lib/memory/cozo.js:24` references a sibling that does not
-  do that work. NUL in an entity value can corrupt the single-quoted
-  literal because the escape pipeline (lines 27-33) does not handle
-  NUL. Either confirm a different validator catches this, or add NUL
-  rejection in `cozoStringLit` itself.
+  Fixed in ef11880: Added explicit NUL rejection in cozoStringLit (lines
+  29-40) as defence in depth. Write path validates via validateEntityWrite/
+  validateEdgeWrite, import path was vulnerable. Added 7 tests (4 unit +
+  3 integration). Test count: 1129 → 1136.
 
 - [ ] **G22. `reset.js` unconditionally `unlink`s `-wal` / `-shm`.**
   `scripts/lib/memory/admin/reset.js:14-16`. SQLite without WAL or
