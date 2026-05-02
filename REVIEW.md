@@ -729,7 +729,7 @@ Only pull in if trivially adjacent to other work.
   `checkModifiedFiles`.** Already fixed: forge/SKILL.md:101 uses
   user-facing phrasing "the orchestrator's modified-file check".
 
-- [ ] **D12. `skills/appraise/SKILL.md:122** mentions `sort.js`
+- [x] **D12. `skills/appraise/SKILL.md:122** mentions `sort.js`
   filename.** Internal implementation leak in user-facing skill.
 
 ---

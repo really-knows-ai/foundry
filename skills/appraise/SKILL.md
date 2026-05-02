@@ -98,7 +98,7 @@ This prevents a second appraise stage from rubber-stamping work it didn't
 request. For deadlocked items, only human-appraise has the override authority.
 
 **Future work.** Spec §17 notes a planned cycle-level mode that would let
-human-appraise see non-deadlocked unresolved feedback before sort routes.
+human-appraise see non-deadlocked unresolved feedback before the orchestrator routes.
 Not available in v2.6.0; appraise stages today are the sole resolver of
 their own non-deadlocked items.
 
