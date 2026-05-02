@@ -530,10 +530,10 @@ These are NEW occurrences in Phase 1–5 prose (REVIEW E1–E48 already
 catalogued the older ones; section D below restates which still
 apply).
 
-- [ ] **C14. CHANGELOG 3.0.0 entry has 4 strawman negations.**
-  Lines 96 ("instead of writing files directly"), 115 ("instead of
-  a raw string"), 119 ("instead of throwing"), 146 ("instead of
-  swallowing the error"). Per AGENTS.md, rewrite affirmatively.
+- [x] **C14. CHANGELOG 3.0.0 entry has 4 strawman negations.**
+  Lines 184 ("instead of based on…"), 217 ("instead of crashing…"),
+  333 ("instead of every row…"), 348 ("instead of mutating…").
+  All rewritten affirmatively. Commit TBD.
 
 - [ ] **C15. `docs/tools.md:197, 413` use "rather than" framing.**
   Rewrite affirmatively.

@@ -180,9 +180,8 @@ path.
   wont-fix | rejected | deadlocked | resolved`). `approved` is renamed to
   `resolved` internally; the public resolve tool still accepts
   `resolution: 'approved' | 'rejected'` as input.
-- Deadlock detection becomes per-item (based on the item's own history depth)
-  instead of based on a global forge-appraise iteration count. Items freshly
-  added in the threshold-th iteration are never auto-deadlocked.
+- Deadlock detection becomes per-item, based on each item's own history depth.
+  Items freshly added in the threshold-th iteration are never auto-deadlocked.
 
 ### Added
 
@@ -214,7 +213,7 @@ path.
 - `WORK.history.yaml` writes are now atomic (closes observed incompleteness
   in the wild).
 - Malformed `WORK.history.yaml` on read now marks the flow failed via
-  `markWorkfileFailed` instead of crashing the caller.
+  `markWorkfileFailed`, allowing graceful recovery.
 - `appendEntry` enforces `route => stage === 'sort'`; violating calls throw.
 
 ### Migration
@@ -330,7 +329,7 @@ Follow-up patch addressing the five bugs deferred from v2.2.0 (see `HARDEN.md` �
 ### Fixed
 
 - **Bug B — deadlock routing.** Sort now reads the flat deadlock keys from WORK.md frontmatter and routes to `human-appraise` on deadlock (either an existing `human-appraise:<cycle>` stage in `stages`, or a synthesized one). When `deadlock-appraise: false`, deadlock marks the cycle `blocked`.
-- **Bug C — stale artefact validation.** `quench`, `appraise`, and `human-appraise` skills now pass the current cycle to `foundry_artefacts_list`, scoping validation to artefacts produced by the current cycle instead of every row that has ever landed in WORK.md.
+- **Bug C — stale artefact validation.** `quench`, `appraise`, and `human-appraise` skills now pass the current cycle to `foundry_artefacts_list`, scoping validation to artefacts produced by the current cycle.
 - **Bug D — overwriting WORK.md.** The `flow` skill now calls `foundry_workfile_get` before `foundry_workfile_create` and prompts the user to resume, discard, or abort when an existing workfile is detected. Silent overwrite is not offered; resume requires matching `flow` and `cycle`.
 - **Bug E — missing micro-commits.** `foundry_sort` now returns `{route: 'violation'}` when `WORK.md`, `WORK.history.yaml`, or anything under `.foundry/` has uncommitted changes at the start of a sort call and history is non-empty. Structurally enforces the one-commit-per-stage contract that previously lived only in skill prose. First sort of a cycle is exempt (empty history).
 - **Bug G — workfile setup boilerplate.** See `foundry_workfile_configure_from_cycle` above.
@@ -345,7 +344,7 @@ Run the `upgrade-foundry` skill to migrate cycle definitions to the flat deadloc
 
 - **`foundry_artefacts_add` removed.** Artefact registration now happens exclusively via `foundry_stage_finalize` after a forge stage closes.
 - **`foundry_artefacts_set_status` no longer accepts `draft`.** Only `done` and `blocked` are valid. New artefacts are registered as `draft` automatically by `stage_finalize`.
-- **Feedback / artefact / workfile mutation tools now enforce stage-lock preconditions.** Tools callable by subagents require an active stage matching their role; tools callable by the orchestrator require no active stage. Out-of-band calls return a structured error instead of mutating state.
+- **Feedback / artefact / workfile mutation tools now enforce stage-lock preconditions.** Tools callable by subagents require an active stage matching their role; tools callable by the orchestrator require no active stage. Out-of-band calls return a structured error.
 - **Feedback state machine strictly enforced.** `approved` is terminal. `quench` cannot approve/reject `wont-fix` items. See `HARDEN.md` §4 for the full matrix.
 - **`foundry_sort` dispatchable routes now return a `token` field.** Subagents must redeem the token via `foundry_stage_begin`; forged or replayed tokens are rejected.
 
