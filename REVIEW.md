@@ -1293,11 +1293,12 @@ them.
   frontmatter". Strip BOM before the check.
   Fixed in 2984dad (strip U+FEFF before line splitting).
 
-- [ ] **G46. `runAssay` exit-code message swallows signal info.**
-  `scripts/lib/assay/run.js:38-43,42`. A signal-killed process
+- [x] **G46. `runAssay` exit-code message swallows signal info.**
+  `scripts/lib/assay/run.js:38-43,42` (line 46 in current code). A signal-killed process
   surfaces as `extractor exited with exit code null`. Fold `signal`
   into the message: `extractor exited with signal SIGKILL (exit
   code null)`.
+  Fixed in 72c3320 (include signal name when process killed by signal).
 
 ## G.3 P3 — nits
 

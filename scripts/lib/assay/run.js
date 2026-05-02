@@ -43,7 +43,10 @@ export async function runAssay({
       return abort(perExtractor, name, `extractor produced too much output (stdout >50MB or stderr >1MB)`, spawnResult.stderr);
     }
     if (!spawnResult.ok) {
-      return abort(perExtractor, name, `extractor exited with exit code ${spawnResult.exitCode}`, spawnResult.stderr);
+      const reason = spawnResult.signal
+        ? `signal ${spawnResult.signal} (exit code ${spawnResult.exitCode})`
+        : `exit code ${spawnResult.exitCode}`;
+      return abort(perExtractor, name, `extractor exited with ${reason}`, spawnResult.stderr);
     }
 
     let rows;

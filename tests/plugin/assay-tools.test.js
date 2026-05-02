@@ -354,6 +354,35 @@ exit 1
     assert.match(res.error, /\.\.\. \(1 more byte\)/, 'error must use singular "byte" for exactly 1 byte truncated');
     assert.doesNotMatch(res.error, /\(1 more bytes\)/, 'error must NOT use plural "bytes" for 1 byte');
   });
+
+  it('includes signal information when extractor is killed by signal', async () => {
+    // G46: When an extractor is killed by a signal (exitCode=null, signal='SIGKILL'),
+    // the error message must include the signal name, not just "exit code null".
+    writeScript(root, 'scripts/kill-self.sh', `#!/bin/sh
+kill -KILL $$
+`);
+    writeExtractor(root, 'killed', { command: 'scripts/kill-self.sh', write: ['class'] });
+    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
+
+    await beginAssay(plugin, root);
+    let res;
+    try {
+      res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['killed'] }, { worktree: root }));
+    } finally {
+      try { await endStage(plugin, root); } catch {}
+    }
+
+    // Result must include signal information in the error message.
+    assert.notEqual(res.ok, true);
+    assert.equal(res.aborted, true);
+    assert.equal(res.failedExtractor, 'killed');
+    // Must mention the signal name (SIGKILL) and the null exit code.
+    assert.match(res.reason, /signal SIGKILL/);
+    assert.match(res.reason, /exit code null/);
+    // The old broken message "exit code null" alone should not appear.
+    assert.doesNotMatch(res.reason, /^extractor exited with exit code null$/);
+  });
 });
 
 
