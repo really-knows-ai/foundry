@@ -71,8 +71,16 @@ export function createConfigCreateTools({ tool }) {
   // Helper to build a create-tool. `creator` is the async create fn.
   // `extraArgs` lets `law` add its `target` parameter.
   function makeCreate(toolName, creator, extraArgs = {}) {
+    const kind = toolName.replace('foundry_config_create_', '');
+    let desc = `Create a new ${kind} definition (config-tier; requires a config/* branch).`;
+    
+    // Law tools need structured target examples since the schema can't express the union
+    if (kind === 'law') {
+      desc += ' target must be {kind:"global", file:"<name>.md"} or {kind:"type-specific", typeId:"<id>"}.';
+    }
+    
     return tool({
-      description: `Create a new ${toolName.replace('foundry_config_create_', '')} definition (config-tier; requires a config/* branch).`,
+      description: desc,
       args: { ...baseArgs, ...extraArgs },
       execute: guarded(toolName, CREATE_GUARDS, async (args, context) => {
         try {
