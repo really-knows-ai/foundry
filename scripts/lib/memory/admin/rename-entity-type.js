@@ -3,17 +3,9 @@ import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema
 import { parseEdgeRows, serialiseEdgeRows, parseEntityRows, serialiseEntityRows } from '../ndjson.js';
 import { invalidateStore } from '../singleton.js';
 import { parseFrontmatter } from '../frontmatter.js';
+import { renderEdgeFrontmatter, composeMarkdown } from './helpers.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
-
-function renderEdgeFrontmatter(fm) {
-  const lines = [`type: ${fm.type}`];
-  for (const key of ['sources', 'targets']) {
-    const v = fm[key];
-    lines.push(v === 'any' ? `${key}: any` : `${key}: [${v.join(', ')}]`);
-  }
-  return lines.join('\n');
-}
 
 export async function renameEntityType({ worktreeRoot, io, from, to }) {
   if (!IDENT.test(to)) throw new Error(`invalid identifier: '${to}'`);
@@ -62,7 +54,7 @@ export async function renameEntityType({ worktreeRoot, io, from, to }) {
     }
     if (changed) {
       const body = parsed.body;
-      await io.writeFile(edgeFile, `---\n${renderEdgeFrontmatter(fm)}\n---\n${body.startsWith('\n') ? '' : '\n'}${body}`);
+      await io.writeFile(edgeFile, composeMarkdown(renderEdgeFrontmatter(fm), body));
       schema.edges[edgeName].frontmatterHash = hashFrontmatter({ type: edgeName, sources: fm.sources, targets: fm.targets });
     }
 

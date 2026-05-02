@@ -9,15 +9,7 @@ import {
   dropLiveEdgeType,
   replaceLiveEdgeRows,
 } from './live-store.js';
-
-function renderEdgeFrontmatter(fm) {
-  const lines = [`type: ${fm.type}`];
-  for (const key of ['sources', 'targets']) {
-    const v = fm[key];
-    lines.push(v === 'any' ? `${key}: any` : `${key}: [${v.join(', ')}]`);
-  }
-  return lines.join('\n');
-}
+import { renderEdgeFrontmatter, composeMarkdown } from './helpers.js';
 
 /**
  * Analyse a prospective drop without mutating anything. Returns the same shape
@@ -118,7 +110,7 @@ export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
     const nextFm = edge.nextFm;
     await io.writeFile(
       edgeFile,
-      `---\n${renderEdgeFrontmatter(nextFm)}\n---\n${body.startsWith('\n') ? '' : '\n'}${body}`,
+      composeMarkdown(renderEdgeFrontmatter(nextFm), body),
     );
     schema.edges[edge.name].frontmatterHash = hashFrontmatter({
       type: edge.name,

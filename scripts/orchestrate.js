@@ -343,7 +343,7 @@ export async function runOrchestrate(args = {}, io) {
       }
 
       // Memory must be enabled.
-      const memoryEnabled = await io.exists('foundry/memory/config.md');
+      const memoryEnabled = io.exists('foundry/memory/config.md');
       if (!memoryEnabled) {
         return violation(`cycle ${cycleId}: 'assay:' requires memory to be enabled (run the init-memory skill first)`, ['WORK.md']);
       }

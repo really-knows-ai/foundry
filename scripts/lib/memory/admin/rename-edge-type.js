@@ -2,17 +2,9 @@ import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { invalidateStore } from '../singleton.js';
 import { parseFrontmatter } from '../frontmatter.js';
+import { renderEdgeFrontmatter, composeMarkdown } from './helpers.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
-
-function renderEdgeFrontmatter(fm) {
-  const lines = [`type: ${fm.type}`];
-  for (const key of ['sources', 'targets']) {
-    const v = fm[key];
-    lines.push(v === 'any' ? `${key}: any` : `${key}: [${v.join(', ')}]`);
-  }
-  return lines.join('\n');
-}
 
 export async function renameEdgeType({ worktreeRoot, io, from, to }) {
   if (!IDENT.test(to)) throw new Error(`invalid identifier: '${to}'`);
@@ -30,7 +22,7 @@ export async function renameEdgeType({ worktreeRoot, io, from, to }) {
   const fm = parsed.frontmatter;
   fm.type = to;
   const body = parsed.body;
-  await io.writeFile(p.edgeTypeFile(to), `---\n${renderEdgeFrontmatter(fm)}\n---\n${body.startsWith('\n') ? '' : '\n'}${body}`);
+  await io.writeFile(p.edgeTypeFile(to), composeMarkdown(renderEdgeFrontmatter(fm), body));
   await io.unlink(oldFile);
 
   const oldRel = p.relationFile(from);

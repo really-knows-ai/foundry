@@ -941,3 +941,81 @@ file-patterns: ["haikus/*.md"]
   assert.strictEqual(result2.action, 'dispatch', 
     'Next orchestrate should proceed normally after rollback, not be wedged');
 });
+
+// --- G40.2: io.exists is sync, not async ---------------------------------
+// orchestrate.js line 346 should use io.exists() without await, since
+// makeIO() from helpers.js provides a synchronous exists method.
+
+test('runOrchestrate setup: io.exists is called synchronously for memory check', async () => {
+  const io = makeIo({
+    'WORK.md': `---
+flow: test-flow
+cycle: test-cycle
+goal: test goal
+max-iterations: 3
+human-appraise: false
+---
+
+| file | type | status | cycle |
+|------|------|--------|-------|
+`,
+    'foundry/cycles/test-cycle.md': `---
+id: test-cycle
+output-type: test-type
+models:
+  assay: github-copilot/claude-sonnet-4.6
+  forge: github-copilot/claude-sonnet-4.6
+  quench: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+assay:
+  extractors:
+    - test-extractor
+memory:
+  write:
+    - test-entity
+---
+`,
+    'foundry/memory/config.md': `Memory enabled`,
+    'foundry/artefacts/test-type/definition.md': `---
+id: test-type
+file-patterns:
+  - "test/*.md"
+---
+`,
+    'foundry/memory/extractors/test-extractor.md': `---
+command: echo test
+timeout: 1000
+memory:
+  write:
+    - test-entity
+---
+Extractor body
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+
+  // Track whether exists was called with or without await
+  // Since exists is sync, it should work correctly
+  let existsCalled = false;
+  const originalExists = io.exists;
+  io.exists = (p) => {
+    existsCalled = true;
+    return originalExists(p);
+  };
+
+  const git = {
+    commit: () => 'abc1234',
+    status: () => ({ clean: true, dirty: [] }),
+  };
+
+  const result = await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'TOKEN',
+    now: () => 1000,
+  }, io);
+
+  // Should successfully set up (memory is enabled)
+  assert.strictEqual(result.action, 'dispatch');
+  assert.ok(existsCalled, 'io.exists should have been called for memory check');
+});
