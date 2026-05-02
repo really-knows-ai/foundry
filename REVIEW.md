@@ -53,7 +53,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **D7** (snapshots gitignored) - Folded into A16
 - [x] **D8** (orchestrate skill tool references) - Folded into C12 (commit f19a2bb)
 - [x] **D9** (upgrade-foundry historical references) - Folded into A16
-- [x] **D10** (refresh-agents description capitalisation and British spelling) - Commit pending
+- [x] **D10** (refresh-agents description capitalisation and British spelling) - Commit 53f4b6d
 - [x] **D11** (forge skill method name) - Folded into C12 (commit f19a2bb)
 - [x] **D12** (appraise skill filename leak) - Folded into C12 (commit f19a2bb)
 
