@@ -38,6 +38,32 @@ describe('openFeedbackStore — empty file', () => {
   });
 });
 
+describe('openFeedbackStore — malformed YAML validation', () => {
+  test('rejects top-level array with clear error', () => {
+    const io = mockIO({ 'WORK.feedback.yaml': yaml.dump([{ id: '123' }]) });
+    assert.throws(
+      () => openFeedbackStore('WORK.feedback.yaml', io),
+      /WORK\.feedback\.yaml malformed: top-level must be an object with an 'items' array/,
+    );
+  });
+
+  test('rejects object without items array', () => {
+    const io = mockIO({ 'WORK.feedback.yaml': yaml.dump({ other: 'field' }) });
+    assert.throws(
+      () => openFeedbackStore('WORK.feedback.yaml', io),
+      /WORK\.feedback\.yaml malformed: top-level must be an object with an 'items' array/,
+    );
+  });
+
+  test('rejects object with items as non-array', () => {
+    const io = mockIO({ 'WORK.feedback.yaml': yaml.dump({ items: 'not-array' }) });
+    assert.throws(
+      () => openFeedbackStore('WORK.feedback.yaml', io),
+      /WORK\.feedback\.yaml malformed: top-level must be an object with an 'items' array/,
+    );
+  });
+});
+
 describe('openFeedbackStore — add + list round-trip', () => {
   test('adding an item persists it with the expected shape', () => {
     const io = mockIO();

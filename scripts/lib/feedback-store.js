@@ -13,6 +13,9 @@ function loadItems(path, io) {
   if (!raw || !raw.trim()) return [];
   const doc = yaml.load(raw);
   if (doc == null) return [];
+  if (Array.isArray(doc)) {
+    throw new Error(`WORK.feedback.yaml malformed: top-level must be an object with an 'items' array`);
+  }
   if (typeof doc !== 'object' || !Array.isArray(doc.items)) {
     throw new Error(`WORK.feedback.yaml malformed: top-level must be an object with an 'items' array`);
   }

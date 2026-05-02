@@ -1280,11 +1280,12 @@ them.
   Surface a one-line warning on stderr at least once per session.
   Fixed in 3ee66f9 (with once-per-session deduplication).
 
-- [ ] **G44. `loadItems` malformed-YAML branch chain is brittle.**
+- [x] **G44. `loadItems` malformed-YAML branch chain is brittle.**
   `scripts/lib/feedback-store.js:14-19`. Top-level array document
   passes through to `Array.isArray(undefined)` → false → throws the
   malformed error, which is correct but reached by a different code
   path than expected. Tighten the type check.
+  Fixed in bfe7c5e (explicit array rejection before structure check).
 
 - [ ] **G45. `splitFrontmatter` rejects UTF-8 BOM with a misleading
   error.** `scripts/lib/assay/loader.js:23-36`. A file saved with BOM
