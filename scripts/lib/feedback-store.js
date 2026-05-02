@@ -153,9 +153,9 @@ export function openFeedbackStore(path, io) {
       return { ok: true };
     },
 
-    // Sort-only. Writes deadlocked snapshots atomically in a single pass
-    // via its own state machine logic per spec §6.1.
-    writeDeadlockedSnapshot({ id, cycle, reason }) {
+    // Test-only helper. Production code uses writeDeadlockedSnapshots (batch).
+    // Writes a single deadlocked snapshot for unit testing.
+    writeDeadlockedSnapshotForTest({ id, cycle, reason }) {
       const item = items.find(x => x.id === id);
       if (!item) return { ok: false, error: `feedback item not found: ${id}` };
       if (!reason || !reason.trim()) return { ok: false, error: 'reason is required for deadlocked snapshot' };

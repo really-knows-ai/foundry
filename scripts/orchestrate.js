@@ -14,6 +14,7 @@ import { readActiveStage, readLastStage, clearActiveStage, clearLastStage } from
 import { appendEntry, getIteration } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { loadExtractor } from './lib/assay/loader.js';
+import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
 import { stageBaseOf } from './lib/stage-guard.js';
 import { allowedPatternsForStage } from './lib/git-policy.js';
 
@@ -359,12 +360,9 @@ export async function runOrchestrate(args = {}, io) {
         let ext;
         try { ext = await loadExtractor(foundryDir, name, io); }
         catch (err) { return violation(`cycle ${cycleId}: ${err.message}`, ['WORK.md']); }
-        const missing = ext.memoryWrite.filter((t) => !cycleWriteSet.has(t));
-        if (missing.length > 0) {
-          return violation(
-            `cycle ${cycleId}: extractor '${name}' writes types not permitted by the cycle's memory.write: ${missing.join(', ')}`,
-            ['WORK.md'],
-          );
+        const checkResult = checkExtractorAgainstCycle(ext, { writeTypes: cycleWriteSet });
+        if (!checkResult.ok) {
+          return violation(`cycle ${cycleId}: ${checkResult.error}`, ['WORK.md']);
         }
       }
       assayExtractors = list;
@@ -489,20 +487,7 @@ export async function runOrchestrate(args = {}, io) {
       ? io.readFile('WORK.history.yaml') 
       : null;
 
-    // Write WORK.md updates
-    for (const a of finalizeResult.artefacts ?? []) {
-      let wm = io.readFile('WORK.md');
-      const rows = parseArtefactsTable(wm);
-      if (!rows.some(r => r.file === a.file)) {
-        wm = addArtefactRow(wm, {
-          file: a.file,
-          type: a.type,
-          cycle: cycleId,
-          status: a.status ?? 'draft',
-        });
-        io.writeFile('WORK.md', wm);
-      }
-    }
+    // Artefact rows already written by finalizeStage via registerArtefact.
 
     const summary = lastStage.summary || '(no summary)';
     const historyPath = 'WORK.history.yaml';

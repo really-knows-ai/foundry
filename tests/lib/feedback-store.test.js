@@ -234,8 +234,8 @@ describe('store.transition — deadlock override', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
-    // Force the item into deadlocked state via the internal writer used by sort.
-    store.writeDeadlockedSnapshot({ id, cycle: 'c', reason: 'depth=3' });
+    // Force the item into deadlocked state via the test-only writer.
+    store.writeDeadlockedSnapshotForTest({ id, cycle: 'c', reason: 'depth=3' });
     const r = store.transition({
       id,
       target: 'resolved',
@@ -251,7 +251,7 @@ describe('store.transition — deadlock override', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
-    store.writeDeadlockedSnapshot({ id, cycle: 'c', reason: 'depth=3' });
+    store.writeDeadlockedSnapshotForTest({ id, cycle: 'c', reason: 'depth=3' });
     const r = store.transition({ id, target: 'resolved', stage: 'human-appraise:review', cycle: 'c' });
     assert.equal(r.ok, false);
     assert.match(r.error, /reason is required/);
@@ -261,7 +261,7 @@ describe('store.transition — deadlock override', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:write-check', cycle: 'c' });
-    store.writeDeadlockedSnapshot({ id, cycle: 'c', reason: 'depth=3' });
+    store.writeDeadlockedSnapshotForTest({ id, cycle: 'c', reason: 'depth=3' });
     const r = store.transition({
       id,
       target: 'resolved',
@@ -427,7 +427,7 @@ describe('store.add — dedup semantics', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const a = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
-    store.writeDeadlockedSnapshot({ id: a.id, cycle: 'c', reason: 'depth=3' });
+    store.writeDeadlockedSnapshotForTest({ id: a.id, cycle: 'c', reason: 'depth=3' });
     const b = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
     assert.equal(b.deduped, true);
     assert.equal(b.id, a.id);

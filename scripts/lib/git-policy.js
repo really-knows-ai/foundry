@@ -24,7 +24,7 @@ export const TOOL_MANAGED = [
   '.gitignore',
 ];
 
-export const TOOL_MANAGED_PREFIX = ['.foundry/'];
+const TOOL_MANAGED_PREFIX = ['.foundry/'];
 
 export function isToolManaged(file) {
   if (TOOL_MANAGED.includes(file)) return true;
