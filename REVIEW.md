@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1107 tests passing (baseline: 1036)
+**Current progress:** 1110 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -1109,19 +1109,21 @@ sections and are listed for cross-reference only.
   flushed immediately; the code says otherwise. Decide which is
   truth and align. Fixed in a5c830f.
 
-- [ ] **G30. `parse-jsonl` rejects valid pretty-printed JSON.**
+- [x] **G30. `parse-jsonl` rejects valid pretty-printed JSON.**
   `scripts/lib/assay/parse-jsonl.js:59-78`. `text.split(/\r?\n/)` then
   per-line `JSON.parse` rejects an object that spans multiple lines
   (perfectly legal JSON). Error reads "extractor output line N:
   invalid JSON". Either document one-object-per-line in the
   extractor contract (loader.js, the tool description, and
   `add-extractor` skill), or use a streaming JSON parser.
+  Fixed in e169433 (documented requirement).
 
-- [ ] **G31. Edge rows have no size cap.**
+- [x] **G31. Edge rows have no size cap.**
   `scripts/lib/assay/parse-jsonl.js:34-55`. `parseEntityRow` enforces
   `MAX_VALUE_BYTES`; `parseEdgeRow` accepts arbitrary `from.name` /
   `to.name` strings. Apply consistent caps or delegate uniformly to
   the memory validator.
+  Fixed in 27a8ecb (applied MAX_VALUE_BYTES cap to from.name/to.name).
 
 - [ ] **G32. `parseTimeout` is unbounded.**
   `scripts/lib/assay/loader.js:6-21`. `timeout: 999999999` is
