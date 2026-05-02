@@ -85,6 +85,62 @@ describe('failed-flow', () => {
       assert.ok(m[1].length <= 510, `reason length ${m[1].length} should be <=510`);
       assert.ok(m[1].endsWith('...'), 'truncated reason should end with ...');
     });
+
+    it('escapes reason with newline characters', () => {
+      const io = makeIO({ 'WORK.md': '---\ncycle: c\n---\n' });
+      const reason = 'line one\nline two\nline three';
+      markWorkfileFailed(io, reason);
+      // Verify it was written
+      assert.match(io._store['WORK.md'], /status: failed/);
+      // Verify it round-trips correctly
+      const status = readFailedStatus(io);
+      assert.deepEqual(status, { reason: 'line one\nline two\nline three' });
+    });
+
+    it('escapes reason with colons', () => {
+      const io = makeIO({ 'WORK.md': '---\ncycle: c\n---\n' });
+      const reason = 'error: failed to connect: timeout';
+      markWorkfileFailed(io, reason);
+      assert.match(io._store['WORK.md'], /status: failed/);
+      const status = readFailedStatus(io);
+      assert.deepEqual(status, { reason: 'error: failed to connect: timeout' });
+    });
+
+    it('escapes reason with leading double quote', () => {
+      const io = makeIO({ 'WORK.md': '---\ncycle: c\n---\n' });
+      const reason = '"quoted error message"';
+      markWorkfileFailed(io, reason);
+      assert.match(io._store['WORK.md'], /status: failed/);
+      const status = readFailedStatus(io);
+      assert.deepEqual(status, { reason: '"quoted error message"' });
+    });
+
+    it('escapes reason with leading single quote', () => {
+      const io = makeIO({ 'WORK.md': '---\ncycle: c\n---\n' });
+      const reason = "'single quoted error'";
+      markWorkfileFailed(io, reason);
+      assert.match(io._store['WORK.md'], /status: failed/);
+      const status = readFailedStatus(io);
+      assert.deepEqual(status, { reason: "'single quoted error'" });
+    });
+
+    it('escapes reason with multiple YAML-sensitive characters', () => {
+      const io = makeIO({ 'WORK.md': '---\ncycle: c\n---\n' });
+      const reason = 'error: "connection failed"\nmessage: timeout at 30s';
+      markWorkfileFailed(io, reason);
+      assert.match(io._store['WORK.md'], /status: failed/);
+      const status = readFailedStatus(io);
+      assert.deepEqual(status, { reason: 'error: "connection failed"\nmessage: timeout at 30s' });
+    });
+
+    it('escapes reason with YAML special indicators', () => {
+      const io = makeIO({ 'WORK.md': '---\ncycle: c\n---\n' });
+      const reason = '- list item\n# comment\n> block';
+      markWorkfileFailed(io, reason);
+      assert.match(io._store['WORK.md'], /status: failed/);
+      const status = readFailedStatus(io);
+      assert.deepEqual(status, { reason: '- list item\n# comment\n> block' });
+    });
   });
 
   describe('requireNotFailed', () => {
