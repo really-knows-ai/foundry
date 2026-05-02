@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1119 tests passing (baseline: 1036)
+**Current progress:** 1125 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -41,9 +41,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 ### Priority 5: Remaining P0s
 - [x] **G9-G12** (Feedback subsystem contract issues) - Commits 586ad0b, 557443c, a3878f4, 91abb29
 - [x] **G16-G23** (Memory subsystem edge cases) - Commits d4d2950, ce001a7, ef7cc95, 714c26e, 8e19ea7, 937b1ef, c2e05c5, 8017c40
-- [ ] **G30-G37** (Git/validation bugs)
-  - [x] G30-G36 complete (commits e169433, 27a8ecb, a223938, 5d893f5, 4b60e21, 329ef19, 66dc8da)
-  - [ ] G37 remaining
+- [x] **G30-G37** (Git/validation bugs) - Commits e169433, 27a8ecb, a223938, 5d893f5, 4b60e21, 329ef19, 66dc8da, 7333103
 
 ### Priority 6: D-cluster nits (P3)
 - [ ] **D1-D12** (Minor code/doc nits, pull in if adjacent)
@@ -1178,13 +1176,14 @@ sections and are listed for cross-reference only.
   Bound the message: `unexpected_files: ${files.length} file(s)`.
   Fixed in 66dc8da (changed error message to show count, added test).
 
-- [ ] **G37. `markWorkfileFailed` truncation does not escape YAML.**
+- [x] **G37. `markWorkfileFailed` truncation does not escape YAML.**
   `scripts/lib/failed-flow.js:33-37,62`. A reason containing `\n`,
   `:`, or leading quote may produce frontmatter that fails to
   round-trip through `parseFrontmatter`. Next `readFailedStatus`
   returns null (status no longer parseable as `failed`), bypassing
   the guard. Verify `setFrontmatterField` quotes correctly; if not,
   sanitise/quote the reason before writing.
+  Fixed in 7333103 (added tests verifying yaml.dump() handles escaping correctly).
 
 ## G.2 P2 — voice / consistency / dead code
 
