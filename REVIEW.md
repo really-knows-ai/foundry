@@ -639,10 +639,11 @@ all 48 still applicable at HEAD with three drifts:
   `behavior`.** (Was E46.) → `behaviour`. (Folded into A16's
   rewrite.)
 
-- [ ] **C36. Plugin-comment voice cluster (9 items, E26–E34).**
-  All still present at HEAD with line drifts noted in audit. Most
-  files use British spelling and affirmative phrasing for surrounding
-  prose; the negation patterns are isolated.
+- [x] **C36. Plugin-comment voice cluster (9 items, E26–E34).**
+  All items fixed in commit 9cf62d8 (voice sweep). Item #1
+  (assay-tools.js "deferring to stage_end") was removed earlier in
+  a5c830f. Items #3 and #4 were confirmed as part of the voice sweep,
+  not duplicates of C12. All 1136 tests passing.
 
 - [ ] **C37. `scripts/lib/` module-banner voice cluster (10 items,
   E35–E44).** All still present (E37 has drifted — "never `git add
