@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1125 tests passing (baseline: 1036)
+**Current progress:** 1128 tests passing (baseline: 1036)
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -771,10 +771,10 @@ its only failure mode (a broken extractor under
 Largely clean — Phase 1–5 has strong test coverage. Low-severity
 gaps only:
 
-- [ ] **F1. Missing `tests/lib/memory/admin/vacuum.test.js`** —
+- [x] **F1. Missing `tests/lib/memory/admin/vacuum.test.js`** —
   every other admin module has a peer unit test. Vacuum is exercised
   through plugin tests, so behavioural coverage exists; only the
-  lib-level direct unit test is missing. Low.
+  lib-level direct unit test is missing. Low. Fixed in 569968c.
 
 - [x] **F2. No regression test for `scripts/sort.js:176` allowed-
   pattern drift** (A1). Added `tests/sort.test.js` case "allows
