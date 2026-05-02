@@ -57,8 +57,15 @@ export function createAssayTools({ tool }) {
             // a memory-sync failure: mark the workfile failed and surface
             // flow_failed. The user must fix the extractor and start a new
             // cycle.
+            const trimmed = res.stderr ? res.stderr.trim() : '';
+            let stderrSnippet = trimmed;
+            if (trimmed.length > 500) {
+              const bytesRemaining = trimmed.length - 500;
+              const plural = bytesRemaining === 1 ? 'byte' : 'bytes';
+              stderrSnippet = `${trimmed.slice(0, 500)}... (${bytesRemaining} more ${plural})`;
+            }
             const msg = `assay aborted on extractor \`${res.failedExtractor}\`: ${res.reason}` +
-              (res.stderr ? ` (stderr: ${res.stderr.trim().slice(0, 500)})` : '');
+              (trimmed ? ` (stderr: ${stderrSnippet})` : '');
             try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone? nothing we can do */ }
             return JSON.stringify({
               error: msg,

@@ -1266,11 +1266,12 @@ them.
   helper. `helpers.js` already exports `branchIoFactory`; consolidate
   there. Adjacent to D2. Fixed in e1ea637.
 
-- [ ] **G42. `stderr` truncation at byte 500 has no marker.**
-  `.opencode/plugins/foundry-tools/assay-tools.js:78`.
+- [x] **G42. `stderr` truncation at byte 500 has no marker.**
+  `.opencode/plugins/foundry-tools/assay-tools.js:78` (line 61 in current code).
   `res.stderr.trim().slice(0, 500)` cuts without ellipsis or
   "(N bytes truncated)" suffix; consumers can't tell whether stderr
   ended naturally at 500 chars or was cut. Add a marker.
+  Fixed in e281101 and 9248ca6 (with plural handling).
 
 - [ ] **G43. `helpers.js:33` swallows malformed flow files
   silently.** `.opencode/plugins/foundry-tools/helpers.js:33` — bare

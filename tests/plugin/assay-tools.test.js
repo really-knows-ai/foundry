@@ -271,7 +271,91 @@ mkdir foundry-memory/relations/class.ndjson
     assert.match(work, /status: failed/);
     assert.match(work, /reason: /);
   });
+
+  it('adds truncation marker when stderr exceeds 500 bytes', async () => {
+    // Generate stderr longer than 500 bytes (600 bytes of 'x' characters).
+    const longStderr = 'x'.repeat(600);
+    writeScript(root, 'scripts/fail-long-stderr.sh', `#!/bin/sh
+echo '${longStderr}' >&2
+exit 1
+`);
+    writeExtractor(root, 'long-stderr', { command: 'scripts/fail-long-stderr.sh', write: ['class'] });
+    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
+
+    await beginAssay(plugin, root);
+    let res;
+    try {
+      res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['long-stderr'] }, { worktree: root }));
+    } finally {
+      try { await endStage(plugin, root); } catch {}
+    }
+
+    // Must fail with truncated stderr and a truncation marker.
+    assert.notEqual(res.ok, true);
+    assert.ok(res.error, 'expected error message');
+    assert.match(res.error, /\(stderr:/, 'error must include stderr');
+    assert.match(res.error, /\.\.\. \(\d+ more bytes\)/, 'error must include truncation marker with byte count');
+    // Verify the error message length is reasonable (not the full 600 bytes).
+    assert.ok(res.error.length < 700, `error message too long: ${res.error.length} bytes`);
+  });
+
+  it('does not add truncation marker when stderr is under 500 bytes', async () => {
+    // Generate stderr shorter than 500 bytes (100 bytes).
+    const shortStderr = 'y'.repeat(100);
+    writeScript(root, 'scripts/fail-short-stderr.sh', `#!/bin/sh
+echo '${shortStderr}' >&2
+exit 1
+`);
+    writeExtractor(root, 'short-stderr', { command: 'scripts/fail-short-stderr.sh', write: ['class'] });
+    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
+
+    await beginAssay(plugin, root);
+    let res;
+    try {
+      res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['short-stderr'] }, { worktree: root }));
+    } finally {
+      try { await endStage(plugin, root); } catch {}
+    }
+
+    // Must fail with full stderr and no truncation marker.
+    assert.notEqual(res.ok, true);
+    assert.ok(res.error, 'expected error message');
+    assert.match(res.error, /\(stderr:/, 'error must include stderr');
+    assert.doesNotMatch(res.error, /\.\.\. \(\d+ more bytes\)/, 'error must NOT include truncation marker for short stderr');
+    // Should contain the full stderr.
+    assert.match(res.error, new RegExp('y{100}'), 'error should include full stderr');
+  });
+
+  it('uses singular "byte" when truncating exactly 1 byte', async () => {
+    // Generate stderr of exactly 501 bytes (truncates 1 byte).
+    const oneByteOverStderr = 'z'.repeat(501);
+    writeScript(root, 'scripts/fail-one-byte-over.sh', `#!/bin/sh
+echo '${oneByteOverStderr}' >&2
+exit 1
+`);
+    writeExtractor(root, 'one-byte-over', { command: 'scripts/fail-one-byte-over.sh', write: ['class'] });
+    writeFileSync(join(root, 'WORK.md'), '---\nflow: test\ncycle: c\n---\n\n# Goal\n\ntest\n');
+
+    await beginAssay(plugin, root);
+    let res;
+    try {
+      res = JSON.parse(await plugin.tool.foundry_assay_run.execute(
+        { cycle: 'c', extractors: ['one-byte-over'] }, { worktree: root }));
+    } finally {
+      try { await endStage(plugin, root); } catch {}
+    }
+
+    // Must fail with truncated stderr using singular "byte".
+    assert.notEqual(res.ok, true);
+    assert.ok(res.error, 'expected error message');
+    assert.match(res.error, /\(stderr:/, 'error must include stderr');
+    assert.match(res.error, /\.\.\. \(1 more byte\)/, 'error must use singular "byte" for exactly 1 byte truncated');
+    assert.doesNotMatch(res.error, /\(1 more bytes\)/, 'error must NOT use plural "bytes" for 1 byte');
+  });
 });
+
 
 describe('foundry_extractor_create', () => {
   let root, plugin;
