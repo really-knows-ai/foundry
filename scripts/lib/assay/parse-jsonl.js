@@ -44,6 +44,17 @@ function parseEdgeRow(obj, lineNo) {
   req(obj.to, 'type', lineNo, 'edge.to');
   req(obj.to, 'name', lineNo, 'edge.to');
   req(obj, 'edge', lineNo, 'edge');
+  
+  // Validate size of edge name fields
+  const fromNameBytes = Buffer.byteLength(obj.from.name, 'utf-8');
+  if (fromNameBytes > MAX_VALUE_BYTES) {
+    throw new Error(`extractor output line ${lineNo}: edge.from.name is ${fromNameBytes} bytes (max ${MAX_VALUE_BYTES}, too large)`);
+  }
+  const toNameBytes = Buffer.byteLength(obj.to.name, 'utf-8');
+  if (toNameBytes > MAX_VALUE_BYTES) {
+    throw new Error(`extractor output line ${lineNo}: edge.to.name is ${toNameBytes} bytes (max ${MAX_VALUE_BYTES}, too large)`);
+  }
+  
   return {
     kind: 'edge',
     edge_type: obj.edge,

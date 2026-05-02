@@ -85,6 +85,22 @@ describe('parseExtractorOutput', () => {
     );
   });
 
+  it('rejects oversize edge from.name', () => {
+    const big = 'x'.repeat(5000);
+    assert.throws(
+      () => parseExtractorOutput(`{"kind":"edge","from":{"type":"c","name":"${big}"},"edge":"e","to":{"type":"c","name":"B"}}`),
+      /from\.name.*4096|too large/i,
+    );
+  });
+
+  it('rejects oversize edge to.name', () => {
+    const big = 'x'.repeat(5000);
+    assert.throws(
+      () => parseExtractorOutput(`{"kind":"edge","from":{"type":"c","name":"A"},"edge":"e","to":{"type":"c","name":"${big}"}}`),
+      /to\.name.*4096|too large/i,
+    );
+  });
+
   it('returns an empty array for empty input', () => {
     assert.deepEqual(parseExtractorOutput(''), []);
     assert.deepEqual(parseExtractorOutput('\n\n# only comments\n'), []);
