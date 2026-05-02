@@ -710,24 +710,24 @@ Only pull in if trivially adjacent to other work.
   `.snapshots/` line added to `.gitignore`. Cover in upgrade-foundry
   §7b (folded into A16).
 
-- [ ] **D8. `skills/orchestrate/SKILL.md:82` literally names
+- [x] **D8. `skills/orchestrate/SKILL.md:82` literally names
   `foundry_sort` and `foundry_stage_finalize` inside a "do NOT
-  call" guard.** Permitted under AGENTS.md "negation as
-  prohibition" exception, but for a 3.0 release prefer "These are
-  not registered tools; orchestrate handles them internally."
+  call" guard.** Already fixed: orchestrate/SKILL.md:82 uses the
+  preferred phrasing "are not registered tools; orchestrate handles
+  them internally via the loop."
 
 - [x] **D9. `skills/upgrade-foundry/SKILL.md:230, 239` historical
   references to `foundry_stage_finalize`.** Acceptable as
   v2.2→v2.3 migration narrative. Add a parenthetical "(since v2.3
   internal to `foundry_orchestrate`)".
 
-- [ ] **D10. `skills/refresh-agents/SKILL.md:3` description lacks
-  leading capital** (sibling skills have it).
+- [x] **D10. `skills/refresh-agents/SKILL.md:3` description lacks
+  leading capital.** Already fixed: description starts with "Use"
+  (capital U), matching sibling skills' capitalization style.
 
-- [ ] **D11. `skills/forge/SKILL.md:100` mentions `sort`'s
-  `checkModifiedFiles`.** A literal JS-method-name in a
-  user-facing skill. Replace with "the orchestrator's modified-file
-  check".
+- [x] **D11. `skills/forge/SKILL.md:100` mentions `sort`'s
+  `checkModifiedFiles`.** Already fixed: forge/SKILL.md:101 uses
+  user-facing phrasing "the orchestrator's modified-file check".
 
 - [ ] **D12. `skills/appraise/SKILL.md:122** mentions `sort.js`
   filename.** Internal implementation leak in user-facing skill.
