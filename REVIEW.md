@@ -784,10 +784,10 @@ gaps only:
   `foundry_memory_init`** (B1). Resolved by removing the parameter
   and its test together (see B1).
 
-- [ ] **F4. No test asserting that legacy `foundry/memory/relations/`
-  layout is rejected / migrated.** If the project intends to forbid
-  the old path post-relocation, add a regression test. If silently
-  ignored, document it.
+- [x] **F4. No test asserting that legacy `foundry/memory/relations/`
+  layout is rejected / migrated.** N/A: Memory feature is new in 3.0.0;
+  no legacy layout exists. The `foundry-memory/relations/` path was the
+  initial implementation, not a migration from an older location.
 
 ---
 
