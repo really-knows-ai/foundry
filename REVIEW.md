@@ -969,25 +969,16 @@ sections and are listed for cross-reference only.
   reconciliation; the current mix is the bug. Fixed in bab78e2.
 
 - [ ] **G16. Embedding probe seeds dimensions from the user's claim,
-  not the provider's reality.**
-  `scripts/lib/memory/embeddings.js:46-52`. `embed()` throws on
-  dimension mismatch (line 36-38), so the probe surfaces a config
-  error as `{ok: false}`. But init's flow at
-  `scripts/lib/memory/admin/init.js:104` is "user states dimensions
-  → probe → seed schema with the same number". The probe never
-  reports what the provider actually returns. Misconfigured init
-  surfaces as a failed probe rather than a corrected dimensions
-  field. Add a probe-mode that returns the provider's actual
-  dimension and let init reconcile.
+  not the provider's reality.** PARTIALLY FIXED: embeddings.js:95 now
+  returns `{ ok: true, dimensions: out[0].length }` so the probe reports
+  actual dimensions, but init.js:95-98 writes schema before calling probe
+  (line 106), so the dimensions aren't used to correct user input. Needs
+  design decision: write schema after probe, or add mismatch warning.
 
-- [ ] **G17. `embed()` discards index ordering when `index` is
-  missing.** `scripts/lib/memory/embeddings.js:19-21`.
-  `(a.index ?? 0) - (b.index ?? 0)` returns 0 for every element when
-  the provider omits `index`, so the sort is a no-op. Trusts insertion
-  order. A non-conforming provider returning data in arbitrary order
-  silently misaligns embeddings with input rows — every entity gets
-  the wrong vector. Detect missing `index` explicitly and either
-  fall back with a comment or fail loudly.
+- [x] **G17. `embed()` discards index ordering when `index` is
+  missing.** Already fixed: embeddings.js:28-33 now validates that all
+  embeddings have an index field and throws if missing, preventing
+  silent misalignment.
 
 - [ ] **G18. `foundry_memory_search` fetches `k` from each type then
   re-slices to `k`.** `scripts/lib/memory/search.js:21-37`. Worst
@@ -996,12 +987,10 @@ sections and are listed for cross-reference only.
   a 10–100× amplification. Either document the cost or distribute
   the per-type budget.
 
-- [ ] **G19. `embed()` does no retry on transient failures.**
-  `scripts/lib/memory/embeddings.js:1-44`. Single attempt with
-  hard-timeout abort. A flaky provider (Ollama warming up, transient
-  429) fails the whole batch and bubbles to the caller, wasting
-  reembed's atomic-staging investment on a hiccup. Add at least one
-  retry with backoff for 5xx/429.
+- [x] **G19. `embed()` does no retry on transient failures.**
+  Already fixed: embeddings.js:1-71 implements full retry mechanism with
+  `callWithRetry`, `isRetryableError` for 429/5xx/timeout, exponential
+  backoff (1s, 2s), and max 3 attempts.
 
 - [ ] **G20. Reembed Phase 4 leaves schema/DB out of sync if
   `writeSchema` fails after rename.**
