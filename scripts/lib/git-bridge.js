@@ -38,7 +38,8 @@ export { UnexpectedFilesError };
  * @param {string[]} [opts.allowedPatterns]  Globs allowed to be dirty for this phase.
  * @param {(args: string[]) => string} opts.execFile
  *   Synchronous git runner: receives argv (no `git`), returns stdout as utf-8.
- * @returns {string}  Short SHA of the new commit.
+ * @returns {string|null}  Short SHA of the new commit, or null if the worktree
+ *   is clean (nothing to commit).
  * @throws {UnexpectedFilesError} if the worktree contains any file outside
  *   the tool-managed list and the allow list. Nothing is staged in this case.
  */
