@@ -546,10 +546,11 @@ apply).
 
 ### Doc gaps (not breaking but worth filling)
 
-- [ ] **C17. `skills/dry-run/SKILL.md` not cross-referenced from
-  `flow` / `orchestrate`.** Users running a flow on a config branch
-  with edits in progress have no skill-discovery path to dry-run.
-  Add a one-paragraph note to flow:1–10 and/or orchestrate.
+- [x] **C17. `skills/dry-run/SKILL.md` not cross-referenced from
+  `flow` / `orchestrate`.** Already present in flow/SKILL.md:12
+  ("If you are on a `config/<x>` branch with in-progress edits...
+  use the `dry-run` skill instead"). Comprehensive note covers the
+  use case.
 
 - [x] **C18. `docs/getting-started.md` no mention of
   `foundry_config_validate_*` (the validate-then-create authoring
