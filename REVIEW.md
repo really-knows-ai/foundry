@@ -976,12 +976,11 @@ sections and are listed for cross-reference only.
   ops consistently touch the live store, or consistently rely on
   reconciliation; the current mix is the bug. Fixed in bab78e2.
 
-- [ ] **G16. Embedding probe seeds dimensions from the user's claim,
-  not the provider's reality.** PARTIALLY FIXED: embeddings.js:95 now
-  returns `{ ok: true, dimensions: out[0].length }` so the probe reports
-  actual dimensions, but init.js:95-98 writes schema before calling probe
-  (line 106), so the dimensions aren't used to correct user input. Needs
-  design decision: write schema after probe, or add mismatch warning.
+- [x] **G16. Embedding probe seeds dimensions from the user's claim,
+  not the provider's reality.** Fixed in 3444319: init.js now writes schema
+  AFTER probe and uses probe.dimensions when available. Falls back to defaults
+  when probe fails/disabled. init-memory skill updated to display actual
+  dimensions when probe succeeds.
 
 - [x] **G17. `embed()` discards index ordering when `index` is
   missing.** Already fixed: embeddings.js:28-33 now validates that all
