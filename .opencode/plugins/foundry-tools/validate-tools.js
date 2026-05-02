@@ -43,10 +43,16 @@ export function createValidateTools({ tool }) {
         const results = [];
         // Substitute {file} with a shell-quoted path so file names containing
         // shell metacharacters (spaces, ;, $(), `, quotes) are passed as a
-        // single literal shell argument.
+        // single literal shell argument. Supports both unquoted {file} and
+        // quoted "{file}" or '{file}' patterns - quotes are stripped before
+        // substitution to avoid nested quotes like "'path'".
         const quotedFile = shellQuote(args.file);
         for (const entry of commands) {
-          const expanded = entry.command.replace(/\{file\}/g, quotedFile);
+          // Replace "{file}" or '{file}' with unquoted {file}, then substitute
+          const expanded = entry.command
+            .replace(/"\{file\}"/g, '{file}')
+            .replace(/'\{file\}'/g, '{file}')
+            .replace(/\{file\}/g, quotedFile);
           try {
             const output = execSync(expanded, { cwd: context.worktree, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
             results.push({ id: entry.id, command: expanded, passed: true, output: output.trim() });

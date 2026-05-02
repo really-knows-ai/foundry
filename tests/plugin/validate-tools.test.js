@@ -178,3 +178,90 @@ test('foundry_validate_run returns error when no validation defined', async () =
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('foundry_validate_run strips double quotes around {file} placeholder', async () => {
+  // When validation command uses "{file}", the quotes should be stripped
+  // before substitution so we don't get nested quotes like "'path'"
+  const dir = setupFoundry(
+    '## quoted-file\nCommand: `cat "{file}"`\nFailure means: file unreadable\n',
+  );
+  try {
+    const spacedName = 'file with spaces.txt';
+    writeFileSync(join(dir, spacedName), 'content-here', 'utf-8');
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'doc', file: spacedName }, makeCtx(dir),
+    ));
+
+    assert.equal(out.length, 1);
+    assert.equal(out[0].passed, true, `validator failed: ${out[0].output}`);
+    assert.equal(out[0].output, 'content-here');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('foundry_validate_run strips single quotes around {file} placeholder', async () => {
+  // When validation command uses '{file}', the quotes should be stripped
+  const dir = setupFoundry(
+    "## single-quoted\nCommand: `cat '{file}'`\nFailure means: file unreadable\n",
+  );
+  try {
+    const spacedName = 'another file.txt';
+    writeFileSync(join(dir, spacedName), 'single-quoted-ok', 'utf-8');
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'doc', file: spacedName }, makeCtx(dir),
+    ));
+
+    assert.equal(out.length, 1);
+    assert.equal(out[0].passed, true, `validator failed: ${out[0].output}`);
+    assert.equal(out[0].output, 'single-quoted-ok');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('foundry_validate_run does not strip quotes from partial quoted strings', async () => {
+  // "prefix-{file}-suffix" should keep quotes and only substitute {file}
+  const dir = setupFoundry(
+    '## partial-quote\nCommand: `echo "prefix-{file}-suffix"`\nFailure means: echo failed\n',
+  );
+  try {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'doc', file: 'test.txt' }, makeCtx(dir),
+    ));
+
+    assert.equal(out.length, 1);
+    assert.equal(out[0].passed, true, `validator failed: ${out[0].output}`);
+    // Should see: prefix-'test.txt'-suffix (quotes NOT stripped because {file} wasn't standalone)
+    assert.match(out[0].output, /prefix-'test\.txt'-suffix/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('foundry_validate_run handles multiple {file} occurrences with different quoting', async () => {
+  // Mix of unquoted {file} and quoted "{file}" in same command
+  const dir = setupFoundry(
+    '## multi-file\nCommand: `echo {file} && cat "{file}"`\nFailure means: failed\n',
+  );
+  try {
+    const spacedName = 'my file.txt';
+    writeFileSync(join(dir, spacedName), 'multi-ok', 'utf-8');
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+      { typeId: 'doc', file: spacedName }, makeCtx(dir),
+    ));
+
+    assert.equal(out.length, 1);
+    assert.equal(out[0].passed, true, `validator failed: ${out[0].output}`);
+    assert.match(out[0].output, /multi-ok/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
