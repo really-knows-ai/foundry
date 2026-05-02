@@ -47,6 +47,8 @@ function validateKindArgs(kind, args) {
 
 function validateStartingBranch(kind, branch) {
   // Already on a dry-run branch — never permit a new branch of any kind.
+  // DRY_RUN_DEEPER_RE is defensive: foundry_git_branch creates only dry-run/<parent>/<desc>,
+  // but this guard also rejects manually-created deeper nesting (e.g. dry-run/x/y/z).
   if (branch && (DRY_RUN_RE.test(branch) || DRY_RUN_DEEPER_RE.test(branch))) {
     return `cannot nest deeper than one dry-run level; you are on '${branch}'.`;
   }

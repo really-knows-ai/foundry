@@ -44,7 +44,8 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **G30-G37** (Git/validation bugs) - Commits e169433, 27a8ecb, a223938, 5d893f5, 4b60e21, 329ef19, 66dc8da, 7333103
 
 ### Priority 6: D-cluster nits (P3)
-- [ ] **D1-D12** (Minor code/doc nits, pull in if adjacent)
+- [x] **D1** (DRY_RUN_DEEPER_RE defensive guard documented) - Commit pending
+- [ ] **D2-D12** (Remaining minor code/doc nits)
 
 ---
 
