@@ -1302,9 +1302,11 @@ them.
 
 ## G.3 P3 — nits
 
-- [ ] **G47. `loader.js:32` strips leading whitespace from extractor
+- [x] **G47. `loader.js:32` strips leading whitespace from extractor
   body — undocumented.** Body field is presentational only, but the
   silent strip is surprising.
+  Fixed in 8a498ed (added comment explaining intentional stripping for
+  consistent presentation, plus test case).
 
 - [ ] **G48. Trim historical/transitional comments in `orchestrate.js`.**
   `Task-6 stub helpers (wired in later)` (line 60), the
