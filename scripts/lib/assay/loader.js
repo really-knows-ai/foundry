@@ -27,11 +27,13 @@ import { memoryPaths } from '../memory/paths.js';
  */
 
 const IDENT = /^[a-z][a-z0-9_-]*$/;
+const MAX_TIMEOUT_MS = 600_000;
 
 function parseTimeout(v) {
   if (v === undefined || v === null) return 60_000;
   if (typeof v === 'number') {
     if (!Number.isFinite(v) || v <= 0) throw new Error(`timeout must be a positive number (ms) or duration string`);
+    if (v > MAX_TIMEOUT_MS) throw new Error(`timeout must not exceed 600000ms (10 minutes)`);
     return v;
   }
   if (typeof v !== 'string') throw new Error(`timeout must be a duration string (e.g. "30s") or a number of ms`);
@@ -39,10 +41,13 @@ function parseTimeout(v) {
   if (!m) throw new Error(`timeout: unrecognised duration '${v}' (expected e.g. "500ms", "30s", "2m")`);
   const n = Number(m[1]);
   const unit = m[2] ?? 'ms';
-  if (unit === 'ms') return n;
-  if (unit === 's') return n * 1000;
-  if (unit === 'm') return n * 60_000;
-  throw new Error(`timeout: impossible unit ${unit}`);
+  let result;
+  if (unit === 'ms') result = n;
+  else if (unit === 's') result = n * 1000;
+  else if (unit === 'm') result = n * 60_000;
+  else throw new Error(`timeout: impossible unit ${unit}`);
+  if (result > MAX_TIMEOUT_MS) throw new Error(`timeout must not exceed 600000ms (10 minutes)`);
+  return result;
 }
 
 function splitFrontmatter(text) {

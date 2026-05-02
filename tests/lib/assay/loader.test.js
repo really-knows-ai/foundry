@@ -92,6 +92,66 @@ memory:
       /extractor not found/i,
     );
   });
+
+  it('rejects timeout exceeding 600000ms when specified as number', async () => {
+    const io = diskIO(root);
+    writeFileSync(join(root, 'foundry/memory/extractors/timeout-too-high.md'),
+`---
+command: scripts/x.sh
+memory:
+  write: [file]
+timeout: 600001
+---
+`);
+    await assert.rejects(
+      () => loadExtractor('foundry', 'timeout-too-high', io),
+      /timeout must not exceed 600000ms/i,
+    );
+  });
+
+  it('rejects timeout exceeding 600000ms when specified as string', async () => {
+    const io = diskIO(root);
+    writeFileSync(join(root, 'foundry/memory/extractors/timeout-string-high.md'),
+`---
+command: scripts/x.sh
+memory:
+  write: [file]
+timeout: 11m
+---
+`);
+    await assert.rejects(
+      () => loadExtractor('foundry', 'timeout-string-high', io),
+      /timeout must not exceed 600000ms/i,
+    );
+  });
+
+  it('accepts timeout exactly at 600000ms', async () => {
+    const io = diskIO(root);
+    writeFileSync(join(root, 'foundry/memory/extractors/timeout-at-limit.md'),
+`---
+command: scripts/x.sh
+memory:
+  write: [file]
+timeout: 600000
+---
+`);
+    const ext = await loadExtractor('foundry', 'timeout-at-limit', io);
+    assert.equal(ext.timeoutMs, 600_000);
+  });
+
+  it('accepts timeout as 10m (600000ms)', async () => {
+    const io = diskIO(root);
+    writeFileSync(join(root, 'foundry/memory/extractors/timeout-10m.md'),
+`---
+command: scripts/x.sh
+memory:
+  write: [file]
+timeout: 10m
+---
+`);
+    const ext = await loadExtractor('foundry', 'timeout-10m', io);
+    assert.equal(ext.timeoutMs, 600_000);
+  });
 });
 
 describe('listExtractors', () => {
