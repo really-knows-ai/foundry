@@ -1,10 +1,13 @@
 /**
  * Validate a law definition body.
  *
+ * Laws derive their ID from the filename rather than frontmatter, so name
+ * and io are unused here but accepted for API parity with other validators.
+ *
  * @param {object} opts
- * @param {string} opts.name      Slugged identifier (unused; accepted for parity).
+ * @param {string} opts.name      Slugged identifier (unused; laws use filename as ID).
  * @param {string} opts.body      Full markdown body.
- * @param {object} [opts.io]      IO adapter (unused; accepted for parity).
+ * @param {object} [opts.io]      IO adapter (unused; laws validate body only).
  * @returns {Promise<{ok: true} | {ok: false, errors: string[]}>}
  */
 export async function validate({ body }) {
