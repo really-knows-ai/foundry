@@ -1019,10 +1019,9 @@ sections and are listed for cross-reference only.
   reset.test.js (handles missing WAL/SHM gracefully).
 
 - [x] **G23. `dump.js` summary path enumerates entity counts only.**
-  `scripts/lib/memory/admin/dump.js:27-32`. Edge counts are silently
-  omitted from the summary. Either spec'd that way (then add a
-  comment) or oversight. Mirror the entity loop for `vocabulary.edges`.
-  Fixed in 8017c40.
+  Fixed in 8017c40: Added edge counts to summary (dump.js:33-36) mirroring
+  the entity count loop. Summary now shows both entity and edge counts
+  (e.g., "- edge implements: 2 rows"). Test added at dump.test.js:18-40.
 
 ### Assay subsystem
 
