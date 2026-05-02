@@ -51,7 +51,9 @@ function parseTimeout(v) {
 }
 
 function splitFrontmatter(text) {
-  const lines = text.split(/\r?\n/);
+  // Strip UTF-8 BOM if present
+  const stripped = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+  const lines = stripped.split(/\r?\n/);
   if (lines[0] !== '---') throw new Error(`missing frontmatter: file must start with '---'`);
   let end = -1;
   for (let i = 1; i < lines.length; i++) {

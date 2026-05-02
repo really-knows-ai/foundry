@@ -1287,10 +1287,11 @@ them.
   path than expected. Tighten the type check.
   Fixed in bfe7c5e (explicit array rejection before structure check).
 
-- [ ] **G45. `splitFrontmatter` rejects UTF-8 BOM with a misleading
-  error.** `scripts/lib/assay/loader.js:23-36`. A file saved with BOM
+- [x] **G45. `splitFrontmatter` rejects UTF-8 BOM with a misleading
+  error.** `scripts/lib/assay/loader.js:23-36` (lines 53-66 in current code). A file saved with BOM
   fails the `lines[0] !== '---'` check and reports "missing
   frontmatter". Strip BOM before the check.
+  Fixed in 2984dad (strip U+FEFF before line splitting).
 
 - [ ] **G46. `runAssay` exit-code message swallows signal info.**
   `scripts/lib/assay/run.js:38-43,42`. A signal-killed process

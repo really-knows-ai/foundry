@@ -152,6 +152,18 @@ timeout: 10m
     const ext = await loadExtractor('foundry', 'timeout-10m', io);
     assert.equal(ext.timeoutMs, 600_000);
   });
+
+  it('handles UTF-8 BOM at start of file', async () => {
+    const io = diskIO(root);
+    // UTF-8 BOM is U+FEFF
+    const contentWithBOM = '\uFEFF---\ncommand: scripts/bom-test.sh\nmemory:\n  write: [file]\n---\n\nBOM test content';
+    writeFileSync(join(root, 'foundry/memory/extractors/with-bom.md'), contentWithBOM, 'utf8');
+    const ext = await loadExtractor('foundry', 'with-bom', io);
+    assert.equal(ext.name, 'with-bom');
+    assert.equal(ext.command, 'scripts/bom-test.sh');
+    assert.deepEqual(ext.memoryWrite, ['file']);
+    assert.match(ext.body, /BOM test content/);
+  });
 });
 
 describe('listExtractors', () => {
