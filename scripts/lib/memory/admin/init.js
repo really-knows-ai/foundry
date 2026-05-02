@@ -30,13 +30,15 @@ const DEFAULT_GITIGNORE_ENTRIES = [
  *   - foundry-memory/relations/.gitkeep (sibling of foundry/, holds row data)
  *   - config.md (frontmatter derived from DEFAULT_CONFIG)
  *   - schema.json (version 1, empty entities/edges, embeddings block
- *     populated from DEFAULT_CONFIG when enabled, null otherwise)
+ *     populated from probe when enabled, null otherwise)
  *   - appends .gitignore entries (idempotent)
  *
- * When `embeddingsEnabled && probe`, runs a single probe against the
- * configured provider and returns the result. The caller decides whether to
- * surface probe failure to the user — initMemory itself does not fail on a
- * bad probe (config.md already on disk with sensible defaults can be edited).
+ * When `embeddingsEnabled && probe`, probes the embedding provider first, then
+ * writes schema.json with the actual dimensions returned by the probe (if
+ * successful). If probe fails or is disabled, uses DEFAULT_CONFIG dimensions.
+ * The caller decides whether to surface probe failure to the user — initMemory
+ * itself does not fail on a bad probe (config.md already on disk with sensible
+ * defaults can be edited).
  *
  * @param {object} opts
  * @param {object} opts.io                    memory-style IO (exists, readFile, writeFile, mkdir)
@@ -87,27 +89,31 @@ export async function initMemory({ io, embeddingsEnabled = true, probe = true })
   await io.writeFile(p.config, renderMarkdown(configFm, CONFIG_BODY));
   created.push(p.config);
 
+  const gitignoreAdded = await appendGitignore(io, DEFAULT_GITIGNORE_ENTRIES);
+
+  let probeResult = null;
+  let actualDimensions = defaults.dimensions;
+  if (probe && embeddingsEnabled) {
+    try {
+      probeResult = await probeEmbeddings({ config: embeddingsBlock });
+      if (probeResult.ok) {
+        actualDimensions = probeResult.dimensions;
+      }
+    } catch (err) {
+      probeResult = { ok: false, error: err?.message ?? String(err) };
+    }
+  }
+
   const schema = {
     version: 1,
     entities: {},
     edges: {},
     embeddings: embeddingsEnabled
-      ? { model: defaults.model, dimensions: defaults.dimensions }
+      ? { model: defaults.model, dimensions: actualDimensions }
       : null,
   };
   await io.writeFile(p.schema, JSON.stringify(schema, null, 2) + '\n');
   created.push(p.schema);
-
-  const gitignoreAdded = await appendGitignore(io, DEFAULT_GITIGNORE_ENTRIES);
-
-  let probeResult = null;
-  if (probe && embeddingsEnabled) {
-    try {
-      probeResult = await probeEmbeddings({ config: embeddingsBlock });
-    } catch (err) {
-      probeResult = { ok: false, error: err?.message ?? String(err) };
-    }
-  }
 
   return { created, gitignoreAdded, probe: probeResult };
 }

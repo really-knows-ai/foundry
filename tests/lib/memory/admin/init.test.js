@@ -137,4 +137,31 @@ describe('initMemory', () => {
     // We don't assert ok:false because someone might actually have ollama running.
     rmSync(root, { recursive: true, force: true });
   });
+
+  it('writes schema after probe and uses actual dimensions when probe succeeds', async () => {
+    const root = setupFoundry();
+    // This test verifies that when probe succeeds (provider running),
+    // the schema uses the actual dimensions from the probe response,
+    // not just the default config value. We can't guarantee the provider
+    // is running, but if it is, this validates the fix.
+    const out = await initMemory({
+      io: diskIO(root),
+      embeddingsEnabled: true,
+      probe: true,
+    });
+
+    const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
+
+    if (out.probe && out.probe.ok) {
+      // If probe succeeded, schema dimensions should match probe dimensions
+      assert.equal(schema.embeddings.dimensions, out.probe.dimensions,
+        'schema dimensions should match probe-returned dimensions');
+    } else {
+      // If probe failed or wasn't run, schema should have default dimensions
+      assert.ok(schema.embeddings && schema.embeddings.dimensions > 0,
+        'schema should have positive dimensions even if probe failed');
+    }
+
+    rmSync(root, { recursive: true, force: true });
+  });
 });

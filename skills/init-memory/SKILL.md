@@ -66,7 +66,8 @@ Neither `foundry/memory/` nor `foundry-memory/` may already exist.
 
 3. **Handle the probe result** (field `probe` in the return value).
    - `probe == null`: embeddings disabled, skip.
-   - `probe.ok == true`: continue.
+   - `probe.ok == true`: display `✓ Embedding provider responded (dimensions: N)` 
+     where N is `probe.dimensions`, then continue.
    - `probe.ok == false`: present the user with these options:
      1. Install/start Ollama and `ollama pull nomic-embed-text`, then invoke
         `foundry_memory_validate` to re-check.
