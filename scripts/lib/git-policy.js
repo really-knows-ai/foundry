@@ -37,8 +37,9 @@ export function isToolManaged(file) {
  *
  * Each record is null-terminated. Renames/copies (R/C) are emitted as two
  * null-terminated paths: `R  new\0old\0` (i.e. the destination first, then
- * the source). We surface BOTH paths so the caller can refuse a commit that
- * would carry along an unrelated source path.
+ * the source). Per git-status(1), the -z format reverses the usual "from -> to"
+ * order to "to from" for renames. We surface BOTH paths so the caller can refuse
+ * a commit that would carry along an unrelated source path.
  *
  * Returns a de-duplicated array of paths in encounter order.
  */

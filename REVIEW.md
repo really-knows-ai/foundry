@@ -42,6 +42,8 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **G9-G12** (Feedback subsystem contract issues) - Commits 586ad0b, 557443c, a3878f4, 91abb29
 - [x] **G16-G23** (Memory subsystem edge cases) - Commits d4d2950, ce001a7, ef7cc95, 714c26e, 8e19ea7, 937b1ef, c2e05c5, 8017c40
 - [ ] **G30-G37** (Git/validation bugs)
+  - [x] G30-G35 complete (commits e169433, 27a8ecb, a223938, 5d893f5, 4b60e21, pending)
+  - [ ] G36-G37 remaining
 
 ### Priority 6: D-cluster nits (P3)
 - [ ] **D1-D12** (Minor code/doc nits, pull in if adjacent)
@@ -1155,7 +1157,7 @@ sections and are listed for cross-reference only.
   worktree was clean") or document `null` as part of the contract.
   Fixed in 4b60e21 (documented null as valid return value).
 
-- [ ] **G35. `parsePorcelainZ` rename-ordering doc contradicts git's
+- [x] **G35. `parsePorcelainZ` rename-ordering doc contradicts git's
   actual `-z` output.** `scripts/lib/git-policy.js:39-43`. The
   comment claims renames emit destination-then-source. Real
   `git status -z --porcelain` for `git mv old new` emits
@@ -1164,6 +1166,10 @@ sections and are listed for cross-reference only.
   `git mv` and update the comment. The bridge test at
   `tests/lib/git-bridge.test.js:166-187` only asserts `includes()`,
   so it cannot catch the swap.
+  Fixed: Verified with real `git mv` - comment was already correct (git
+  emits destination-then-source per git-status(1) man page). Enhanced
+  comment to reference git documentation. Existing test at
+  tests/lib/git-policy.test.js:39-43 verifies correct order.
 
 - [ ] **G36. `UnexpectedFilesError.message` floods logs.**
   `scripts/lib/git-bridge.js:28`. `super(\`unexpected_files: ${files.join(', ')}\`)`
