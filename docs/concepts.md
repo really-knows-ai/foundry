@@ -31,6 +31,16 @@ A cycle runs **forge → quench → appraise** (and optionally **human-appraise*
 
 A single step within a cycle. Every stage is referenced as `base:alias` (e.g. `forge:write-haiku`, `quench:check-syllables`) — the base is the stage type; the alias makes the stage's role self-documenting in WORK.md.
 
+The five stages have crisply separated roles:
+
+- **assay** populates flow memory. No artefact, no feedback. Failure marks the workfile failed.
+- **forge** creates and modifies the artefact. Resolves prior feedback.
+- **quench** validates deterministically. Files `validation`-tagged feedback.
+- **appraise** evaluates against laws. Files `law:<id>`-tagged feedback.
+- **human-appraise** human review. Files `human`-tagged feedback; has deadlock-override authority.
+
+Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the protocol because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
+
 Stage bases:
 
 - **forge** — produce or revise the artefact.

@@ -755,7 +755,7 @@ Assay sits outside the protocol because it precedes the artefact and
 its only failure mode (a broken extractor under
 `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
 
-- [ ] **E1. Add a unifying-principle paragraph to `docs/concepts.md`
+- [x] **E1. Add a unifying-principle paragraph to `docs/concepts.md`
   Stages section.**
 
 - [ ] **E2. Add a one-paragraph preamble to README's "Stages"
