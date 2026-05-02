@@ -1,4 +1,3 @@
-import { execFileSync } from 'child_process';
 import { requireActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
@@ -7,17 +6,12 @@ import { runAssay } from '../../../scripts/lib/assay/run.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../../scripts/lib/memory/writes.js';
 import { withStore } from './memory-helpers.js';
-import { makeIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, makeExec, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1), {
-    cwd, encoding: 'utf8', stdio: 'pipe',
-  });
-}
 function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 export function createAssayTools({ tool }) {

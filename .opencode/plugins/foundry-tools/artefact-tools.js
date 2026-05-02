@@ -1,21 +1,15 @@
 import path from 'path';
-import { execFileSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 import { parseArtefactsTable, setArtefactStatus } from '../../../scripts/lib/artefacts.js';
-import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1), {
-    cwd, encoding: 'utf8', stdio: 'pipe',
-  });
-}
 function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 export function createArtefactTools({ tool }) {

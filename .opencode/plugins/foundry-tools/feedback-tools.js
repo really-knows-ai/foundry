@@ -1,20 +1,14 @@
-import { execFileSync } from 'child_process';
 import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
 import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
-import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1), {
-    cwd, encoding: 'utf8', stdio: 'pipe',
-  });
-}
 function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 function readCycle(io) {

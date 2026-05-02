@@ -94,6 +94,17 @@ Scripts are located at: ${path.join(packageRoot, 'scripts')}
 </FOUNDRY_CONTEXT>`;
 }
 
+/**
+ * Factory for creating exec functions used across plugin tools.
+ * Returns a function that executes commands via execFileSync.
+ * Used by tools that need to run git or other CLI commands.
+ */
+export function makeExec(cwd) {
+  return (argv) => execFileSync(argv[0], argv.slice(1), {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+
 export function makeIO(directory) {
   const resolve = (p) => path.isAbsolute(p) ? p : path.join(directory, p);
   return {

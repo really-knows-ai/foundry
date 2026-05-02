@@ -1,23 +1,18 @@
-import { execSync, execFileSync } from 'child_process';
+import { execSync } from 'child_process';
 import { createHash } from 'node:crypto';
 import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage } from '../../../scripts/lib/state.js';
 import { verifyToken } from '../../../scripts/lib/token.js';
 import { getContext } from '../../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
-import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, makeExec, makeMemoryIO, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1), {
-    cwd, encoding: 'utf8', stdio: 'pipe',
-  });
-}
 function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 export function createStageTools({ tool, secret, pending }) {

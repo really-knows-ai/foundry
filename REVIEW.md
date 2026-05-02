@@ -44,8 +44,9 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **G30-G37** (Git/validation bugs) - Commits e169433, 27a8ecb, a223938, 5d893f5, 4b60e21, 329ef19, 66dc8da, 7333103
 
 ### Priority 6: D-cluster nits (P3)
-- [x] **D1** (DRY_RUN_DEEPER_RE defensive guard documented) - Commit pending
-- [ ] **D2-D12** (Remaining minor code/doc nits)
+- [x] **D1** (DRY_RUN_DEEPER_RE defensive guard documented) - Commit 4e39f2e
+- [x] **D2** (makeExec moved to helpers.js) - Commit pending
+- [ ] **D3-D12** (Remaining minor code/doc nits)
 
 ---
 

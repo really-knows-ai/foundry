@@ -1,5 +1,4 @@
 import path from 'path';
-import { execFileSync } from 'child_process';
 import { createEntityType as admCreateEntity } from '../../../scripts/lib/memory/admin/create-entity-type.js';
 import { createExtractor as admCreateExtractor } from '../../../scripts/lib/memory/admin/create-extractor.js';
 import { createEdgeType as admCreateEdge } from '../../../scripts/lib/memory/admin/create-edge-type.js';
@@ -16,7 +15,7 @@ import { initMemory as admInitMemory } from '../../../scripts/lib/memory/admin/i
 import { loadMemoryConfig, writeMemoryConfig } from '../../../scripts/lib/memory/config.js';
 import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../../scripts/lib/memory/embeddings.js';
 import { withStore } from './memory-helpers.js';
-import { makeMemoryIO, makeIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeMemoryIO, makeIO, makeExec, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { requireOnConfigBranch } from '../../../scripts/lib/branch-guard.js';
 import { guarded } from '../../../scripts/lib/guards.js';
@@ -47,13 +46,8 @@ function notFailedGuard(_args, context) {
 // Read-only tools (validate, dump) and the meta tool (vacuum) are exempt
 // — vacuum touches no tracked files and the read-only tools are needed
 // for diagnosis from any branch.
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1), {
-    cwd, encoding: 'utf8', stdio: 'pipe',
-  });
-}
 function configBranchGuard(_args, context) {
-  return requireOnConfigBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnConfigBranch({ exec: makeExec(context.worktree) });
 }
 
 export function createMemoryAdminTools({ tool }) {

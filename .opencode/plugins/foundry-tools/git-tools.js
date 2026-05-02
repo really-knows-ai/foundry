@@ -6,7 +6,7 @@ import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
 import { currentBranch } from '../../../scripts/lib/branch-guard.js';
 import { finishDryRun } from '../../../scripts/lib/snapshot/finish.js';
 import { truncateTrace } from '../../../scripts/lib/tracing.js';
-import { makeIO, asyncIoFactory } from './helpers.js';
+import { makeIO, makeExec, asyncIoFactory } from './helpers.js';
 
 const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];
 
@@ -21,11 +21,6 @@ const DRY_RUN_RE        = /^dry-run\/[^/]+\/[^/]+$/;
 const DRY_RUN_DEEPER_RE = /^dry-run\/[^/]+\/[^/]+\/.+$/;
 
 function refuse(error) { return JSON.stringify({ error }); }
-
-function makeExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1),
-    { cwd, encoding: 'utf8', stdio: 'pipe' });
-}
 
 function validateKindArgs(kind, args) {
   if (kind === KIND_CONFIG) {

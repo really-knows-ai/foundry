@@ -25,7 +25,7 @@ import { requireGitRepo, requireFoundryRoot } from '../../../scripts/lib/foundat
 import { requireOnConfigBranch } from '../../../scripts/lib/branch-guard.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { UnexpectedFilesError } from '../../../scripts/lib/git-bridge.js';
-import { makeIO, makeAsyncIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, makeExec, makeAsyncIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 // --- guard helpers ---------------------------------------------------------
 
@@ -37,13 +37,8 @@ function foundryRootGuard(_args, context) {
   return requireFoundryRoot(makeIO(context.worktree));
 }
 
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1),
-    { cwd, encoding: 'utf8', stdio: 'pipe' });
-}
-
 function configBranchGuard(_args, context) {
-  return requireOnConfigBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnConfigBranch({ exec: makeExec(context.worktree) });
 }
 
 const gateNotFailed = notFailedGuard(makeIO);

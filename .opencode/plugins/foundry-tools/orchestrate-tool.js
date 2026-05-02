@@ -8,7 +8,7 @@ import { addArtefactRow } from '../../../scripts/lib/artefacts.js';
 import { stageBaseOf } from '../../../scripts/lib/stage-guard.js';
 import { finalizeStage } from '../../../scripts/lib/finalize.js';
 import { commitWithPolicy, UnexpectedFilesError } from '../../../scripts/lib/git-bridge.js';
-import { makeIO, buildCyclePromptExtras } from './helpers.js';
+import { makeIO, makeExec, buildCyclePromptExtras } from './helpers.js';
 import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
@@ -33,10 +33,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
           // envelope (see comment on the failed-flow guard below). A
           // wrong-branch refusal is a more fundamental error than failed
           // flow, so it runs first.
-          const branchGuard = requireOnFlowBranch({
-            exec: (argv) => execFileSync(argv[0], argv.slice(1),
-              { cwd, encoding: 'utf8', stdio: 'pipe' }),
-          });
+          const branchGuard = requireOnFlowBranch({ exec: makeExec(cwd) });
           if (!branchGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${branchGuard.error}` });
 
           // Failed-flow guard. Kept inline to preserve the violation envelope.

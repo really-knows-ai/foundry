@@ -1,18 +1,13 @@
-import { execFileSync, execSync } from 'child_process';
+import { execSync } from 'child_process';
 import { getValidation } from '../../../scripts/lib/config.js';
-import { makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1), {
-    cwd, encoding: 'utf8', stdio: 'pipe',
-  });
-}
 function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 /**

@@ -1,11 +1,10 @@
-import { execFileSync } from 'child_process';
 import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../../scripts/lib/memory/writes.js';
 import { getEntity, listEntities, neighbours as memNeighbours } from '../../../scripts/lib/memory/reads.js';
 import { runQuery } from '../../../scripts/lib/memory/query.js';
 import { checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../../scripts/lib/memory/permissions.js';
 import { search as memSearch } from '../../../scripts/lib/memory/search.js';
 import { withStore } from './memory-helpers.js';
-import { errorJson, makeIO, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { errorJson, makeIO, makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
 
@@ -89,13 +88,8 @@ function referencedStoredRelations(datalog) {
   return [...names];
 }
 
-function makeBranchExec(cwd) {
-  return (argv) => execFileSync(argv[0], argv.slice(1), {
-    cwd, encoding: 'utf8', stdio: 'pipe',
-  });
-}
 function flowBranchGuard(_args, context) {
-  return requireOnFlowBranch({ exec: makeBranchExec(context.worktree) });
+  return requireOnFlowBranch({ exec: makeExec(context.worktree) });
 }
 
 export function createMemoryTools({ tool }) {
