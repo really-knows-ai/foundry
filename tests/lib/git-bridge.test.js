@@ -275,4 +275,32 @@ describe('commitWithPolicy', () => {
     const log = git(dir, ['log', '--oneline']).split('\n').length;
     assert.equal(log, 1);
   });
+
+  // G36: Error message must be bounded to prevent log flooding
+  it('bounds UnexpectedFilesError message to count, not full file list', () => {
+    // Create a scenario with many unexpected files to verify message stays compact.
+    for (let i = 0; i < 50; i++) {
+      writeFileSync(join(dir, `stray-${i}.txt`), `junk ${i}\n`);
+    }
+    writeFileSync(join(dir, 'WORK.md'), '---\n---\n');
+
+    assert.throws(
+      () => commitWithPolicy({
+        message: '[c] setup',
+        allowedPatterns: [],
+        execFile: run,
+      }),
+      (err) => {
+        assert.ok(err instanceof UnexpectedFilesError);
+        // The structured err.files array should contain all 50 files.
+        assert.equal(err.files.length, 50);
+        // But the message should be bounded: just the count, not the full list.
+        assert.match(err.message, /unexpected_files: 50 file\(s\)/);
+        // Ensure the message does NOT contain individual filenames.
+        assert.ok(!err.message.includes('stray-0.txt'), 'message must not list filenames');
+        assert.ok(!err.message.includes('stray-49.txt'), 'message must not list filenames');
+        return true;
+      },
+    );
+  });
 });

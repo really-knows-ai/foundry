@@ -24,7 +24,7 @@ import { partitionDirty, parsePorcelainZ } from './git-policy.js';
 
 class UnexpectedFilesError extends Error {
   constructor(files) {
-    super(`unexpected_files: ${files.join(', ')}`);
+    super(`unexpected_files: ${files.length} file(s)`);
     this.code = 'unexpected_files';
     this.files = files;
   }
