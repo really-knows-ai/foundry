@@ -998,14 +998,12 @@ sections and are listed for cross-reference only.
   `callWithRetry`, `isRetryableError` for 429/5xx/timeout, exponential
   backoff (1s, 2s), and max 3 attempts.
 
-- [ ] **G20. Reembed Phase 4 leaves schema/DB out of sync if
-  `writeSchema` fails after rename.**
-  `scripts/lib/memory/admin/reembed.js:121-129`. `renameDbFiles`
-  succeeds → `writeSchema` fails (disk full, EPERM) → catch unlinks
-  staging, but the live DB has already been swapped to new-dim while
-  on-disk schema still says old-dim. Next `openStore` mismatches.
-  Recovery undocumented. Write schema before the rename, or wrap
-  rename + writeSchema in a non-recoverable warning.
+- [x] **G20. Reembed Phase 4 leaves schema/DB out of sync if
+  `writeSchema` fails after rename.** Fixed in 8e19ea7: reembed.js now writes
+  schema BEFORE renaming DB files (Phase 3, lines 115-122). If writeSchema
+  fails, DB remains untouched. If rename fails after writeSchema, mismatch
+  will be detected on next openStore (better than silent corruption). Test
+  added at reembed.test.js:130-237.
 
 - [ ] **G21. `cozoStringLit` claims NUL/control-char rejection lives
   in `validate.js`, but `validate.js` only does drift detection.**
