@@ -255,4 +255,77 @@ describe('store lifecycle', () => {
       rmSync(localRoot, { recursive: true, force: true });
     }
   });
+
+  it('rejects NDJSON with NUL in entity name during import', async () => {
+    const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-nul-name-'));
+    try {
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
+      const schema = {
+        version: 1,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: {},
+        embeddings: null,
+      };
+      // Corrupted NDJSON with NUL in name field.
+      writeFileSync(join(localRoot, 'foundry-memory/relations/class.ndjson'),
+        '{"name":"com.Foo\\u0000Bar","value":"A class"}\n');
+      
+      const io = diskIO(localRoot);
+      await assert.rejects(
+        () => openStore({ foundryDir: 'foundry', schema, io, dbAbsolutePath: join(localRoot, 'foundry/memory/memory.db') }),
+        /must not contain NUL/,
+      );
+    } finally {
+      rmSync(localRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects NDJSON with NUL in entity value during import', async () => {
+    const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-nul-value-'));
+    try {
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
+      const schema = {
+        version: 1,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: {},
+        embeddings: null,
+      };
+      // Corrupted NDJSON with NUL in value field.
+      writeFileSync(join(localRoot, 'foundry-memory/relations/class.ndjson'),
+        '{"name":"com.Foo","value":"corrupted\\u0000value"}\n');
+      
+      const io = diskIO(localRoot);
+      await assert.rejects(
+        () => openStore({ foundryDir: 'foundry', schema, io, dbAbsolutePath: join(localRoot, 'foundry/memory/memory.db') }),
+        /must not contain NUL/,
+      );
+    } finally {
+      rmSync(localRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects NDJSON with NUL in edge names during import', async () => {
+    const localRoot = mkdtempSync(join(tmpdir(), 'mem-store-nul-edge-'));
+    try {
+      mkdirSync(join(localRoot, 'foundry-memory/relations'), { recursive: true });
+      const schema = {
+        version: 1,
+        entities: { class: { frontmatterHash: hashFrontmatter({ type: 'class' }) } },
+        edges: { calls: { frontmatterHash: hashFrontmatter({ type: 'calls', sources: ['class'], targets: ['class'] }) } },
+        embeddings: null,
+      };
+      // Corrupted NDJSON with NUL in from_name field.
+      writeFileSync(join(localRoot, 'foundry-memory/relations/calls.ndjson'),
+        '{"from_type":"class","from_name":"A\\u0000B","to_type":"class","to_name":"C"}\n');
+      
+      const io = diskIO(localRoot);
+      await assert.rejects(
+        () => openStore({ foundryDir: 'foundry', schema, io, dbAbsolutePath: join(localRoot, 'foundry/memory/memory.db') }),
+        /must not contain NUL/,
+      );
+    } finally {
+      rmSync(localRoot, { recursive: true, force: true });
+    }
+  });
 });
+

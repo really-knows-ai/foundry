@@ -80,4 +80,32 @@ describe('cozoStringLit', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('rejects NUL character (\\0)', () => {
+    assert.throws(
+      () => cozoStringLit('before\0after'),
+      /must not contain NUL/,
+    );
+  });
+
+  it('rejects NUL at start of string', () => {
+    assert.throws(
+      () => cozoStringLit('\0text'),
+      /must not contain NUL/,
+    );
+  });
+
+  it('rejects NUL at end of string', () => {
+    assert.throws(
+      () => cozoStringLit('text\0'),
+      /must not contain NUL/,
+    );
+  });
+
+  it('rejects multiple NUL characters', () => {
+    assert.throws(
+      () => cozoStringLit('\0\0\0'),
+      /must not contain NUL/,
+    );
+  });
 });

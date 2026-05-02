@@ -21,11 +21,17 @@ export function closeMemoryDb(db) {
  *
  * Used by every query builder in this package so read and write paths never
  * diverge on what they consider a safe literal. NUL characters are rejected
- * at validation time (see validateEntityWrite in validate.js) because Cozo
- * single-quoted string literals do not support `\0` escape sequences.
+ * here because Cozo single-quoted string literals do not support `\0` escape
+ * sequences. The write path (putEntity, relate, unrelate) also validates for
+ * NUL in validateEntityWrite/validateEdgeWrite, but this check provides
+ * defence in depth for import paths and future callers.
  */
 export function cozoStringLit(s) {
-  const escaped = String(s)
+  const str = String(s);
+  if (str.includes('\0')) {
+    throw new Error('cozoStringLit: string must not contain NUL (\\0)');
+  }
+  const escaped = str
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'")
     .replace(/\n/g, '\\n')
