@@ -676,26 +676,33 @@ Only pull in if trivially adjacent to other work.
   `DRY_RUN_DEEPER_RE` which is unreachable in practice.** Already
   documented: git-tools.js:45 has comment explaining the defensive guard.
 
-- [ ] **D2. `git-tools.js:25-28` `makeExec` duplicated across many
-  tool plugins.** Move to `helpers.js`.
+- [x] **D2. `git-tools.js:25-28` `makeExec` duplicated across many
+  tool plugins.** Already fixed: makeExec is in helpers.js:102 and
+  imported by all tool plugins. The only remaining local helper is
+  `makeExecFile` in config-create-tools.js:48 which is intentionally
+  different (hard-codes 'git' command for commitWithPolicy contract).
 
-- [ ] **D3. `git-tools.js:301-310` double-swallowed
-  `truncateTrace` error.** Outer try/catch + inner no-op makes outer
-  vestigial.
+- [x] **D3. `git-tools.js:301-310` double-swallowed
+  `truncateTrace` error.** Code is correct: only one try/catch at
+  git-tools.js:284-289 with defensive swallow (lines 282-283 comment
+  explains "Must never break branch creation"). No vestigial outer catch.
 
-- [ ] **D4. `config-validators/law.js:5-7` JSDoc says params
-  "unused; accepted for parity".** Honest but worth a note that
-  laws don't have an id-in-frontmatter contract.
+- [x] **D4. `config-validators/law.js:5-7` JSDoc says params
+  "unused; accepted for parity".** Already documented: law.js:4-5
+  explains "Laws derive their ID from the filename rather than
+  frontmatter, so name and io are unused here but accepted for API
+  parity with other validators."
 
-- [ ] **D5. `config-create-tools.js:67-73` `lawTargetSchema`
-  workaround comment.** Tool description doesn't mention `target`
-  arg's required structure; LLM must discover from error messages.
-  Add a short example to the description.
+- [x] **D5. `config-create-tools.js:67-73` `lawTargetSchema`
+  workaround comment.** Already fixed: config-create-tools.js:77-80
+  adds target structure example to the tool description when kind === 'law'.
 
-- [ ] **D6. `init.js:18-21` asymmetric gitignore — only
+- [x] **D6. `init.js:18-21` asymmetric gitignore — only
   `foundry/memory/memory.db*` is added; `foundry-memory/` (which
-  IS tracked) is not, by design.** Add a comment documenting the
-  asymmetry.
+  IS tracked) is not, by design.** Already documented: init.js:14-16
+  comment explains "Gitignore only the runtime DB files under
+  foundry/memory/. foundry-memory/relations/ (NDJSON row data) is
+  intentionally tracked."
 
 - [x] **D7. `skills/dry-run/SKILL.md:76` says snapshots are
   gitignored.** Correct *after* re-running init-foundry on an
