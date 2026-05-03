@@ -22,9 +22,12 @@
  *
  * Recovery paths: `foundry_workfile_delete` abandons the cycle; editing
  * WORK.md to remove the failed status after fixing the underlying issue
- * restores normal operation.
+ * restores normal operation. `foundry_stage_retry` provides a deterministic
+ * rollback mechanism: it discards uncommitted memory changes, clears the
+ * failed status, and resets the stage state, provided the git working tree
+ * is clean.
  */
-import { parseFrontmatter, setFrontmatterField } from './workfile.js';
+import { parseFrontmatter, setFrontmatterField, writeFrontmatter } from './workfile.js';
 
 const MAX_REASON_LEN = 500;
 
@@ -103,4 +106,26 @@ export function requireNotFailed(io) {
       `No mutating tools are permitted. Use foundry_workfile_delete({confirm: true}) ` +
       `to abandon the cycle, then back out to main and delete the work branch.`,
   };
+}
+
+/**
+ * Clears the failed status from WORK.md, restoring normal operation.
+ * Idempotent: safe to call even if not failed.
+ * @param {object} io - requires exists, readFile, writeFile
+ */
+export function clearWorkfileFailed(io) {
+  if (!io.exists('WORK.md')) {
+    throw new Error('clearWorkfileFailed: WORK.md not found');
+  }
+  const text = io.readFile('WORK.md');
+  const fm = parseFrontmatter(text);
+  
+  // Remove status and reason fields
+  delete fm.status;
+  delete fm.reason;
+  
+  // Rebuild the file with cleaned frontmatter
+  const fmBlock = writeFrontmatter(fm);
+  const body = text.replace(/^---\n.+?\n---\n?/s, '');
+  io.writeFile('WORK.md', body ? `${fmBlock}\n${body}` : fmBlock);
 }

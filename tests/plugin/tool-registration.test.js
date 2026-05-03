@@ -65,6 +65,7 @@ const EXPECTED_TOOLS = [
   'foundry_snapshot_show',
   'foundry_stage_begin',
   'foundry_stage_end',
+  'foundry_stage_retry',
   'foundry_validate_run',
   'foundry_workfile_create',
   'foundry_workfile_delete',

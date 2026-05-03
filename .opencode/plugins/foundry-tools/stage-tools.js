@@ -1,11 +1,11 @@
 import { execSync } from 'child_process';
 import { createHash } from 'node:crypto';
-import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage } from '../../../scripts/lib/state.js';
+import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage, clearLastStage } from '../../../scripts/lib/state.js';
 import { verifyToken } from '../../../scripts/lib/token.js';
-import { getContext } from '../../../scripts/lib/memory/singleton.js';
+import { getContext, invalidateStore } from '../../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
-import { markWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
+import { markWorkfileFailed, readFailedStatus, clearWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
@@ -94,6 +94,68 @@ export function createStageTools({ tool, secret, pending }) {
           return JSON.stringify({ error: msg, flow_failed: true });
         }
         return JSON.stringify({ ok: true, summary: args.summary });
+      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
+    }),
+
+    foundry_stage_retry: tool({
+      description: 'Retry a failed stage by discarding uncommitted memory changes and clearing the failed state. Requires clean git working tree.',
+      args: {},
+      // Branch guard only: retry is a recovery tool for failed flows.
+      execute: guarded('foundry_stage_retry', [flowBranchGuard], async (_args, context) => {
+        const io = makeIO(context.worktree);
+        
+        // Precondition 1: flow must be in failed state
+        const failed = readFailedStatus(io);
+        if (!failed) {
+          return JSON.stringify({ 
+            ok: false, 
+            error: 'foundry_stage_retry requires failed flow; current status is not failed' 
+          });
+        }
+        
+        // Precondition 2: no active stage (stage_end should have cleared it)
+        const active = readActiveStage(io);
+        if (active) {
+          return JSON.stringify({ 
+            ok: false, 
+            error: 'foundry_stage_retry requires no active stage; call foundry_stage_end first' 
+          });
+        }
+        
+        // Precondition 3: git working tree must be clean
+        try {
+          const statusOut = execSync('git status --porcelain', { cwd: context.worktree }).toString();
+          if (statusOut.trim() !== '') {
+            return JSON.stringify({
+              ok: false,
+              error: 'foundry_stage_retry requires clean git working tree; commit or stash changes first'
+            });
+          }
+        } catch (err) {
+          return JSON.stringify({
+            ok: false,
+            error: `foundry_stage_retry: git status check failed: ${err?.message ?? err}`
+          });
+        }
+        
+        // Operation 1: Invalidate memory singleton to discard uncommitted changes.
+        // This resets to the on-disk NDJSON state (before the failed sync).
+        invalidateStore(context.worktree);
+        
+        // Operation 2: Clear last-stage.json so the stage can be re-run
+        try {
+          clearLastStage(io);
+        } catch {
+          // last-stage.json might not exist; that's fine
+        }
+        
+        // Operation 3: Clear the failed status from WORK.md
+        clearWorkfileFailed(io);
+        
+        return JSON.stringify({ 
+          ok: true,
+          message: 'Flow unlocked. Memory state reset to disk. Stage can be re-run.'
+        });
       }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
