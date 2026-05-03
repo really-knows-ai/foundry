@@ -1334,8 +1334,11 @@ them.
   automatically during orchestration'`. Fixed in f19a2bb, marked
   complete in e4aef9f.
 
-- [ ] **G52. `stage-tools.js`, `workfile-tools.js`, `git-bridge.js`,
+- [x] **G52. `stage-tools.js`, `workfile-tools.js`, `git-bridge.js`,
   `failed-flow.js` banner-comment voice cleanups.** Bundled with G38.
+  Inline comments in stage-tools.js and workfile-tools.js fixed in
+  9cf62d8; banner comments in git-bridge.js and failed-flow.js fixed
+  in 8f3956c.
 
 ## G.4 Test coverage gaps (deferred — file under F)
 
