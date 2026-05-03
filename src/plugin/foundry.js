@@ -10,30 +10,30 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
-import { readOrCreateSecret } from '../../scripts/lib/secret.js';
-import { createPendingStore } from '../../scripts/lib/pending.js';
-import { getBootstrapContent } from './foundry-tools/helpers.js';
-import { createHistoryTools } from './foundry-tools/history-tools.js';
-import { createStageTools } from './foundry-tools/stage-tools.js';
-import { createWorkfileTools } from './foundry-tools/workfile-tools.js';
-import { createOrchestrateTool } from './foundry-tools/orchestrate-tool.js';
-import { createArtefactTools } from './foundry-tools/artefact-tools.js';
-import { createFeedbackTools } from './foundry-tools/feedback-tools.js';
-import { createGitTools } from './foundry-tools/git-tools.js';
-import { createConfigTools } from './foundry-tools/config-tools.js';
-import { createConfigCreateTools } from './foundry-tools/config-create-tools.js';
-import { createValidateTools } from './foundry-tools/validate-tools.js';
-import { createAssayTools } from './foundry-tools/assay-tools.js';
-import { createAppraiserTools } from './foundry-tools/appraiser-tools.js';
-import { createMemoryTools } from './foundry-tools/memory-tools.js';
-import { createMemoryAdminTools } from './foundry-tools/memory-admin-tools.js';
-import { createSnapshotTools } from './foundry-tools/snapshot-tools.js';
+import { readOrCreateSecret } from '../scripts/lib/secret.js';
+import { createPendingStore } from '../scripts/lib/pending.js';
+import { getBootstrapContent } from './tools/helpers.js';
+import { createHistoryTools } from './tools/history-tools.js';
+import { createStageTools } from './tools/stage-tools.js';
+import { createWorkfileTools } from './tools/workfile-tools.js';
+import { createOrchestrateTool } from './tools/orchestrate-tool.js';
+import { createArtefactTools } from './tools/artefact-tools.js';
+import { createFeedbackTools } from './tools/feedback-tools.js';
+import { createGitTools } from './tools/git-tools.js';
+import { createConfigTools } from './tools/config-tools.js';
+import { createConfigCreateTools } from './tools/config-create-tools.js';
+import { createValidateTools } from './tools/validate-tools.js';
+import { createAssayTools } from './tools/assay-tools.js';
+import { createAppraiserTools } from './tools/appraiser-tools.js';
+import { createMemoryTools } from './tools/memory-tools.js';
+import { createMemoryAdminTools } from './tools/memory-admin-tools.js';
+import { createSnapshotTools } from './tools/snapshot-tools.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
 const allSkillsDir = path.join(packageRoot, 'skills');
 
-export { buildCyclePromptExtras } from './foundry-tools/helpers.js';
+export { buildCyclePromptExtras } from './tools/helpers.js';
 
 export const FoundryPlugin = async ({ directory }) => {
   // Bootstrap per-worktree HMAC secret (created on first boot, persisted to .foundry/.secret).

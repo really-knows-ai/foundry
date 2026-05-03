@@ -3,7 +3,7 @@
   "version": "3.0.0",
   "description": "A skill-driven framework for governed artefact generation with AI coding tools. Define your own artefact types, laws, and flows — Foundry handles the forge → quench → appraise pipeline with deterministic routing, quality gates, and iterative refinement.",
   "type": "module",
-  "main": ".opencode/plugins/foundry.js",
+  "main": "dist/.opencode/plugins/foundry.js",
   "license": "MIT",
   "author": "Really Knows AI",
   "repository": {
@@ -25,6 +25,8 @@
     "node": ">=18.3.0"
   },
   "scripts": {
+    "build": "node scripts/build.js",
+    "prepublishOnly": "npm run build",
     "test": "node --test"
   },
   "dependencies": {
@@ -34,16 +36,12 @@
     "minimatch": "^10.2.5"
   },
   "files": [
-    ".opencode/",
-    "skills/",
-    "scripts/",
-    "docs/work-spec.md",
-    "docs/concepts.md",
-    "docs/getting-started.md",
-    "docs/memory-maintenance.md",
-    "docs/tools.md",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "dist/.opencode/",
+    "dist/skills/",
+    "dist/scripts/",
+    "dist/docs/",
+    "dist/README.md",
+    "dist/LICENSE",
+    "dist/CHANGELOG.md"
   ]
 }
