@@ -37,8 +37,9 @@ export async function createEdgeType({ worktreeRoot, io, name, sources, targets,
   const srcs = normaliseList(sources, 'sources');
   const tgts = normaliseList(targets, 'targets');
 
-  const p = memoryPaths('foundry');
-  const schema = await loadSchema('foundry', io);
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
 
   if (schema.edges[name]) throw new Error(`edge type '${name}' already exists`);
   if (schema.entities[name]) throw new Error(`'${name}' is already declared as an entity type`);
@@ -58,7 +59,7 @@ export async function createEdgeType({ worktreeRoot, io, name, sources, targets,
 
   schema.edges[name] = { frontmatterHash: hashFrontmatter(frontmatter) };
   bumpVersion(schema);
-  await writeSchema('foundry', schema, io);
+  await writeSchema(foundryDir, schema, io);
 
   try {
     await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {

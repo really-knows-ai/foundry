@@ -1,3 +1,4 @@
+
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { invalidateStore } from '../singleton.js';
@@ -10,8 +11,9 @@ export async function renameEdgeType({ worktreeRoot, io, from, to }) {
   if (!IDENT.test(to)) throw new Error(`invalid identifier: '${to}'`);
   if (from === to) throw new Error(`from and to identical`);
 
-  const p = memoryPaths('foundry');
-  const schema = await loadSchema('foundry', io);
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
   if (!schema.edges[from]) throw new Error(`edge type '${from}' not declared`);
   if (schema.edges[to] || schema.entities[to]) throw new Error(`'${to}' already exists`);
 
@@ -37,7 +39,7 @@ export async function renameEdgeType({ worktreeRoot, io, from, to }) {
   schema.edges[to] = { frontmatterHash: hashFrontmatter({ type: to, sources: fm.sources, targets: fm.targets }) };
   delete schema.edges[from];
   bumpVersion(schema);
-  await writeSchema('foundry', schema, io);
+  await writeSchema(foundryDir, schema, io);
 
   invalidateStore(worktreeRoot);
   return { from, to };

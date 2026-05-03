@@ -9,8 +9,11 @@ export async function createEntityType({ worktreeRoot, io, name, body }) {
   if (!IDENT.test(name)) throw new Error(`invalid identifier: '${name}' (expected lowercase snake_case)`);
   if (typeof body !== 'string' || !body.trim()) throw new Error(`body must be a non-empty string`);
 
-  const p = memoryPaths('foundry');
-  const schema = await loadSchema('foundry', io);
+  // Use relative path 'foundry' since the IO abstraction joins with worktreeRoot.
+  // worktreeRoot is used for invalidateStore() and withLiveMemoryDb() calls.
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
 
   if (schema.entities[name]) throw new Error(`entity type '${name}' already exists in schema`);
   if (schema.edges[name]) throw new Error(`'${name}' is already declared as an edge type`);
@@ -23,7 +26,7 @@ export async function createEntityType({ worktreeRoot, io, name, body }) {
 
   schema.entities[name] = { frontmatterHash: hashFrontmatter(frontmatter) };
   bumpVersion(schema);
-  await writeSchema('foundry', schema, io);
+  await writeSchema(foundryDir, schema, io);
 
   try {
     await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {

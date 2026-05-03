@@ -31,13 +31,14 @@ export async function reembed({
   }
   if (!dbAbsolutePath) throw new Error('reembed requires dbAbsolutePath');
 
-  const oldSchema = await loadSchema('foundry', io);
+  const foundryDir = 'foundry';
+  const oldSchema = await loadSchema(foundryDir, io);
   const entityTypes = Object.keys(oldSchema.entities);
 
   // Phase 1: harvest existing rows from the live store. The live DB stays
   // read-only during this phase.
   const oldStore = await openStore({
-    foundryDir: 'foundry',
+    foundryDir,
     schema: oldSchema,
     io,
     dbAbsolutePath,
@@ -68,7 +69,7 @@ export async function reembed({
   let stagingStore;
   try {
     stagingStore = await openStore({
-      foundryDir: 'foundry',
+      foundryDir,
       schema: newSchema,
       io,
       dbAbsolutePath: stagingPath,
@@ -113,7 +114,7 @@ export async function reembed({
   closeStore(stagingStore);
 
   try {
-    await writeSchema('foundry', newSchema, io);
+    await writeSchema(foundryDir, newSchema, io);
     renameDbFiles(stagingPath, dbAbsolutePath);
   } catch (err) {
     // Best-effort cleanup of staging siblings; surface the error.
@@ -126,7 +127,7 @@ export async function reembed({
   // Phase 4: refresh NDJSON from the newly-swapped DB so the on-disk source
   // of truth reflects the new vectors.
   const reopened = await openStore({
-    foundryDir: 'foundry',
+    foundryDir,
     schema: newSchema,
     io,
     dbAbsolutePath,

@@ -1,11 +1,13 @@
+
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion } from '../schema.js';
 import { invalidateStore } from '../singleton.js';
 import { withLiveMemoryDb, dropLiveEdgeType } from './live-store.js';
 
 export async function dropEdgeType({ worktreeRoot, io, name, confirm }) {
-  const p = memoryPaths('foundry');
-  const schema = await loadSchema('foundry', io);
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
   if (!schema.edges[name]) throw new Error(`edge type '${name}' not declared`);
 
   if (confirm !== true) {
@@ -25,7 +27,7 @@ export async function dropEdgeType({ worktreeRoot, io, name, confirm }) {
   await io.unlink(p.relationFile(name));
   delete schema.edges[name];
   bumpVersion(schema);
-  await writeSchema('foundry', schema, io);
+  await writeSchema(foundryDir, schema, io);
 
   try {
     await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {

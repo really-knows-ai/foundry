@@ -1,3 +1,4 @@
+
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { parseEdgeRows, serialiseEdgeRows } from '../ndjson.js';
@@ -69,8 +70,9 @@ async function analyseEntityDrop({ io, p, name, schema }) {
 }
 
 export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
-  const p = memoryPaths('foundry');
-  const schema = await loadSchema('foundry', io);
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
   if (!schema.entities[name]) throw new Error(`entity type '${name}' not declared`);
 
   const analysis = await analyseEntityDrop({ io, p, name, schema });
@@ -128,7 +130,7 @@ export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
 
   delete schema.entities[name];
   bumpVersion(schema);
-  await writeSchema('foundry', schema, io);
+  await writeSchema(foundryDir, schema, io);
 
   try {
     await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {

@@ -11,13 +11,14 @@ export async function createExtractor({ worktreeRoot, io, name, command, memoryW
   }
   if (typeof body !== 'string' || !body.trim()) throw new Error(`body must be a non-empty string`);
 
-  const schema = await loadSchema('foundry', io);
+  const foundryDir = 'foundry';
+  const schema = await loadSchema(foundryDir, io);
   const undeclared = memoryWrite.filter((t) => !schema.entities[t]);
   if (undeclared.length) {
     throw new Error(`memoryWrite includes ${undeclared.join(', ')} which ${undeclared.length > 1 ? 'are' : 'is'} not declared in the project vocabulary (create entity types with add-memory-entity-type)`);
   }
 
-  const p = memoryPaths('foundry');
+  const p = memoryPaths(foundryDir);
   const path = p.extractorFile(name);
   if (await io.exists(path)) throw new Error(`extractor already exists: ${name} (${path})`);
 

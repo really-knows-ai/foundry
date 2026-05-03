@@ -1,3 +1,4 @@
+
 import { memoryPaths } from '../paths.js';
 import { loadSchema, writeSchema, bumpVersion, hashFrontmatter } from '../schema.js';
 import { parseEdgeRows, serialiseEdgeRows, parseEntityRows, serialiseEntityRows } from '../ndjson.js';
@@ -11,8 +12,9 @@ export async function renameEntityType({ worktreeRoot, io, from, to }) {
   if (!IDENT.test(to)) throw new Error(`invalid identifier: '${to}'`);
   if (from === to) throw new Error(`from and to are identical`);
 
-  const p = memoryPaths('foundry');
-  const schema = await loadSchema('foundry', io);
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
   if (!schema.entities[from]) throw new Error(`entity type '${from}' not declared`);
   if (schema.entities[to] || schema.edges[to]) throw new Error(`'${to}' already exists`);
 
@@ -77,7 +79,7 @@ export async function renameEntityType({ worktreeRoot, io, from, to }) {
   schema.entities[to] = { frontmatterHash: hashFrontmatter({ type: to }) };
   delete schema.entities[from];
   bumpVersion(schema);
-  await writeSchema('foundry', schema, io);
+  await writeSchema(foundryDir, schema, io);
 
   invalidateStore(worktreeRoot);
   return { from, to };

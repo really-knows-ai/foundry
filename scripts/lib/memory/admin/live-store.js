@@ -24,7 +24,8 @@ async function dropRelationIfPresent(db, relationName) {
 }
 
 export async function withLiveMemoryDb({ worktreeRoot, io }, fn) {
-  const paths = memoryPaths('foundry');
+  const foundryDir = 'foundry';
+  const paths = memoryPaths(foundryDir);
   if (!(await io.exists(paths.db))) return;
 
   const db = openMemoryDb(join(worktreeRoot, paths.db));

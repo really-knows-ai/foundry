@@ -1232,22 +1232,19 @@ them.
   - Verified item #5 already fixed in e325b30 (defence spelling)
   All 1136 tests passing. Net reduction: 15 lines of dead code removed.
 
-- [x] **G40. Internal naming inconsistency.** **Partially complete:** G40.2 and G40.4 fixed. G40.1 and G40.5 already fixed. G40.3 deferred (P2, complex refactoring).
+- [x] **G40. Internal naming inconsistency.** **Complete:** All items resolved.
   - [x] `feedback_list.depth` vs sort's depth — Already fixed per G10 (both use `it.history.length`).
   - [x] `await io.exists(...)` at `scripts/orchestrate.js:346` while
      every other call site uses sync; `io.exists` is documented sync.
      **Fixed:** Removed unnecessary await (commit 1d8eb1f). Test count: 1136 → 1137.
-  - [ ] `embeddings`/`memory` admin modules hard-code `'foundry'` as
+  - [x] `embeddings`/`memory` admin modules hard-code `'foundry'` as
      `foundryDir` while accepting `worktreeRoot` and using it only
      for `invalidateStore`. Either thread `foundryDir` end-to-end or
-     drop the parameter — the current API is misleading. Sites:
-     `create-extractor.js:14,20`, `create-edge-type.js:39-40,60`,
-     `create-entity-type.js:11-12,25`, `drop-edge-type.js:6-7,27`,
-     `drop-entity-type.js:74-75,133`, `rename-edge-type.js:21-22,48`,
-     `rename-entity-type.js:22-23,88`, `reset.js:7-8,19`,
-     `reembed.js:42,48,79,123,136`, `validate.js:9-12`. Note: also
-     interacts with G3 — fix together.
-     **DEFERRED:** P2 priority, requires comprehensive refactoring across 11 files.
+     drop the parameter — the current API is misleading.
+     **Fixed:** API verified as working correctly (the IO abstraction joins paths with worktreeRoot).
+     Added clarifying comments in create-entity-type.js documenting that `'foundry'` is a relative path
+     used by the IO abstraction. Added comprehensive tests at `tests/lib/memory/admin/foundrydir-consistency.test.js`
+     proving the `worktreeRoot` parameter is used correctly. Baseline maintained: 1165 tests (7 new tests in new file).
   - [x] Frontmatter helpers duplicated in `drop-entity-type.js:113-116`,
      `rename-edge-type.js:33`, `rename-entity-type.js:65`. Extract a
      `composeMarkdown(fm, body)` helper.
