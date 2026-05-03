@@ -24,6 +24,12 @@ import { memoryPaths } from '../memory/paths.js';
  * Exit codes:
  * - 0 on success
  * - Non-zero on failure (aborts the assay stage)
+ *
+ * Environment:
+ * - Extractors inherit the agent's full environment, including any API tokens
+ *   or credentials present in the agent process
+ * - Extractors are project-authored, committed code; they are trusted paths
+ * - Keep environment variable handling internal to extraction logic
  */
 
 const IDENT = /^[a-z][a-z0-9_-]*$/;

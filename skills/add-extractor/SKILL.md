@@ -54,6 +54,8 @@ Ask the user for, in this order (one question at a time):
 4. **Timeout** (optional). Duration string like `30s`, `2m`, or a number of milliseconds. Defaults to 60 seconds if omitted.
 5. **Brief description.** 1–3 paragraphs of prose describing what this extractor extracts, what it requires on `PATH`, and any re-run triggers. This body is injected into the forge prompt of every cycle that uses this extractor, so clarity here translates to better downstream generation.
 
+**Security note:** Remind the user that extractors inherit the agent's full environment, including any API tokens or credentials. Extractors should keep environment variable handling internal to extraction logic.
+
 ### 2. Propose and confirm
 
 Summarise the proposed extractor back to the user and ask for confirmation before writing. Example:
@@ -88,6 +90,9 @@ If the user confirms, create the script file at the `command` path with an execu
 #   Edges:    {"kind":"edge","from":{"type":..,"name":..},"edge":"<edge-type>","to":{"type":..,"name":..}}
 #
 # Exit 0 on success, non-zero on failure (aborts the assay stage).
+#
+# Environment: This script inherits the agent's full environment, including
+# any API tokens. Keep environment variable handling internal.
 
 set -euo pipefail
 
