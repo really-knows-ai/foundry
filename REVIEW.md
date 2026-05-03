@@ -1308,10 +1308,11 @@ them.
   Fixed in 8a498ed (added comment explaining intentional stripping for
   consistent presentation, plus test case).
 
-- [ ] **G48. Trim historical/transitional comments in `orchestrate.js`.**
+- [x] **G48. Trim historical/transitional comments in `orchestrate.js`.**
   `Task-6 stub helpers (wired in later)` (line 60), the
   Pre/Post-redesign block (lines 94-110). Either delete or tag
   `// historical:` for grep.
+  Fixed in 9cf62d8 (rewritten as affirmative definitions during voice sweep).
 
 - [ ] **G49. `runAssay` does not pass `env` to `spawnWithTimeout`,
   so extractors inherit the agent's full env including any tokens.**
@@ -1398,4 +1399,4 @@ Continuing from the existing 25-item plan:
 53. **`fix(memory/cozo): reject NUL/control chars in cozoStringLit or in validator`** — G21
 54. **`fix(memory/admin): reset.js sidecar existence check; dump.js include edge counts`** — G22 + G23
 55. **`fix(feedback-list): align depth definition with sort, or rename`** — G10
-56. *(P3 nits)* — G47, G48, G49, G50, G51
+56. *(P3 nits)* — G49, G50, G51 (G47, G48 complete)
