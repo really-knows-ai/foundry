@@ -1328,10 +1328,11 @@ them.
   prevent surprise.
   Fixed in 3afefb6 (added comment documenting silent success behaviour).
 
-- [ ] **G51. `setArtefactStatus` error references deregistered
-  `stage_finalize`.** `scripts/lib/artefacts.js:90` — error string
-  `'status draft not permitted; use stage_finalize for registration'`.
-  The operator looks for a tool that no longer exists. [DUP C12]
+- [x] **G51. `setArtefactStatus` error references deregistered
+  `stage_finalize`.** Already fixed: scripts/lib/artefacts.js:90 now
+  reads `'status draft not permitted; artefacts are registered
+  automatically during orchestration'`. Fixed in f19a2bb, marked
+  complete in e4aef9f.
 
 - [ ] **G52. `stage-tools.js`, `workfile-tools.js`, `git-bridge.js`,
   `failed-flow.js` banner-comment voice cleanups.** Bundled with G38.
