@@ -1323,9 +1323,10 @@ them.
   Fixed in 4190f95 (documented in loader.js contract and add-extractor skill;
   extractors are trusted code paths so full env inheritance is acceptable).
 
-- [ ] **G50. `helpers.js:104` `unlink` no-ops on missing files
+- [x] **G50. `helpers.js:104` `unlink` no-ops on missing files
   (differs from `fs.unlinkSync`).** Add a one-line comment to
   prevent surprise.
+  Fixed in 3afefb6 (added comment documenting silent success behaviour).
 
 - [ ] **G51. `setArtefactStatus` error references deregistered
   `stage_finalize`.** `scripts/lib/artefacts.js:90` — error string
@@ -1401,4 +1402,4 @@ Continuing from the existing 25-item plan:
 53. **`fix(memory/cozo): reject NUL/control chars in cozoStringLit or in validator`** — G21
 54. **`fix(memory/admin): reset.js sidecar existence check; dump.js include edge counts`** — G22 + G23
 55. **`fix(feedback-list): align depth definition with sort, or rename`** — G10
-56. *(P3 nits)* — G50, G51 (G47, G48, G49 complete)
+56. *(P3 nits)* — G51 (G47, G48, G49, G50 complete)
