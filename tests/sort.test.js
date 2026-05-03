@@ -413,7 +413,7 @@ describe('getModifiedFiles', () => {
         }
         if (cmd.startsWith('git diff')) {
           diffArgs.push(cmd);
-          return 'src/main.ts\nWORK.md\n';
+          return 'src/main.ts\0WORK.md\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
       },
@@ -440,7 +440,7 @@ describe('getModifiedFiles', () => {
         }
         if (cmd.startsWith('git diff')) {
           diffArgs.push(cmd);
-          return 'src/a.ts\nsrc/b.ts\nWORK.md\n';
+          return 'src/a.ts\0src/b.ts\0WORK.md\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
       },
@@ -484,7 +484,7 @@ describe('getModifiedFiles', () => {
         }
         if (cmd.startsWith('git diff')) {
           diffArgs.push(cmd);
-          return 'src/x.ts\n';
+          return 'src/x.ts\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
       },
@@ -509,7 +509,7 @@ describe('getModifiedFiles', () => {
         }
         if (cmd.startsWith('git diff')) {
           diffArgs.push(cmd);
-          return 'src/main.ts\n';
+          return 'src/main.ts\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
       },
@@ -522,6 +522,26 @@ describe('getModifiedFiles', () => {
   it('returns empty on exec error (e.g. shallow history with no commits)', () => {
     const io = { exec: () => { throw new Error('git failed'); } };
     assert.deepEqual(getModifiedFiles('c1', io), []);
+  });
+
+  it('handles filenames with spaces and special characters using -z flag', () => {
+    // Git's default output C-escapes special filenames, but -z outputs raw bytes.
+    // This test ensures we use -z and split on null chars for correct parsing.
+    const io = {
+      exec: (cmd) => {
+        if (cmd.startsWith('git log')) {
+          return 'abc1234 [c1] sort: forge:write';
+        }
+        if (cmd.startsWith('git diff')) {
+          // Simulate -z output: null-terminated filenames (no escaping)
+          // Filenames: "file with spaces.ts", "file\twith\ttabs.ts", "normal.ts"
+          return 'file with spaces.ts\0file\twith\ttabs.ts\0normal.ts\0';
+        }
+        throw new Error(`unexpected cmd: ${cmd}`);
+      },
+    };
+    const result = getModifiedFiles('c1', io);
+    assert.deepEqual(result, ['file with spaces.ts', 'file\twith\ttabs.ts', 'normal.ts']);
   });
 });
 
@@ -583,7 +603,7 @@ describe('checkModifiedFiles', () => {
     const io = {
       exec: (cmd) => {
         if (cmd.startsWith('git log')) return 'abc [c1] sort: forge:write';
-        if (cmd.startsWith('git diff')) return 'WORK.md\nsrc/main.ts\npackage.json\n';
+        if (cmd.startsWith('git diff')) return 'WORK.md\0src/main.ts\0package.json\0';
         return '';
       },
       readFile: () => '---\nstages:\n  - forge:a\n---\n',
@@ -599,7 +619,7 @@ describe('checkModifiedFiles', () => {
     const io = {
       exec: (cmd) => {
         if (cmd.startsWith('git log')) return 'abc [c1] sort: forge:write';
-        if (cmd.startsWith('git diff')) return 'WORK.md\nWORK.history.yaml\n';
+        if (cmd.startsWith('git diff')) return 'WORK.md\0WORK.history.yaml\0';
         return '';
       },
       readFile: () => '',
@@ -613,7 +633,7 @@ describe('checkModifiedFiles', () => {
     const io = {
       exec: (cmd) => {
         if (cmd.startsWith('git log')) return 'abc [c1] sort: appraise:check';
-        if (cmd.startsWith('git diff')) return 'WORK.feedback.yaml\n';
+        if (cmd.startsWith('git diff')) return 'WORK.feedback.yaml\0';
         return '';
       },
       readFile: () => '',
@@ -627,9 +647,21 @@ describe('checkModifiedFiles', () => {
 describe('getDirtyToolManagedFiles', () => {
   it('detects dirty WORK.feedback.yaml as tool-managed state', () => {
     const io = {
-      exec: (cmd) => cmd.includes('WORK.feedback.yaml') ? ' M WORK.feedback.yaml\n' : '',
+      exec: (cmd) => cmd.includes('WORK.feedback.yaml') ? ' M WORK.feedback.yaml\0' : '',
     };
     assert.deepEqual(getDirtyToolManagedFiles(io), ['WORK.feedback.yaml']);
+  });
+
+  it('handles filenames with spaces and special characters using -z flag', () => {
+    // git status --porcelain -z outputs null-terminated filenames with no escaping
+    const io = {
+      exec: (cmd) => {
+        // Simulate -z output: status code, space, filename, null terminator
+        // Files: "WORK with spaces.md", ".foundry/state file.json"
+        return ' M WORK with spaces.md\0 M .foundry/state file.json\0';
+      },
+    };
+    assert.deepEqual(getDirtyToolManagedFiles(io), ['WORK with spaces.md', '.foundry/state file.json']);
   });
 });
 

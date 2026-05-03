@@ -156,8 +156,8 @@ function getModifiedFiles(cycle, io = defaultIO) {
       }
     }
     if (!sortSha) return [];
-    const output = io.exec(`git diff --name-only --no-renames ${sortSha} HEAD`);
-    return output.trim().split('\n').filter(Boolean);
+    const output = io.exec(`git diff --name-only --no-renames -z ${sortSha} HEAD`);
+    return output.split('\0').filter(Boolean);
   } catch {
     return [];
   }
@@ -230,9 +230,9 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
  */
 function getDirtyToolManagedFiles(io = defaultIO) {
   try {
-    const output = io.exec('git status --porcelain -- WORK.md WORK.feedback.yaml WORK.history.yaml .foundry');
+    const output = io.exec('git status --porcelain -z -- WORK.md WORK.feedback.yaml WORK.history.yaml .foundry');
     return output
-      .split('\n')
+      .split('\0')
       .map(line => line.trim())
       .filter(Boolean)
       .map(line => line.replace(/^[\sMADRCU?!]+/, '').trim())
