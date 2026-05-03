@@ -725,6 +725,67 @@ test('runOrchestrate dispatch: tokens include timestamp nonce for uniqueness (TF
     'Token exp must vary with now() to prevent token reuse (nonce leak)');
 });
 
+test('runOrchestrate dispatch: tokens include ULID nonce to prevent same-millisecond collisions', async () => {
+  // Regression test: relying solely on timestamp for nonce creates collision
+  // risk in fast-executing environments. Two dispatches within the same
+  // millisecond with identical route/cycle would produce identical tokens.
+  // Adding a ULID guarantees uniqueness via cryptographic randomness and
+  // monotonicity within the same timestamp.
+  const io = makeBootstrapFixture();
+  const git = {
+    commit: () => 'abc123',
+    status: () => ({ clean: true, dirty: [] }),
+  };
+  
+  const mintedPayloads = [];
+  const mint = (payload) => {
+    mintedPayloads.push(payload);
+    return `TOKEN_${mintedPayloads.length}`;
+  };
+  
+  const SAME_TIMESTAMP = 1000000;
+  
+  // Import createUlidGenerator for isolated test state
+  const { createUlidGenerator } = await import('../scripts/lib/ulid.js');
+  const testUlid = createUlidGenerator();
+  
+  // First dispatch at timestamp T
+  await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint,
+    now: () => SAME_TIMESTAMP,
+    ulid: testUlid,
+  }, io);
+  
+  // Second dispatch at SAME timestamp T (simulating fast execution)
+  await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint,
+    now: () => SAME_TIMESTAMP,
+    ulid: testUlid,
+  }, io);
+  
+  assert.strictEqual(mintedPayloads.length, 2);
+  
+  // Both dispatches have same route, cycle, and exp
+  assert.strictEqual(mintedPayloads[0].route, mintedPayloads[1].route);
+  assert.strictEqual(mintedPayloads[0].cycle, mintedPayloads[1].cycle);
+  assert.strictEqual(mintedPayloads[0].exp, mintedPayloads[1].exp);
+  
+  // Critical: tokens MUST still be unique due to different ULID nonces
+  assert.ok(mintedPayloads[0].nonce, 'First token must have a nonce field');
+  assert.ok(mintedPayloads[1].nonce, 'Second token must have a nonce field');
+  assert.notStrictEqual(mintedPayloads[0].nonce, mintedPayloads[1].nonce,
+    'Token nonces must differ even when timestamp is identical (prevents collision)');
+  
+  // ULID format verification: 26 chars, alphanumeric Crockford base32
+  assert.strictEqual(mintedPayloads[0].nonce.length, 26, 'ULID must be 26 chars');
+  assert.match(mintedPayloads[0].nonce, /^[0-9A-HJKMNP-TV-Z]{26}$/,
+    'ULID must use Crockford base32 alphabet');
+});
+
 import * as orchestrate from '../scripts/orchestrate.js';
 
 test('handleSortResult: done route returns done action with next_cycles', async () => {

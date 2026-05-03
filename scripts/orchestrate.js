@@ -17,6 +17,7 @@ import { loadExtractor } from './lib/assay/loader.js';
 import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
 import { stageBaseOf } from './lib/stage-guard.js';
 import { allowedPatternsForStage } from './lib/git-policy.js';
+import { ulid as defaultUlid } from './lib/ulid.js';
 
 export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
   const lines = [
@@ -276,6 +277,7 @@ export async function runOrchestrate(args = {}, io) {
     now = Date.now,
     lastResult = null,
     finalize = null,
+    ulid = defaultUlid,
   } = args;
 
   if (!io.exists('WORK.md')) {
@@ -546,6 +548,7 @@ export async function runOrchestrate(args = {}, io) {
       cycleDef: cycleDefOverride,
       mint,
       now: typeof now === 'function' ? now() : now,
+      ulid,
     },
     io
   );

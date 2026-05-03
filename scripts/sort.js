@@ -21,6 +21,7 @@ import { parseFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable } from './lib/artefacts.js';
 import { loadHistory } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
+import { ulid as defaultUlid } from './lib/ulid.js';
 
 // ---------------------------------------------------------------------------
 // Stage helpers
@@ -282,7 +283,7 @@ function isDispatchableRoute(route) {
   return typeof route === 'string' && /^(assay|forge|quench|appraise|human-appraise):/.test(route);
 }
 
-export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef, agentsDir = '.opencode/agents', mint, now = Date.now() } = {}, io = defaultIO) {
+export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef, agentsDir = '.opencode/agents', mint, now = Date.now(), ulid = defaultUlid } = {}, io = defaultIO) {
   if (!io.exists(workPath)) {
     return { route: 'blocked', details: 'WORK.md not found' };
   }
@@ -397,7 +398,7 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
 
   const result = { route, ...(model ? { model } : {}) };
   if (mint && isDispatchableRoute(route)) {
-    const token = mint({ route, cycle, exp: now + 10 * 60 * 1000 });
+    const token = mint({ route, cycle, exp: now + 10 * 60 * 1000, nonce: ulid(now) });
     if (token) result.token = token;
   }
   return result;
