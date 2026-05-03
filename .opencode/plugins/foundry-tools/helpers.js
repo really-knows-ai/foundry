@@ -131,6 +131,7 @@ export function makeIO(directory) {
     writeFile: (p, content) => writeFileSync(resolve(p), content, 'utf-8'),
     readDir: (p) => readdirSync(resolve(p)),
     mkdir: (p) => mkdirSync(resolve(p), { recursive: true }),
+    // unlink: succeeds silently when the file is missing.
     unlink: (p) => { if (existsSync(resolve(p))) unlinkSync(resolve(p)); },
     rename: (from, to) => renameSync(resolve(from), resolve(to)),
     // exec: run a shell command in the worktree and return stdout as a UTF-8 string.
