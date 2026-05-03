@@ -11,7 +11,7 @@ fix required non-trivial spelunking, so the next maintainer can reuse the result
 Older Cozo docs and the original spec reference `::checkpoint` for WAL
 consolidation. In 0.7 the operation is spelled `::compact`. The
 `foundry_memory_vacuum` admin tool and `openStore` reconciliation both use
-`::compact`. See `scripts/lib/memory/admin/vacuum.js`.
+`::compact`. See `src/scripts/lib/memory/admin/vacuum.js`.
 
 ### Typed `<F32; N>?` vector columns
 
@@ -33,7 +33,7 @@ is:
 ```
 
 i.e. bind a named tuple via `?[...] <- [[...]]` and then `:put` with an
-explicit column map. See `scripts/lib/memory/writes.js` for the generator.
+explicit column map. See `src/scripts/lib/memory/writes.js` for the generator.
 
 ### String literal syntax: single-quoted vs double-quoted
 
@@ -46,7 +46,7 @@ explicit column map. See `scripts/lib/memory/writes.js` for the generator.
 Any user-supplied value containing `"` would crash a raw-string literal.
 Values with `\n` would round-trip as the literal two characters `\` and `n`.
 
-**Always** use the single-quoted form for user data. `scripts/lib/memory/cozo.js`
+**Always** use the single-quoted form for user data. `src/scripts/lib/memory/cozo.js`
 exports `cozoStringLit(s)` as the canonical helper — it emits `'...'` with
 escapes for `\`, `'`, `\n`, `\r`, `\t`. Do not introduce ad-hoc escape
 helpers.
@@ -108,9 +108,11 @@ Since Phase 2 (3.0.0), memory is split across two top-level trees:
   `foundry/`, holding `<name>.ndjson` files. Tracked in git (the
   source of truth for memory rows). Written by `foundry_stage_end`
   flushing in-cycle puts, by `foundry_assay_run` flushing extractor
-  output, or by hand-authored seed data.
+  output, by direct out-of-cycle `foundry_memory_put` /
+  `foundry_memory_relate` / `foundry_memory_unrelate` calls, or by
+  hand-authored seed data.
 
-Source of truth: `scripts/lib/memory/paths.js`, which threads
+Source of truth: `src/scripts/lib/memory/paths.js`, which threads
 `foundryDir` through the `foundry/memory/` config tree but pins
 `relationsDir` at the literal `'foundry-memory/relations'`.
 
@@ -133,14 +135,15 @@ Every mutating memory tool — both data writes (`foundry_memory_put`,
 frontmatter has `status: failed`. Each tool returns a tool-name-prefixed
 error referencing the failure reason.
 
-This is by design: the failed-flow state is intentionally terminal,
-and admin operations on memory while a flow is in an unrecoverable
-state risk compounding the damage. Read-only diagnostics
+This is by design: the failed-flow state locks mutating tools until the
+failure is handled, and admin operations on memory while a flow is in an
+unrecoverable state risk compounding the damage. Read-only diagnostics
 (`foundry_memory_get`, `_list`, `_neighbours`, `_query`, `_search`,
 `_dump`, `_validate`) remain callable so the operator can investigate.
 
-The supported recovery path: read the failure reason via
-`foundry_workfile_get`, abandon the cycle with
-`foundry_workfile_delete({ confirm: true })`, then check out the base
-branch and start a fresh flow. See `scripts/lib/failed-flow.js` and
-the README "Failed flow state" section for the full contract.
+The supported recovery paths: read the failure reason via
+`foundry_workfile_get`, fix the root cause, then either call
+`foundry_stage_retry()` to clear the failed state and re-run the blocked
+stage, or abandon the cycle with `foundry_workfile_delete({ confirm: true })`.
+See `src/scripts/lib/failed-flow.js` and the README "Failed flow state"
+section for the full contract.

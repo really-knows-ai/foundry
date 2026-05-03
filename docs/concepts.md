@@ -15,7 +15,7 @@ Running a flow creates a work branch and a `WORK.md`. The flow completes when no
 
 ## Cycle
 
-An iterative loop that produces a single artefact type. Defined in `foundry/cycles/*.md`. A cycle declares:
+An iterative unit that produces one artefact type and routes to later cycles through its `targets`. Defined in `foundry/cycles/*.md`. A cycle declares:
 
 - `output-type` — the artefact type it produces (read-write).
 - `inputs` — a contract (`any-of` / `all-of`) over other artefact types. Inputs are discovered on disk; they are read-only unless the output type's patterns happen to cover them.
@@ -25,29 +25,21 @@ An iterative loop that produces a single artefact type. Defined in `foundry/cycl
 - `deadlock-iterations` — deadlock threshold (default: `5`).
 - `models` — optional per-stage model overrides.
 
-A cycle runs **forge → quench → appraise** (and optionally **human-appraise**), looping until all feedback is resolved or `max-iterations` is hit.
+A cycle runs **assay** first when configured, then **forge → quench → appraise** (and optionally **human-appraise**), looping until all feedback is resolved or `max-iterations` is hit.
 
 ## Stage
 
 A single step within a cycle. Every stage is referenced as `base:alias` (e.g. `forge:write-haiku`, `quench:check-syllables`) — the base is the stage type; the alias makes the stage's role self-documenting in WORK.md.
 
-The five stages have crisply separated roles:
-
-- **assay** populates flow memory. No artefact, no feedback. Failure marks the workfile failed.
-- **forge** creates and modifies the artefact. Resolves prior feedback.
-- **quench** validates deterministically. Files `validation`-tagged feedback.
-- **appraise** evaluates against laws. Files `law:<id>`-tagged feedback.
-- **human-appraise** human review. Files `human`-tagged feedback; has deadlock-override authority.
-
-Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the protocol because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
-
-Stage bases:
+The stage names come from the foundry metaphor because the system treats AI output as work that must be processed into a trusted artefact, not merely generated. Each base names a distinct part of that process.
 
 - **forge** — produce or revise the artefact.
 - **quench** — run deterministic CLI checks (skipped if the artefact type has no `validation.md`).
 - **appraise** — subjective evaluation by multiple appraiser sub-agents.
 - **human-appraise** — human quality gate. Can run every iteration, only on deadlock, or both.
-- **assay** — deterministic population of flow memory by running project-authored extractor scripts (iteration 0 only, opt-in per cycle). See the [Assay](#assay) and [Extractor](#extractor) entries below.
+- **assay** — deterministic population of flow memory by running project-authored extractor scripts (iteration 0 only, opt-in per cycle). No artefact, no feedback. Failure marks the workfile failed. See the [Assay](#assay) and [Extractor](#extractor) entries below.
+
+Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the artefact-feedback loop because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
 
 Every stage runs inside a token-gated lifecycle bracketed by `foundry_stage_begin` and `foundry_stage_end`, with an internal finalize step run by `foundry_orchestrate` after `stage_end` to scan the disk and register artefacts. Mutation tools are stage-locked: a forge stage can't add feedback, a quench stage can't register artefacts. See the enforcement section of the [README](../README.md#enforcement-model).
 
@@ -55,14 +47,14 @@ Every stage runs inside a token-gated lifecycle bracketed by `foundry_stage_begi
 
 A deterministic stage that runs before the first `forge` of a cycle. For each extractor listed in the cycle's `assay.extractors` frontmatter, it runs the extractor's `command`, parses the JSONL output, and upserts rows into flow memory via the existing memory write tools.
 
-In metallurgy, to *assay* an ore or alloy is to determine its composition before working it. The stage plays the same role for a codebase: it determines what is there so forge can plan against reality.
+In metallurgy, to *assay* an ore or alloy is to determine its composition before working it. The stage plays the same role for a codebase: it determines what material is actually present so forge can plan against reality rather than assumption.
 
 Properties:
 
 - **Opt-in per cycle.** A cycle declares `assay: { extractors: [name, ...] }`. Cycles without this block behave exactly as they always have.
 - **Iteration 0 only.** Runs once, before the first forge. Re-extraction on later iterations is out of scope for v1.
 - **Requires memory.** A cycle with `assay:` but no `foundry/memory/` fails to load with a clear error.
-- **Strict failure.** Any non-zero exit, parse error, permission violation, or timeout marks the workfile failed and aborts the cycle. The user must fix the extractor and start a new cycle.
+- **Strict failure.** Any non-zero exit, parse error, permission violation, or timeout marks the workfile failed and aborts the cycle. The user must fix the root cause, then either clear the failed state with `foundry_stage_retry()` or abandon the cycle and start again.
 
 See also: [Extractor](#extractor).
 
@@ -83,7 +75,7 @@ A subjective pass/fail criterion. Two scopes:
 - **Global** — `foundry/laws/*.md`, all files concatenated, applies to every artefact.
 - **Type-specific** — `foundry/artefacts/<type>/laws.md`.
 
-Each law is a `## heading` (its identifier, used in feedback tags as `#law:<id>`) with a description, passing criteria, and failing criteria.
+Each law is a `## heading` (its identifier, used in feedback tags as `law:<id>`) with a description, passing criteria, and failing criteria.
 
 ## Appraiser
 
@@ -125,11 +117,11 @@ Human-in-the-loop checkpoint. A stage where Foundry pauses and asks a human for 
 1. **Every-iteration** — the cycle declares `human-appraise: true`. The `human-appraise` stage runs after LLM appraise each iteration.
 2. **Deadlock** — the cycle declares `deadlock-appraise: true` (default). If forge and appraisers ping-pong on the same items for `deadlock-iterations` (default 5) iterations, sort inserts a `human-appraise` stage to break the tie.
 
-Human feedback is tagged `#human` and takes priority over LLM feedback on the same topic.
+Human feedback is tagged `human` and takes priority over LLM feedback on the same topic.
 
 ## Micro-commit
 
-Every stage ends with a commit made by the orchestrator. This enables two things: file-modification enforcement (the write-invariant check compares the stage's diff to its allowed patterns) and recoverability (a crash mid-flow leaves a clean commit boundary to resume from). Orchestration refuses to proceed if uncommitted work is lingering in `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, or `.foundry/`.
+Every stage ends with a commit made by the orchestrator. This enables two things: file-modification enforcement (the write-invariant check compares the stage's diff to its allowed patterns) and recoverability (a crash mid-flow leaves a clean commit boundary to resume from). Orchestration refuses to proceed if unrelated dirty files are present anywhere in the worktree, or if tool-managed files and the current stage's allowed patterns do not account for the pending changes.
 
 ## Branch namespaces
 
@@ -137,14 +129,14 @@ Foundry partitions mutation across three disjoint branch kinds, and the
 plugin enforces the split at tool-call time.
 
 - **`config/<description>`** — schema and config mutation. Owns
-  `foundry/`. Created from `main` via
+  `foundry/`. Typically created from `main` via
   `foundry_git_branch({ kind: "config", description })`. The
   `foundry_config_create_*`, `foundry_memory_create_*`,
   `foundry_extractor_create`, and the schema-mutating memory admin
   tools all refuse off this kind.
 - **`work/<flowId>-<description>`** — flow-data mutation. Owns
   `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, and
-  `foundry-memory/` row data. Created from `main` via
+  `foundry-memory/` row data. Typically created from `main` via
   `foundry_git_branch({ kind: "work", flowId, description })`. The
   `foundry_orchestrate`, workfile, feedback, artefact-status,
   assay/validate/appraisers-select, stage-begin/end, and
@@ -164,7 +156,7 @@ plugin enforces the split at tool-call time.
 ## Branch guards
 
 The plugin enforces the branch-namespace split at tool-call time
-through a small library of guards in `scripts/lib/branch-guard.js`.
+through a small library of guards in `src/scripts/lib/branch-guard.js`.
 Every mutating tool composes one of three guards before its handler
 runs:
 
@@ -204,7 +196,7 @@ A gitignored directory created on first plugin boot, holding runtime state:
 
 ## Tracing
 
-Every `foundry_*` tool call made on a `dry-run/<x>/<y>` branch appends
+Every guarded `foundry_*` tool call made on a `dry-run/<x>/<y>` branch appends
 one JSONL record to `.foundry/trace/<branch-slug>.jsonl`, where the
 slug is the branch name with `/` replaced by `-`. The trace captures
 tool name, args, result envelope, and timing — enough to reconstruct
@@ -212,7 +204,9 @@ what the dry-run did without rerunning it. The trace file is created
 fresh when the dry-run branch starts (any prior content is truncated)
 and is captured into the snapshot at finish-time. Records on `work/*`
 and `config/*` branches are not written; tracing is a dry-run-only
-concept. Implementation: `scripts/lib/tracing.js`.
+concept. `foundry_orchestrate` is currently excluded because it is not
+wrapped by the shared guarded-tool path. Implementation:
+`src/scripts/lib/tracing.js`.
 
 ## Dry-run
 
@@ -250,11 +244,11 @@ accumulate locally; `foundry_snapshot_list` enumerates them,
 `foundry_snapshot_show` returns a structured summary,
 `foundry_snapshot_delete` removes one, and
 `foundry_snapshot_prune` removes those older than a given age.
-Implementation: `scripts/lib/snapshot/`.
+Implementation: `src/scripts/lib/snapshot/`.
 
 ## Custom tools
 
-All deterministic pipeline operations are exposed as custom tools by the Foundry plugin. Skills call these tools to run deterministic pipeline operations. Tools are backed by shared library modules in `scripts/lib/` with injectable I/O so they can be unit-tested. This separation ensures state transitions and routing logic are tested code, not LLM interpretation. See [tools.md](./tools.md) for the full catalogue.
+All deterministic pipeline operations are exposed as custom tools by the Foundry plugin. Skills call these tools to run deterministic pipeline operations. Tools are backed by shared library modules in `src/scripts/lib/` with injectable I/O so they can be unit-tested. This separation ensures state transitions and routing logic are tested code, not LLM interpretation. See [tools.md](./tools.md) for the full catalogue.
 
 ## Skill
 
@@ -338,14 +332,14 @@ No other fields are permitted on edge rows.
 
 **Failure semantics:**
 
-Any of the following mark the workfile failed (`status: failed` with a `reason`) and abort the cycle. No feedback item is written — extractor scripts live outside any artefact's `file-patterns`, so forge cannot fix them. The user must fix the extractor and start a new cycle (`foundry_workfile_delete` to abandon, then re-run the flow):
+Any of the following mark the workfile failed (`status: failed` with a `reason`) and abort the cycle. No feedback item is written — extractor scripts live outside any artefact's `file-patterns`, so forge cannot fix them. The user must fix the root cause, then either clear the failed state with `foundry_stage_retry()` or abandon the cycle and start again:
 
 - Extractor exits non-zero.
 - Extractor exceeds the configured `timeout`.
 - Output contains a malformed JSON line, an unknown `kind`, an unknown field, a missing required field, or an entity `value` exceeding 4096 bytes.
 - An entity row references a `type` not in the extractor's `memory.write` set, or an edge row's endpoint types are both outside that set (permission violation).
 
-The complete reference parser is `scripts/lib/assay/parse-jsonl.js`.
+The complete reference parser is `src/scripts/lib/assay/parse-jsonl.js`.
 
 ## Memory permissions
 
@@ -357,7 +351,7 @@ memory:
   write: [method]             # types this cycle can upsert into
 ```
 
-A cycle with no `memory:` block gets no memory tools in its prompt. Entity reads check the `read` set only — a type listed in `write` only is writable but not readable, so list a type in both lists to get both. Edge permissions are derived: an edge is readable if either endpoint type is in `read` or `write`, writable if either endpoint type is in `write`. `foundry_memory_query` also restricts referenced `ent_*` / `edge_*` relations to the read set.
+A cycle with no `memory:` block gets no memory tools in its prompt. Entity reads check the `read` set only — a type listed in `write` only is writable but not readable, so list a type in both lists to get both. Edge permissions are derived: an edge is readable if either endpoint type is in `read` or `write`, writable if either endpoint type is in `write`. `foundry_memory_query` restricts `ent_*` relations to readable entity types, and `edge_*` relations follow edge-read permissions.
 
 ## Memory layout
 

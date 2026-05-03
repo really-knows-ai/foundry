@@ -23,74 +23,28 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - **Stage base**: stage aliases have the form `<base>:<cycle>` (e.g.
   `forge:create-haiku`). Some tools restrict to a particular base
   (`forge`, `quench`, `appraise`, `human-appraise`, `assay`).
-- **Failed flow**: when `WORK.md` frontmatter has `status: failed`,
-  the mutating tool families refuse to run and return an error prefixed
-  with the tool name. This covers work-branch FS writers, memory writers
-  (data and admin alike — `memory_put`, `memory_reset`, `memory_drop_*`,
-  `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`,
-  `memory_change_embedding_model`), and the config-creator family
-  (`foundry_config_create_artefact_type`, `foundry_config_create_law`,
-  `foundry_config_create_appraiser`, `foundry_config_create_flow`,
-  `foundry_config_create_cycle`). The two self-classifying git tools
-  — `foundry_git_branch` and `foundry_git_finish` — sit outside this
-  guard so the caller can still leave a failed flow's branch and run
-  `foundry_workfile_delete` from a clean namespace. Every read-only diagnostic remains
-  callable so the caller can figure out what went wrong: the workfile
-  reader (`foundry_workfile_get`), every list-type tool
-  (`foundry_artefacts_list`, `foundry_feedback_list`,
-  `foundry_history_list`, `foundry_memory_list`), every `foundry_config_*`
-  read tool (`_cycle`, `_artefact_type`, `_laws`, `_validation`,
-  `_appraisers`, `_flow`), every `foundry_config_validate_*` schema
-  validator, every memory read tool (`_get`, `_neighbours`, `_query`,
-  `_search`, `_dump`, `_validate`), and every `foundry_snapshot_*`
-  tool. The escape hatch is `foundry_workfile_delete`.
-  `foundry_appraisers_select` is gated (it mutates `WORK.history.yaml`)
-  despite the "select" verb. See "Branch requirements" below for the
-  full any-branch / read-only enumeration.
+- **Failed flow**: when `WORK.md` frontmatter has `status: failed`:
+  - Mutating families refuse to run and return an error prefixed with the tool name. This covers work-branch FS writers, memory writers and mutating memory admin tools (`memory_put`, `memory_reset`, `memory_drop_*`, `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`, `memory_change_embedding_model`), and the config-creator family (`foundry_config_create_artefact_type`, `foundry_config_create_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle`).
+  - Read-only diagnostics remain callable: `foundry_workfile_get`; list tools such as `foundry_artefacts_list`, `foundry_feedback_list`, `foundry_history_list`, and `foundry_memory_list`; every `foundry_config_*` read tool; every `foundry_config_validate_*` schema validator; every memory read tool (`_get`, `_neighbours`, `_query`, `_search`, `_dump`, `_validate`); and every `foundry_snapshot_*` tool.
+  - `foundry_git_branch` and `foundry_git_finish` sit outside this guard so the caller can leave the failed branch. The escape hatch is `foundry_workfile_delete`.
 - **Worktree context**: every tool reads `context.worktree` (the project
   root) and operates on `foundry/`, `WORK.md`, `WORK.feedback.yaml`,
   `WORK.history.yaml`, and `.foundry/` relative to it.
 - **Memory permissions**: memory data tools consult the active cycle's
   `memory.read` / `memory.write` frontmatter (via
-  `scripts/lib/memory/permissions.js`). Reads of disallowed types return
+  `src/scripts/lib/memory/permissions.js`). Reads of disallowed types return
   empty results; writes return an `error`. When no cycle is active the
   call is unscoped (full access).
-- **Branch requirements**: every mutating tool also enforces the
-  branch-namespace split at call time (`scripts/lib/branch-guard.js`).
-  The guard is applied per family, so per-tool blocks below do not
-  repeat it:
-  - **Config branch** (`config/<description>`):
-    `foundry_config_create_*` (5), `foundry_memory_create_entity_type`,
-    `foundry_memory_create_edge_type`, `foundry_memory_rename_*`,
-    `foundry_memory_drop_*`, `foundry_memory_reset`,
-    `foundry_memory_init`, `foundry_memory_validate`,
-    `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`,
-    `foundry_extractor_create`.
-  - **Flow branch** (`work/<flow>-<desc>` or `dry-run/<x>/<y>`):
-    `foundry_orchestrate`, `foundry_stage_begin`, `foundry_stage_end`,
-    `foundry_stage_retry`, `foundry_workfile_*`, `foundry_artefacts_*`,
-    `foundry_feedback_*`, `foundry_assay_run`, `foundry_validate_run`,
-    `foundry_appraisers_select`, `foundry_memory_put`,
-    `foundry_memory_relate`, `foundry_memory_unrelate`.
-  - **Any branch (read-only diagnostics)**:
-    `foundry_workfile_get`, `foundry_artefacts_list`,
-    `foundry_feedback_list`, `foundry_history_list`,
-    `foundry_config_*` (six read tools: `_cycle`, `_artefact_type`,
-    `_laws`, `_validation`, `_appraisers`, `_flow`),
-    `foundry_config_validate_*` (five schema validators),
-    `foundry_memory_get`, `foundry_memory_list`,
-    `foundry_memory_neighbours`, `foundry_memory_query`,
-    `foundry_memory_search`, `foundry_memory_dump`,
-    `foundry_snapshot_*`. These have no branch guard and no
-    failed-flow guard.
-  - **Self-classifying**: `foundry_git_branch` (refuses based on
-    `kind` and current branch) and `foundry_git_finish` (classifies
-    by current branch). They have their own branch logic, are not
-    gated by the family guards above, and are not gated on failed
-    flow — leaving the failed branch is the recovery path.
+- **Branch requirements**: every mutating tool also enforces the branch-namespace split at call time (`src/scripts/lib/branch-guard.js`). The guard is applied per family, so per-tool blocks below do not repeat it:
 
-  Off-namespace calls return a structured refusal envelope naming
-  the required namespace and the current branch.
+  | Namespace | Applies to | Notes |
+  |-----------|------------|-------|
+  | `config/<description>` | `foundry_config_create_*` (5), `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_*`, `foundry_memory_drop_*`, `foundry_memory_reset`, `foundry_memory_init`, `foundry_memory_change_embedding_model`, `foundry_extractor_create` | Config and schema mutation only. |
+  | `work/<flow>-<desc>` or `dry-run/<x>/<y>` | `foundry_orchestrate`, `foundry_stage_begin`, `foundry_stage_end`, `foundry_stage_retry`, `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`, `foundry_assay_run`, `foundry_validate_run`, `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate` | Flow-data mutation only. |
+  | Any branch | `foundry_workfile_get`, `foundry_artefacts_list`, `foundry_feedback_list`, `foundry_history_list`, `foundry_config_*` read tools, `foundry_config_validate_*`, `foundry_appraisers_select`, `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, `foundry_memory_search`, `foundry_memory_dump`, `foundry_memory_validate`, `foundry_snapshot_*` | No branch guard and no failed-flow guard. |
+  | Self-classifying | `foundry_git_branch`, `foundry_git_finish` | Each tool checks its own branch rules. Leaving the failed branch is the recovery path. |
+
+  Off-namespace calls return a structured refusal envelope naming the required namespace and the current branch.
 
 ## Tool index
 
@@ -605,9 +559,11 @@ is gated on failed flow.
 
 **Returns:** array of selected appraiser objects.
 
-**Stage requirements:** none.
+**Stage requirements:** none. Callable on flow branches; refused on failed
+flow.
 
-**Side effects:** none.
+**Side effects:** none. This tool is treated as a flow-tier mutation for
+branch and failed-flow guards.
 
 ---
 
@@ -697,16 +653,17 @@ can branch away to recover.
 
 | current branch       | mode      | what happens                                                                                                                              |
 | -------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `work/<x>`           | work      | deletes WORK files, commits cleanup, squash-merges to `baseBranch`, force-deletes the work branch.                                       |
-| `config/<x>`         | config    | squash-merges to `baseBranch`, force-deletes the config branch. No WORK cleanup.                                                          |
-| `dry-run/<x>/<y>`    | dry-run   | writes `.snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}` on the parent `config/<x>` working tree; force-deletes the dry-run branch. No merge, no commit. |
-| anything else        | refused   | `{ ok: false, error: "... nothing to finish ..." }`.                                                                                      |
+| `work/<x>`                 | work      | deletes WORK files, commits cleanup, squash-merges to `baseBranch`, force-deletes the work branch.                                       |
+| `config/<x>`               | config    | squash-merges to `baseBranch`, force-deletes the config branch. No WORK cleanup.                                                          |
+| `dry-run/<x>/<y>`          | dry-run   | writes `.snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}` on the parent `config/<x>` working tree; force-deletes the dry-run branch. No merge, no commit. |
+| base branch (`main` by default) | noop | `{ ok: true, noop: true, ... }`.                                                                                                           |
+| anything else              | refused   | `{ ok: false, error: "... nothing to finish ..." }`.                                                                                      |
 
 **Returns:**
 - Plan (when `confirm` is not true): `{ ok: false, error: "...
   requires {confirm: true}...", planned: { ... } }`.
 - Work / config success: `{ ok: true, hash, branch }`.
-- Dry-run success: `{ ok: true, snapshotId, snapshotPath, branch }`.
+- Dry-run success: `{ ok: true, runId, snapshotPath, branch }`.
 - Dirty worktree (work / config): `{ ok: false, error, dirty: [...] }`.
 - Conflict (work / config): `{ ok: false, error: "... squash merge
   failed ...", branch }`. Worktree reset and checked back out to the
@@ -1142,10 +1099,12 @@ state; they are intended to run as project-level admin actions.
 
 ### `foundry_memory_init`
 
-> Scaffold `foundry/memory/`: creates `entities/`, `edges/`,
-> `relations/` dirs with `.gitkeep`, writes `config.md` and
-> `schema.json`, appends `.gitignore` entries, and optionally probes
-> the embedding provider. Fails if `foundry/memory/` already exists.
+> Scaffold `foundry/memory/` plus top-level `foundry-memory/relations/`:
+> creates `entities/` and `edges/` dirs under `foundry/memory/`, creates
+> `relations/` under top-level `foundry-memory/`, writes `config.md` and
+> `schema.json`, appends `.gitignore` entries, and optionally probes the
+> embedding provider. Fails if `foundry/memory/` or `foundry-memory/`
+> already exists.
 
 **Args:**
 - `embeddings_enabled` (boolean, optional, default `true`).
@@ -1153,8 +1112,8 @@ state; they are intended to run as project-level admin actions.
 
 **Returns:** init report from `admInitMemory` or `{ error: ... }`.
 
-**Side effects:** creates files and directories under
-`foundry/memory/`; mutates `.gitignore`.
+**Side effects:** creates files and directories under `foundry/memory/`
+and `foundry-memory/`; mutates `.gitignore`.
 
 ### `foundry_memory_validate`
 

@@ -10,28 +10,50 @@
 
 ## Governed work for AI
 
-**AI coding tools produce work quickly and need explicit governance.** Long agent tasks finish with declarations of completion, leaving verification to you. Feedback disappears between iterations. Constraints fade as attention moves to the next token. The work arrives fast; the accountability doesn't.
+Foundry is a governed production system for AI-generated artefacts. You define what gets produced, what quality means, and which stages the work must pass through before it is trusted. Foundry then enforces that process in plugin code, with routing, write boundaries, feedback state, and audit history handled deterministically.
 
-Foundry is an opinionated framework for **governed artefact generation** — you get confidence that the things that need to happen actually did. You define what's produced (artefact types), what "good" means (laws), and how work flows (cycles). Foundry enforces the pipeline — routing, commits, write invariants, feedback lifecycle, stage tokens — in tested plugin code. Creative work happens in the LLM; governance happens in the framework.
+### Why Foundry exists
+
+AI tools are good at producing output and weak at proving that the right work happened. An agent can say it is done, skip validation, or lose feedback between iterations. The work arrives quickly; the evidence is patchy.
+
+Foundry exists to make AI work governable. It turns "ask an agent and hope" into a staged system where the checks are structural. If an artefact should be validated, it is validated. If feedback must be resolved, that state is recorded. If a stage writes outside its lane, the cycle stops.
+
+### Why it is called Foundry
+
+Foundry applies the foundry metaphor to AI work: rough output enters a controlled process and leaves only when it is fit to trust.
+
+### Why the stage names fit
+
+- **assay** determines what material is present before work begins. In metallurgy, an assay establishes composition. In Foundry, assay populates flow memory from the real codebase so later stages plan against reality.
+- **forge** creates or reshapes the artefact. This is the stage that writes and revises the work.
+- **quench** applies deterministic checks that harden or reject the work. Validation is the fast, non-negotiable gate.
+- **appraise** judges quality against written laws. This is where independent evaluators inspect whether the work is actually good.
+- **human-appraise** is the human quality gate. It provides direct judgement when the stakes require it, or when the loop deadlocks.
+
+The names are relevant because the workflow is relevant. Foundry treats AI output as work that must be processed, not just generated.
 
 ### What you get
 
 - **Deterministic governance for agent work.** Stage transitions, commits, write invariants, and feedback state live in deterministic tools. Stage tokens gate mutations. Writes follow lane rules. Every step leaves a record.
-- **Written quality criteria.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is non-negotiable.
-- **Multi-model diversity by default.** Forge on one model, appraise on another, or run every appraiser on a different model. Different blind spots — one flag is enough to raise an issue.
+- **Written quality criteria.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is mandatory.
+- **Multi-model diversity by default.** Forge on one model, appraise on another, or run every appraiser on a different model. Different blind spots mean one flag is enough to raise an issue.
 - **Full audit trail in git.** One commit per stage. `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` record exactly what happened, why, and which model said it. Crashes leave clean boundaries to resume from.
-- **Bring your own pipeline.** Artefact types are yours. Works for code, specs, docs, data, contracts, creative writing — anything you can describe as files with pass/fail criteria.
+- **Bring your own pipeline.** Artefact types are yours. Works for code, specs, docs, data, contracts, creative writing, and anything else you can describe as files with pass/fail criteria.
 - **Shared memory across cycles.** Optional typed graph store with semantic search, so cycles can build on what earlier cycles learned.
 
 ### For teams
 
-When AI output integrates into production workflows — code merging to main, specs going to customers, policy drafts going to counsel — Foundry makes the checks structural. Point at a commit log and show exactly which quality gate produced this artefact. Change a law, regenerate. Replay a flow under a different model. The discipline stays consistent across reviewers.
+When AI output enters production workflows - code merging to main, specs going to customers, policy drafts going to counsel - Foundry makes the checks structural. You can point at the artefact, the feedback log, and the commit history and show exactly how that output was produced. Change a law, regenerate. Replay a flow under a different model. Keep the discipline consistent across reviewers and runs.
 
 ---
 
 ## Table of contents
 
 - [Compatibility](#compatibility)
+- [Governed work for AI](#governed-work-for-ai)
+- [Why Foundry exists](#why-foundry-exists)
+- [Why it is called Foundry](#why-it-is-called-foundry)
+- [Why the stage names fit](#why-the-stage-names-fit)
 - [Installation](#installation)
 - [Quick start](#quick-start)
 - [How it works](#how-it-works)
@@ -45,6 +67,7 @@ When AI output integrates into production workflows — code merging to main, sp
 - [Custom tools](#custom-tools)
 - [Project layout](#project-layout)
 - [Design principles](#design-principles)
+- [Why this matters](#why-this-matters)
 - [Further reading](#further-reading)
 - [License](#license)
 
@@ -84,7 +107,7 @@ That step is optional — OpenCode does not require it.
 ## Quick start
 
 1. **Install** the package (above).
-2. **Initialize** — run the `init-foundry` skill to scaffold a `foundry/` directory and generate `foundry-*` agent files.
+2. **Initialize** — run the `init-foundry` skill to scaffold a `foundry/` directory. Run `refresh-agents` to generate or regenerate `foundry-*` agent files.
 3. **Define artefact types** — `add-artefact-type` walks you through identity, file patterns, output directory, laws, and optional CLI validation.
 4. **Add laws** — `add-law` creates subjective pass/fail criteria, globally or per-type.
 5. **Add appraisers** — `add-appraiser` creates appraiser personalities with conflict detection.
@@ -133,6 +156,8 @@ That step is optional — OpenCode does not require it.
 - Each cycle loops through **forge → quench → appraise** until there is no unresolved feedback, or an iteration limit is hit.
 - All inter-stage communication goes through `WORK.md` and its sibling YAML files on a dedicated work branch; every stage ends with a micro-commit.
 
+This is the core operating model: define the artefact, define the laws, define the stages, then let the framework enforce the route. The LLM performs the creative and evaluative work inside each stage. Foundry owns the process around it.
+
 ---
 
 ## Core concepts
@@ -158,7 +183,7 @@ A cycle lives in `foundry/cycles/`. It declares:
 
 ### Stage
 
-A single step within a cycle. Stages are identified as `base:alias` (e.g. `forge:write-haiku`, `quench:check-syllables`). The base is one of:
+A single step within a cycle. Stages are identified as `base:alias` (e.g. `forge:write-haiku`, `quench:check-syllables`). The base names come from the foundry metaphor because each stage has a distinct role in turning rough work into a trusted artefact. The base is one of:
 
 - **forge** — produce or revise the artefact.
 - **quench** — run deterministic CLI checks (skipped if the artefact type has no `validation.md`).
@@ -181,7 +206,7 @@ Subjective pass/fail criteria evaluated by appraisers.
 - `foundry/laws/*.md` — global laws (all files concatenated, apply everywhere).
 - `foundry/artefacts/<type>/laws.md` — type-specific laws.
 
-Each law is a `## heading` (its identifier, referenced in feedback as `#law:<id>`) with a description, passing criteria, and failing criteria.
+Each law is a `## heading` (its identifier, referenced in feedback as `law:<id>`) with a description, passing criteria, and failing criteria.
 
 ### Appraisers
 
@@ -219,11 +244,11 @@ Every dispatched stage (forge, quench, appraise, human-appraise, assay) runs und
 4. The sub-agent's **last** call is `foundry_stage_end({summary})`.
 5. The orchestrator's internal finalize step then:
    - Scans the git diff against the stage's allowed file-patterns.
-   - Registers any new files matching the output artefact type as `draft` artefacts.
+   - Registers matching changed files for the output artefact type as `draft` artefacts.
    - Returns `{error: 'unexpected_files'}` if the stage wrote anywhere it shouldn't have.
-6. The orchestrator commits the cycle and routing advances.
+6. The orchestrator commits the stage and routing advances.
 
-The five stages have crisply separated roles: **assay** populates flow memory (no artefact, no feedback); **forge** creates and modifies artefacts and resolves feedback; **quench** validates deterministically; **appraise** evaluates against laws; **human-appraise** provides human review with deadlock-override authority. Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the protocol because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
+The five stages have crisply separated roles: **assay** populates flow memory (no artefact, no feedback); **forge** creates and modifies artefacts and resolves feedback; **quench** validates deterministically; **appraise** evaluates against laws; **human-appraise** provides human review with deadlock-override authority. Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the artefact-feedback loop because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
 
 Per-stage write rules:
 
@@ -239,17 +264,18 @@ Input artefacts are read-only. Files outside any artefact type's patterns are re
 
 ### Failed flow state
 
-When an unrecoverable error occurs (currently: `foundry_stage_end` cannot flush the in-memory memory DB to its NDJSON source of truth), the orchestrator marks `WORK.md` frontmatter with `status: failed` and a `reason`. The flow is then locked:
+When an unrecoverable error occurs, the orchestrator marks `WORK.md` frontmatter with `status: failed` and a `reason`. Current entry paths include `foundry_stage_end` failing to flush the in-memory memory DB to its NDJSON source of truth, assay extractor aborts, and assay post-run memory-sync failures. The flow is then locked:
 
-- **Blocked tools.** Every mutating tool refuses to run and returns an error referencing the failure:
+- **Blocked tools.** Tools that mutate the failed flow's worktree or live memory state refuse to run and return an error referencing the failure:
   - **Lifecycle:** `foundry_stage_begin`, `foundry_orchestrate`, `foundry_workfile_create`, `foundry_artefacts_set_status`
   - **Stage work:** `foundry_assay_run`, `foundry_validate_run`
   - **Feedback writes:** `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, `foundry_feedback_resolve` (`foundry_feedback_list` remains callable)
+  - **Appraiser selection:** `foundry_appraisers_select`
   - **Memory writes:** `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`
   - **Memory admin:** `foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type`, `foundry_extractor_create` (read-only `foundry_memory_validate` and `foundry_memory_dump` remain callable)
   - **Config schema mutation:** `foundry_config_create_artefact_type`, `foundry_config_create_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle` (read-only `foundry_config_validate_*` peers remain callable)
-- **Allowed escape hatches.** `foundry_workfile_get` (to read the state) and `foundry_workfile_delete({confirm: true})` (to abandon the cycle) remain callable. `foundry_git_finish` is also allowed so the work branch can be cleaned up. Read-only memory and config tools continue to work.
-- **Recovery.** The supported path is: read the reason via `foundry_workfile_get`, then `foundry_workfile_delete({confirm: true})`, check out the base branch, delete the work branch, fix the root cause, and start a fresh flow. There is no in-place "retry" — failed-flow is intentionally terminal.
+- **Allowed escape hatches.** `foundry_workfile_get` (to read the state) and `foundry_workfile_delete({confirm: true})` (to abandon the cycle) remain callable. `foundry_git_finish` is not failed-gated, but still requires a clean tracked worktree before it can clean up and finish the branch. Read-only memory and config tools continue to work.
+- **Recovery.** The supported path is: read the reason via `foundry_workfile_get`, fix the root cause, then either call `foundry_stage_retry()` to clear the failed state and re-run the blocked stage, or abandon the cycle with `foundry_workfile_delete({confirm: true})` and start again. `foundry_stage_retry()` requires a failed flow, no active stage, and a clean git working tree.
 
 The `orchestrate`, `flow`, and every stage skill (`forge`, `quench`, `appraise`, `human-appraise`, `assay`) check for this state at the top of their procedure and hand control back to the user immediately if found.
 
@@ -260,7 +286,7 @@ The `orchestrate` skill is thin — a 3-line loop:
 ```text
 call foundry_orchestrate({lastResult})
 switch on action:
-  dispatch        → task tool (subagent) → report back
+  dispatch        → dispatch the requested subagent → report back
   human_appraise  → run human-appraise inline → report back
   done / blocked / violation → terminate the loop
 ```
@@ -393,9 +419,9 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 | `flow` | composite | Entry point. Picks a starting cycle, creates the work branch, invokes `orchestrate`, follows `targets` between cycles. |
 | `orchestrate` | atomic | Thin driver around `foundry_orchestrate`. Dispatches sub-agents, runs human-appraise inline, reports terminal states. |
 | `forge` | atomic | Produce or revise the artefact. Discovers inputs by filesystem scan. |
-| `quench` | atomic | Run the artefact type's CLI validation commands; write `#validation` feedback. |
-| `appraise` | atomic | Dispatch the selected appraiser personalities as parallel sub-agents; consolidate `#law:<id>` feedback (union + dedup). |
-| `human-appraise` | atomic | Human quality gate. Presents the artefact, collects `#human` feedback. |
+| `quench` | atomic | Run the artefact type's CLI validation commands; write `validation` feedback. |
+| `appraise` | atomic | Dispatch the selected appraiser personalities as parallel sub-agents; consolidate `law:<id>` feedback (union + dedup). |
+| `human-appraise` | atomic | Human quality gate. Presents the artefact, collects `human` feedback. |
 
 ### Authoring
 
@@ -421,6 +447,7 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 | Skill | Purpose |
 |-------|---------|
 | `init-memory` | Scaffold `foundry/memory/`; ask about embeddings; probe the provider. |
+| `add-extractor` | Create a memory extractor definition with command, permissions, and prose brief. |
 | `add-memory-entity-type` | Declare a new entity type with a prose brief for the LLM. |
 | `add-memory-edge-type` | Declare a new edge type with allowed sources/targets. |
 | `rename-memory-entity-type` | Rename an entity type; cascade through edges, relations, schema. |
@@ -471,7 +498,7 @@ For per-tool args, return shapes, stage requirements, failure modes, and side ef
 
 A handful of internal tools (`foundry_sort`, `foundry_history_append`, `foundry_stage_finalize`, `foundry_git_commit`, `foundry_workfile_set`, `foundry_workfile_configure_from_cycle`) are intentionally *not* registered — they exist only inside `foundry_orchestrate` so they cannot be called out of band.
 
-Tools are backed by shared modules in `scripts/lib/` (pipeline) and `scripts/lib/memory/` (memory) with injectable I/O for testability (see `tests/`).
+Tools are backed by shared modules in `src/scripts/lib/` (pipeline) and `src/scripts/lib/memory/` (memory) with injectable I/O for testability (see `tests/`).
 
 ---
 
@@ -481,117 +508,72 @@ Tools are backed by shared modules in `scripts/lib/` (pipeline) and `scripts/lib
 
 ```
 @really-knows-ai/foundry
-├── .opencode/
-│   └── plugins/
-│       └── foundry.js          # plugin: skills + 61 custom tools
-├── skills/                     # skill definitions
-│   ├── flow/                   # pipeline
-│   ├── orchestrate/
-│   ├── forge/
-│   ├── quench/
-│   ├── appraise/
-│   ├── human-appraise/
-│   ├── init-foundry/           # authoring
-│   ├── add-artefact-type/
-│   ├── add-law/
-│   ├── add-appraiser/
-│   ├── add-cycle/
-│   ├── add-flow/
-│   ├── list-agents/            # utility
-│   ├── refresh-agents/
-│   ├── upgrade-foundry/
-│   ├── init-memory/            # memory
-│   ├── add-memory-entity-type/
-│   ├── add-memory-edge-type/
-│   ├── rename-memory-entity-type/
-│   ├── rename-memory-edge-type/
-│   ├── drop-memory-entity-type/
-│   ├── drop-memory-edge-type/
-│   ├── reset-memory/
-│   └── change-embedding-model/
+├── src/
+│   ├── plugin/
+│   │   ├── foundry.js          # plugin entrypoint: skills + 61 custom tools
+│   │   └── tools/              # tool registration + plugin helpers
+│   ├── skills/                 # shipped skill definitions
+│   │   ├── flow/               # pipeline
+│   │   ├── orchestrate/
+│   │   ├── forge/
+│   │   ├── quench/
+│   │   ├── appraise/
+│   │   ├── human-appraise/
+│   │   ├── init-foundry/       # authoring
+│   │   ├── add-artefact-type/
+│   │   ├── add-law/
+│   │   ├── add-appraiser/
+│   │   ├── add-cycle/
+│   │   ├── add-flow/
+│   │   ├── add-extractor/
+│   │   ├── list-agents/        # utility
+│   │   ├── refresh-agents/
+│   │   ├── upgrade-foundry/
+│   │   ├── init-memory/        # memory
+│   │   ├── add-memory-entity-type/
+│   │   ├── add-memory-edge-type/
+│   │   ├── rename-memory-entity-type/
+│   │   ├── rename-memory-edge-type/
+│   │   ├── drop-memory-entity-type/
+│   │   ├── drop-memory-edge-type/
+│   │   ├── reset-memory/
+│   │   └── change-embedding-model/
+│   └── scripts/
+│       ├── lib/                # shared libraries (injectable I/O)
+│       │   ├── workfile.js     # WORK.md frontmatter
+│       │   ├── artefacts.js    # artefact table ops
+│       │   ├── history.js      # WORK.history.yaml ops
+│       │   ├── feedback-store.js
+│       │   ├── feedback-transitions.js
+│       │   ├── finalize.js     # stage finalization
+│       │   ├── stage-guard.js
+│       │   ├── branch-guard.js
+│       │   ├── foundational-guards.js
+│       │   ├── guards.js
+│       │   ├── token.js
+│       │   ├── secret.js
+│       │   ├── pending.js
+│       │   ├── state.js
+│       │   ├── config.js       # foundry/ config readers
+│       │   ├── slug.js
+│       │   ├── ulid.js
+│       │   ├── tracing.js
+│       │   ├── failed-flow.js
+│       │   ├── git-bridge.js
+│       │   ├── git-policy.js
+│       │   ├── assay/
+│       │   ├── config-creators/
+│       │   ├── config-validators/
+│       │   ├── snapshot/
+│       │   └── memory/         # flow memory (Cozo 0.7)
+│       ├── orchestrate.js      # orchestration loop (exports runOrchestrate)
+│       └── sort.js             # routing engine (exports runSort)
 ├── scripts/
-│   ├── lib/                    # shared libraries (injectable I/O)
-│   │   ├── workfile.js         # WORK.md frontmatter
-│   │   ├── artefacts.js        # artefact table ops
-│   │   ├── history.js          # WORK.history.yaml ops
-│   │   ├── feedback-store.js   # feedback persistence
-│   │   ├── feedback-transitions.js
-│   │   ├── finalize.js         # stage_finalize implementation
-│   │   ├── stage-guard.js      # stage-lock preconditions
-│   │   ├── branch-guard.js     # git branch preconditions
-│   │   ├── foundational-guards.js
-│   │   ├── guards.js           # guard aggregation
-│   │   ├── token.js            # HMAC token mint/verify
-│   │   ├── secret.js           # .foundry/.secret handling
-│   │   ├── pending.js          # active-stage state
-│   │   ├── state.js            # .foundry state dir
-│   │   ├── config.js           # foundry/ config readers
-│   │   ├── slug.js
-│   │   ├── ulid.js             # ULID generation
-│   │   ├── tracing.js          # execution tracing
-│   │   ├── failed-flow.js      # failed flow metadata
-│   │   ├── git-bridge.js       # git operations facade
-│   │   ├── git-policy.js       # git safety policy
-│   │   ├── assay/              # extractor runner
-│   │   │   ├── loader.js
-│   │   │   ├── parse-jsonl.js
-│   │   │   ├── permissions.js
-│   │   │   ├── run.js
-│   │   │   └── spawn-with-timeout.js
-│   │   ├── config-creators/    # foundry config factories
-│   │   │   ├── appraiser.js
-│   │   │   ├── artefact-type.js
-│   │   │   ├── cycle.js
-│   │   │   ├── factory.js
-│   │   │   ├── flow.js
-│   │   │   ├── index.js
-│   │   │   └── law.js
-│   │   ├── config-validators/  # foundry config validators
-│   │   │   ├── appraiser.js
-│   │   │   ├── artefact-type.js
-│   │   │   ├── cycle.js
-│   │   │   ├── flow.js
-│   │   │   └── law.js
-│   │   ├── snapshot/           # dry-run forensics
-│   │   │   ├── finish.js
-│   │   │   ├── inspect.js
-│   │   │   └── render.js
-│   │   └── memory/             # flow memory (Cozo 0.7)
-│   │       ├── config.js       # config.md frontmatter
-│   │       ├── schema.js       # canonical schema.json
-│   │       ├── paths.js        # layout resolver
-│   │       ├── frontmatter.js  # shared YAML+body parser
-│   │       ├── cozo.js         # cozoStringLit + helpers
-│   │       ├── store.js        # openStore, reconciliation
-│   │       ├── singleton.js    # session-scoped context
-│   │       ├── reads.js        # get/list/neighbours/query
-│   │       ├── writes.js       # put/relate/unrelate
-│   │       ├── search.js       # embedding search
-│   │       ├── embeddings.js   # provider client + probe
-│   │       ├── ndjson.js       # relations file I/O
-│   │       ├── types.js        # entity/edge type files
-│   │       ├── validate.js     # load + drift checks
-│   │       ├── permissions.js  # per-cycle read/write
-│   │       ├── prompt.js       # vocabulary block renderer
-│   │       ├── drift.js        # schema drift detection
-│   │       ├── query.js        # Datalog read-only guard
-│   │       └── admin/          # init, reset, drop/rename, reembed, dump, vacuum
-│   │           ├── create-edge-type.js
-│   │           ├── create-entity-type.js
-│   │           ├── create-extractor.js
-│   │           ├── drop-edge-type.js
-│   │           ├── drop-entity-type.js
-│   │           ├── dump.js
-│   │           ├── init.js
-│   │           ├── live-store.js
-│   │           ├── reembed.js
-│   │           ├── rename-edge-type.js
-│   │           ├── rename-entity-type.js
-│   │           ├── reset.js
-│   │           ├── vacuum.js
-│   │           └── validate.js
-│   ├── orchestrate.js          # orchestration loop (exports runOrchestrate)
-│   └── sort.js                 # routing engine (exports runSort)
+│   └── build.js                # builds src/ into dist/
+├── dist/
+│   ├── .opencode/plugins/      # packaged plugin output
+│   ├── skills/                 # packaged skill output
+│   └── scripts/                # packaged runtime libraries
 ├── tests/                      # node:test suite
 ├── docs/                       # concepts, getting-started, work-spec
 ├── CHANGELOG.md
@@ -617,6 +599,7 @@ your-project/
 │       ├── schema.json
 │       ├── entities/<type>.md
 │       ├── edges/<name>.md
+│       ├── extractors/<name>.md
 │       └── memory.db*          # gitignored
 ├── foundry-memory/             # flow memory row data (top-level sibling)
 │   └── relations/<type>.ndjson
@@ -643,7 +626,7 @@ Flows, cycles, artefact types, laws, appraiser personalities, skills — all mar
 
 ### Skills are the pipeline, tools are the machinery
 
-Composition happens at the skill layer. `flow` reads a definition and invokes `orchestrate`. `orchestrate` calls `foundry_orchestrate` in a loop. The hard guarantees — routing, commits, state transitions, enforcement — live inside the plugin's custom tools and the libraries under `scripts/lib/`. Skills handle creative and subjective work; tools handle everything else.
+Composition happens at the skill layer. `flow` reads a definition and invokes `orchestrate`. `orchestrate` calls `foundry_orchestrate` in a loop. The hard guarantees — routing, commits, state transitions, enforcement — live inside the plugin's custom tools and the libraries under `src/scripts/lib/`. Skills handle creative and subjective work; tools handle everything else.
 
 ### WORK.md as shared state
 
@@ -655,7 +638,7 @@ A flow declares starting points; individual cycles declare `targets` and input c
 
 ### Feedback as structured state
 
-Feedback lives in `WORK.feedback.yaml` with `#validation`, `#law:<id>`, or `#human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions as structured state. Feedback is append-only; history is part of the artefact's story. Every issue is raised, every decision is recorded, and every resolution is auditable.
+Feedback lives in `WORK.feedback.yaml` with `validation`, `law:<id>`, or `human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions as structured state. Feedback is append-only; history is part of the artefact's story. Every issue is raised, every decision is recorded, and every resolution is auditable.
 
 ### Wont-fix requires approval
 
@@ -680,6 +663,14 @@ Two artefact types cannot have file patterns that match the same files. Hard-blo
 ### Flow memory is strictly opt-in and per-cycle
 
 Memory is a separate, optional subsystem. Without `foundry/memory/`, the system runs with memory features disabled; prompt injection, tools, and vocabulary stay out. With memory initialised, a cycle accesses it by declaring a `memory: { read, write }` block in its frontmatter. The live Cozo database is gitignored and rebuildable from committed NDJSON; vocabulary (`entities/<type>.md`, `edges/<name>.md`) and row data (`relations/*.ndjson`) are the durable source of truth. Destructive operations preview before they mutate.
+
+---
+
+## Why this matters
+
+Foundry is useful when AI work has consequences beyond the chat window. The moment output can merge, ship, reach a customer, shape a decision, or become upstream input for more automation, teams need more than a plausible answer. They need a process they can inspect, repeat, and trust.
+
+That is the larger point of the project. Foundry turns AI work from an informal conversation into a governed production system. The immediate benefit is better artefacts. The longer-term benefit is that AI work becomes reviewable, replayable, and accountable inside real engineering and organisational workflows.
 
 ---
 

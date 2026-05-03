@@ -53,18 +53,13 @@ The `.foundry/` runtime directory (holding `.secret` for stage tokens) is create
 
 Foundry's configuration is five things: artefact types, laws, appraisers, cycles, and flows. You can write the files by hand, but the authoring skills do conflict checking, scaffolding, and validation — use them.
 
-### 0. Open a config branch
-
-All schema-mutation tools (`foundry_config_create_*`,
-`foundry_memory_create_*`, `foundry_extractor_create`, the memory
-admin family) refuse off `main` and off flow branches. Open a config
-branch first:
+Before using any schema-writing skill, open a config branch. All schema-mutation tools (`foundry_config_create_*`, `foundry_memory_create_*`, `foundry_extractor_create`, the memory admin family) refuse off `main` and off flow branches:
 
 ```text
 foundry_git_branch({ kind: "config", description: "<short-name>" })
 ```
 
-This puts you on `config/<short-name>` from `main`. Make all the
+This typically puts you on `config/<short-name>` from `main`. Make all the
 edits below on this branch, then `foundry_git_finish({ message: "...",
 baseBranch: "main", confirm: true })` squashes the work back to
 `main` in one commit. To trial the in-progress edits against a real
@@ -89,7 +84,7 @@ Laws are subjective pass/fail criteria evaluated by appraisers. Two scopes:
 - **Global** — `foundry/laws/*.md`. All files are concatenated and apply to every artefact.
 - **Type-specific** — `foundry/artefacts/<type>/laws.md`.
 
-Run `add-law` to create one with conflict detection. Each law is a `## heading` (its identifier, referenced as `#law:<id>` in feedback) with a description, passing criteria, and failing criteria.
+Run `add-law` to create one with conflict detection. Each law is a `## heading` (its identifier, referenced as `law:<id>` in feedback) with a description, passing criteria, and failing criteria.
 
 ### 3. Create appraisers
 
@@ -157,21 +152,18 @@ Routing between cycles is owned by individual cycles via their `targets`, not by
 
 ### 6. Validate before writing (optional)
 
-Each `add-*` skill calls `foundry_config_create_*` under the hood,
-which writes the file and commits it in one step. To check a body
-without committing — useful when iterating on a tricky cycle or
-appraiser — call the matching validator first:
+Each `add-*` skill writes and commits in one step. When you want to validate a draft body without committing it, call the matching validator first:
 
 ```text
-foundry_config_validate_artefact_type({ id, body })
-foundry_config_validate_law({ body })
-foundry_config_validate_appraiser({ id, body })
-foundry_config_validate_cycle({ id, body })
-foundry_config_validate_flow({ id, body })
+foundry_config_validate_artefact_type({ name, body })
+foundry_config_validate_law({ name, body })
+foundry_config_validate_appraiser({ name, body })
+foundry_config_validate_cycle({ name, body })
+foundry_config_validate_flow({ name, body })
 ```
 
 Validators return `{ok: true}` on success or
-`{ok: false, error}` on a parse / schema / overlap problem; nothing
+`{ok: false, errors: [...]}` on a parse / schema / overlap problem; nothing
 is written either way. Once the validator is happy, call the
 matching `_create_*` tool to commit it.
 
@@ -190,7 +182,7 @@ The `flow` skill will:
 3. Hand off to `orchestrate`, which drives the cycle:
    - **forge** writes the artefact.
    - **quench** runs CLI validators (if configured).
-   - **appraise** dispatches parallel appraiser sub-agents and consolidates their `#law:<id>` feedback.
+   - **appraise** dispatches parallel appraiser sub-agents and consolidates their `law:<id>` feedback.
    - **human-appraise** (if configured, or on deadlock) asks you for input.
    - If any unresolved feedback remains, another forge iteration begins.
 4. When the cycle completes, the flow skill checks the cycle's `targets`. If a target's input contract is satisfied, it asks whether to proceed.
@@ -242,24 +234,27 @@ You can pause and resume: if the flow skill sees an existing `WORK.md` when you 
 
 A guard violation, a broken extractor in `assay`, or any other
 unrecoverable error marks the workfile failed (`status: failed` in
-`WORK.md` frontmatter, with a `reason`). Every mutating tool refuses
-once that flag is set; read-only diagnostics
-(`foundry_workfile_get`, `foundry_history_list`, `foundry_memory_*`
-read-side, `foundry_config_*`) keep working so you can figure out
-what went wrong.
+`WORK.md` frontmatter, with a `reason`). Ordinary mutating tools refuse
+once that flag is set, but recovery and cleanup tools such as
+`foundry_stage_end`, `foundry_stage_retry()`, and
+`foundry_workfile_delete({ confirm: true })` remain available. Read-only
+diagnostics (`foundry_workfile_get`, `foundry_history_list`,
+`foundry_memory_*` read-side, read-only `foundry_config_*`, and
+`foundry_config_validate_*`) keep working so you can figure out what
+went wrong.
 
-Recovery is one tool: `foundry_workfile_delete({ confirm: true })`.
-This removes `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml`
-from the work branch. The work branch itself stays put; either
-delete it manually or run the flow again from scratch.
+Recovery has two paths:
+
+- `foundry_stage_retry()` clears the failed state, discards uncommitted in-memory changes, clears `.foundry/last-stage.json`, and lets you re-run the blocked stage. It requires a failed flow, no active stage, and a clean git working tree.
+- `foundry_workfile_delete({ confirm: true })` abandons the cycle entirely by removing `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` from the work branch.
+
+Use `foundry_stage_retry()` when the underlying problem is fixed and you want to continue the current cycle. Use `foundry_workfile_delete({ confirm: true })` when you want to abandon the run and start again.
 
 ---
 
 ## Cleaning up
 
-Before squash-merging the work branch back into main, **delete `WORK.md`, `WORK.history.yaml`, and `WORK.feedback.yaml`** — they're ephemeral per-flow state, not artefacts. `.foundry/` is gitignored and doesn't need cleanup.
-
-If you used `foundry_git_finish`, it handles this for you. The tool is destructive and requires `confirm: true` — without it you get a dry-run plan back. With confirmation, it: (1) refuses to run on a dirty worktree, (2) deletes the three WORK files and commits the cleanup on the work branch, (3) checks out the base branch (default `main`), (4) squash-merges the work branch and creates a single commit with your message, (5) force-deletes the work branch. On merge conflict it aborts the merge, restores the worktree, and leaves the work branch intact for manual resolution. See [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contract.
+Before squash-merging the work branch back into main, delete `WORK.md`, `WORK.history.yaml`, and `WORK.feedback.yaml` - they are per-flow state, not artefacts. `foundry_git_finish` handles that cleanup, squash-merges the branch, and deletes it safely. See [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contract.
 
 ---
 
@@ -309,7 +304,7 @@ memory:
 - Edges are visible when either endpoint type is in `read` *or* `write`, writable when either endpoint type is in `write`.
 - A cycle with no `memory:` block sees no memory tools — same as before.
 
-During a flow, forge stages write into memory; subsequent cycles read what previous cycles learned. All writes flush to `relations/*.ndjson` so the knowledge is committed alongside the artefacts.
+During a flow, forge stages write into memory and later cycles can read what earlier cycles learned. Out-of-stage memory writes flush to `relations/*.ndjson` immediately, assay flushes during the assay stage, and ordinary in-stage writes become durable at `foundry_stage_end`.
 
 ### Maintenance
 

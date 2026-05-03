@@ -43,7 +43,7 @@ assay:
 Fields:
 - `flow` — the foundry flow being executed.
 - `cycle` — the current cycle id.
-- `stages` — the ordered route for this cycle. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, `human-appraise`, or `assay`) and `alias` is a human-readable name for what that stage does in this cycle. Derived from the cycle and artefact type: `forge` + `appraise` are always included, `quench` is included iff the artefact type has `validation.md`, `human-appraise` is included iff the cycle sets `human-appraise: true`, and `assay` is included iff the cycle declares an `assay.extractors` block — when present it runs once at iteration 0, before the first forge.
+- `stages` — the ordered route for this cycle. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, `human-appraise`, or `assay`) and `alias` is a human-readable name for what that stage does in this cycle. The list is derived from the cycle and artefact type: `forge` and `appraise` are always included; `quench` is included iff the artefact type has `validation.md`; `human-appraise` is included iff the cycle sets `human-appraise: true`; and `assay` is included iff the cycle declares an `assay.extractors` block.
 - `max-iterations` — how many forge passes before the cycle is blocked (default: 3).
 - `human-appraise` — run human-appraise every iteration (default: `false`).
 - `deadlock-appraise` — route to human-appraise when LLM appraisers deadlock (default: `true`).
@@ -51,11 +51,12 @@ Fields:
 - `models` — optional per-stage model overrides; individual appraisers may further override via their own `model` field.
 - `assay.extractors` — optional list of extractor names (defined under `foundry/memory/extractors/`) to run at iteration 0 before the first forge. Requires `foundry/memory/` to be initialized; cycle fails to load otherwise.
 
-The `stages` list is the happy path. Sort follows it but loops back to `forge` when unresolved feedback demands it, and inserts a `human-appraise` stage on deadlock. When `assay` is present, it runs first at iteration 0 (before the first forge), then the normal `stages` route applies.
+The `stages` list is the happy path. Sort follows it, loops back to `forge` when unresolved feedback demands it, and may insert `human-appraise` on deadlock. If `assay` is configured, it runs once at iteration 0 before the route begins.
 
 ### Who sets what
 
-- `flow`, `cycle`, `goal` — set by the `flow` skill via `foundry_workfile_create` at flow/cycle boundaries.
+- `flow`, `cycle` — set by the `flow` skill via `foundry_workfile_create` at flow start and updated as the flow advances between cycles.
+- `goal` — written once by the `flow` skill when `WORK.md` is created.
 - `stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models`, `assay` — set by `foundry_orchestrate` on the first call of each cycle (via internal `workfile_configure_from_cycle`, reading the cycle definition).
 
 ## Sections
@@ -66,7 +67,7 @@ Free text describing what the foundry flow is producing and any context the huma
 
 ### Artefacts
 
-A table tracking every artefact produced by the foundry flow. The generator (`createWorkfile` in `scripts/lib/workfile.js`) writes the table immediately after the `# Goal` body — there is no `# Artefacts` heading. Authoring tools should append rows to this trailing table.
+A table tracking every artefact produced by the foundry flow. The generator (`createWorkfile` in `src/scripts/lib/workfile.js`) writes the table immediately after the `# Goal` body — there is no `# Artefacts` heading. The orchestrator's internal finalise step appends rows for matching output files; authoring tools should not edit the artefacts table directly.
 
 ```markdown
 | File | Type | Cycle | Status |
@@ -82,8 +83,8 @@ Statuses:
 
 ## WORK.feedback.yaml
 
-Every cycle owns a `WORK.feedback.yaml` file alongside `WORK.md` and
-`WORK.history.yaml`. It records every feedback item created during the cycle
+The flow run owns one `WORK.feedback.yaml` file alongside `WORK.md` and
+`WORK.history.yaml`. It records every feedback item created during the current run,
 and the full state-transition history of each. Tracked in git, committed
 per-stage on the work branch, deleted by `foundry_git_finish` before the
 squash-merge (same lifecycle as `WORK.history.yaml`).
@@ -134,8 +135,8 @@ The six states and the legal transitions are:
 Notes:
 
 - `source-stage` column applies when the caller's stage id exactly matches `item.source` (e.g. `appraise:write-check` resolving an item it created). `human-appraise` override authority (last column) applies regardless of `item.source` and is the only path that can transition out of `deadlocked`.
-- **Forge `wont-fix` scope.** When `item.source` base is `quench` (objective validation failure) or `human-appraise` (direct user instruction), forge may not `wont-fix` — it must `actioned`. Only `appraise`-sourced items are wont-fix-able by forge. This replaces the earlier tag-based restriction on `#validation` / `#human` tags.
-- `tag` is categorical and display-only. The state machine consults `source`, not tags; `#validation` / `#human` tag-based restrictions are legacy and do not apply.
+- **Forge `wont-fix` scope.** When `item.source` base is `quench` (objective validation failure) or `human-appraise` (direct user instruction), forge may not `wont-fix` — it must `actioned`. Only `appraise`-sourced items are wont-fix-able by forge. This replaces the earlier tag-based restriction on `validation` / `human` tags.
+- `tag` is categorical and display-only. The state machine consults `source`, not tags; `validation` / `human` tag-based restrictions are legacy and do not apply.
 - **Reason required on** `rejected`, `wont-fix`, `deadlocked`, `resolved`. **Forbidden on** `open`. **Optional on** `actioned` (the code change is the reason).
 - Sort is the only writer of `state: deadlocked`; it writes these via its internal pass, not through the plugin API.
 
@@ -150,9 +151,6 @@ No direct yaml editing. Every state change goes through one of:
 - `foundry_feedback_wontfix` (forge: open/rejected -> wont-fix)
 - `foundry_feedback_resolve` (source stage: actioned/wont-fix -> resolved/rejected; or human-appraise deadlock override)
 
-Sort is the only writer of `state: deadlocked`, and it writes snapshots via
-its own internal pass — not through the plugin API.
-
 ### Persistence
 
 Writes are atomic: `io.writeFile(path + '.tmp', body); io.rename(tmp, path)`.
@@ -162,7 +160,7 @@ A crash between the two steps leaves the live file untouched.
 
 | Section | Written by | Updated by |
 |---------|-----------|------------|
-| Frontmatter (`flow`, `cycle`, `goal`) | `foundry_workfile_create` (flow skill) | `foundry_workfile_delete` + re-create between cycles |
+| Frontmatter (`flow`, `cycle`) | `foundry_workfile_create` (flow skill) | updated in place as the flow advances between cycles |
 | Frontmatter (`stages`, `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, `models`) | `foundry_orchestrate` (first call of each cycle, internally) | reset on each new cycle |
 | Goal | `foundry_workfile_create` (flow skill) | nobody |
 | Artefacts | the orchestrator's internal finalize step (after forge closes) | `foundry_artefacts_set_status` (orchestrator → `done`/`blocked`) |
