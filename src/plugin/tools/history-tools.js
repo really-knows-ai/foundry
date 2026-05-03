@@ -1,5 +1,5 @@
 import path from 'path';
-import { loadHistory } from '../../../scripts/lib/history.js';
+import { loadHistory } from '../../scripts/lib/history.js';
 import { makeIO } from './helpers.js';
 
 export function createHistoryTools({ tool }) {

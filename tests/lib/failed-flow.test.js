@@ -4,7 +4,7 @@ import {
   readFailedStatus,
   markWorkfileFailed,
   requireNotFailed,
-} from '../../scripts/lib/failed-flow.js';
+} from '../../src/scripts/lib/failed-flow.js';
 
 function makeIO(files = {}) {
   const store = { ...files };

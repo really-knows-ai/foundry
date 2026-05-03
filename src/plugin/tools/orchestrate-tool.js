@@ -2,15 +2,15 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'fs';
-import { signToken } from '../../../scripts/lib/token.js';
-import { getCycleDefinition, getArtefactType } from '../../../scripts/lib/config.js';
-import { addArtefactRow } from '../../../scripts/lib/artefacts.js';
-import { stageBaseOf } from '../../../scripts/lib/stage-guard.js';
-import { finalizeStage } from '../../../scripts/lib/finalize.js';
-import { commitWithPolicy, UnexpectedFilesError } from '../../../scripts/lib/git-bridge.js';
+import { signToken } from '../../scripts/lib/token.js';
+import { getCycleDefinition, getArtefactType } from '../../scripts/lib/config.js';
+import { addArtefactRow } from '../../scripts/lib/artefacts.js';
+import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
+import { finalizeStage } from '../../scripts/lib/finalize.js';
+import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
 import { makeIO, makeExec, buildCyclePromptExtras } from './helpers.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
+import { requireNotFailed } from '../../scripts/lib/failed-flow.js';
+import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 
 export function createOrchestrateTool({ tool, secret, pending }) {
   return {
@@ -24,7 +24,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
         cycleDef: tool.schema.string().optional().describe('Test-mode cycle definition override (path to cycle file)'),
       },
       async execute(args, context) {
-        const { runOrchestrate } = await import('../../../scripts/orchestrate.js');
+        const { runOrchestrate } = await import('../../scripts/orchestrate.js');
         const io = makeIO(context.worktree);
         const cwd = context.worktree;
 

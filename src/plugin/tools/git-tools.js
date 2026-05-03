@@ -1,11 +1,11 @@
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { existsSync, unlinkSync } from 'fs';
-import { slugify } from '../../../scripts/lib/slug.js';
-import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
-import { currentBranch } from '../../../scripts/lib/branch-guard.js';
-import { finishDryRun } from '../../../scripts/lib/snapshot/finish.js';
-import { truncateTrace } from '../../../scripts/lib/tracing.js';
+import { slugify } from '../../scripts/lib/slug.js';
+import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
+import { currentBranch } from '../../scripts/lib/branch-guard.js';
+import { finishDryRun } from '../../scripts/lib/snapshot/finish.js';
+import { truncateTrace } from '../../scripts/lib/tracing.js';
 import { makeIO, makeExec, asyncIoFactory } from './helpers.js';
 
 const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];

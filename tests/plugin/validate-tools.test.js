@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
 
 const GIT_ENV = {
   ...process.env,

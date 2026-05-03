@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../scripts/lib/artefacts.js';
-import { createWorkfile } from '../../scripts/lib/workfile.js';
+import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../src/scripts/lib/artefacts.js';
+import { createWorkfile } from '../../src/scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
 // parseArtefactsTable

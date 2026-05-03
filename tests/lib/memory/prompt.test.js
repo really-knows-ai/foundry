@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderMemoryPrompt } from '../../../scripts/lib/memory/prompt.js';
-import { resolvePermissions } from '../../../scripts/lib/memory/permissions.js';
+import { renderMemoryPrompt } from '../../../src/scripts/lib/memory/prompt.js';
+import { resolvePermissions } from '../../../src/scripts/lib/memory/permissions.js';
 
 const vocab = {
   entities: {

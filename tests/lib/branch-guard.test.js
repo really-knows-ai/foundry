@@ -5,7 +5,7 @@ import {
   requireOnConfigBranch,
   requireOnFlowBranch,
   requireOnConfigOrFlowBranch,
-} from '../../scripts/lib/branch-guard.js';
+} from '../../src/scripts/lib/branch-guard.js';
 
 function ioWithBranch(name) {
   return {

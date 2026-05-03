@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { validate } from '../../../scripts/lib/config-validators/artefact-type.js';
+import { validate } from '../../../src/scripts/lib/config-validators/artefact-type.js';
 
 const fixture = (name) =>
   readFileSync(new URL(`./fixtures/artefact-type/${name}.md`, import.meta.url), 'utf8');

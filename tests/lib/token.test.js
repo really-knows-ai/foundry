@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { signToken, verifyToken } from '../../scripts/lib/token.js';
+import { signToken, verifyToken } from '../../src/scripts/lib/token.js';
 
 const SECRET = Buffer.alloc(32, 7);
 

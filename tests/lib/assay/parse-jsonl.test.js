@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseExtractorOutput } from '../../../scripts/lib/assay/parse-jsonl.js';
+import { parseExtractorOutput } from '../../../src/scripts/lib/assay/parse-jsonl.js';
 
 describe('parseExtractorOutput', () => {
   it('parses entity and edge rows', () => {

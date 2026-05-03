@@ -16,9 +16,9 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
-import { disposeStores } from '../../scripts/lib/memory/singleton.js';
-import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
+import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
 
 const GIT_ENV = {
   ...process.env,

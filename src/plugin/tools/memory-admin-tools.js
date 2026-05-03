@@ -1,24 +1,24 @@
 import path from 'path';
-import { createEntityType as admCreateEntity } from '../../../scripts/lib/memory/admin/create-entity-type.js';
-import { createExtractor as admCreateExtractor } from '../../../scripts/lib/memory/admin/create-extractor.js';
-import { createEdgeType as admCreateEdge } from '../../../scripts/lib/memory/admin/create-edge-type.js';
-import { renameEntityType as admRenameEntity } from '../../../scripts/lib/memory/admin/rename-entity-type.js';
-import { renameEdgeType as admRenameEdge } from '../../../scripts/lib/memory/admin/rename-edge-type.js';
-import { dropEntityType as admDropEntity } from '../../../scripts/lib/memory/admin/drop-entity-type.js';
-import { dropEdgeType as admDropEdge } from '../../../scripts/lib/memory/admin/drop-edge-type.js';
-import { resetMemory as admReset } from '../../../scripts/lib/memory/admin/reset.js';
-import { validateMemory as admValidate } from '../../../scripts/lib/memory/admin/validate.js';
-import { dumpMemory as admDump } from '../../../scripts/lib/memory/admin/dump.js';
-import { vacuumMemory as admVacuum } from '../../../scripts/lib/memory/admin/vacuum.js';
-import { reembed as admReembed } from '../../../scripts/lib/memory/admin/reembed.js';
-import { initMemory as admInitMemory } from '../../../scripts/lib/memory/admin/init.js';
-import { loadMemoryConfig, writeMemoryConfig } from '../../../scripts/lib/memory/config.js';
-import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../../scripts/lib/memory/embeddings.js';
+import { createEntityType as admCreateEntity } from '../../scripts/lib/memory/admin/create-entity-type.js';
+import { createExtractor as admCreateExtractor } from '../../scripts/lib/memory/admin/create-extractor.js';
+import { createEdgeType as admCreateEdge } from '../../scripts/lib/memory/admin/create-edge-type.js';
+import { renameEntityType as admRenameEntity } from '../../scripts/lib/memory/admin/rename-entity-type.js';
+import { renameEdgeType as admRenameEdge } from '../../scripts/lib/memory/admin/rename-edge-type.js';
+import { dropEntityType as admDropEntity } from '../../scripts/lib/memory/admin/drop-entity-type.js';
+import { dropEdgeType as admDropEdge } from '../../scripts/lib/memory/admin/drop-edge-type.js';
+import { resetMemory as admReset } from '../../scripts/lib/memory/admin/reset.js';
+import { validateMemory as admValidate } from '../../scripts/lib/memory/admin/validate.js';
+import { dumpMemory as admDump } from '../../scripts/lib/memory/admin/dump.js';
+import { vacuumMemory as admVacuum } from '../../scripts/lib/memory/admin/vacuum.js';
+import { reembed as admReembed } from '../../scripts/lib/memory/admin/reembed.js';
+import { initMemory as admInitMemory } from '../../scripts/lib/memory/admin/init.js';
+import { loadMemoryConfig, writeMemoryConfig } from '../../scripts/lib/memory/config.js';
+import { embed as memEmbed, probeEmbeddings as memProbeEmbeddings } from '../../scripts/lib/memory/embeddings.js';
 import { withStore } from './memory-helpers.js';
 import { makeMemoryIO, makeIO, makeExec, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
-import { requireNotFailed } from '../../../scripts/lib/failed-flow.js';
-import { requireOnConfigBranch } from '../../../scripts/lib/branch-guard.js';
-import { guarded } from '../../../scripts/lib/guards.js';
+import { requireNotFailed } from '../../scripts/lib/failed-flow.js';
+import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
+import { guarded } from '../../scripts/lib/guards.js';
 
 // Failed-flow guard policy for memory admin tools.
 //

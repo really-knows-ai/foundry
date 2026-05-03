@@ -1,9 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadMemoryConfig } from '../../../scripts/lib/memory/config.js';
-import { loadSchema, hashFrontmatter, writeSchema } from '../../../scripts/lib/memory/schema.js';
-import { loadVocabulary } from '../../../scripts/lib/memory/types.js';
-import { detectDrift } from '../../../scripts/lib/memory/drift.js';
+import { loadMemoryConfig } from '../../../src/scripts/lib/memory/config.js';
+import { loadSchema, hashFrontmatter, writeSchema } from '../../../src/scripts/lib/memory/schema.js';
+import { loadVocabulary } from '../../../src/scripts/lib/memory/types.js';
+import { detectDrift } from '../../../src/scripts/lib/memory/drift.js';
 
 function memIO() {
   const store = {};

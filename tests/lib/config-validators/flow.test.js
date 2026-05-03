@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { validate } from '../../../scripts/lib/config-validators/flow.js';
+import { validate } from '../../../src/scripts/lib/config-validators/flow.js';
 
 const fx = (n) => readFileSync(new URL(`./fixtures/flow/${n}.md`, import.meta.url), 'utf8');
 

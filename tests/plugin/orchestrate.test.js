@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
 
 // These tests exercise the plugin's public surface: instantiate it and
 // check which tools are registered. After the v2.5.x plugin-file split,

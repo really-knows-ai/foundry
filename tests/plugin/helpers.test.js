@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'path';
-import { makeIO, getBootstrapContent, flowBranchGuard, listFlows } from '../../.opencode/plugins/foundry-tools/helpers.js';
+import { makeIO, getBootstrapContent, flowBranchGuard, listFlows } from '../../src/plugin/tools/helpers.js';
 
 describe('makeIO.rename', () => {
   test('moves a file atomically within the worktree', () => {

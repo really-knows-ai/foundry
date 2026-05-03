@@ -8,7 +8,7 @@ import {
   getAppraisers,
   getFlow,
   selectAppraisers,
-} from '../../scripts/lib/config.js';
+} from '../../src/scripts/lib/config.js';
 
 function mockIO(files = {}) {
   return {

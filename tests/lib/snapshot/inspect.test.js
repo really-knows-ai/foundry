@@ -6,13 +6,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { realFsIo } from '../helpers/real-fs-io.js';
-import { createUlidGenerator } from '../../../scripts/lib/ulid.js';
+import { createUlidGenerator } from '../../../src/scripts/lib/ulid.js';
 import {
   listSnapshots,
   showSnapshot,
   deleteSnapshot,
   pruneSnapshots,
-} from '../../../scripts/lib/snapshot/inspect.js';
+} from '../../../src/scripts/lib/snapshot/inspect.js';
 
 function makeReadme({ branch, parent, flow, goal, startedAt, finishedAt, exitReason }) {
   return [

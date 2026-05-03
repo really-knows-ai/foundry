@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { getBootstrapContent } from '../../.opencode/plugins/foundry-tools/helpers.js';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { getBootstrapContent } from '../../src/plugin/tools/helpers.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
 
 describe('getBootstrapContent', () => {
   test('returns "not initialized" message when foundry/ directory missing', () => {

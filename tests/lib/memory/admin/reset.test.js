@@ -6,8 +6,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createEntityType } from '../../../../scripts/lib/memory/admin/create-entity-type.js';
-import { resetMemory } from '../../../../scripts/lib/memory/admin/reset.js';
+import { createEntityType } from '../../../../src/scripts/lib/memory/admin/create-entity-type.js';
+import { resetMemory } from '../../../../src/scripts/lib/memory/admin/reset.js';
 
 
 import { diskIO } from '../_helpers.js';

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openMemoryDb, createEntityRelation, createEdgeRelation, dropRelation, listRelations, checkpoint, closeMemoryDb, cozoStringLit } from '../../../scripts/lib/memory/cozo.js';
+import { openMemoryDb, createEntityRelation, createEdgeRelation, dropRelation, listRelations, checkpoint, closeMemoryDb, cozoStringLit } from '../../../src/scripts/lib/memory/cozo.js';
 
 describe('cozo wrapper', () => {
   let dir, db;

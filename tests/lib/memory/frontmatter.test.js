@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFrontmatter, renderMarkdown } from '../../../scripts/lib/memory/frontmatter.js';
+import { parseFrontmatter, renderMarkdown } from '../../../src/scripts/lib/memory/frontmatter.js';
 
 describe('parseFrontmatter', () => {
   it('parses LF-delimited frontmatter', () => {

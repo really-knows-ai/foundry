@@ -1,11 +1,11 @@
-import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../../scripts/lib/memory/writes.js';
-import { getEntity, listEntities, neighbours as memNeighbours } from '../../../scripts/lib/memory/reads.js';
-import { runQuery } from '../../../scripts/lib/memory/query.js';
-import { checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../../scripts/lib/memory/permissions.js';
-import { search as memSearch } from '../../../scripts/lib/memory/search.js';
+import { putEntity, relate as memRelate, unrelate as memUnrelate } from '../../scripts/lib/memory/writes.js';
+import { getEntity, listEntities, neighbours as memNeighbours } from '../../scripts/lib/memory/reads.js';
+import { runQuery } from '../../scripts/lib/memory/query.js';
+import { checkEntityRead, checkEntityWrite, checkEdgeRead, checkEdgeWrite } from '../../scripts/lib/memory/permissions.js';
+import { search as memSearch } from '../../scripts/lib/memory/search.js';
 import { withStore } from './memory-helpers.js';
 import { errorJson, makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
-import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 const MAX_NEIGHBOUR_DEPTH = 5;

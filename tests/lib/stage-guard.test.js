@@ -1,7 +1,7 @@
 // tests/lib/stage-guard.test.js
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { requireNoActiveStage, requireActiveStage, stageBaseOf } from '../../scripts/lib/stage-guard.js';
+import { requireNoActiveStage, requireActiveStage, stageBaseOf } from '../../src/scripts/lib/stage-guard.js';
 
 function fakeIO(active) {
   const store = new Map();

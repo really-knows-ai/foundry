@@ -4,9 +4,9 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
-import { disposeStores } from '../../scripts/lib/memory/singleton.js';
-import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
+import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
 
 function setupWorktree() {
   const root = mkdtempSync(join(tmpdir(), 'mem-end-'));

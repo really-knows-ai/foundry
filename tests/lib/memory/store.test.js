@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openStore, syncStore, closeStore } from '../../../scripts/lib/memory/store.js';
-import { hashFrontmatter } from '../../../scripts/lib/memory/schema.js';
+import { openStore, syncStore, closeStore } from '../../../src/scripts/lib/memory/store.js';
+import { hashFrontmatter } from '../../../src/scripts/lib/memory/schema.js';
 
 
 import { diskIO } from './_helpers.js';
@@ -106,7 +106,7 @@ describe('store lifecycle', () => {
       // after the failure. In-process cozo-node tolerates concurrent handles
       // on the same sqlite file, so resource cleanup cannot be observed via
       // a second open — we have to observe the close call directly.
-      const realCozo = await import('../../../scripts/lib/memory/cozo.js');
+      const realCozo = await import('../../../src/scripts/lib/memory/cozo.js');
       const closed = [];
       const cozoSpy = {
         ...realCozo,
@@ -159,7 +159,7 @@ describe('store lifecycle', () => {
         },
       };
 
-      const realCozo = await import('../../../scripts/lib/memory/cozo.js');
+      const realCozo = await import('../../../src/scripts/lib/memory/cozo.js');
       const closed = [];
       const cozoSpy = {
         ...realCozo,
@@ -193,7 +193,7 @@ describe('store lifecycle', () => {
         embeddings: null,
       };
 
-      const realCozo = await import('../../../scripts/lib/memory/cozo.js');
+      const realCozo = await import('../../../src/scripts/lib/memory/cozo.js');
       const closed = [];
       const cozoSpy = {
         ...realCozo,

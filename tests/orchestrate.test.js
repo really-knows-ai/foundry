@@ -8,7 +8,7 @@ import {
   findCycleOutputArtefact,
   readCycleTargets,
   readForgeFilePatterns,
-} from '../scripts/orchestrate.js';
+} from '../src/scripts/orchestrate.js';
 
 function makeIo(files = {}) {
   const fs = new Map(Object.entries(files));
@@ -746,7 +746,7 @@ test('runOrchestrate dispatch: tokens include ULID nonce to prevent same-millise
   const SAME_TIMESTAMP = 1000000;
   
   // Import createUlidGenerator for isolated test state
-  const { createUlidGenerator } = await import('../scripts/lib/ulid.js');
+  const { createUlidGenerator } = await import('../src/scripts/lib/ulid.js');
   const testUlid = createUlidGenerator();
   
   // First dispatch at timestamp T
@@ -786,7 +786,7 @@ test('runOrchestrate dispatch: tokens include ULID nonce to prevent same-millise
     'ULID must use Crockford base32 alphabet');
 });
 
-import * as orchestrate from '../scripts/orchestrate.js';
+import * as orchestrate from '../src/scripts/orchestrate.js';
 
 test('handleSortResult: done route returns done action with next_cycles', async () => {
   const io = makeIo({

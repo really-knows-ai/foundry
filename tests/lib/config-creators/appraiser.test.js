@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { create } from '../../../scripts/lib/config-creators/appraiser.js';
+import { create } from '../../../src/scripts/lib/config-creators/appraiser.js';
 import { makeAsyncMockIO } from '../../helpers/async-mock-io.js';
 
 const VALID_BODY = `---

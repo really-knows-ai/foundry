@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import yaml from 'js-yaml';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
 
 const GIT_ENV = {
   ...process.env,

@@ -6,9 +6,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createEntityType } from '../../../../scripts/lib/memory/admin/create-entity-type.js';
-import { createEdgeType } from '../../../../scripts/lib/memory/admin/create-edge-type.js';
-import { renameEdgeType } from '../../../../scripts/lib/memory/admin/rename-edge-type.js';
+import { createEntityType } from '../../../../src/scripts/lib/memory/admin/create-entity-type.js';
+import { createEdgeType } from '../../../../src/scripts/lib/memory/admin/create-edge-type.js';
+import { renameEdgeType } from '../../../../src/scripts/lib/memory/admin/rename-edge-type.js';
 
 
 import { diskIO } from '../_helpers.js';

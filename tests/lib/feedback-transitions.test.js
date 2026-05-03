@@ -1,7 +1,7 @@
 // tests/lib/feedback-transitions.test.js
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateTransition, hashText, canForgeWontFix } from '../../scripts/lib/feedback-transitions.js';
+import { validateTransition, hashText, canForgeWontFix } from '../../src/scripts/lib/feedback-transitions.js';
 
 describe('validateTransition — forge transitions', () => {
   test('forge: open → actioned is legal', () => {

@@ -8,9 +8,9 @@ import {
   showSnapshot,
   deleteSnapshot,
   pruneSnapshots,
-} from '../../../scripts/lib/snapshot/inspect.js';
-import { requireGitRepo, requireFoundryRoot } from '../../../scripts/lib/foundational-guards.js';
-import { guarded } from '../../../scripts/lib/guards.js';
+} from '../../scripts/lib/snapshot/inspect.js';
+import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
+import { guarded } from '../../scripts/lib/guards.js';
 import { makeIO, makeAsyncIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 // --- guard helpers ---------------------------------------------------------

@@ -18,7 +18,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
+import { commitWithPolicy, UnexpectedFilesError } from '../../src/scripts/lib/git-bridge.js';
 
 const GIT_ENV = {
   ...process.env,

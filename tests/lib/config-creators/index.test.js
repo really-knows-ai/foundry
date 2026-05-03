@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeCreate } from '../../../scripts/lib/config-creators/index.js';
+import { makeCreate } from '../../../src/scripts/lib/config-creators/index.js';
 import { makeAsyncMockIO } from '../../helpers/async-mock-io.js';
 
 function makeFakeExecFile(dirtyFiles = []) {

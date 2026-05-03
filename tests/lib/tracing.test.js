@@ -4,7 +4,7 @@ import {
   branchSlug,
   appendTraceRecord,
   truncateTrace,
-} from '../../scripts/lib/tracing.js';
+} from '../../src/scripts/lib/tracing.js';
 
 /**
  * Build an in-memory IO mock that records calls and stores files.

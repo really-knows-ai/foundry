@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openStore, closeStore } from '../../../scripts/lib/memory/store.js';
-import { putEntity } from '../../../scripts/lib/memory/writes.js';
+import { openStore, closeStore } from '../../../src/scripts/lib/memory/store.js';
+import { putEntity } from '../../../src/scripts/lib/memory/writes.js';
 
 import { diskIO } from './_helpers.js';
 

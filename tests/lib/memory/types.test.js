@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadVocabulary } from '../../../scripts/lib/memory/types.js';
+import { loadVocabulary } from '../../../src/scripts/lib/memory/types.js';
 
 function mockIO(files = {}, dirs = {}) {
   return {

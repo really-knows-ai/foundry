@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { finalizeStage } from '../../scripts/lib/finalize.js';
+import { finalizeStage } from '../../src/scripts/lib/finalize.js';
 
 const GIT_ENV = {
   ...process.env,

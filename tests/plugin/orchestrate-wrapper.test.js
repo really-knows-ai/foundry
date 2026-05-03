@@ -18,11 +18,11 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
-import { disposeStores } from '../../scripts/lib/memory/singleton.js';
-import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
-import { writeActiveStage, writeLastStage, clearActiveStage } from '../../scripts/lib/state.js';
-import { parseArtefactsTable } from '../../scripts/lib/artefacts.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
+import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
+import { writeActiveStage, writeLastStage, clearActiveStage } from '../../src/scripts/lib/state.js';
+import { parseArtefactsTable } from '../../src/scripts/lib/artefacts.js';
 
 const GIT_ENV = {
   ...process.env,

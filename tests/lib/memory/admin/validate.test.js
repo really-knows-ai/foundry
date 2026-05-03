@@ -6,7 +6,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateMemory } from '../../../../scripts/lib/memory/admin/validate.js';
+import { validateMemory } from '../../../../src/scripts/lib/memory/admin/validate.js';
 
 
 import { diskIO } from '../_helpers.js';

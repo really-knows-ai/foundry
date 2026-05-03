@@ -1,8 +1,8 @@
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
-import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../../scripts/lib/workfile.js';
+import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../scripts/lib/workfile.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);

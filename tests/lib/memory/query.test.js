@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openStore, closeStore } from '../../../scripts/lib/memory/store.js';
-import { putEntity } from '../../../scripts/lib/memory/writes.js';
-import { runQuery } from '../../../scripts/lib/memory/query.js';
+import { openStore, closeStore } from '../../../src/scripts/lib/memory/store.js';
+import { putEntity } from '../../../src/scripts/lib/memory/writes.js';
+import { runQuery } from '../../../src/scripts/lib/memory/query.js';
 
 import { diskIO } from './_helpers.js';
 

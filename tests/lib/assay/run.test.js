@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runAssay } from '../../../scripts/lib/assay/run.js';
+import { runAssay } from '../../../src/scripts/lib/assay/run.js';
 import { diskIO } from '../memory/_helpers.js';
 
 function setupProject() {
@@ -294,8 +294,8 @@ describe('runAssay', () => {
     writeExtractor(root, 'second', { command: 'second-cmd', write: ['method'] });
     
     // Use real memory store with actual NDJSON writes
-    const { openStore, closeStore, syncStore } = await import('../../../scripts/lib/memory/store.js');
-    const { putEntity, relate } = await import('../../../scripts/lib/memory/writes.js');
+    const { openStore, closeStore, syncStore } = await import('../../../src/scripts/lib/memory/store.js');
+    const { putEntity, relate } = await import('../../../src/scripts/lib/memory/writes.js');
     
     const schema = {
       version: 1,

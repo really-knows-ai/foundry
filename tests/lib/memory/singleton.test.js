@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getOrOpenStore, disposeStores } from '../../../scripts/lib/memory/singleton.js';
+import { getOrOpenStore, disposeStores } from '../../../src/scripts/lib/memory/singleton.js';
 
 
 import { diskIO } from './_helpers.js';
@@ -39,7 +39,7 @@ describe('singleton store', () => {
     mkdirSync(join(r, 'foundry/memory'), { recursive: true });
     writeFileSync(join(r, 'foundry/memory/config.md'), '---\nenabled: true\n---\n');
     writeFileSync(join(r, 'foundry/memory/schema.json'), '{"version":1,"entities":{},"edges":{},"embeddings":null}\n');
-    const { invalidateStore } = await import('../../../scripts/lib/memory/singleton.js');
+    const { invalidateStore } = await import('../../../src/scripts/lib/memory/singleton.js');
     const s1 = await getOrOpenStore({ worktreeRoot: r, io: diskIO(r) });
     invalidateStore(r);
     const s2 = await getOrOpenStore({ worktreeRoot: r, io: diskIO(r) });

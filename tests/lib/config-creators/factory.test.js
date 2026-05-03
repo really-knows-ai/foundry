@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeCreator } from '../../../scripts/lib/config-creators/factory.js';
+import { makeCreator } from '../../../src/scripts/lib/config-creators/factory.js';
 import { makeAsyncMockIO } from '../../helpers/async-mock-io.js';
 
 const VALID_BODY = `---

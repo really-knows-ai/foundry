@@ -9,7 +9,7 @@ import {
   enrichStages,
   parseStagesValue,
   parseModelsValue,
-} from '../../scripts/lib/workfile.js';
+} from '../../src/scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
 // parseFrontmatter

@@ -1,8 +1,8 @@
 import path from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { requireNoActiveStage } from '../../../scripts/lib/stage-guard.js';
-import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { parseArtefactsTable, setArtefactStatus } from '../../../scripts/lib/artefacts.js';
+import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+import { parseArtefactsTable, setArtefactStatus } from '../../scripts/lib/artefacts.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);

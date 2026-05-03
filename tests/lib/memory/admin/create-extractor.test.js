@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createExtractor } from '../../../../scripts/lib/memory/admin/create-extractor.js';
+import { createExtractor } from '../../../../src/scripts/lib/memory/admin/create-extractor.js';
 import { diskIO } from '../_helpers.js';
 
 function setup() {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { spawnWithTimeout } from '../../../scripts/lib/assay/spawn-with-timeout.js';
+import { spawnWithTimeout } from '../../../src/scripts/lib/assay/spawn-with-timeout.js';
 
 function scriptDir() {
   return mkdtempSync(join(tmpdir(), 'swt-'));

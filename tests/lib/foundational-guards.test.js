@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
+import { requireGitRepo, requireFoundryRoot } from '../../src/scripts/lib/foundational-guards.js';
 
 function ioWith(paths) {
   return { exists: (p) => paths.has(p) };

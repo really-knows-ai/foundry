@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openStore, closeStore } from '../../../../scripts/lib/memory/store.js';
-import { putEntity } from '../../../../scripts/lib/memory/writes.js';
-import { reembed } from '../../../../scripts/lib/memory/admin/reembed.js';
+import { openStore, closeStore } from '../../../../src/scripts/lib/memory/store.js';
+import { putEntity } from '../../../../src/scripts/lib/memory/writes.js';
+import { reembed } from '../../../../src/scripts/lib/memory/admin/reembed.js';
 
 
 import { diskIO } from '../_helpers.js';
@@ -62,7 +62,7 @@ describe('reembed', () => {
 
       // Persist to NDJSON so we have an on-disk baseline to compare against.
       store = await openStore({ foundryDir: 'foundry', schema: initialSchema, io, dbAbsolutePath });
-      const { syncStore } = await import('../../../../scripts/lib/memory/store.js');
+      const { syncStore } = await import('../../../../src/scripts/lib/memory/store.js');
       await syncStore({ store, io });
       closeStore(store);
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { renderReadme } from '../../../scripts/lib/snapshot/render.js';
+import { renderReadme } from '../../../src/scripts/lib/snapshot/render.js';
 
 test('happy path: full frontmatter + non-empty trace', () => {
   const out = renderReadme({

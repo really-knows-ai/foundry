@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadExtractor, listExtractors } from '../../../scripts/lib/assay/loader.js';
+import { loadExtractor, listExtractors } from '../../../src/scripts/lib/assay/loader.js';
 import { diskIO } from '../memory/_helpers.js';
 
 function setup() {

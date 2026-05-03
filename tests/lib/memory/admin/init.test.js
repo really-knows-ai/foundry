@@ -6,8 +6,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { initMemory } from '../../../../scripts/lib/memory/admin/init.js';
-import { loadMemoryConfig } from '../../../../scripts/lib/memory/config.js';
+import { initMemory } from '../../../../src/scripts/lib/memory/admin/init.js';
+import { loadMemoryConfig } from '../../../../src/scripts/lib/memory/config.js';
 
 
 import { diskIO } from '../_helpers.js';

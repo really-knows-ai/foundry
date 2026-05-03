@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { validate } from '../../../scripts/lib/config-validators/cycle.js';
+import { validate } from '../../../src/scripts/lib/config-validators/cycle.js';
 
 const fx = (n) => readFileSync(new URL(`./fixtures/cycle/${n}.md`, import.meta.url), 'utf8');
 

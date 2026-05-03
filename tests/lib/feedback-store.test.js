@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import yaml from 'js-yaml';
-import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
+import { openFeedbackStore } from '../../src/scripts/lib/feedback-store.js';
 
 // In-memory IO shim with rename support (matches the shape used by history tests).
 function mockIO(initial = {}) {

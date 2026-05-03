@@ -23,8 +23,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readForgeFilePatterns, runOrchestrate } from '../scripts/orchestrate.js';
-import { getAllowedPatterns } from '../scripts/sort.js';
+import { readForgeFilePatterns, runOrchestrate } from '../src/scripts/orchestrate.js';
+import { getAllowedPatterns } from '../src/scripts/sort.js';
 
 function makeIo(files = {}) {
   const fs = new Map(Object.entries(files));

@@ -20,7 +20,7 @@ import {
   readLastStage,
   writeLastStage,
   clearLastStage,
-} from '../../scripts/lib/state.js';
+} from '../../src/scripts/lib/state.js';
 
 function makeRealIO(dir) {
   const r = (p) => join(dir, p);

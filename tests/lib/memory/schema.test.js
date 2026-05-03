@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadSchema, emptySchema, writeSchema, bumpVersion, hashFrontmatter } from '../../../scripts/lib/memory/schema.js';
+import { loadSchema, emptySchema, writeSchema, bumpVersion, hashFrontmatter } from '../../../src/scripts/lib/memory/schema.js';
 
 function mockIO(files = {}) {
   const store = { ...files };

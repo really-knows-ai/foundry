@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadHistory, appendEntry, getIteration } from '../../scripts/lib/history.js';
+import { loadHistory, appendEntry, getIteration } from '../../src/scripts/lib/history.js';
 import yaml from 'js-yaml';
 
 function mockIO(initial = null) {

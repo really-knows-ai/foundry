@@ -4,12 +4,12 @@ import path from 'path';
 import fs from 'fs';
 import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, renameSync, rmSync } from 'fs';
 import { execSync, execFileSync } from 'child_process';
-import { getCycleDefinition } from '../../../scripts/lib/config.js';
-import { getOrOpenStore, getContext } from '../../../scripts/lib/memory/singleton.js';
-import { resolvePermissions } from '../../../scripts/lib/memory/permissions.js';
-import { renderMemoryPrompt } from '../../../scripts/lib/memory/prompt.js';
-import { loadExtractor } from '../../../scripts/lib/assay/loader.js';
-import { requireOnFlowBranch } from '../../../scripts/lib/branch-guard.js';
+import { getCycleDefinition } from '../../scripts/lib/config.js';
+import { getOrOpenStore, getContext } from '../../scripts/lib/memory/singleton.js';
+import { resolvePermissions } from '../../scripts/lib/memory/permissions.js';
+import { renderMemoryPrompt } from '../../scripts/lib/memory/prompt.js';
+import { loadExtractor } from '../../scripts/lib/assay/loader.js';
+import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 
 // Track flow files we've already warned about to avoid spamming stderr
 const warnedFlowFiles = new Set();

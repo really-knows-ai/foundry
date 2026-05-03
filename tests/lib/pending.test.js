@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPendingStore } from '../../scripts/lib/pending.js';
+import { createPendingStore } from '../../src/scripts/lib/pending.js';
 
 describe('pending store', () => {
   it('add then consume returns meta', () => {

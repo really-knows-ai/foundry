@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadMemoryConfig, writeMemoryConfig, DEFAULT_CONFIG } from '../../../scripts/lib/memory/config.js';
+import { loadMemoryConfig, writeMemoryConfig, DEFAULT_CONFIG } from '../../../src/scripts/lib/memory/config.js';
 
 function mockIO(files) {
   return {

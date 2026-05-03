@@ -1,4 +1,4 @@
-import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow } from '../../../scripts/lib/config.js';
+import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow } from '../../scripts/lib/config.js';
 import { makeIO } from './helpers.js';
 
 export function createConfigTools({ tool }) {

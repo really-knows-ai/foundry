@@ -7,7 +7,7 @@ import {
   parsePorcelainZ,
   partitionDirty,
   allowedPatternsForStage,
-} from '../../scripts/lib/git-policy.js';
+} from '../../src/scripts/lib/git-policy.js';
 
 describe('isToolManaged', () => {
   it('matches the canonical workfiles', () => {

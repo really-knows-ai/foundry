@@ -5,7 +5,7 @@ import {
   parseEntityRows,
   serialiseEdgeRows,
   parseEdgeRows,
-} from '../../../scripts/lib/memory/ndjson.js';
+} from '../../../src/scripts/lib/memory/ndjson.js';
 
 describe('serialiseEntityRows', () => {
   it('sorts by name and produces one line per row with trailing newline', () => {

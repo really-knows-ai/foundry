@@ -6,8 +6,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
-import { createUlidGenerator } from '../../scripts/lib/ulid.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { createUlidGenerator } from '../../src/scripts/lib/ulid.js';
 
 const GIT_ENV = {
   ...process.env,

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEntityWrite, validateEdgeWrite, MAX_VALUE_BYTES } from '../../../scripts/lib/memory/validate.js';
+import { validateEntityWrite, validateEdgeWrite, MAX_VALUE_BYTES } from '../../../src/scripts/lib/memory/validate.js';
 
 const vocab = {
   entities: { class: {}, method: {} },

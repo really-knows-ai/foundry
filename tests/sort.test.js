@@ -18,7 +18,7 @@ import {
   checkModifiedFiles,
   getDirtyToolManagedFiles,
   runSort,
-} from '../scripts/sort.js';
+} from '../src/scripts/sort.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers — feedback-store fixtures

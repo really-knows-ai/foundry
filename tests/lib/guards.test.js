@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+import { guarded, notFailedGuard } from '../../src/scripts/lib/guards.js';
 
 test('guarded: runs guards in order until one fails', async () => {
   const calls = [];

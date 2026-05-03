@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openStore, closeStore } from '../../../scripts/lib/memory/store.js';
-import { putEntity, relate, unrelate } from '../../../scripts/lib/memory/writes.js';
+import { openStore, closeStore } from '../../../src/scripts/lib/memory/store.js';
+import { putEntity, relate, unrelate } from '../../../src/scripts/lib/memory/writes.js';
 
 import { diskIO } from './_helpers.js';
 

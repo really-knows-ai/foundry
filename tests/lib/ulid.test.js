@@ -1,7 +1,7 @@
 // tests/lib/ulid.test.js
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { ulid, createUlidGenerator, decodeUlidTime } from '../../scripts/lib/ulid.js';
+import { ulid, createUlidGenerator, decodeUlidTime } from '../../src/scripts/lib/ulid.js';
 
 describe('ulid', () => {
   test('returns a 26-character string', () => {

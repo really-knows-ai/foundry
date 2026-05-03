@@ -5,8 +5,8 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'no
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
-import { signToken } from '../../scripts/lib/token.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { signToken } from '../../src/scripts/lib/token.js';
 
 function makeCtx(worktree) { return { worktree }; }
 

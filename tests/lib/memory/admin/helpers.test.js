@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { composeMarkdown, renderEdgeFrontmatter } from '../../../../scripts/lib/memory/admin/helpers.js';
+import { composeMarkdown, renderEdgeFrontmatter } from '../../../../src/scripts/lib/memory/admin/helpers.js';
 
 test('renderEdgeFrontmatter: renders type and sources/targets', () => {
   const result = renderEdgeFrontmatter({

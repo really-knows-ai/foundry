@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { dumpMemory } from '../../../../scripts/lib/memory/admin/dump.js';
+import { dumpMemory } from '../../../../src/scripts/lib/memory/admin/dump.js';
 
 describe('dumpMemory (unit, with mock store)', () => {
   it('dumps single entity', async () => {

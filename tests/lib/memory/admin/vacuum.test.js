@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { vacuumMemory } from '../../../../scripts/lib/memory/admin/vacuum.js';
-import { openStore, closeStore } from '../../../../scripts/lib/memory/store.js';
+import { vacuumMemory } from '../../../../src/scripts/lib/memory/admin/vacuum.js';
+import { openStore, closeStore } from '../../../../src/scripts/lib/memory/store.js';
 import { diskIO } from '../_helpers.js';
 
 function setup() {

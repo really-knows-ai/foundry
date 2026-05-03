@@ -5,9 +5,9 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import yaml from 'js-yaml';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
-import { makeIO } from '../../.opencode/plugins/foundry-tools/helpers.js';
-import { appendEntry } from '../../scripts/lib/history.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { makeIO } from '../../src/plugin/tools/helpers.js';
+import { appendEntry } from '../../src/scripts/lib/history.js';
 
 const GIT_ENV = {
   ...process.env,

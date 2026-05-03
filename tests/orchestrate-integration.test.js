@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { runOrchestrate } from '../scripts/orchestrate.js';
-import { writeActiveStage, clearActiveStage, writeLastStage } from '../scripts/lib/state.js';
+import { runOrchestrate } from '../src/scripts/orchestrate.js';
+import { writeActiveStage, clearActiveStage, writeLastStage } from '../src/scripts/lib/state.js';
 
 // In-memory IO that mimics tests/orchestrate.test.js but adds an `exec`
 // stub so sort.js's git invocations (dirty-tree check, modified-files

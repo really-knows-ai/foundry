@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync, rmSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { finishDryRun } from '../../../scripts/lib/snapshot/finish.js';
+import { finishDryRun } from '../../../src/scripts/lib/snapshot/finish.js';
 import { realFsIo } from '../helpers/real-fs-io.js';
 
 function setupRepo() {

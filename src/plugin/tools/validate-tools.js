@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
-import { getValidation } from '../../../scripts/lib/config.js';
+import { getValidation } from '../../scripts/lib/config.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
-import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 

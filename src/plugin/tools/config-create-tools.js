@@ -11,20 +11,20 @@
 // matching the config-tier policy.
 
 import { execFileSync } from 'child_process';
-import { create as createArtefactType } from '../../../scripts/lib/config-creators/artefact-type.js';
-import { create as createLaw } from '../../../scripts/lib/config-creators/law.js';
-import { create as createAppraiser } from '../../../scripts/lib/config-creators/appraiser.js';
-import { create as createFlow } from '../../../scripts/lib/config-creators/flow.js';
-import { create as createCycle } from '../../../scripts/lib/config-creators/cycle.js';
-import { validate as validateArtefactType } from '../../../scripts/lib/config-validators/artefact-type.js';
-import { validate as validateLaw } from '../../../scripts/lib/config-validators/law.js';
-import { validate as validateAppraiser } from '../../../scripts/lib/config-validators/appraiser.js';
-import { validate as validateFlow } from '../../../scripts/lib/config-validators/flow.js';
-import { validate as validateCycle } from '../../../scripts/lib/config-validators/cycle.js';
-import { requireGitRepo, requireFoundryRoot } from '../../../scripts/lib/foundational-guards.js';
-import { requireOnConfigBranch } from '../../../scripts/lib/branch-guard.js';
-import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
-import { UnexpectedFilesError } from '../../../scripts/lib/git-bridge.js';
+import { create as createArtefactType } from '../../scripts/lib/config-creators/artefact-type.js';
+import { create as createLaw } from '../../scripts/lib/config-creators/law.js';
+import { create as createAppraiser } from '../../scripts/lib/config-creators/appraiser.js';
+import { create as createFlow } from '../../scripts/lib/config-creators/flow.js';
+import { create as createCycle } from '../../scripts/lib/config-creators/cycle.js';
+import { validate as validateArtefactType } from '../../scripts/lib/config-validators/artefact-type.js';
+import { validate as validateLaw } from '../../scripts/lib/config-validators/law.js';
+import { validate as validateAppraiser } from '../../scripts/lib/config-validators/appraiser.js';
+import { validate as validateFlow } from '../../scripts/lib/config-validators/flow.js';
+import { validate as validateCycle } from '../../scripts/lib/config-validators/cycle.js';
+import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
+import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+import { UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
 import { makeIO, makeExec, makeAsyncIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 
 // --- guard helpers ---------------------------------------------------------

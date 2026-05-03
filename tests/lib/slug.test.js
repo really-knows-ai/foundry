@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { slugify } from '../../scripts/lib/slug.js';
+import { slugify } from '../../src/scripts/lib/slug.js';
 
 describe('slugify', () => {
   it('lowercases and replaces spaces with dashes', () => {

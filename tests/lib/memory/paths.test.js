@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { memoryPaths } from '../../../scripts/lib/memory/paths.js';
+import { memoryPaths } from '../../../src/scripts/lib/memory/paths.js';
 
 describe('memoryPaths', () => {
   it('produces canonical paths under foundry/memory for definitions', () => {

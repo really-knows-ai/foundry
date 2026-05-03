@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
 
 // Snapshot of the plugin's full public tool registration. This catches
 // accidental additions or removals of registered tools — both are

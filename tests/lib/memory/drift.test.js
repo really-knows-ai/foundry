@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectDrift } from '../../../scripts/lib/memory/drift.js';
-import { hashFrontmatter } from '../../../scripts/lib/memory/schema.js';
+import { detectDrift } from '../../../src/scripts/lib/memory/drift.js';
+import { hashFrontmatter } from '../../../src/scripts/lib/memory/schema.js';
 
 const fm = { type: 'class' };
 const hash = hashFrontmatter(fm);

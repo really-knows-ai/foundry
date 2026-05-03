@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildCyclePromptExtras } from '../../.opencode/plugins/foundry.js';
-import { disposeStores } from '../../scripts/lib/memory/singleton.js';
-import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
+import { buildCyclePromptExtras } from '../../src/plugin/foundry.js';
+import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
+import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
 
 function setupWorktreeWithCycle() {
   const root = mkdtempSync(join(tmpdir(), 'mem-pi-'));

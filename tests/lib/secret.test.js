@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, statSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readOrCreateSecret } from '../../scripts/lib/secret.js';
+import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
 
 describe('secret.js', () => {
   let dir;

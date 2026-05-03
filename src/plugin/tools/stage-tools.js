@@ -1,12 +1,12 @@
 import { execSync } from 'child_process';
 import { createHash } from 'node:crypto';
-import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage, clearLastStage } from '../../../scripts/lib/state.js';
-import { verifyToken } from '../../../scripts/lib/token.js';
-import { getContext, invalidateStore } from '../../../scripts/lib/memory/singleton.js';
-import { syncStore } from '../../../scripts/lib/memory/store.js';
+import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage, clearLastStage } from '../../scripts/lib/state.js';
+import { verifyToken } from '../../scripts/lib/token.js';
+import { getContext, invalidateStore } from '../../scripts/lib/memory/singleton.js';
+import { syncStore } from '../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
-import { markWorkfileFailed, readFailedStatus, clearWorkfileFailed } from '../../../scripts/lib/failed-flow.js';
-import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { markWorkfileFailed, readFailedStatus, clearWorkfileFailed } from '../../scripts/lib/failed-flow.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 

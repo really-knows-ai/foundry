@@ -1,7 +1,7 @@
-import { openFeedbackStore } from '../../../scripts/lib/feedback-store.js';
-import { parseFrontmatter } from '../../../scripts/lib/workfile.js';
-import { requireActiveStage, stageBaseOf } from '../../../scripts/lib/stage-guard.js';
-import { guarded, notFailedGuard } from '../../../scripts/lib/guards.js';
+import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
+import { parseFrontmatter } from '../../scripts/lib/workfile.js';
+import { requireActiveStage, stageBaseOf } from '../../scripts/lib/stage-guard.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);

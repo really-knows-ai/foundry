@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { embed, probeEmbeddings } from '../../../scripts/lib/memory/embeddings.js';
+import { embed, probeEmbeddings } from '../../../src/scripts/lib/memory/embeddings.js';
 
 // Minimal fetch mock: replace global fetch for the duration of a test.
 function installMockFetch(handler) {

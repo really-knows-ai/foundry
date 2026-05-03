@@ -4,7 +4,7 @@ import {
   checkExtractorAgainstCycle,
   checkEntityRowAgainstExtractor,
   checkEdgeRowAgainstExtractor,
-} from '../../../scripts/lib/assay/permissions.js';
+} from '../../../src/scripts/lib/assay/permissions.js';
 
 const extractor = {
   name: 'java-symbols',

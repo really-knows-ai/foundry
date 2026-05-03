@@ -4,9 +4,9 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
-import { disposeStores } from '../../scripts/lib/memory/singleton.js';
-import { hashFrontmatter } from '../../scripts/lib/memory/schema.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
+import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
 
 const GIT_ENV = { ...process.env,
   GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',

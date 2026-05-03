@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FoundryPlugin } from '../../.opencode/plugins/foundry.js';
+import { FoundryPlugin } from '../../src/plugin/foundry.js';
 
 function makeCtx(worktree) { return { worktree }; }
 

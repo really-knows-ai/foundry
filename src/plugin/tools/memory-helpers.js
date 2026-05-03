@@ -1,13 +1,13 @@
 // withStore — shared memory-tool helper. Resolves store, vocabulary,
 // permissions and embedder from plugin context.
 
-import { getOrOpenStore, getContext } from '../../../scripts/lib/memory/singleton.js';
-import { syncStore } from '../../../scripts/lib/memory/store.js';
-import { getCycleDefinition } from '../../../scripts/lib/config.js';
-import { resolvePermissions } from '../../../scripts/lib/memory/permissions.js';
-import { embed as memEmbed } from '../../../scripts/lib/memory/embeddings.js';
+import { getOrOpenStore, getContext } from '../../scripts/lib/memory/singleton.js';
+import { syncStore } from '../../scripts/lib/memory/store.js';
+import { getCycleDefinition } from '../../scripts/lib/config.js';
+import { resolvePermissions } from '../../scripts/lib/memory/permissions.js';
+import { embed as memEmbed } from '../../scripts/lib/memory/embeddings.js';
 import { makeMemoryIO, makeIO } from './helpers.js';
-import { readActiveStage } from '../../../scripts/lib/state.js';
+import { readActiveStage } from '../../scripts/lib/state.js';
 
 // Resolve the cycle id to scope this memory call to. Prefers an explicit
 // `context.cycle` (used by orchestrate-driven dispatch); otherwise falls back

@@ -4,16 +4,16 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createEntityType } from '../../../../scripts/lib/memory/admin/create-entity-type.js';
-import { createEdgeType } from '../../../../scripts/lib/memory/admin/create-edge-type.js';
-import { createExtractor } from '../../../../scripts/lib/memory/admin/create-extractor.js';
-import { dropEntityType } from '../../../../scripts/lib/memory/admin/drop-entity-type.js';
-import { dropEdgeType } from '../../../../scripts/lib/memory/admin/drop-edge-type.js';
-import { renameEntityType } from '../../../../scripts/lib/memory/admin/rename-entity-type.js';
-import { renameEdgeType } from '../../../../scripts/lib/memory/admin/rename-edge-type.js';
-import { resetMemory } from '../../../../scripts/lib/memory/admin/reset.js';
-import { disposeStores } from '../../../../scripts/lib/memory/singleton.js';
-import { hashFrontmatter } from '../../../../scripts/lib/memory/schema.js';
+import { createEntityType } from '../../../../src/scripts/lib/memory/admin/create-entity-type.js';
+import { createEdgeType } from '../../../../src/scripts/lib/memory/admin/create-edge-type.js';
+import { createExtractor } from '../../../../src/scripts/lib/memory/admin/create-extractor.js';
+import { dropEntityType } from '../../../../src/scripts/lib/memory/admin/drop-entity-type.js';
+import { dropEdgeType } from '../../../../src/scripts/lib/memory/admin/drop-edge-type.js';
+import { renameEntityType } from '../../../../src/scripts/lib/memory/admin/rename-entity-type.js';
+import { renameEdgeType } from '../../../../src/scripts/lib/memory/admin/rename-edge-type.js';
+import { resetMemory } from '../../../../src/scripts/lib/memory/admin/reset.js';
+import { disposeStores } from '../../../../src/scripts/lib/memory/singleton.js';
+import { hashFrontmatter } from '../../../../src/scripts/lib/memory/schema.js';
 import { diskIO } from '../_helpers.js';
 
 const GIT_ENV = {
