@@ -2,7 +2,13 @@
 
 ## Verdict
 
-Do not release `3.0.0` from current `main`.
+**Blocking issues resolved.** `3.0.0` can be released after addressing non-blocking documentation issues.
+
+All blocking issues have been resolved:
+- ✅ Built npm package is loadable
+- ✅ Full test suite is green (1181/1181 passing)
+
+Non-blocking issues remain (documentation drift, stale tool count).
 
 ## Blocking Findings
 
@@ -53,7 +59,7 @@ node -e "import('./dist/.opencode/plugins/foundry.js').then(() => console.log('o
 
 Built package is now loadable. Test suite: 1181/1181 passing.
 
-### 2. Full test suite is not green
+### 2. Full test suite is not green ✅ RESOLVED
 
 `npm test` completed with `1179` pass and `1` fail.
 
@@ -69,6 +75,12 @@ AssertionError [ERR_ASSERTION]: should wait for SIGKILL fallback, took 107ms
 ```
 
 This blocks a clean release gate unless the failure is understood and explicitly accepted.
+
+### Resolution
+
+**Test now passes** (as of commit e54fb14 "test: make signal test work on both macOS and Linux")
+
+The flaky test was fixed to work reliably on both macOS and Linux. Current test suite: **1181/1181 passing, 0 failures**.
 
 ## Non-Blocking Issues
 
