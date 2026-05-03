@@ -60,11 +60,11 @@ async function rewriteImports(filePath, fromDir, toDir) {
       // From dist/.opencode/plugins, we need ../../../scripts/
       // From dist/.opencode/plugins/foundry-tools, we need ../../../../scripts/
       const depth = toDir.split(path.sep).length - distDir.split(path.sep).length;
-      const prefix = '../'.repeat(depth + 1);
+      const prefix = '../'.repeat(depth);
       return `from '${prefix}${scriptPath}'`;
     })
-    // Rewrite ./foundry-tools/ to ./foundry-tools/ (stays the same, but tools become sibling to foundry.js)
-    .replace(/from ['"]\.\/foundry-tools\/([^'"]+)['"]/g, (match, toolFile) => {
+    // Rewrite ./tools/ to ./foundry-tools/ (tools become sibling to foundry.js)
+    .replace(/from ['"]\.\/tools\/([^'"]+)['"]/g, (match, toolFile) => {
       return `from './foundry-tools/${toolFile}'`;
     });
 
