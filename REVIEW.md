@@ -2,13 +2,15 @@
 
 ## Verdict
 
-**Blocking issues resolved.** `3.0.0` can be released after addressing non-blocking documentation issues.
+**All issues resolved.** `3.0.0` is ready for release.
 
 All blocking issues have been resolved:
 - ✅ Built npm package is loadable
 - ✅ Full test suite is green (1181/1181 passing)
 
-Non-blocking issues remain (documentation drift, stale tool count).
+All non-blocking issues have been resolved:
+- ✅ `foundry_stage_retry` documentation added
+- ✅ Tool count updated to 61
 
 ## Blocking Findings
 
