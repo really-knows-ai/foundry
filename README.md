@@ -3,6 +3,7 @@
 > A skill-driven framework for governed artefact generation with AI coding tools. Define your own artefact types, laws, and flows — Foundry handles the forge → quench → appraise pipeline with deterministic routing, quality gates, and iterative refinement.
 
 [![npm version](https://img.shields.io/npm/v/@really-knows-ai/foundry.svg)](https://www.npmjs.com/package/@really-knows-ai/foundry)
+[![Tests](https://github.com/really-knows-ai/foundry/actions/workflows/test.yml/badge.svg)](https://github.com/really-knows-ai/foundry/actions/workflows/test.yml)
 [![license](https://img.shields.io/npm/l/@really-knows-ai/foundry.svg)](LICENSE)
 
 ---
