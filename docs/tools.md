@@ -2,7 +2,7 @@
 
 Generated from the v3.0.x public plugin API. The authoritative tool set is
 enforced by `tests/plugin/tool-registration.test.js` — if that snapshot
-drifts, this doc must be updated. Total: **60 tools**.
+drifts, this doc must be updated. Total: **61 tools**.
 
 All tools accept arguments as a JSON object and return JSON-stringified
 results. Errors are returned as a stringified `{error: "..."}` object (not
@@ -68,8 +68,8 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
     `foundry_extractor_create`.
   - **Flow branch** (`work/<flow>-<desc>` or `dry-run/<x>/<y>`):
     `foundry_orchestrate`, `foundry_stage_begin`, `foundry_stage_end`,
-    `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`,
-    `foundry_assay_run`, `foundry_validate_run`,
+    `foundry_stage_retry`, `foundry_workfile_*`, `foundry_artefacts_*`,
+    `foundry_feedback_*`, `foundry_assay_run`, `foundry_validate_run`,
     `foundry_appraisers_select`, `foundry_memory_put`,
     `foundry_memory_relate`, `foundry_memory_unrelate`.
   - **Any branch (read-only diagnostics)**:
@@ -97,6 +97,7 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 **Lifecycle**
 - [`foundry_stage_begin`](#foundry_stage_begin)
 - [`foundry_stage_end`](#foundry_stage_end)
+- [`foundry_stage_retry`](#foundry_stage_retry)
 - [`foundry_orchestrate`](#foundry_orchestrate)
 - [`foundry_workfile_create`](#foundry_workfile_create)
 - [`foundry_workfile_get`](#foundry_workfile_get)
@@ -235,6 +236,35 @@ failed.
 `.foundry/active-stage.json`, flushes any pending memory writes to
 `foundry-memory/relations/<name>.ndjson`. May mark `WORK.md` as
 `status: failed` on sync failure.
+
+### `foundry_stage_retry`
+
+> Retry a failed stage by discarding uncommitted memory changes and
+> clearing the failed state. Requires clean git working tree.
+
+**Args:** none.
+
+**Returns:** `{ ok: true, message }` on success. `{ ok: false, error }`
+otherwise.
+
+**Stage requirements:** requires no active stage. Requires flow to be
+in failed state.
+
+**Preconditions:**
+- Flow must have `status: failed`.
+- No active stage exists.
+- Git working tree must be clean (no uncommitted changes).
+
+**Failure modes:**
+- Flow not failed → `foundry_stage_retry requires failed flow; current status is not failed`.
+- Active stage exists → `foundry_stage_retry requires no active stage; call foundry_stage_end first`.
+- Dirty working tree → `foundry_stage_retry requires clean git working tree; commit or stash changes first`.
+- Git status check fails → error with git failure message.
+
+**Side effects:** invalidates the memory store singleton (discards
+uncommitted changes, resets to on-disk NDJSON state), clears
+`.foundry/last-stage.json`, clears the failed status from `WORK.md`
+frontmatter.
 
 ### `foundry_orchestrate`
 

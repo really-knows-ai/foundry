@@ -84,7 +84,7 @@ The flaky test was fixed to work reliably on both macOS and Linux. Current test 
 
 ## Non-Blocking Issues
 
-### 1. Public API and docs drift around `foundry_stage_retry`
+### 1. Public API and docs drift around `foundry_stage_retry` ✅ RESOLVED
 
 `foundry_stage_retry` is a public registered tool:
 
@@ -96,7 +96,13 @@ It is missing from:
 - `docs/tools.md` tool index
 - `CHANGELOG.md`
 
-### 2. README tool count is stale
+**Resolution:** Fixed in commit 23110aa
+
+- Added `foundry_stage_retry` documentation to `docs/tools.md` (TOC, full section, branch requirements)
+- Added `foundry_stage_retry` to `CHANGELOG.md` v3.0.0 flow-data mutation tools list
+- Documentation accurately reflects tool behaviour (retry failed stage, reset memory, clear failed status)
+
+### 2. README tool count is stale ✅ RESOLVED
 
 `README.md` still says Foundry ships `60 custom tools`:
 
@@ -104,6 +110,14 @@ It is missing from:
 - `README.md:486`
 
 That count is stale now that `foundry_stage_retry` is part of the public set.
+
+**Resolution:** Fixed in commit 23110aa
+
+- Updated tool count from 60 to 61 in all locations:
+  - `README.md:72` (installation instructions)
+  - `README.md:439` (custom tools section)
+  - `README.md:486` (project layout comment)
+- Added `foundry_stage_retry` to stage lifecycle tools table
 
 ## Verification Run
 

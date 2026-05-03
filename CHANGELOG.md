@@ -42,7 +42,7 @@
   `foundry_workfile_create`/`_delete`, `foundry_artefacts_set_status`,
   `foundry_feedback_*` (mutating variants), `foundry_assay_run`,
   `foundry_validate_run`, `foundry_appraisers_select`,
-  `foundry_stage_begin`/`_end`, `foundry_memory_put`/`_relate`/
+  `foundry_stage_begin`/`_end`/`_retry`, `foundry_memory_put`/`_relate`/
   `_unrelate`.
 - **Dry-run finish writes a forensic snapshot.** `foundry_git_finish`
   on a `dry-run/<x>/<y>` branch now writes
