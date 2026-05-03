@@ -285,4 +285,71 @@ describe('runAssay', () => {
     assert.equal(syncCalls[0].entities[0].name, 'Persisted');
     rmSync(root, { recursive: true, force: true });
   });
+
+  it('writes first extractor rows to NDJSON before second extractor fails (TF6)', async () => {
+    const root = setupProject();
+    mkdirSync(join(root, 'foundry-memory/relations'), { recursive: true });
+    
+    writeExtractor(root, 'first', { command: 'first-cmd', write: ['class'] });
+    writeExtractor(root, 'second', { command: 'second-cmd', write: ['method'] });
+    
+    // Use real memory store with actual NDJSON writes
+    const { openStore, closeStore, syncStore } = await import('../../../scripts/lib/memory/store.js');
+    const { putEntity, relate } = await import('../../../scripts/lib/memory/writes.js');
+    
+    const schema = {
+      version: 1,
+      entities: { class: { frontmatterHash: '_' }, method: { frontmatterHash: '_' } },
+      edges: {},
+      embeddings: null,
+    };
+    const io = diskIO(root);
+    const store = await openStore({
+      foundryDir: 'foundry',
+      schema,
+      io,
+      dbAbsolutePath: join(root, 'memory.db'),
+    });
+    
+    const res = await runAssay({
+      foundryDir: 'foundry',
+      cwd: root,
+      io,
+      extractors: ['first', 'second'],
+      store,
+      vocabulary,
+      putEntity,
+      relate,
+      syncStore,
+      spawn: async ({ command }) => {
+        if (command === 'first-cmd') {
+          return {
+            ok: true, exitCode: 0, timedOut: false,
+            stdout: '{"kind":"entity","type":"class","name":"FirstClass","value":"persisted data"}\n',
+            stderr: '',
+          };
+        }
+        // Second extractor fails
+        return { ok: false, exitCode: 1, timedOut: false, stdout: '', stderr: 'extractor failed' };
+      },
+    });
+    
+    // Verify runAssay reports failure
+    assert.equal(res.ok, false);
+    assert.equal(res.failedExtractor, 'second');
+    
+    // Critical: First extractor's rows must be persisted to NDJSON despite second extractor failure
+    const { readFileSync } = await import('node:fs');
+    const ndjsonPath = join(root, 'foundry-memory/relations/class.ndjson');
+    const ndjsonContent = readFileSync(ndjsonPath, 'utf8');
+    const lines = ndjsonContent.trim().split('\n').filter(l => l);
+    
+    assert.equal(lines.length, 1, 'first extractor must have written 1 entity to NDJSON');
+    const row = JSON.parse(lines[0]);
+    assert.equal(row.name, 'FirstClass');
+    assert.equal(row.value, 'persisted data');
+    
+    closeStore(store);
+    rmSync(root, { recursive: true, force: true });
+  });
 });

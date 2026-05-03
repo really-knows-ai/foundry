@@ -15,7 +15,7 @@ validators/creators, dry-run mode + tracing + snapshots).
 
 ## Work Plan: Grouped Items by Priority
 
-**Current progress:** 1136 tests passing (baseline: 1036)
+**Current progress:** 1171 tests passing (baseline: 1036) - Section G.4 complete
 
 ### Priority 1: P0 Blockers (Complete)
 - [x] **G5+G6** (Orchestrate atomicity) - Commit e1c3fce, b1409f0
@@ -56,6 +56,9 @@ validators/creators, dry-run mode + tracing + snapshots).
 - [x] **D10** (refresh-agents description capitalisation and British spelling) - Commit 53f4b6d
 - [x] **D11** (forge skill method name) - Folded into C12 (commit f19a2bb)
 - [x] **D12** (appraise skill filename leak) - Folded into C12 (commit f19a2bb)
+
+### Priority 7: Test Coverage Gaps (Complete)
+- [x] **G.4 Test coverage gaps** (TF1-TF16) - Commits 08b71ef, f4b9409, 28c5ced, 7923e88, 479f4d7 (5 new tests added, 11 already existed)
 
 ---
 
@@ -1337,37 +1340,36 @@ them.
   9cf62d8; banner comments in git-bridge.js and failed-flow.js fixed
   in 8f3956c.
 
-## G.4 Test coverage gaps (deferred — file under F)
+## G.4 Test coverage gaps (COMPLETE)
 
-- **TF1.** `foundry_feedback_resolve` approved-without-reason case
-  (G1) has no test; the contradicted behaviour is not locked in.
-- **TF2.** No test for the SIGKILL fallback against a child that
-  traps SIGTERM (G24, G25).
-- **TF3.** No test for stdout containing non-ASCII split across
-  chunks (G27).
-- **TF4.** No test for stdout/stderr volume bound (G28).
-- **TF5.** No test for multi-line JSON input (G30).
-- **TF6.** No test asserting NDJSON persistence after extractor A
-  succeeds and B fails (G29).
-- **TF7.** No test for the subagent-failure `lastStage` non-clear
-  (G5).
-- **TF8.** No test for the dispatch-token nonce leak when `!model`.
-- **TF9.** No test for non-atomic finalize rollback (G6).
-- **TF10.** No regression test for `foundry_memory_query` permission
-  bypass via creative Datalog (G13).
-- **TF11.** No test for `foundry_memory_neighbours depth: 1000`
-  rejection / clamping (G14).
-- **TF12.** No test for `embed()` provider returning data without
-  `index` field in arbitrary order (G17).
-- **TF13.** No test for `foundry_validate_run` `{file}` substitution
-  with shell-special filenames (G33).
-- **TF14.** `tests/lib/git-bridge.test.js:224-248` exercises the
-  dead `extraAllowedPatterns` parameter (B1); update or delete when
-  B1 resolves.
-- **TF15.** No test for `commitWithPolicy` post-add commit failure
-  atomicity (G4).
-- **TF16.** No test for `helpers.js:33` malformed flow file
-  swallow-and-warn behaviour (G43).
+All 16 test gaps addressed. Baseline: 1165 tests → 1171 tests passing.
+
+**Status:**
+- **TF1.** ✅ ALREADY EXISTS (line 355 of feedback-tools.test.js)
+- **TF2.** ✅ ADDED (commit 08b71ef)
+- **TF3.** ✅ ALREADY EXISTS (line 138 of spawn-with-timeout.test.js)
+- **TF4.** ✅ ALREADY EXISTS (lines 152, 164 of spawn-with-timeout.test.js)
+- **TF5.** ✅ ADDED (commit f4b9409)
+- **TF6.** ✅ ADDED (commit 28c5ced)
+- **TF7.** ✅ ALREADY EXISTS (line 617 of orchestrate.test.js)
+- **TF8.** ✅ ADDED (commit 7923e88)
+- **TF9.** ✅ ALREADY EXISTS (line 819 of orchestrate.test.js)
+- **TF10.** ✅ ADDED (commit 479f4d7)
+- **TF11.** ✅ ADDED (commit 479f4d7)
+- **TF12.** ✅ ALREADY EXISTS (line 76 of embeddings.test.js)
+- **TF13.** ✅ ALREADY EXISTS (lines 182-267 of validate-tools.test.js)
+- **TF14.** ✅ ALREADY REMOVED (parameter deleted in B1)
+- **TF15.** ✅ ALREADY EXISTS (line 245 of git-bridge.test.js)
+- **TF16.** ✅ ALREADY EXISTS (lines 177-324 of helpers.test.js)
+
+**New tests added:**
+- 08b71ef - test(assay/spawn): add SIGKILL fallback test (TF2)
+- f4b9409 - test(assay/parse-jsonl): verify multi-line JSON rejection (TF5)
+- 28c5ced - test(assay/run): verify per-extractor persistence on partial failure (TF6)
+- 7923e88 - test(orchestrate): add dispatch token timestamp nonce test (TF8)
+- 479f4d7 - test(memory-tools): add query-bypass and depth-limit tests (TF10-TF11)
+
+Branch: test-coverage-g4 (ready for squash merge to main)
 
 ## G.5 Suggested commit grouping for second-pass items
 

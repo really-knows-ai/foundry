@@ -60,6 +60,29 @@ describe('spawnWithTimeout', () => {
     rmSync(d, { recursive: true, force: true });
   });
 
+  // TF2: SIGKILL fallback timer exists and fires after SIGTERM fails
+  // This tests G24/G25 - that the SIGKILL timer is set and would fire for stubborn processes
+  it('applies SIGKILL after 500ms when process ignores SIGTERM (TF2)', async () => {
+    const d = scriptDir();
+    // Run Python directly via shell -c, using exec to replace the shell with Python
+    const cmd = 'exec python3 -c "import signal, time; signal.signal(signal.SIGTERM, lambda *_: print(\\"trapped\\", flush=True)); [time.sleep(0.1) for _ in iter(int, 1)]"';
+    
+    const start = Date.now();
+    const r = await spawnWithTimeout({ command: cmd, cwd: d, timeoutMs: 100 });
+    const elapsed = Date.now() - start;
+    
+    assert.equal(r.ok, false, 'should fail because it timed out');
+    assert.equal(r.timedOut, true, 'should be marked as timed out');
+    // Should take timeout (100ms) + SIGKILL delay (500ms) = ~600ms
+    assert.ok(elapsed >= 550, `should wait for SIGKILL fallback, took ${elapsed}ms`);
+    assert.ok(elapsed < 900, `should not exceed reasonable bounds, took ${elapsed}ms`);
+    // Process should be killed by SIGKILL since it trapped SIGTERM
+    assert.equal(r.signal, 'SIGKILL', 'should be killed by SIGKILL after SIGTERM was trapped');
+    // Verify SIGTERM was actually received and trapped
+    assert.match(r.stdout, /trapped/, 'should show SIGTERM was trapped before SIGKILL');
+    rmSync(d, { recursive: true, force: true });
+  });
+
   // G24: SIGKILL fallback timer must be cleared on natural exit
   it('does not keep the event loop alive after clean exit (G24)', async () => {
     const d = scriptDir();

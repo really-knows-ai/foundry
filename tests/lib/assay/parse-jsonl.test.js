@@ -105,4 +105,19 @@ describe('parseExtractorOutput', () => {
     assert.deepEqual(parseExtractorOutput(''), []);
     assert.deepEqual(parseExtractorOutput('\n\n# only comments\n'), []);
   });
+
+  it('rejects multi-line pretty-printed JSON', () => {
+    const text = [
+      '{',
+      '  "kind": "entity",',
+      '  "type": "node",',
+      '  "name": "foo",',
+      '  "value": "bar"',
+      '}',
+    ].join('\n');
+    assert.throws(
+      () => parseExtractorOutput(text),
+      /line 1.*invalid JSON/i,
+    );
+  });
 });

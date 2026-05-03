@@ -96,4 +96,58 @@ describe('plugin memory tools', () => {
     const out = await plugin.tool.foundry_memory_query.execute({ datalog: ':put ent_class { name => value } [["x","y"]]' }, ctx);
     assert.match(out, /error.*read-only/i);
   });
+
+  it('TF10: query blocks permission bypass via rule aliasing', async () => {
+    // Create a forbidden entity type that should not be accessible via aliasing
+    writeFileSync(join(root, 'foundry/memory/entities/secret.md'),
+      '---\ntype: secret\n---\n\n# secret\nForbidden type.\n');
+    const schema = JSON.parse(readFileSync(join(root, 'foundry/memory/schema.json'), 'utf-8'));
+    schema.entities.secret = { frontmatterHash: hashFrontmatter({ type: 'secret' }) };
+    writeFileSync(join(root, 'foundry/memory/schema.json'), JSON.stringify(schema, null, 2) + '\n');
+
+    // Dispose and reboot to load new schema
+    disposeStores();
+    plugin = await bootPlugin(root);
+
+    // Put a secret entity
+    const ctx = { worktree: root };
+    await plugin.tool.foundry_memory_put.execute({ type: 'secret', name: 'api-key', value: 'sk-1234' }, ctx);
+
+    // Create a cycle definition that only allows reading 'class', not 'secret'
+    mkdirSync(join(root, 'foundry/cycles'), { recursive: true });
+    writeFileSync(join(root, 'foundry/cycles/test-cycle.md'), `---
+output-type: report
+memory:
+  read: [class]
+---
+
+Cycle body.
+`);
+
+    // Try direct access to forbidden relation - this should be blocked
+    const direct = '?[v] := *ent_secret{value: v}';
+    const result1 = await plugin.tool.foundry_memory_query.execute({ datalog: direct }, { ...ctx, cycle: 'test-cycle' });
+    const parsed1 = JSON.parse(result1);
+    assert.ok(parsed1.error, 'Expected error for direct forbidden relation access');
+    assert.match(parsed1.error, /ent_secret/i, 'Error should mention forbidden relation');
+    assert.match(parsed1.error, /not in read permissions/i, 'Error should indicate permission violation');
+
+    // Try bypassing via block comment embedding - should also be blocked
+    const commentBypass = '?[v] := /* ent_secret */ *ent_secret{value: v}';
+    const result2 = await plugin.tool.foundry_memory_query.execute({ datalog: commentBypass }, { ...ctx, cycle: 'test-cycle' });
+    const parsed2 = JSON.parse(result2);
+    assert.ok(parsed2.error, 'Expected error for comment-embedded bypass');
+    assert.match(parsed2.error, /ent_secret/i, 'Error should mention forbidden relation');
+  });
+
+  it('TF11: neighbours rejects excessive depth (1000) with clear error', async () => {
+    const ctx = { worktree: root };
+    const result = JSON.parse(await plugin.tool.foundry_memory_neighbours.execute(
+      { type: 'class', name: 'com.Src', depth: 1000 },
+      ctx,
+    ));
+    assert.ok(result.error, 'Expected error for excessive depth');
+    assert.match(result.error, /depth/i, 'Error should mention depth');
+    assert.match(result.error, /5/, 'Error should mention max depth of 5');
+  });
 });

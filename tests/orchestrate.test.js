@@ -677,6 +677,54 @@ max-iterations: 3
   assert.match(result.details, /orphaned|prior stage/i);
 });
 
+test('runOrchestrate dispatch: tokens include timestamp nonce for uniqueness (TF8)', async () => {
+  // Regression test: dispatch tokens must include exp (timestamp-based nonce)
+  // to prevent token reuse across successive dispatches of the same route.
+  // Without a varying component like exp, identical route+cycle would produce
+  // identical tokens, enabling replay attacks.
+  const io = makeBootstrapFixture();
+  const git = {
+    commit: () => 'abc123',
+    status: () => ({ clean: true, dirty: [] }),
+  };
+  
+  const mintedPayloads = [];
+  const mint = (payload) => {
+    mintedPayloads.push(payload);
+    return `TOKEN_${mintedPayloads.length}`;
+  };
+  
+  // First dispatch
+  await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint,
+    now: () => 1000000,
+  }, io);
+  
+  assert.strictEqual(mintedPayloads.length, 1);
+  assert.strictEqual(mintedPayloads[0].route, 'forge:create-haiku');
+  assert.strictEqual(mintedPayloads[0].cycle, 'create-haiku');
+  assert.strictEqual(mintedPayloads[0].exp, 1000000 + 10 * 60 * 1000);
+  
+  // Second dispatch with different timestamp
+  await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint,
+    now: () => 2000000,
+  }, io);
+  
+  assert.strictEqual(mintedPayloads.length, 2);
+  assert.strictEqual(mintedPayloads[1].route, 'forge:create-haiku');
+  assert.strictEqual(mintedPayloads[1].cycle, 'create-haiku');
+  assert.strictEqual(mintedPayloads[1].exp, 2000000 + 10 * 60 * 1000);
+  
+  // Critical: exp must vary to ensure unique tokens
+  assert.notStrictEqual(mintedPayloads[0].exp, mintedPayloads[1].exp,
+    'Token exp must vary with now() to prevent token reuse (nonce leak)');
+});
+
 import * as orchestrate from '../scripts/orchestrate.js';
 
 test('handleSortResult: done route returns done action with next_cycles', async () => {
