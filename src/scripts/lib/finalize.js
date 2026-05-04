@@ -1,6 +1,7 @@
 // scripts/lib/finalize.js
 import { execFileSync } from 'node:child_process';
 import { minimatch } from 'minimatch';
+import { sortPaths } from './attestation/hash.js';
 
 const TOOL_MANAGED = [
   'WORK.md',
@@ -55,12 +56,13 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
     else unexpected.push(f);
   }
   if (unexpected.length) return { ok: false, error: 'unexpected_files', files: unexpected };
+  const sortedFiles = sortPaths(matched);
   // For non-forge stages, matched files are tool-managed side effects (e.g.
   // assay's memory writes) that should not become artefacts.
-  if (stageBase !== 'forge') return { ok: true, artefacts: [] };
-  const artefacts = matched.map(file => {
+  if (stageBase !== 'forge') return { ok: true, artefacts: [], changedFiles: sortedFiles };
+  const artefacts = sortedFiles.map(file => {
     registerArtefact({ file, type: cycleDef.outputArtefactType, status: 'draft' });
     return { file, type: cycleDef.outputArtefactType, status: 'draft' };
   });
-  return { ok: true, artefacts };
+  return { ok: true, artefacts, changedFiles: sortedFiles };
 }

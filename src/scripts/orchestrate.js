@@ -455,6 +455,12 @@ export async function runOrchestrate(args = {}, io) {
       return violation('lastResult provided but no last stage recorded — orphaned state');
     }
 
+    // Save original state for potential rollback BEFORE finalize mutates WORK.md
+    const originalWorkMd = io.readFile('WORK.md');
+    const originalHistory = io.exists('WORK.history.yaml') 
+      ? io.readFile('WORK.history.yaml') 
+      : null;
+
     let finalizeResult;
     if (typeof finalize !== 'function') {
       return violation(
@@ -483,12 +489,6 @@ export async function runOrchestrate(args = {}, io) {
       return violation(`stage_finalize error: ${finalizeResult.error}${blockNote}`, []);
     }
 
-    // Save original state for potential rollback
-    const originalWorkMd = io.readFile('WORK.md');
-    const originalHistory = io.exists('WORK.history.yaml') 
-      ? io.readFile('WORK.history.yaml') 
-      : null;
-
     // Artefact rows already written by finalizeStage via registerArtefact.
 
     const summary = lastStage.summary || '(no summary)';
@@ -504,14 +504,15 @@ export async function runOrchestrate(args = {}, io) {
       iteration,
       route: lastStage.stage,
       comment: `route ${lastStage.stage}`,
-      open_feedback: openFeedback,
+      openFeedback,
     }, io);
     appendEntry(historyPath, {
       cycle: cycleId,
       stage: lastStage.stage,
       iteration,
       comment: summary,
-      open_feedback: openFeedback,
+      openFeedback,
+      changedFiles: finalizeResult.changedFiles ?? [],
     }, io);
 
     if (git && typeof git.commit === 'function') {
@@ -541,6 +542,8 @@ export async function runOrchestrate(args = {}, io) {
     // Defensive: stage_end clears activeStage already; this is a no-op in the
     // normal lifecycle but cleans up if the subagent skipped stage_end.
     if (activeStage) clearActiveStage(io);
+    // Clear lastStage after successful finalization to prevent stale state corruption
+    if (lastStage) clearLastStage(io);
   }
 
   const sortResult = runSort(
