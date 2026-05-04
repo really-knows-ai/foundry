@@ -1128,3 +1128,347 @@ Extractor body
   assert.strictEqual(result.action, 'dispatch');
   assert.ok(existsCalled, 'io.exists should have been called for memory check');
 });
+
+import { finalizeStage } from '../src/scripts/lib/finalize.js';
+import { appendEntry, loadHistory } from '../src/scripts/lib/history.js';
+import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+
+test('finalizeStage returns sorted changed files for forge output', () => {
+  // Use the actual git repo directory for this integration test
+  const repoDir = process.cwd();
+  // Get a valid SHA from the repository
+  const baseSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoDir }).toString().trim();
+  
+  // Mock the minimal finalize context
+  const artefacts = [];
+  const result = finalizeStage({
+    cwd: repoDir,
+    baseSha,
+    stageBase: 'forge',
+    cycleDef: { outputArtefactType: 'haiku' },
+    artefactTypes: { haiku: { filePatterns: ['out/*.md'] } },
+    registerArtefact: (a) => artefacts.push(a),
+  });
+
+  // The worktree is clean at HEAD, so we expect ok: true with empty changedFiles
+  if (!result.ok) {
+    // If there are unexpected files, that's fine - we just want to verify the API shape
+    assert.ok(result.error, 'result should have an error field when ok is false');
+  } else {
+    // The result should have a changedFiles array (could be empty if no matching files)
+    assert.ok(Array.isArray(result.changedFiles), 'changedFiles should be an array');
+    // Verify it's sorted (check that it equals its sorted version)
+    const sorted = [...result.changedFiles].sort((a, b) => a.localeCompare(b, 'en'));
+    assert.deepEqual(result.changedFiles, sorted, 'changedFiles should be sorted');
+  }
+});
+
+test('appendEntry persists sorted changed_files when provided', () => {
+  const io = makeIo({});
+  
+  appendEntry('WORK.history.yaml', {
+    cycle: 'write-haiku',
+    stage: 'forge:write-haiku',
+    iteration: 1,
+    comment: 'wrote draft',
+    changedFiles: ['b.txt', 'a.txt'],
+  }, io);
+
+  const rows = loadHistory('WORK.history.yaml', 'write-haiku', io);
+  assert.deepEqual(rows[0].changed_files, ['a.txt', 'b.txt']);
+});
+
+test('runOrchestrate writes sort history with actual open feedback count', async () => {
+  // Regression: orchestrate line 507 passed `open_feedback: openFeedback` (wrong parameter name)
+  // instead of just `openFeedback`, causing appendEntry to receive undefined and persist 0.
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'WORK.history.yaml': '',
+    'WORK.feedback.yaml': `items:
+  - id: fb1
+    file: haikus/a.md
+    tag: human
+    text: needs work
+    source: appraise:create-haiku
+    history:
+      - state: open
+        stage: appraise:create-haiku
+        cycle: create-haiku
+        timestamp: '2026-01-01T00:00:00.000Z'
+  - id: fb2
+    file: haikus/a.md
+    tag: human
+    text: also needs work
+    source: appraise:create-haiku
+    history:
+      - state: open
+        stage: appraise:create-haiku
+        cycle: create-haiku
+        timestamp: '2026-01-01T00:01:00.000Z'
+`,
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      baseSha: 'abc',
+      summary: 'wrote haiku'
+    }),
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output-type: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+
+  const git = {
+    commit: (msg) => 'sha123',
+    status: () => ({ clean: true, dirty: [] }),
+  };
+
+  await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'TOKEN',
+    now: () => 1000000,
+    lastResult: { ok: true },
+    finalize: async () => ({ ok: true, artefacts: [] }),
+  }, io);
+
+  const history = loadHistory('WORK.history.yaml', 'create-haiku', io);
+  const sortEntry = history.find(e => e.stage === 'sort');
+  assert.ok(sortEntry, 'should have a sort history entry');
+  assert.strictEqual(sortEntry.open_feedback, 2, 'sort entry must persist actual feedback count (2), not 0');
+});
+
+test('finalizeStage returns deterministic sorted changedFiles for controlled forge case', async () => {
+  // Regression: previous test depended on ambient repo state. This test creates a controlled
+  // scenario with known file changes to verify deterministic sorting behaviour.
+  const testDir = '/tmp/foundry-finalize-test';
+  
+  // Create a minimal git repo with two files in forge output directory
+  const io = makeIo({});
+  
+  try {
+    execFileSync('rm', ['-rf', testDir], { stdio: 'ignore' });
+  } catch {}
+  
+  execFileSync('mkdir', ['-p', testDir]);
+  execFileSync('git', ['init'], { cwd: testDir });
+  execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: testDir });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: testDir });
+  
+  // Create initial commit
+  execFileSync('mkdir', ['-p', `${testDir}/out`], { stdio: 'ignore' });
+  execFileSync('touch', [`${testDir}/out/.keep`], { stdio: 'ignore' });
+  execFileSync('git', ['add', '.'], { cwd: testDir });
+  execFileSync('git', ['commit', '-m', 'init'], { cwd: testDir });
+  
+  const baseSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: testDir }).toString().trim();
+  
+  // Create forge output files in reverse alphabetical order to test sorting
+  writeFileSync(`${testDir}/out/zebra.md`, 'z');
+  writeFileSync(`${testDir}/out/apple.md`, 'a');
+  writeFileSync(`${testDir}/out/mango.md`, 'm');
+  
+  const artefacts = [];
+  const result = finalizeStage({
+    cwd: testDir,
+    baseSha,
+    stageBase: 'forge',
+    cycleDef: { outputArtefactType: 'haiku' },
+    artefactTypes: { haiku: { filePatterns: ['out/*.md'] } },
+    registerArtefact: (a) => artefacts.push(a),
+  });
+  
+  assert.ok(result.ok, 'finalize should succeed');
+  assert.ok(Array.isArray(result.changedFiles), 'changedFiles should be an array');
+  assert.deepStrictEqual(
+    result.changedFiles, 
+    ['out/apple.md', 'out/mango.md', 'out/zebra.md'],
+    'changedFiles must be deterministically sorted, excluding .keep'
+  );
+  
+  // Clean up
+  try {
+    execFileSync('rm', ['-rf', testDir], { stdio: 'ignore' });
+  } catch {}
+});
+
+test('runOrchestrate: commit failure rollback restores pre-finalize WORK.md state', async () => {
+  // Regression test: orchestrate snapshots WORK.md AFTER finalize() has already
+  // run and mutated it via registerArtefact. If commit fails, the rollback
+  // restores the already-mutated state instead of the clean pre-finalize state.
+  
+  const initialWorkMd = `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+---
+# Goal
+
+haiku
+
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+`;
+
+  const io = makeIo({
+    'WORK.md': initialWorkMd,
+    'WORK.history.yaml': '',
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      baseSha: 'abc',
+      summary: 'wrote haiku',
+    }),
+    'haikus/a.md': 'haiku content',
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output-type: haiku
+stages: [forge, appraise]
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+
+  const git = {
+    commit: () => {
+      const err = new Error('unexpected_files');
+      err.code = 'unexpected_files';
+      err.files = ['stray.bin'];
+      throw err;
+    },
+    status: () => ({ clean: false, dirty: ['stray.bin'] }),
+  };
+
+  const result = await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'TOKEN',
+    now: () => 1000000,
+    lastResult: { ok: true },
+    finalize: async ({ io: ioContext }) => {
+      // Simulate finalize mutating WORK.md via registerArtefact
+      const currentWork = ioContext.readFile('WORK.md');
+      const mutatedWork = currentWork.replace(
+        '| File | Type | Cycle | Status |',
+        '| File | Type | Cycle | Status |\n| haikus/a.md | haiku | create-haiku | draft |'
+      );
+      ioContext.writeFile('WORK.md', mutatedWork);
+      return { ok: true, artefacts: [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }], changedFiles: ['haikus/a.md'] };
+    },
+  }, io);
+
+  assert.strictEqual(result.action, 'violation');
+  assert.match(result.details, /stray\.bin/);
+
+  // CRITICAL: WORK.md must be restored to the pre-finalize state (no artefact row)
+  const workAfter = io.readFile('WORK.md');
+  assert.strictEqual(workAfter, initialWorkMd, 
+    'WORK.md should be rolled back to pre-finalize state, not post-finalize state');
+  assert.doesNotMatch(workAfter, /haikus\/a\.md/, 
+    'artefact row added by finalize should not persist after rollback');
+});
+
+test('runOrchestrate: successful finalization clears lastStage state', async () => {
+  // Regression test: lastStage is not cleared after successful finalization.
+  // If a later orchestrate call has lastResult.ok === false, it can pick up
+  // stale lastStage state from a previous cycle.
+  
+  const io = makeIo({
+    'WORK.md': `---
+flow: creative-flow
+cycle: create-haiku
+stages:
+  - forge:create-haiku
+  - appraise:create-haiku
+max-iterations: 3
+human-appraise: false
+deadlock-appraise: true
+deadlock-iterations: 3
+models:
+  forge: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/claude-sonnet-4.6
+---
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+| haikus/a.md | haiku | create-haiku | draft |
+`,
+    'WORK.history.yaml': '',
+    '.foundry/last-stage.json': JSON.stringify({
+      cycle: 'create-haiku',
+      stage: 'forge:create-haiku',
+      baseSha: 'abc',
+      summary: 'wrote haiku',
+    }),
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output-type: haiku
+stages: [forge, appraise]
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["haikus/*.md"]
+---
+`,
+    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+  });
+
+  const git = {
+    commit: () => 'sha123',
+    status: () => ({ clean: true, dirty: [] }),
+  };
+
+  const result = await runOrchestrate({
+    cwd: '/tmp/project',
+    git,
+    mint: () => 'TOKEN',
+    now: () => 1000000,
+    lastResult: { ok: true },
+    finalize: async () => ({ ok: true, artefacts: [], changedFiles: [] }),
+  }, io);
+
+  assert.strictEqual(result.action, 'dispatch');
+  
+  // CRITICAL: lastStage must be cleared after successful finalization
+  assert.strictEqual(io.exists('.foundry/last-stage.json'), false, 
+    'lastStage should be cleared after successful finalization to prevent stale state corruption');
+});

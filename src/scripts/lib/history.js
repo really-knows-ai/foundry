@@ -1,5 +1,6 @@
 import yaml from 'js-yaml';
 import { markWorkfileFailed } from './failed-flow.js';
+import { sortPaths } from './attestation/hash.js';
 
 /**
  * Parse WORK.history.yaml text into an array of entries.
@@ -50,7 +51,7 @@ export function loadHistory(historyPath, cycle, io) {
 /**
  * Append a history entry with auto-generated ISO timestamp.
  */
-export function appendEntry(historyPath, { cycle, stage, iteration, comment, route, openFeedback }, io) {
+export function appendEntry(historyPath, { cycle, stage, iteration, comment, route, openFeedback, changedFiles }, io) {
   if (iteration == null) throw new Error('iteration is required');
   if (!comment) throw new Error('comment is required');
   if (route !== undefined && stage !== 'sort') {
@@ -77,6 +78,9 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment, rou
     open_feedback: openFeedback ?? 0,
   };
   if (route !== undefined) entry.route = route;
+  if (changedFiles !== undefined) {
+    entry.changed_files = sortPaths(changedFiles);
+  }
   existing.push(entry);
 
   const body = yaml.dump(existing);
