@@ -39,22 +39,23 @@ export function buildAttestationPayload({ cwd, goalText, archiveBranch, archiveT
 
   // Build process.stages array
   const stages = sortedEntries.map(entry => {
-    // Determine result field:
-    // - For sort stages with a route, use the route value
-    // - Otherwise, use the literal "recorded" (no tool-produced pass/fail verdict exists)
-    let result = 'recorded';
-    if (entry.stage === 'sort' && entry.route) {
-      result = entry.route;
+    // Build stage record from tool-produced facts only.
+    // Fields in alphabetical order for canonical JSON friendliness.
+    const record = {
+      changed_files: entry.changed_files ? sortPaths(entry.changed_files) : [],
+      cycle: entry.cycle,
+      iteration: entry.iteration,
+      open_feedback: entry.open_feedback ?? 0,
+    };
+
+    // Insert route before stage to maintain alphabetical order
+    if (entry.route !== undefined) {
+      record.route = entry.route;
     }
 
-    // changed_files: copy from entry, default to [], re-sort defensively
-    const changedFiles = entry.changed_files ? sortPaths(entry.changed_files) : [];
+    record.stage = entry.stage;
 
-    return {
-      stage: entry.stage,
-      result,
-      changed_files: changedFiles,
-    };
+    return record;
   });
 
   return {

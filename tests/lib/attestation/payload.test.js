@@ -143,11 +143,20 @@ test('buildAttestationPayload process section - single entry without changed_fil
   });
 
   assert.equal(payload.process.stages.length, 1);
-  assert.deepEqual(payload.process.stages[0], {
-    stage: 'forge',
-    result: 'recorded',
-    changed_files: [],
-  });
+  const stage = payload.process.stages[0];
+  
+  // Verify field presence and values (alphabetical order)
+  assert.deepEqual(stage.changed_files, []);
+  assert.equal(stage.cycle, 'test-cycle');
+  assert.equal(stage.iteration, 1);
+  assert.equal(stage.open_feedback, 0);
+  assert.equal(stage.stage, 'forge');
+  
+  // Verify route is absent on non-sort stages
+  assert.equal('route' in stage, false, 'route should not be present on non-sort stages');
+  
+  // Verify result field is absent
+  assert.equal('result' in stage, false, 'result field should not exist');
 });
 
 test('buildAttestationPayload process section - entry with unsorted changed_files', () => {
@@ -172,7 +181,15 @@ test('buildAttestationPayload process section - entry with unsorted changed_file
   });
 
   assert.equal(payload.process.stages.length, 1);
-  assert.deepEqual(payload.process.stages[0].changed_files, ['a.txt', 'b.txt']);
+  const stage = payload.process.stages[0];
+  
+  // changed_files should be sorted
+  assert.deepEqual(stage.changed_files, ['a.txt', 'b.txt']);
+  assert.equal(stage.cycle, 'test-cycle');
+  assert.equal(stage.iteration, 1);
+  assert.equal(stage.open_feedback, 0);
+  assert.equal(stage.stage, 'forge');
+  assert.equal('route' in stage, false);
 });
 
 test('buildAttestationPayload process section - sort stage with route back', () => {
@@ -195,7 +212,15 @@ test('buildAttestationPayload process section - sort stage with route back', () 
   });
 
   assert.equal(payload.process.stages.length, 1);
-  assert.equal(payload.process.stages[0].result, 'back');
+  const stage = payload.process.stages[0];
+  
+  assert.deepEqual(stage.changed_files, []);
+  assert.equal(stage.cycle, 'test-cycle');
+  assert.equal(stage.iteration, 1);
+  assert.equal(stage.open_feedback, 0);
+  assert.equal(stage.route, 'back', 'route should be present on sort stages');
+  assert.equal(stage.stage, 'sort');
+  assert.equal('result' in stage, false, 'result field should not exist');
 });
 
 test('buildAttestationPayload process section - sort stage with route forward', () => {
@@ -218,7 +243,15 @@ test('buildAttestationPayload process section - sort stage with route forward', 
   });
 
   assert.equal(payload.process.stages.length, 1);
-  assert.equal(payload.process.stages[0].result, 'forward');
+  const stage = payload.process.stages[0];
+  
+  assert.deepEqual(stage.changed_files, []);
+  assert.equal(stage.cycle, 'test-cycle');
+  assert.equal(stage.iteration, 1);
+  assert.equal(stage.open_feedback, 0);
+  assert.equal(stage.route, 'forward', 'route should be present on sort stages');
+  assert.equal(stage.stage, 'sort');
+  assert.equal('result' in stage, false, 'result field should not exist');
 });
 
 test('buildAttestationPayload process section - multiple entries across cycles in seq order', () => {
@@ -261,11 +294,135 @@ test('buildAttestationPayload process section - multiple entries across cycles i
   
   // Verify seq ordering
   assert.equal(payload.process.stages[0].stage, 'forge');
+  assert.equal(payload.process.stages[0].cycle, 'cycle-1');
+  assert.equal(payload.process.stages[0].iteration, 1);
+  
   assert.equal(payload.process.stages[1].stage, 'appraise');
+  assert.equal(payload.process.stages[1].cycle, 'cycle-1');
+  
   assert.equal(payload.process.stages[2].stage, 'forge');
+  assert.equal(payload.process.stages[2].cycle, 'cycle-2');
+  assert.equal(payload.process.stages[2].iteration, 2);
   
   // Verify changed_files are sorted
   assert.deepEqual(payload.process.stages[2].changed_files, ['a.txt', 'z.txt']);
+  
+  // Verify no route field on non-sort stages
+  assert.equal('route' in payload.process.stages[0], false);
+  assert.equal('route' in payload.process.stages[1], false);
+  assert.equal('route' in payload.process.stages[2], false);
+});
+
+test('buildAttestationPayload process section - open_feedback defaults to 0 when absent', () => {
+  const historyText = `- cycle: test-cycle
+  stage: forge
+  iteration: 1
+  comment: Entry without explicit open_feedback
+  timestamp: '2025-01-01T00:00:00Z'
+  seq: 0
+`;
+
+  const payload = buildAttestationPayload({
+    cwd: '/fake',
+    goalText: 'Test',
+    archiveBranch: 'archive/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    io: makeMockIo({ historyText }),
+  });
+
+  assert.equal(payload.process.stages.length, 1);
+  assert.equal(payload.process.stages[0].open_feedback, 0, 'open_feedback should default to 0');
+});
+
+test('buildAttestationPayload process section - multi-iteration feedback trail', () => {
+  const historyText = `- cycle: cycle-1
+  stage: forge
+  iteration: 1
+  comment: Initial forge
+  timestamp: '2025-01-01T00:00:00Z'
+  seq: 0
+  open_feedback: 0
+- cycle: cycle-1
+  stage: quench
+  iteration: 1
+  comment: Initial appraisal
+  timestamp: '2025-01-01T01:00:00Z'
+  seq: 1
+  open_feedback: 3
+- cycle: cycle-1
+  stage: sort
+  iteration: 1
+  comment: Routing back due to feedback
+  timestamp: '2025-01-01T02:00:00Z'
+  seq: 2
+  open_feedback: 3
+  route: back
+- cycle: cycle-2
+  stage: forge
+  iteration: 2
+  comment: Addressing feedback
+  timestamp: '2025-01-01T03:00:00Z'
+  seq: 3
+  open_feedback: 0
+  changed_files:
+    - revised.txt
+- cycle: cycle-2
+  stage: quench
+  iteration: 2
+  comment: Second appraisal
+  timestamp: '2025-01-01T04:00:00Z'
+  seq: 4
+  open_feedback: 0
+- cycle: cycle-2
+  stage: sort
+  iteration: 2
+  comment: Routing forward
+  timestamp: '2025-01-01T05:00:00Z'
+  seq: 5
+  open_feedback: 0
+  route: forward
+`;
+
+  const payload = buildAttestationPayload({
+    cwd: '/fake',
+    goalText: 'Test',
+    archiveBranch: 'archive/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    io: makeMockIo({ historyText }),
+  });
+
+  assert.equal(payload.process.stages.length, 6);
+  
+  // Verify feedback trail: 0 → 3 → 3 → 0 → 0 → 0
+  assert.equal(payload.process.stages[0].open_feedback, 0, 'forge iter 1');
+  assert.equal(payload.process.stages[1].open_feedback, 3, 'quench iter 1');
+  assert.equal(payload.process.stages[2].open_feedback, 3, 'sort iter 1');
+  assert.equal(payload.process.stages[3].open_feedback, 0, 'forge iter 2');
+  assert.equal(payload.process.stages[4].open_feedback, 0, 'quench iter 2');
+  assert.equal(payload.process.stages[5].open_feedback, 0, 'sort iter 2');
+  
+  // Verify iterations
+  assert.equal(payload.process.stages[0].iteration, 1);
+  assert.equal(payload.process.stages[1].iteration, 1);
+  assert.equal(payload.process.stages[2].iteration, 1);
+  assert.equal(payload.process.stages[3].iteration, 2);
+  assert.equal(payload.process.stages[4].iteration, 2);
+  assert.equal(payload.process.stages[5].iteration, 2);
+  
+  // Verify cycles
+  assert.equal(payload.process.stages[0].cycle, 'cycle-1');
+  assert.equal(payload.process.stages[5].cycle, 'cycle-2');
+  
+  // Verify route appears only on sort stages
+  assert.equal('route' in payload.process.stages[0], false);
+  assert.equal('route' in payload.process.stages[1], false);
+  assert.equal(payload.process.stages[2].route, 'back');
+  assert.equal('route' in payload.process.stages[3], false);
+  assert.equal('route' in payload.process.stages[4], false);
+  assert.equal(payload.process.stages[5].route, 'forward');
+  
+  // Verify changed_files on forge iter 2
+  assert.deepEqual(payload.process.stages[3].changed_files, ['revised.txt']);
 });
 
 test('buildAttestationPayload throws on malformed WORK.history.yaml', () => {
