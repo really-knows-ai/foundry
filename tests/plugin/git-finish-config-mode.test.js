@@ -172,3 +172,33 @@ test('foundry_git_finish on config/foo: squash-merge conflict preserves branch',
     cleanup(dir);
   }
 });
+
+test('foundry_git_finish on config/foo: succeeds even when repo signing is broken', async () => {
+  const dir = initRepo();
+  try {
+    // Enable commit signing in the repo config.
+    execSync('git config commit.gpgsign true', { cwd: dir, env: GIT_ENV });
+    // Break signing by pointing to a non-existent GPG key.
+    execSync('git config user.signingkey 0000000000000000', { cwd: dir, env: GIT_ENV });
+
+    execSync('git checkout -b config/add-rule -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'rules.md'), '# rules\n');
+    execSync('git add . && git commit -m "config: add rule" --no-gpg-sign -q',
+      { cwd: dir, env: GIT_ENV });
+
+    // Apply the finish — should succeed despite broken signing config.
+    const r = await callFinish(dir, { message: 'add rule', confirm: true });
+    assert.equal(r.ok, true, `Expected finish to succeed despite broken signing, got: ${JSON.stringify(r)}`);
+    assert.equal(r.branch, 'main');
+    assert.ok(r.hash);
+
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(!branches.includes('config/add-rule'),
+      `expected config branch deleted, got: ${branches}`);
+
+    const log = execSync('git log -1 --pretty=%s main', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.match(log, /add rule/);
+  } finally {
+    cleanup(dir);
+  }
+});

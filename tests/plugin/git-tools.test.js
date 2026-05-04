@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, existsSync, rmSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,14 +17,80 @@ function makeCtx(worktree) { return { worktree }; }
 function initRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-git-'));
   execSync('git init -q', { cwd: dir, env: GIT_ENV });
+  execSync('git config commit.gpgsign false', { cwd: dir, env: GIT_ENV });
+  
+  // Configure dummy GPG for testing: wrapper that handles both signing and verification
+  const gpgWrapper = join(tmpdir(), `gpg-test-${process.pid}-${Date.now()}`);
+  writeFileSync(gpgWrapper, 
+    '#!/bin/sh\n' +
+    '# Handle both signing and verification modes\n' +
+    'if echo "$*" | grep -q -- "--verify"; then\n' +
+    '  # Verification mode: consume input and report success on status-fd\n' +
+    '  cat >/dev/null\n' +
+    '  # Extract status-fd from arguments (default is stderr=2)\n' +
+    '  STATUS_FD=2\n' +
+    '  for arg in "$@"; do\n' +
+    '    case "$arg" in\n' +
+    '      --status-fd=*) STATUS_FD="${arg#--status-fd=}" ;;\n' +
+    '    esac\n' +
+    '  done\n' +
+    '  # Write status messages to the specified fd\n' +
+    '  echo "[GNUPG:] NEWSIG" >&"$STATUS_FD"\n' +
+    '  echo "[GNUPG:] GOODSIG 0000000000000000 Test Key" >&"$STATUS_FD"\n' +
+    '  echo "[GNUPG:] VALIDSIG 0000000000000000 2024-01-01 0000000000000000" >&"$STATUS_FD"\n' +
+    '  echo "[GNUPG:] TRUST_ULTIMATE" >&"$STATUS_FD"\n' +
+    '  echo "gpg: Good signature from \\"Test Key\\"" >&2\n' +
+    '  exit 0\n' +
+    'else\n' +
+    '  # Signing mode: consume input and produce signature\n' +
+    '  cat >/dev/null\n' +
+    '  echo "[GNUPG:] SIG_CREATED " >&2\n' +
+    '  cat <<\'SIGNATURE\'\n' +
+    '-----BEGIN PGP SIGNATURE-----\n' +
+    '\n' +
+    'iQIzBAABCAAdFiEE5MksKLdEzNNGEp9iqJqFb6xMfuQFAmbG6tEACgkQqJqFb6xM\n' +
+    'fuROjg//test\n' +
+    '-----END PGP SIGNATURE-----\n' +
+    'SIGNATURE\n' +
+    '  exit 0\n' +
+    'fi\n',
+    { mode: 0o755 }
+  );
+  execSync(`git config gpg.program "${gpgWrapper}"`, { cwd: dir, env: GIT_ENV });
+  
   execSync('git checkout -B main -q', { cwd: dir, env: GIT_ENV });
   writeFileSync(join(dir, 'README.md'), 'baseline\n');
+  // Add .gitignore with .foundry/ to prevent plugin from modifying it
+  writeFileSync(join(dir, '.gitignore'), '.foundry/\n');
   execSync('git add . && git commit -m init -q', { cwd: dir, env: GIT_ENV });
   return dir;
 }
 
 function cleanup(dir) {
   try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
+function enableSshSigning(dir) {
+  const keyPath = join(dir, 'signing_key');
+  const keyPubPath = join(dir, 'signing_key.pub');
+  const allowedSignersPath = join(dir, 'allowed_signers');
+  
+  execSync('ssh-keygen -t ed25519 -N "" -f signing_key -q', { cwd: dir, env: GIT_ENV });
+  // Ensure correct permissions (SSH requires 0600 for private keys)
+  execSync(`chmod 600 "${keyPath}"`, { cwd: dir, env: GIT_ENV });
+  
+  const pubKey = readFileSync(keyPubPath, 'utf8');
+  writeFileSync(allowedSignersPath, `t@t ${pubKey}`);
+  
+  // Ignore SSH keys and allowed_signers file to prevent them from being committed
+  const gitignorePath = join(dir, '.gitignore');
+  const gitignoreContent = readFileSync(gitignorePath, 'utf8');
+  writeFileSync(gitignorePath, gitignoreContent + 'signing_key\nsigning_key.pub\nallowed_signers\n');
+  
+  execSync('git config gpg.format ssh', { cwd: dir, env: GIT_ENV });
+  execSync(`git config user.signingkey "${keyPath}"`, { cwd: dir, env: GIT_ENV });
+  execSync(`git config gpg.ssh.allowedSignersFile "${allowedSignersPath}"`, { cwd: dir, env: GIT_ENV });
+  execSync('git config commit.gpgsign true', { cwd: dir, env: GIT_ENV });
 }
 
 test('foundry_git_finish removes WORK.feedback.yaml from the worktree', async () => {
@@ -41,6 +107,8 @@ test('foundry_git_finish removes WORK.feedback.yaml from the worktree', async ()
       GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
     });
     execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    // Add feature content so squash-merge has something to commit
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\ntest\n');
     writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
     writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []\n');
@@ -55,6 +123,7 @@ test('foundry_git_finish removes WORK.feedback.yaml from the worktree', async ()
     assert.equal(existsSync(join(dir, 'WORK.md')), false);
     assert.equal(existsSync(join(dir, 'WORK.history.yaml')), false);
     assert.equal(existsSync(join(dir, 'WORK.feedback.yaml')), false);
+    assert.equal(existsSync(join(dir, 'feature.txt')), true, 'Feature file should be merged');
   } finally {
     for (const [k, v] of Object.entries(envSnapshot)) {
       if (v === undefined) delete process.env[k];
@@ -198,9 +267,10 @@ test('foundry_git_finish successful path returns ok with hash and base branch', 
     assert.equal(res.ok, true, res.error);
     assert.ok(res.hash);
     assert.equal(res.branch, 'main');
-    // Work branch should be deleted.
+    // Work branch should be deleted (but archive branch should exist).
     const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
-    assert.ok(!branches.includes('work/f-flow'), `expected work branch deleted, got: ${branches}`);
+    assert.ok(!branches.match(/^\s*\*?\s*work\/f-flow\s*$/m), `expected work branch deleted, got: ${branches}`);
+    assert.ok(branches.match(/^\s*archive\/work\/f-flow-[a-f0-9]+\s*$/m), `expected archive branch to exist, got: ${branches}`);
     // Feature should be merged.
     assert.equal(existsSync(join(dir, 'feature.txt')), true);
     assert.equal(existsSync(join(dir, 'WORK.md')), false);
@@ -474,3 +544,288 @@ test('foundry_git_finish on detached HEAD names the branch state in its refusal'
       `expected 'detached HEAD' in error, got: ${res.error}`);
   } finally { cleanup(dir); }
 });
+
+// PHASE 2 TASK 2: Integration test for attestation block in commit message on HEAD
+test('foundry_git_finish produces attestation block in final commit message on HEAD', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), 'history: []\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    
+    // Verify the attestation block is in the HEAD commit message
+    const commitMsg = execSync('git log -1 --format=%B', { cwd: dir, env: GIT_ENV }).toString();
+    assert.match(commitMsg, /feat: implement feature/, 'Should include human summary');
+    assert.match(commitMsg, /-----BEGIN FOUNDRY ATTESTATION-----/, 'Should include attestation block marker');
+    assert.match(commitMsg, /"schema":\s*"foundry-attestation\/v1"/, 'Should include attestation schema');
+    assert.match(commitMsg, /"name":\s*"archive\/work\/f-flow/, 'Should reference archive branch in attestation');
+    assert.match(commitMsg, /"tip_sha"/, 'Should reference archive tip SHA in attestation');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// PHASE 2 TASK 2: Integration test for signed commit on HEAD
+test('foundry_git_finish produces a signed commit on HEAD', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    
+    // Verify the commit is signed by checking the commit object for gpgsig header
+    const commitObject = execSync('git cat-file commit HEAD', 
+      { cwd: dir, env: GIT_ENV }).toString();
+    
+    assert.match(commitObject, /^gpgsig /m, 'Commit object should contain gpgsig header');
+    assert.match(commitObject, /BEGIN PGP SIGNATURE/, 'Commit should contain PGP signature block');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// PHASE 2 TASK 2: Integration test for archive reference in output
+test('foundry_git_finish returns archive branch reference in result', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    assert.ok(res.archiveBranch, 'Should return archiveBranch in result');
+    assert.match(res.archiveBranch, /^archive\/work\/f-flow-[a-f0-9]+$/, 
+      'Archive branch should follow naming convention');
+    assert.ok(res.archiveTipSha, 'Should return archiveTipSha in result');
+    assert.match(res.archiveTipSha, /^[a-f0-9]{40}$/, 'Archive tip SHA should be full 40-char hash');
+    
+    // Verify the archive branch actually exists
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(branches.includes(res.archiveBranch), 
+      `Archive branch ${res.archiveBranch} should exist in repo`);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// PHASE 2 TASK 3: SSH signing tests
+test('foundry_git_finish with SSH signing produces a signed commit on HEAD', async () => {
+  const dir = initRepo();
+  try {
+    // Enable SSH signing for this repo
+    enableSshSigning(dir);
+    
+    execSync('git checkout -b work/f-ssh -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    
+    // Verify the commit is SSH signed by checking the commit object for gpgsig-sha256 header
+    const commitObject = execSync('git cat-file commit HEAD', 
+      { cwd: dir, env: GIT_ENV }).toString();
+    
+    assert.match(commitObject, /^gpgsig/m, 'Commit object should contain gpgsig header for SSH signature');
+    assert.match(commitObject, /BEGIN SSH SIGNATURE/, 'Commit should contain SSH signature block');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish with SSH signing includes attestation and archive reference', async () => {
+  const dir = initRepo();
+  try {
+    // Enable SSH signing for this repo
+    enableSshSigning(dir);
+    
+    execSync('git checkout -b work/f-attest -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), 'history: []\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    
+    // Verify attestation block exists
+    const commitMsg = execSync('git log -1 --format=%B', { cwd: dir, env: GIT_ENV }).toString();
+    assert.match(commitMsg, /-----BEGIN FOUNDRY ATTESTATION-----/, 'Should include attestation block');
+    assert.match(commitMsg, /"schema":\s*"foundry-attestation\/v1"/, 'Should include attestation schema');
+    assert.match(commitMsg, /"name":\s*"archive\/work\/f-attest/, 'Should reference archive branch');
+    
+    // Verify archive branch exists and is referenced
+    assert.ok(res.archiveBranch, 'Should return archiveBranch');
+    assert.match(res.archiveBranch, /^archive\/work\/f-attest-[a-f0-9]+$/);
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(branches.includes(res.archiveBranch), 'Archive branch should exist');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish on config branch does not require signed commit', async () => {
+  const dir = initRepo();
+  try {
+    // Enable SSH signing for this repo
+    enableSshSigning(dir);
+    
+    // Set up foundry directory structure
+    execSync(`mkdir -p "${join(dir, 'foundry', 'laws')}"`, { cwd: dir, env: GIT_ENV });
+    execSync('git checkout -b config/add-law -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'foundry/laws/new.md'), 'content\n');
+    execSync('git add . && git commit -m "add law" -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'finish config', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    
+    // Config branches should complete successfully regardless of signing
+    // The commit may or may not be signed depending on repo config, but the operation succeeds
+    assert.equal(res.branch, 'main');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// PHASE 2 TASK 3 VERIFICATION: GPG signing produces commit with signature
+test('foundry_git_finish GPG-signed commit contains signature in commit object', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b work/f-verify -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    
+    // Verify the commit object contains a GPG signature structure
+    // We use a test GPG wrapper, so we cannot verify cryptographic validity here.
+    // Real GPG verification coverage comes from the SSH signing test below.
+    const commitObject = execSync('git cat-file commit HEAD', 
+      { cwd: dir, env: GIT_ENV }).toString();
+    
+    assert.match(commitObject, /^gpgsig /m, 'Commit object should contain gpgsig header');
+    assert.match(commitObject, /BEGIN PGP SIGNATURE/, 'Commit should contain PGP signature block');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// PHASE 2 TASK 3 VERIFICATION: Git verify-commit tests for SSH signing
+test('foundry_git_finish SSH-signed commit passes git verify-commit', async () => {
+  const dir = initRepo();
+  try {
+    // Enable SSH signing for this repo
+    enableSshSigning(dir);
+    
+    execSync('git checkout -b work/f-ssh-verify -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    assert.equal(res.ok, true, res.error);
+    
+    // Verify the commit using Git's verify-commit command with SSH configuration
+    // This ensures Git verifies the SSH signature using the allowed_signers file
+    const verifyResult = execSync('git verify-commit HEAD 2>&1', 
+      { cwd: dir, env: GIT_ENV }).toString();
+    
+    // Git verify-commit should succeed and show SSH signature verification
+    assert.match(verifyResult, /Good "git" signature/i, 
+      'Git verify-commit should show good SSH signature');
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish on work branch succeeds even when repo signing is broken', async () => {
+  const dir = initRepo();
+  try {
+    // Enable commit signing in the repo config.
+    execSync('git config commit.gpgsign true', { cwd: dir, env: GIT_ENV });
+    // Break signing by pointing to a non-existent GPG key (repo config is broken).
+    execSync('git config user.signingkey 0000000000000000', { cwd: dir, env: GIT_ENV });
+
+    execSync('git checkout -b work/f-broken-sign -q', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
+    writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), 'history: []\n');
+    execSync('git add . && git commit -m work --no-gpg-sign -q',
+      { cwd: dir, env: GIT_ENV });
+
+    // Apply the finish — should succeed despite broken signing config.
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
+      { message: 'feat: implement feature', confirm: true }, makeCtx(dir),
+    ));
+
+    // Should succeed - cleanup commit bypasses broken signing with --no-gpg-sign,
+    // final commit uses explicit -S which works with the test GPG wrapper.
+    assert.equal(res.ok, true, `Expected finish to succeed despite broken signing, got: ${JSON.stringify(res)}`);
+    assert.equal(res.branch, 'main');
+    assert.ok(res.hash);
+
+    const branches = execSync('git branch', { cwd: dir, env: GIT_ENV }).toString();
+    assert.ok(!branches.match(/^\s*\*?\s*work\/f-broken-sign\s*$/m),
+      `expected work branch deleted, got: ${branches}`);
+
+    const log = execSync('git log -1 --pretty=%s main', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.match(log, /feat: implement feature/);
+    
+    // Verify the final commit is still signed (uses explicit -S flag with the working GPG).
+    // Note: The cleanup commit is unsigned to avoid the broken config.
+    const commitObject = execSync('git cat-file commit HEAD', 
+      { cwd: dir, env: GIT_ENV }).toString();
+    assert.match(commitObject, /^gpgsig /m, 'Final commit should be signed');
+    assert.match(commitObject, /BEGIN PGP SIGNATURE/, 'Final commit should contain signature');
+  } finally {
+    cleanup(dir);
+  }
+});
+

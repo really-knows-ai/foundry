@@ -1,12 +1,14 @@
 import path from 'path';
 import { execFileSync } from 'child_process';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, unlinkSync, writeFileSync, readFileSync } from 'fs';
 import { slugify } from '../../scripts/lib/slug.js';
 import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
 import { currentBranch } from '../../scripts/lib/branch-guard.js';
 import { finishDryRun } from '../../scripts/lib/snapshot/finish.js';
 import { truncateTrace } from '../../scripts/lib/tracing.js';
 import { makeIO, makeExec, asyncIoFactory } from './helpers.js';
+import { finishWorkBranchWithArchive } from '../../scripts/lib/git-finish/work-finish.js';
+import { buildAttestationPayload } from '../../scripts/lib/attestation/payload.js';
 
 const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];
 
@@ -172,22 +174,114 @@ function finishBranchCommon({ branchName, branchType, base, cwd, args, shouldDel
     });
   }
 
-  execFileSync('git', ['commit', '-m', args.message], opts);
+  execFileSync('git', ['commit', '--no-gpg-sign', '-m', args.message], opts);
   const hash = execFileSync('git', ['rev-parse', '--short', 'HEAD'], opts).trim();
   execFileSync('git', ['branch', '-D', branchName], opts);
 
   return JSON.stringify({ ok: true, hash, branch: base });
 }
 
-function finishWorkBranch({ workBranch, base, cwd, args }) {
-  return finishBranchCommon({
-    branchName: workBranch,
-    branchType: 'work',
-    base,
-    cwd,
-    args,
-    shouldDeleteWorkFiles: true,
-  });
+async function finishWorkBranch({ workBranch, base, cwd, args }) {
+  const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
+
+  // Compute planned side effects
+  const filesToDelete = WORK_FILES.filter((f) => existsSync(path.join(cwd, f)));
+
+  if (args.confirm !== true) {
+    return JSON.stringify({
+      ok: false,
+      error: 'foundry_git_finish requires {confirm: true} to perform destructive operations. Re-invoke with confirm:true to apply the plan.',
+      planned: {
+        workBranch,
+        baseBranch: base,
+        filesToDelete,
+        action: 'archive-branch, cleanup-work-files, checkout-base, squash-merge, attested-commit',
+        commitMessage: args.message,
+      },
+    });
+  }
+
+  const dirty = dirtyTrackedFiles(cwd);
+  if (dirty.length) {
+    return JSON.stringify({
+      ok: false,
+      error: 'foundry_git_finish refuses to run on a dirty worktree (uncommitted changes to tracked files). Commit or stash them first.',
+      dirty,
+    });
+  }
+
+  // Capture work files content for attestation
+  const workFilesContent = {};
+  for (const f of WORK_FILES) {
+    const p = path.join(cwd, f);
+    if (existsSync(p)) {
+      workFilesContent[p] = readFileSync(p, 'utf8');
+    }
+  }
+
+  // Bridge execGit
+  const execGit = (argv) => execFileSync('git', argv, opts);
+
+  // Bridge buildPayload with captured work files
+  const buildPayload = async ({ archiveBranch, archiveTipSha }) => {
+    // Create IO that reads from captured content
+    const io = {
+      readFile: (filePath) => {
+        if (workFilesContent[filePath] !== undefined) {
+          return workFilesContent[filePath];
+        }
+        throw new Error(`ENOENT: no such file or directory, open '${filePath}'`);
+      },
+      fileExists: (filePath) => workFilesContent[filePath] !== undefined,
+    };
+
+    return buildAttestationPayload({
+      cwd,
+      goalText: args.message,
+      archiveBranch,
+      archiveTipSha,
+      io,
+    });
+  };
+
+  // Bridge writeTempMessage
+  const writeTempMessage = (content) => {
+    // Use git rev-parse --git-dir to get the actual git directory path.
+    // In linked worktrees, .git is a file, not a directory.
+    const gitDir = execFileSync('git', ['rev-parse', '--git-dir'], opts).trim();
+    const gitDirAbsolute = path.isAbsolute(gitDir) ? gitDir : path.join(cwd, gitDir);
+    const tmpPath = path.join(gitDirAbsolute, `COMMIT_EDITMSG_${Date.now()}`);
+    writeFileSync(tmpPath, content, 'utf8');
+    return tmpPath;
+  };
+
+  try {
+    const result = await finishWorkBranchWithArchive({
+      branchName: workBranch,
+      baseBranch: base,
+      confirm: args.confirm,
+      message: args.message,
+      execGit,
+      buildPayload,
+      writeTempMessage,
+      deleteFile: (filePath) => {
+        if (existsSync(filePath)) {
+          unlinkSync(filePath);
+        }
+      },
+      fileExists: (filePath) => existsSync(filePath),
+      cwd,
+    });
+
+    return JSON.stringify(result);
+  } catch (err) {
+    // Handle merge conflicts and other errors
+    const stderr = (err && (err.stderr || err.stdout)) ? String(err.stderr || err.stdout).trim() : '';
+    return JSON.stringify({
+      ok: false,
+      error: `foundry_git_finish: attested work finish failed. ${stderr ? stderr : err.message ?? String(err)}`,
+    });
+  }
 }
 
 function finishConfigBranch({ configBranch, base, cwd, args }) {
