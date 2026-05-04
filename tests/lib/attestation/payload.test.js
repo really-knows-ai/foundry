@@ -144,6 +144,56 @@ Test goal.
   assert.equal(payload.contract.required_human_gates, 'optional');
 });
 
+test('buildAttestationPayload contract section - C2 fields default when absent', () => {
+  const mockIo = {
+    readFile: (filePath) => {
+      if (filePath.endsWith('WORK.md')) {
+        return `---
+flow: test-flow
+cycle: test-cycle
+stages:
+  - forge
+config-commit: test-sha
+---
+
+# Goal
+Test goal.
+
+## Artefacts
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+`;
+      }
+      if (filePath.endsWith('WORK.history.yaml')) {
+        return '[]\n';
+      }
+      if (filePath.endsWith('WORK.feedback.yaml')) {
+        return '';
+      }
+      throw new Error(`Unexpected file read: ${filePath}`);
+    },
+    fileExists: (filePath) => {
+      return filePath.endsWith('WORK.md') || 
+             filePath.endsWith('WORK.history.yaml') || 
+             filePath.endsWith('WORK.feedback.yaml');
+    },
+  };
+
+  const payload = buildAttestationPayload({
+    cwd: '/fake',
+    goalText: 'Test goal text',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    io: mockIo,
+  });
+
+  // C2 follow-up: Verify default values when fields are absent
+  assert.deepEqual(payload.contract.expected_output_types, []);
+  assert.deepEqual(payload.contract.allowed_write_scope, []);
+  assert.deepEqual(payload.contract.required_deterministic_checks, []);
+  assert.equal(payload.contract.required_human_gates, null);
+});
+
 // Helper for process section tests to reduce boilerplate
 function makeMockIo({ historyText = '', feedbackText = '' } = {}) {
   const workMd = `---
