@@ -20,6 +20,15 @@ function parseHistory(text) {
   return data;
 }
 
+/**
+ * Parse all history entries from WORK.history.yaml text without cycle filtering.
+ * Returns entries in their natural declaration order from the file.
+ * Empty/null/undefined input yields [].
+ */
+export function parseAllHistoryEntries(text) {
+  return parseHistory(text);
+}
+
 function markFailedDefensive(io, msg) {
   try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone; nothing to mark */ }
 }

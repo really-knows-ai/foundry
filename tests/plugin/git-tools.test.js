@@ -552,7 +552,7 @@ test('foundry_git_finish produces attestation block in final commit message on H
     execSync('git checkout -b work/f-flow -q', { cwd: dir, env: GIT_ENV });
     writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
-    writeFileSync(join(dir, 'WORK.history.yaml'), 'history: []\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
     const plugin = await FoundryPlugin({ directory: dir });
@@ -670,7 +670,7 @@ test('foundry_git_finish with SSH signing includes attestation and archive refer
     execSync('git checkout -b work/f-attest -q', { cwd: dir, env: GIT_ENV });
     writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
-    writeFileSync(join(dir, 'WORK.history.yaml'), 'history: []\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
     const plugin = await FoundryPlugin({ directory: dir });
@@ -795,7 +795,7 @@ test('foundry_git_finish on work branch succeeds even when repo signing is broke
     execSync('git checkout -b work/f-broken-sign -q', { cwd: dir, env: GIT_ENV });
     writeFileSync(join(dir, 'feature.txt'), 'feature work\n');
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
-    writeFileSync(join(dir, 'WORK.history.yaml'), 'history: []\n');
+    writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
     execSync('git add . && git commit -m work --no-gpg-sign -q',
       { cwd: dir, env: GIT_ENV });
 
