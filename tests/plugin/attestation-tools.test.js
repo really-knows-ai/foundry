@@ -103,3 +103,21 @@ test('foundry_attestation_verify returns verified for a signed matching commit',
     rmSync(testDir, { recursive: true, force: true });
   }
 });
+
+test('foundry_attest tool is exported in the tools object', async () => {
+  // Integration-level smoke test using the tool handler directly.
+  // Full unit coverage of the verification logic is in attest.test.js.
+  const testDir = mkdtempSync(path.join(tmpdir(), 'attest-tool-test-'));
+  try {
+    execFileSync('git', ['init'], { cwd: testDir });
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: testDir });
+    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: testDir });
+    writeFileSync(path.join(testDir, 'README.md'), 'hi');
+    execFileSync('git', ['add', '.'], { cwd: testDir });
+    execFileSync('git', ['commit', '-m', 'init', '--no-gpg-sign'], { cwd: testDir });
+    const plugin = await FoundryPlugin({ directory: testDir });
+    assert.ok(plugin.tool.foundry_attest, 'foundry_attest must be registered in the plugin');
+  } finally {
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
