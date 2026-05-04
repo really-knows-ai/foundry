@@ -618,7 +618,7 @@ During a flow, a work branch also contains `WORK.md`, `WORK.feedback.yaml`, and 
 
 ## Design principles
 
-Foundry's guiding rule is **trust the tool**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code. This is how that rule plays out in practice.
+Foundry's guiding rule is **if it can be deterministic, it will be**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code rather than an LLM. This is how that rule plays out in practice.
 
 ### Everything is markdown
 
