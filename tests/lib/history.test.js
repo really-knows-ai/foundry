@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadHistory, appendEntry, getIteration } from '../../src/scripts/lib/history.js';
+import { loadHistory, appendEntry, getIteration, parseAllHistoryEntries } from '../../src/scripts/lib/history.js';
 import yaml from 'js-yaml';
 
 function mockIO(initial = null) {
@@ -327,6 +327,37 @@ describe('appendEntry — malformed existing yaml', () => {
     assert.throws(
       () => appendEntry('h.yaml', { cycle: 'c1', stage: 'forge:w', iteration: 1, comment: 'x' }, io),
       /history\.yaml malformed/i,
+    );
+  });
+});
+
+describe('parseAllHistoryEntries', () => {
+  it('returns [] for empty string', () => {
+    const result = parseAllHistoryEntries('');
+    assert.deepEqual(result, []);
+  });
+
+  it('returns array with one entry for valid YAML array', () => {
+    const yamlText = yaml.dump([
+      { cycle: 'c1', stage: 'forge', iteration: 1, comment: 'test', timestamp: '2025-01-01T00:00:00Z', seq: 0 },
+    ]);
+    const result = parseAllHistoryEntries(yamlText);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].stage, 'forge');
+  });
+
+  it('throws on malformed YAML', () => {
+    assert.throws(
+      () => parseAllHistoryEntries('not: valid: yaml: ['),
+      /WORK\.history\.yaml malformed/,
+    );
+  });
+
+  it('throws on non-array root', () => {
+    const yamlText = yaml.dump({ foo: 'bar' });
+    assert.throws(
+      () => parseAllHistoryEntries(yamlText),
+      /WORK\.history\.yaml malformed/,
     );
   });
 });

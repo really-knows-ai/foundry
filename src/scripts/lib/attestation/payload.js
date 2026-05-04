@@ -8,7 +8,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseFrontmatter } from '../workfile.js';
 import { parseArtefactsTable } from '../artefacts.js';
-import { loadHistory, parseAllHistoryEntries } from '../history.js';
+import { parseAllHistoryEntries } from '../history.js';
 import { sha256Text, sortPaths } from './hash.js';
 
 export function buildAttestationPayload({ cwd, goalText, archiveBranch, archiveTipSha, io }) {

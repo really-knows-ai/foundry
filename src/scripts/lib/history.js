@@ -21,8 +21,8 @@ function parseHistory(text) {
 }
 
 /**
- * Parse all history entries from WORK.history.yaml text without cycle filtering.
- * Returns entries in their natural declaration order from the file.
+ * Parse the full WORK.history.yaml text into all entries (no cycle filter).
+ * Returns entries in file declaration order. Throws on malformed YAML or non-array root.
  * Empty/null/undefined input yields [].
  */
 export function parseAllHistoryEntries(text) {

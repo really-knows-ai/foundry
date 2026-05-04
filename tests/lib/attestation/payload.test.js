@@ -83,11 +83,9 @@ Injected goal.
   assert.equal(payload.outputs[0].path, 'injected.txt');
 });
 
-test('buildAttestationPayload process section - empty history', () => {
-  const mockIo = {
-    readFile: (filePath) => {
-      if (filePath.endsWith('WORK.md')) {
-        return `---
+// Helper for process section tests to reduce boilerplate
+function makeMockIo({ historyText = '', feedbackText = '' } = {}) {
+  const workMd = `---
 flow: test-flow
 cycle: test-cycle
 ---
@@ -97,18 +95,28 @@ Test goal.
 | File | Type | Cycle | Status |
 |------|------|-------|--------|
 `;
-      }
+  
+  return {
+    readFile: (filePath) => {
+      if (filePath.endsWith('WORK.md')) return workMd;
+      if (filePath.endsWith('WORK.history.yaml')) return historyText;
+      if (filePath.endsWith('WORK.feedback.yaml')) return feedbackText;
       throw new Error(`Unexpected file read: ${filePath}`);
     },
-    fileExists: (filePath) => filePath.endsWith('WORK.md'),
+    fileExists: (filePath) => 
+      filePath.endsWith('WORK.md') ||
+      (historyText !== '' && filePath.endsWith('WORK.history.yaml')) ||
+      (feedbackText !== '' && filePath.endsWith('WORK.feedback.yaml')),
   };
+}
 
+test('buildAttestationPayload process section - empty history', () => {
   const payload = buildAttestationPayload({
     cwd: '/fake',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
-    io: mockIo,
+    io: makeMockIo(),
   });
 
   assert.ok(payload.process, 'process section should exist');
@@ -117,22 +125,7 @@ Test goal.
 });
 
 test('buildAttestationPayload process section - single entry without changed_files', () => {
-  const mockIo = {
-    readFile: (filePath) => {
-      if (filePath.endsWith('WORK.md')) {
-        return `---
-flow: test-flow
-cycle: test-cycle
----
-# Goal
-Test goal.
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-`;
-      }
-      if (filePath.endsWith('WORK.history.yaml')) {
-        return `- cycle: test-cycle
+  const historyText = `- cycle: test-cycle
   stage: forge
   iteration: 1
   comment: Test forge
@@ -140,19 +133,13 @@ Test goal.
   seq: 0
   open_feedback: 0
 `;
-      }
-      throw new Error(`Unexpected file read: ${filePath}`);
-    },
-    fileExists: (filePath) => 
-      filePath.endsWith('WORK.md') || filePath.endsWith('WORK.history.yaml'),
-  };
 
   const payload = buildAttestationPayload({
     cwd: '/fake',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
-    io: mockIo,
+    io: makeMockIo({ historyText }),
   });
 
   assert.equal(payload.process.stages.length, 1);
@@ -164,22 +151,7 @@ Test goal.
 });
 
 test('buildAttestationPayload process section - entry with unsorted changed_files', () => {
-  const mockIo = {
-    readFile: (filePath) => {
-      if (filePath.endsWith('WORK.md')) {
-        return `---
-flow: test-flow
-cycle: test-cycle
----
-# Goal
-Test goal.
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-`;
-      }
-      if (filePath.endsWith('WORK.history.yaml')) {
-        return `- cycle: test-cycle
+  const historyText = `- cycle: test-cycle
   stage: forge
   iteration: 1
   comment: Test forge
@@ -190,19 +162,13 @@ Test goal.
     - b.txt
     - a.txt
 `;
-      }
-      throw new Error(`Unexpected file read: ${filePath}`);
-    },
-    fileExists: (filePath) => 
-      filePath.endsWith('WORK.md') || filePath.endsWith('WORK.history.yaml'),
-  };
 
   const payload = buildAttestationPayload({
     cwd: '/fake',
     goalText: 'Test',
     archiveBranch: 'archive/test',
-    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
-    io: mockIo,
+    archiveTipSha: 'abc123abc123abc123abc123abc123abcd',
+    io: makeMockIo({ historyText }),
   });
 
   assert.equal(payload.process.stages.length, 1);
@@ -210,22 +176,7 @@ Test goal.
 });
 
 test('buildAttestationPayload process section - sort stage with route back', () => {
-  const mockIo = {
-    readFile: (filePath) => {
-      if (filePath.endsWith('WORK.md')) {
-        return `---
-flow: test-flow
-cycle: test-cycle
----
-# Goal
-Test goal.
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-`;
-      }
-      if (filePath.endsWith('WORK.history.yaml')) {
-        return `- cycle: test-cycle
+  const historyText = `- cycle: test-cycle
   stage: sort
   iteration: 1
   comment: Routing back
@@ -234,19 +185,13 @@ Test goal.
   open_feedback: 0
   route: back
 `;
-      }
-      throw new Error(`Unexpected file read: ${filePath}`);
-    },
-    fileExists: (filePath) => 
-      filePath.endsWith('WORK.md') || filePath.endsWith('WORK.history.yaml'),
-  };
 
   const payload = buildAttestationPayload({
     cwd: '/fake',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
-    io: mockIo,
+    io: makeMockIo({ historyText }),
   });
 
   assert.equal(payload.process.stages.length, 1);
@@ -254,22 +199,7 @@ Test goal.
 });
 
 test('buildAttestationPayload process section - sort stage with route forward', () => {
-  const mockIo = {
-    readFile: (filePath) => {
-      if (filePath.endsWith('WORK.md')) {
-        return `---
-flow: test-flow
-cycle: test-cycle
----
-# Goal
-Test goal.
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-`;
-      }
-      if (filePath.endsWith('WORK.history.yaml')) {
-        return `- cycle: test-cycle
+  const historyText = `- cycle: test-cycle
   stage: sort
   iteration: 1
   comment: Routing forward
@@ -278,19 +208,13 @@ Test goal.
   open_feedback: 0
   route: forward
 `;
-      }
-      throw new Error(`Unexpected file read: ${filePath}`);
-    },
-    fileExists: (filePath) => 
-      filePath.endsWith('WORK.md') || filePath.endsWith('WORK.history.yaml'),
-  };
 
   const payload = buildAttestationPayload({
     cwd: '/fake',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
-    io: mockIo,
+    io: makeMockIo({ historyText }),
   });
 
   assert.equal(payload.process.stages.length, 1);
@@ -298,23 +222,7 @@ Test goal.
 });
 
 test('buildAttestationPayload process section - multiple entries across cycles in seq order', () => {
-  const mockIo = {
-    readFile: (filePath) => {
-      if (filePath.endsWith('WORK.md')) {
-        return `---
-flow: test-flow
-cycle: cycle-2
----
-# Goal
-Test goal.
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-`;
-      }
-      if (filePath.endsWith('WORK.history.yaml')) {
-        // Multiple cycles, entries with varying seq values
-        return `- cycle: cycle-1
+  const historyText = `- cycle: cycle-1
   stage: forge
   iteration: 1
   comment: First forge
@@ -339,19 +247,13 @@ Test goal.
     - z.txt
     - a.txt
 `;
-      }
-      throw new Error(`Unexpected file read: ${filePath}`);
-    },
-    fileExists: (filePath) => 
-      filePath.endsWith('WORK.md') || filePath.endsWith('WORK.history.yaml'),
-  };
 
   const payload = buildAttestationPayload({
     cwd: '/fake',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
-    io: mockIo,
+    io: makeMockIo({ historyText }),
   });
 
   // All entries should be included, regardless of cycle
@@ -364,4 +266,20 @@ Test goal.
   
   // Verify changed_files are sorted
   assert.deepEqual(payload.process.stages[2].changed_files, ['a.txt', 'z.txt']);
+});
+
+test('buildAttestationPayload throws on malformed WORK.history.yaml', () => {
+  const historyText = 'not: valid: yaml: [';
+
+  assert.throws(
+    () => buildAttestationPayload({
+      cwd: '/fake',
+      goalText: 'Test',
+      archiveBranch: 'archive/test',
+      archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+      io: makeMockIo({ historyText }),
+    }),
+    /WORK\.history\.yaml malformed/,
+    'Should throw on malformed history YAML'
+  );
 });
