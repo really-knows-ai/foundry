@@ -60,8 +60,12 @@ export function buildAttestationPayload({ cwd, goalText, archiveBranch, archiveT
 
   return {
     contract: {
-      flow_id: frontmatter.flow,
+      allowed_write_scope: frontmatter['allowed-write-scope'] ?? [],
       entry_cycle: frontmatter.cycle,
+      expected_output_types: frontmatter['expected-output-types'] ?? [],
+      flow_id: frontmatter.flow,
+      required_deterministic_checks: frontmatter['required-deterministic-checks'] ?? [],
+      required_human_gates: frontmatter['required-human-gates'] ?? null,
       required_stages: frontmatter.stages ?? [],
     },
     governance: {

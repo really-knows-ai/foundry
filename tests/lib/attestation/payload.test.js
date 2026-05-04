@@ -83,6 +83,67 @@ Injected goal.
   assert.equal(payload.outputs[0].path, 'injected.txt');
 });
 
+test('buildAttestationPayload contract section - C2 required fields present', () => {
+  const mockIo = {
+    readFile: (filePath) => {
+      if (filePath.endsWith('WORK.md')) {
+        return `---
+flow: test-flow
+cycle: test-cycle
+stages:
+  - forge
+  - appraise
+config-commit: test-sha
+expected-output-types:
+  - text
+  - code
+allowed-write-scope:
+  - src/**/*.js
+  - tests/**/*.test.js
+required-deterministic-checks:
+  - npm test
+  - npm run lint
+required-human-gates: optional
+---
+
+# Goal
+Test goal.
+
+## Artefacts
+| File | Type | Cycle | Status |
+|------|------|-------|--------|
+`;
+      }
+      if (filePath.endsWith('WORK.history.yaml')) {
+        return '[]\n';
+      }
+      if (filePath.endsWith('WORK.feedback.yaml')) {
+        return '';
+      }
+      throw new Error(`Unexpected file read: ${filePath}`);
+    },
+    fileExists: (filePath) => {
+      return filePath.endsWith('WORK.md') || 
+             filePath.endsWith('WORK.history.yaml') || 
+             filePath.endsWith('WORK.feedback.yaml');
+    },
+  };
+
+  const payload = buildAttestationPayload({
+    cwd: '/fake',
+    goalText: 'Test goal text',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    io: mockIo,
+  });
+
+  // C2: Verify all four missing contract fields are present
+  assert.deepEqual(payload.contract.expected_output_types, ['text', 'code']);
+  assert.deepEqual(payload.contract.allowed_write_scope, ['src/**/*.js', 'tests/**/*.test.js']);
+  assert.deepEqual(payload.contract.required_deterministic_checks, ['npm test', 'npm run lint']);
+  assert.equal(payload.contract.required_human_gates, 'optional');
+});
+
 // Helper for process section tests to reduce boilerplate
 function makeMockIo({ historyText = '', feedbackText = '' } = {}) {
   const workMd = `---
