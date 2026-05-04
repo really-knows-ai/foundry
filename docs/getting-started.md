@@ -254,7 +254,7 @@ Use `foundry_stage_retry()` when the underlying problem is fixed and you want to
 
 ## Cleaning up
 
-Before squash-merging the work branch back into main, delete `WORK.md`, `WORK.history.yaml`, and `WORK.feedback.yaml` - they are per-flow state, not artefacts. `foundry_git_finish` handles that cleanup, squash-merges the branch, and deletes it safely. See [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contract.
+When a flow completes, `foundry_git_finish` handles integration with audit guarantees. On `work/*` branches, it commits `WORK.*` cleanup, preserves the branch as `archive/work/<flow>-<desc>-<hash>` for immutable forensic history, squash-merges to the base branch, and creates a signed commit whose message embeds the canonical Foundry attestation block. See [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contract.
 
 ---
 

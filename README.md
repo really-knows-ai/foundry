@@ -38,6 +38,8 @@ The names are relevant because the workflow is relevant. Foundry treats AI outpu
 - **Written quality criteria.** Laws are markdown. A panel of independent appraisers scores each artefact against them. Wont-fix requires appraiser approval. Validation is mandatory.
 - **Multi-model diversity by default.** Forge on one model, appraise on another, or run every appraiser on a different model. Different blind spots mean one flag is enough to raise an issue.
 - **Full audit trail in git.** One commit per stage. `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` record exactly what happened, why, and which model said it. Crashes leave clean boundaries to resume from.
+- **Signed audit anchor on main.** `foundry_git_finish` writes a signed squash commit with a canonical Foundry attestation block embedded in the commit message.
+- **Archived forensic branch by default.** The raw `work/*` branch is retained as `archive/work/<flow>-<desc>-<hash>` so auditors can inspect the full stage micro-commit history and `WORK.*` files after squash.
 - **Bring your own pipeline.** Artefact types are yours. Works for code, specs, docs, data, contracts, creative writing, and anything else you can describe as files with pass/fail criteria.
 - **Shared memory across cycles.** Optional typed graph store with semantic search, so cycles can build on what earlier cycles learned.
 
@@ -92,7 +94,7 @@ OpenCode resolves plugins listed in `opencode.json` automatically — you typica
 }
 ```
 
-Then **restart OpenCode** (or reload plugins) so the new plugin registers its 61 tools and bundled skills.
+Then **restart OpenCode** (or reload plugins) so the new plugin registers its 63 tools and bundled skills.
 
 If you want the package locally for editor tooling, scripts, or to run `npm test` against the source, install it explicitly:
 
@@ -463,7 +465,7 @@ All authoring skills are interactive and conflict-aware — they explain what th
 
 ## Custom tools
 
-The plugin registers **61 custom tools**. Skills call these tools, which keeps format-parsing and state transitions out of LLM hands.
+The plugin registers **63 custom tools**. Skills call these tools, which keeps format-parsing and state transitions out of LLM hands.
 
 For per-tool args, return shapes, stage requirements, failure modes, and side effects, see the full reference at [`docs/tools.md`](./docs/tools.md). The category tables below are an index.
 
@@ -483,6 +485,7 @@ For per-tool args, return shapes, stage requirements, failure modes, and side ef
 | **Validation** | `foundry_validate_run`, `foundry_appraisers_select` |
 | **Assay** | `foundry_assay_run` (runs extractors for the active assay stage; marks the workfile failed on abort), `foundry_extractor_create` (authors a new extractor definition) |
 | **Git** | `foundry_git_branch`, `foundry_git_finish` |
+| **Attestation** | `foundry_attestation_show`, `foundry_attestation_verify` |
 | **Snapshots** | `foundry_snapshot_list`, `foundry_snapshot_show`, `foundry_snapshot_delete`, `foundry_snapshot_prune` |
 
 ### Memory tools
@@ -510,7 +513,7 @@ Tools are backed by shared modules in `src/scripts/lib/` (pipeline) and `src/scr
 @really-knows-ai/foundry
 ├── src/
 │   ├── plugin/
-│   │   ├── foundry.js          # plugin entrypoint: skills + 61 custom tools
+│   │   ├── foundry.js          # plugin entrypoint: skills + 63 custom tools
 │   │   └── tools/              # tool registration + plugin helpers
 │   ├── skills/                 # shipped skill definitions
 │   │   ├── flow/               # pipeline

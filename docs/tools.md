@@ -2,7 +2,7 @@
 
 Generated from the v3.0.x public plugin API. The authoritative tool set is
 enforced by `tests/plugin/tool-registration.test.js` — if that snapshot
-drifts, this doc must be updated. Total: **61 tools**.
+drifts, this doc must be updated. Total: **63 tools**.
 
 All tools accept arguments as a JSON object and return JSON-stringified
 results. Errors are returned as a stringified `{error: "..."}` object (not
@@ -111,6 +111,10 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 **Git**
 - [`foundry_git_branch`](#foundry_git_branch)
 - [`foundry_git_finish`](#foundry_git_finish)
+
+**Attestation**
+- [`foundry_attestation_show`](#foundry_attestation_show)
+- [`foundry_attestation_verify`](#foundry_attestation_verify)
 
 **Memory — Data**
 - [`foundry_memory_put`](#foundry_memory_put)
@@ -653,21 +657,36 @@ can branch away to recover.
 
 | current branch       | mode      | what happens                                                                                                                              |
 | -------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `work/<x>`                 | work      | deletes WORK files, commits cleanup, squash-merges to `baseBranch`, force-deletes the work branch.                                       |
+| `work/<x>`                 | work      | commits `WORK.*` cleanup on the work branch, preserves the branch as `archive/work/<x>-<hash>`, squash-merges to `baseBranch`, creates a signed commit whose message embeds the canonical Foundry attestation block. |
 | `config/<x>`               | config    | squash-merges to `baseBranch`, force-deletes the config branch. No WORK cleanup.                                                          |
 | `dry-run/<x>/<y>`          | dry-run   | writes `.snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}` on the parent `config/<x>` working tree; force-deletes the dry-run branch. No merge, no commit. |
 | base branch (`main` by default) | noop | `{ ok: true, noop: true, ... }`.                                                                                                           |
 | anything else              | refused   | `{ ok: false, error: "... nothing to finish ..." }`.                                                                                      |
 
 **Returns:**
-- Plan (when `confirm` is not true): `{ ok: false, error: "...
-  requires {confirm: true}...", planned: { ... } }`.
-- Work / config success: `{ ok: true, hash, branch }`.
+- Plan (when `confirm` is not true):
+  - Work mode: `{ ok: false, error: "... requires {confirm: true}...",
+    planned: { workBranch, baseBranch, filesToDelete, action, commitMessage } }`
+    where `action` describes the archive-branch, cleanup, squash-merge, and
+    attested-commit sequence.
+  - Config mode: `{ ok: false, error: "... requires {confirm: true}...",
+    planned: { workBranch, baseBranch, filesToDelete, action, commitMessage } }`
+    where `action` describes checkout, squash-merge, commit, and branch deletion.
+  - Dry-run mode: `{ ok: false, error: "... requires {confirm: true}...",
+    planned: { branch, action, snapshotPath } }` where `action` is
+    `"snapshot + discard (dry-run finish)"`.
+- Work success: `{ ok: true, hash, branch, archiveBranch,
+  archiveTipSha }` — `hash` is the final squash commit on the base
+  branch, `archiveBranch` is `archive/work/<x>-<short-hash>`,
+  `archiveTipSha` is the tip of the preserved work branch.
+- Config success: `{ ok: true, hash, branch }`.
 - Dry-run success: `{ ok: true, runId, snapshotPath, branch }`.
 - Dirty worktree (work / config): `{ ok: false, error, dirty: [...] }`.
 - Conflict (work / config): `{ ok: false, error: "... squash merge
-  failed ...", branch }`. Worktree reset and checked back out to the
-  source branch.
+  failed ..." }`. Worktree reset and checked back out to the source
+  branch.
+- Refused (not on expected branch): `{ ok: false, error: "... nothing
+  to finish ..." }`.
 
 **Stage requirements:** requires no active stage. Not gated on failed
 flow — callable while `WORK.md` has `status: failed`, including the
@@ -675,6 +694,51 @@ flow — callable while `WORK.md` has `status: failed`, including the
 
 **Side effects (when confirmed):** see per-mode dispatch above.
 **Destructive in all three modes.**
+
+---
+
+## Attestation
+
+### `foundry_attestation_show`
+
+> Show the parsed Foundry attestation block for a git ref.
+
+**Args:**
+- `ref` (string, optional): Git ref, default `HEAD`.
+
+**Returns:** `{ ok: true, human_summary, payload }` where `human_summary`
+is the commit subject line and `payload` is the parsed JSON attestation
+object. `{ error: ... }` when no attestation block is found.
+
+**Stage requirements:** none. Callable on any branch.
+
+**Failure modes:**
+- Commit message has no attestation block → `{ error: "attestation
+  block not found" }`.
+- Invalid JSON in attestation block → parse error.
+
+**Side effects:** none (read-only).
+
+### `foundry_attestation_verify`
+
+> Verify the signed Foundry attestation block on a git ref.
+
+**Args:**
+- `ref` (string, optional): Git ref, default `HEAD`.
+
+**Returns:** `{ ok: true, status: "verified", schema, payload }` on
+success. `{ error: ... }` when verification fails.
+
+**Stage requirements:** none. Callable on any branch.
+
+**Failure modes:**
+- `git verify-commit` fails (commit not signed or signature invalid) →
+  returns git error.
+- Commit message has no attestation block → `{ error: "attestation
+  block not found" }`.
+- Invalid JSON in attestation block → parse error.
+
+**Side effects:** none (read-only).
 
 ---
 

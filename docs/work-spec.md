@@ -7,7 +7,10 @@ WORK.md is created at the start of a foundry flow on a work branch. It is the sh
 WORK.md and its sibling YAML files live on one of two branch kinds:
 
 - **`work/<flowId>-<description>`** — the standard flow run. Created
-  from `main`. Squash-merged to base on `foundry_git_finish`.
+  from `main`. On `foundry_git_finish`, the work branch is preserved
+  as `archive/work/<flowId>-<description>-<hash>` and squash-merged to
+  the base branch with a signed commit embedding the canonical Foundry
+  attestation block.
 - **`dry-run/<parentConfig>/<flowId>-<description>`** — a trial run
   used to test in-progress config edits against a real flow. Created
   from a `config/*` branch. On `foundry_git_finish`, the dry-run

@@ -141,7 +141,10 @@ plugin enforces the split at tool-call time.
   `foundry_orchestrate`, workfile, feedback, artefact-status,
   assay/validate/appraisers-select, stage-begin/end, and
   `foundry_memory_put`/`_relate`/`_unrelate` tools refuse off this
-  kind (and off dry-run, see below).
+  kind (and off dry-run, see below). On `foundry_git_finish`, the work
+  branch is preserved as `archive/work/<flowId>-<description>-<hash>`,
+  providing immutable forensic history. The signed squash commit on
+  the base branch embeds a canonical Foundry attestation block.
 - **`dry-run/<parentConfig>/<flowId>-<description>`** — trial run of
   in-progress config against a real flow. Created from a `config/*`
   branch via
@@ -180,6 +183,17 @@ including unborn HEADs (fresh repos with no commits) and detached
 HEAD. When no branch can be resolved the guards return a structured
 refusal envelope, giving the LLM the same shape for branch refusals as
 for any other tool failure.
+
+## Archive branch
+
+When `foundry_git_finish` completes a `work/*` branch, it preserves the
+full branch as `archive/work/<flowId>-<description>-<hash>` before
+squash-merging. The archive branch is immutable forensic history: every
+stage micro-commit, `WORK.md`, `WORK.feedback.yaml`,
+`WORK.history.yaml`, and all intermediate artefact states remain intact.
+The signed squash commit on the base branch references the archive
+branch tip SHA in its attestation block. Archive branches accumulate
+indefinitely — periodic manual pruning is outside the tool's scope.
 
 ## Stage token
 

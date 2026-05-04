@@ -13,6 +13,8 @@ const EXPECTED_TOOLS = [
   'foundry_artefacts_list',
   'foundry_artefacts_set_status',
   'foundry_assay_run',
+  'foundry_attestation_show',
+  'foundry_attestation_verify',
   'foundry_config_appraisers',
   'foundry_config_artefact_type',
   'foundry_config_create_appraiser',
