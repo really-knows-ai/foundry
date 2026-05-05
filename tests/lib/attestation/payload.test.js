@@ -21,9 +21,7 @@ test('buildAttestationPayload emits deterministic top-level sections', () => {
     'outputs',
     'process',
     'request',
-    'scope',
     'schema',
-    'verdict',
     'work_branch_archive',
   ]);
   assert.equal(payload.work_branch_archive.name, 'archive/work/make-haiku-demo-deadbee');
@@ -550,4 +548,15 @@ test('buildAttestationPayload throws on malformed WORK.history.yaml', () => {
     /WORK\.history\.yaml malformed/,
     'Should throw on malformed history YAML'
   );
+});
+
+test('does not include scope or verdict fields', () => {
+  const payload = buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Write a haiku about rain.',
+    archiveBranch: 'archive/work/make-haiku-demo-deadbee',
+    archiveTipSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+  });
+  assert.equal(payload.scope, undefined);
+  assert.equal(payload.verdict, undefined);
 });

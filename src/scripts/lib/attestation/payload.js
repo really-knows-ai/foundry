@@ -81,9 +81,7 @@ export function buildAttestationPayload({ cwd, goalText, archiveBranch, archiveT
       stages,
     },
     request: { goal_text: goalText },
-    scope: { out_of_scope_writes: false, forbidden_config_mutation: false },
     schema: 'foundry-attestation/v1',
-    verdict: { status: 'passed' },
     work_branch_archive: { name: archiveBranch, tip_sha: archiveTipSha },
   };
 }
