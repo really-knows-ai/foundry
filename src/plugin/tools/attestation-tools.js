@@ -107,6 +107,11 @@ export function createAttestationTools({ tool }) {
           return JSON.stringify({
             ok: false,
             error: 'foundry_attest requires {confirm: true}. Re-invoke with confirm:true to write ATTEST.md.',
+            planned: {
+              action: 'verify-cycle, compute-diff-sha, write-ATTEST.md, commit',
+              branch,
+              baseBranch: args.baseBranch || 'main',
+            },
           });
         }
 

@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAttestation } from '../../../src/scripts/lib/attestation/attest.js';
 
@@ -130,8 +130,6 @@ function makeIo({ workMd = WORK_MD_VALID, history = HISTORY_VALID, feedback = FE
   };
 }
 
-const FAKE_DIFF_SHA = 'a'.repeat(64);
-
 function makeExecGit(overrides = {}) {
   return (argv) => {
     const cmd = argv.join(' ');
@@ -243,5 +241,22 @@ describe('buildAttestation', () => {
       execGit: makeExecGit(),
     });
     assert.equal(result.ok, true);
+  });
+
+  it('returns ok:false when WORK.history.yaml is absent (all required stages missing)', async () => {
+    const io = makeIo();
+    const origFileExists = io.fileExists;
+    io.fileExists = (p) => p.endsWith('WORK.history.yaml') ? false : origFileExists(p);
+    const result = await buildAttestation({
+      cwd: '/repo',
+      baseBranch: 'main',
+      goalText: 'Write a haiku',
+      archiveBranch: 'archive/work/forge-abc1234',
+      archiveTipSha: 'abc1234',
+      io,
+      execGit: makeExecGit(),
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /missing.*stage|stage.*missing|forge|appraise/i);
   });
 });
