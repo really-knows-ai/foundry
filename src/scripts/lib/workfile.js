@@ -12,7 +12,7 @@ import yaml from 'js-yaml';
  * Parse YAML frontmatter from a markdown document.
  * NOTE: Intentionally duplicates logic from memory/frontmatter.js for
  * different use cases. See memory/frontmatter.js for the canonical version
- * with full error handling and line-ending normalization.
+ * with full error handling and line-ending normalisation.
  */
 export function parseFrontmatter(text) {
   const match = text.match(/^---\r?\n(.+?)\r?\n---/s);

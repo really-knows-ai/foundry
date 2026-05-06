@@ -58,7 +58,7 @@ export function getBootstrapContent(directory, packageRoot) {
 
   if (!foundryExists) {
     return `<FOUNDRY_CONTEXT>
-Foundry is installed but not initialized in this project. There is no foundry/ directory.
+Foundry is installed but not initialised in this project. There is no foundry/ directory.
 
 To set up Foundry, use the \`init-foundry\` skill. This will create the foundry/ directory structure
 and guide you through defining artefact types, laws, appraisers, cycles, and flows.

@@ -679,10 +679,12 @@ That is the larger point of the project. Foundry turns AI work from an informal 
 
 ## Further reading
 
+- [docs/architecture.md](docs/architecture.md) — high-level overview of enforcement, tokens, branch guards, and memory layout.
 - [docs/concepts.md](docs/concepts.md) — every concept defined concisely.
 - [docs/getting-started.md](docs/getting-started.md) — end-to-end walkthrough (including flow memory).
 - [docs/work-spec.md](docs/work-spec.md) — the full WORK.md + WORK.feedback.yaml + WORK.history.yaml spec.
 - [docs/memory-maintenance.md](docs/memory-maintenance.md) — contributor notes on Cozo 0.7 and memory session lifecycle.
+- [src/README.md](src/README.md) — source directory structure and build process.
 - [CHANGELOG.md](CHANGELOG.md) — version history and migration notes.
 
 ---
