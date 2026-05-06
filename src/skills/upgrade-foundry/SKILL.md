@@ -216,7 +216,7 @@ Same as §7: clean tree, on base branch, no `WORK.md` in repo root.
 v3.0.0 is a **breaking** release that introduces typed git branches,
 dry-run flows with forensic snapshots, verbose tracing, expanded
 failed-flow guards, JSON error envelopes, and a relocation of memory
-row data. The plugin tool surface grows from 46 to 60 tools.
+row data. The plugin tool surface grows from 46 to 64 tools.
 
 Each change is summarised below; the full rationale lives in the
 3.0.0 CHANGELOG entry.

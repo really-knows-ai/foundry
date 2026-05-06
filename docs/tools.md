@@ -2,7 +2,7 @@
 
 Generated from the v3.0.x public plugin API. The authoritative tool set is
 enforced by `tests/plugin/tool-registration.test.js` — if that snapshot
-drifts, this doc must be updated. Total: **63 tools**.
+drifts, this doc must be updated. Total: **64 tools**.
 
 All tools accept arguments as a JSON object and return JSON-stringified
 results. Errors are returned as a stringified `{error: "..."}` object (not
@@ -115,6 +115,7 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 **Attestation**
 - [`foundry_attestation_show`](#foundry_attestation_show)
 - [`foundry_attestation_verify`](#foundry_attestation_verify)
+- [`foundry_attest`](#foundry_attest)
 
 **Memory — Data**
 - [`foundry_memory_put`](#foundry_memory_put)
@@ -739,6 +740,30 @@ success. `{ error: ... }` when verification fails.
 - Invalid JSON in attestation block → parse error.
 
 **Side effects:** none (read-only).
+
+### `foundry_attest`
+
+> Verify the current work cycle is complete (all required stages ran, no unresolved feedback, no blocked artefacts) and commit a signed ATTEST.md to the work branch. foundry_git_finish will not merge without this commit at HEAD.
+
+**Args:**
+- `baseBranch` (string, optional): Branch to compute diff from (default: `main`).
+- `message` (string, required): Goal text / human summary for the attestation.
+- `confirm` (boolean, optional): Must be `true` to write and commit ATTEST.md.
+
+**Returns:** 
+- Plan (when `confirm` is not true): `{ ok: false, error: "foundry_attest requires {confirm: true}. Re-invoke with confirm:true to write ATTEST.md.", planned: { action, branch, baseBranch } }`.
+- Success: `{ ok: true, diffSha, commitSha }` where `diffSha` is the SHA-256 hash of the diff from base branch and `commitSha` is the short SHA of the attestation commit.
+- Failure: `{ ok: false, error: ... }` describing the issue (cycle incomplete, validation errors, commit failure).
+
+**Stage requirements:** requires no active stage. Must be on a `work/*` branch.
+
+**Failure modes:**
+- Active stage exists → `foundry_attest: requires no active stage; current: <stage>`.
+- Not on a `work/*` branch → `foundry_attest: must be run on a work/* branch, current branch is '<branch>'`.
+- Cycle verification fails (unresolved feedback, blocked artefacts, etc.) → `{ ok: false, error: ... }`.
+- Git commit fails → `foundry_attest: commit failed. <stderr>`.
+
+**Side effects (when confirmed):** writes `ATTEST.md` to the work branch, commits it with message `[<cycle>] attest: cycle complete`.
 
 ---
 

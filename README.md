@@ -94,7 +94,7 @@ OpenCode resolves plugins listed in `opencode.json` automatically — you typica
 }
 ```
 
-Then **restart OpenCode** (or reload plugins) so the new plugin registers its 63 tools and bundled skills.
+Then **restart OpenCode** (or reload plugins) so the new plugin registers its 64 tools and bundled skills.
 
 If you want the package locally for editor tooling, scripts, or to run `npm test` against the source, install it explicitly:
 
@@ -465,7 +465,7 @@ All authoring skills are interactive and conflict-aware — they explain what th
 
 ## Custom tools
 
-The plugin registers **63 custom tools**. Skills call these tools, which keeps format-parsing and state transitions out of LLM hands.
+The plugin registers **64 custom tools**. Skills call these tools, which keeps format-parsing and state transitions out of LLM hands.
 
 For per-tool args, return shapes, stage requirements, failure modes, and side effects, see the full reference at [`docs/tools.md`](./docs/tools.md). The category tables below are an index.
 
@@ -485,7 +485,7 @@ For per-tool args, return shapes, stage requirements, failure modes, and side ef
 | **Validation** | `foundry_validate_run`, `foundry_appraisers_select` |
 | **Assay** | `foundry_assay_run` (runs extractors for the active assay stage; marks the workfile failed on abort), `foundry_extractor_create` (authors a new extractor definition) |
 | **Git** | `foundry_git_branch`, `foundry_git_finish` |
-| **Attestation** | `foundry_attestation_show`, `foundry_attestation_verify` |
+| **Attestation** | `foundry_attestation_show`, `foundry_attestation_verify`, `foundry_attest` |
 | **Snapshots** | `foundry_snapshot_list`, `foundry_snapshot_show`, `foundry_snapshot_delete`, `foundry_snapshot_prune` |
 
 ### Memory tools

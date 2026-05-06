@@ -122,6 +122,7 @@
   now refuse on a failed workfile, matching the existing gating on
   `foundry_memory_put` / `_relate` / `_unrelate`. Read-only memory tools
   (`_dump`, `_validate`) remain callable. (`5a8f150`)
+- **`foundry_attest` tool.** Verifies the current work cycle is complete (all required stages ran, no unresolved feedback, no blocked artefacts) and commits a signed ATTEST.md to the work branch. `foundry_git_finish` will not merge without this commit at HEAD. Takes `baseBranch` (optional, default `main`), `message` (required goal text), and `confirm` (optional, must be `true` to write). Returns `{ ok: true, diffSha, commitSha }` on success.
 
 ### Changed
 
