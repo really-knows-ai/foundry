@@ -80,7 +80,7 @@ export function createAttestationTools({ tool }) {
     foundry_attest: tool({
       description:
         'Verify the current work cycle is complete (all required stages ran, no unresolved ' +
-        'feedback, no blocked artefacts) and commit a signed ATTEST.md to the work branch. ' +
+        'feedback, no blocked artefacts) and commit an ATTEST.md attestation file to the work branch. ' +
         'foundry_git_finish will not merge without this commit at HEAD.',
       args: {
         baseBranch: tool.schema.string().optional()
