@@ -3,7 +3,7 @@ import { execFileSync } from 'child_process';
 import { existsSync, unlinkSync, writeFileSync, readFileSync } from 'fs';
 import { slugify } from '../../scripts/lib/slug.js';
 import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
-import { currentBranch } from '../../scripts/lib/branch-guard.js';
+import { currentBranch, CONFIG_RE, DRY_RUN_RE } from '../../scripts/lib/branch-guard.js';
 import { finishDryRun } from '../../scripts/lib/snapshot/finish.js';
 import { truncateTrace } from '../../scripts/lib/tracing.js';
 import { makeIO, makeExec, asyncIoFactory } from './helpers.js';
@@ -16,9 +16,7 @@ const KIND_WORK    = 'work';
 const KIND_DRY_RUN = 'dry-run';
 const KINDS = [KIND_CONFIG, KIND_WORK, KIND_DRY_RUN];
 
-const CONFIG_RE         = /^config\/[^/]+$/;
 const WORK_RE           = /^work\/.+$/;
-const DRY_RUN_RE        = /^dry-run\/[^/]+\/[^/]+$/;
 const DRY_RUN_DEEPER_RE = /^dry-run\/[^/]+\/[^/]+\/.+$/;
 
 function refuse(error) { return JSON.stringify({ error }); }

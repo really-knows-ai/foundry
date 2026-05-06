@@ -2,13 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { minimatch } from 'minimatch';
 import { sortPaths } from './attestation/hash.js';
-
-const TOOL_MANAGED = [
-  'WORK.md',
-  'WORK.history.yaml',
-  'WORK.feedback.yaml',
-];
-const TOOL_MANAGED_PREFIX = ['.foundry/'];
+import { isToolManaged } from './git-policy.js';
 
 // Accepts short (>=7) and full (<=64) hex SHAs. Rejects symbolic refs (HEAD),
 // argument-injection (--upload-pack=...), and shell metacharacters. The
@@ -33,11 +27,6 @@ function changedFiles(cwd, baseSha) {
   const diffStaged = git(cwd, ['diff', '--cached', '--name-only', '--no-renames']);
   const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard']);
   return [...new Set([...tracked, ...diffUnstaged, ...diffStaged, ...untracked])];
-}
-
-function isToolManaged(f) {
-  if (TOOL_MANAGED.includes(f)) return true;
-  return TOOL_MANAGED_PREFIX.some(p => f.startsWith(p));
 }
 
 export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, registerArtefact }) {

@@ -1,6 +1,6 @@
-const CONFIG_RE   = /^config\/[^/]+$/;
+export const CONFIG_RE   = /^config\/[^/]+$/;
 const WORK_RE     = /^work\/.+$/;
-const DRY_RUN_RE  = /^dry-run\/[^/]+\/[^/]+$/;
+export const DRY_RUN_RE  = /^dry-run\/[^/]+\/[^/]+$/;
 
 export function currentBranch(io) {
   // `git rev-parse --abbrev-ref HEAD` exits non-zero on a fresh repo with

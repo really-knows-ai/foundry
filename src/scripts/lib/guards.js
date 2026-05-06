@@ -1,7 +1,6 @@
 import { requireNotFailed } from './failed-flow.js';
 import { appendTraceRecord } from './tracing.js';
-
-const DRY_RUN_RE = /^dry-run\/[^/]+\/[^/]+$/;
+import { DRY_RUN_RE } from './branch-guard.js';
 
 const MAX_ARG_STR = 4096;
 const HEAD_LEN = 256;
