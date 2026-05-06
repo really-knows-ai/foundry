@@ -1,4 +1,3 @@
-// tests/plugin/stage-tools.test.js
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
@@ -7,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { signToken } from '../../src/scripts/lib/token.js';
+import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
 
 function makeCtx(worktree) { return { worktree }; }
 
@@ -33,7 +33,7 @@ describe('foundry_stage_begin', () => {
   it('accepts a valid token and writes active-stage.json', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const pending = plugin[Symbol.for('foundry.test.pending')];
-    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const secret = readOrCreateSecret(dir);
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n1', exp: Date.now() + 60_000 };
     pending.add('n1', payload);
     const token = signToken(payload, secret);
@@ -53,7 +53,7 @@ describe('foundry_stage_begin', () => {
   it('rejects an expired token', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const pending = plugin[Symbol.for('foundry.test.pending')];
-    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const secret = readOrCreateSecret(dir);
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n2', exp: Date.now() - 1 };
     pending.add('n2', payload);
     const token = signToken(payload, secret);
@@ -67,7 +67,7 @@ describe('foundry_stage_begin', () => {
   it('rejects a reused nonce', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const pending = plugin[Symbol.for('foundry.test.pending')];
-    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const secret = readOrCreateSecret(dir);
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n3', exp: Date.now() + 60_000 };
     pending.add('n3', payload);
     const token = signToken(payload, secret);
@@ -81,7 +81,7 @@ describe('foundry_stage_begin', () => {
   it('rejects when stage arg mismatches token payload', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const pending = plugin[Symbol.for('foundry.test.pending')];
-    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const secret = readOrCreateSecret(dir);
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n4', exp: Date.now() + 60_000 };
     pending.add('n4', payload);
     const token = signToken(payload, secret);
@@ -102,7 +102,7 @@ describe('foundry_stage_begin', () => {
     try {
       const plugin = await FoundryPlugin({ directory: noCommitDir });
       const pending = plugin[Symbol.for('foundry.test.pending')];
-      const secret = plugin[Symbol.for('foundry.test.secret')];
+      const secret = readOrCreateSecret(noCommitDir);
       const payload = { route: 'forge:c', cycle: 'c', nonce: 'nNC', exp: Date.now() + 60_000 };
       pending.add('nNC', payload);
       const token = signToken(payload, secret);
@@ -130,7 +130,7 @@ describe('foundry_stage_begin', () => {
   it('rejects when active stage already present', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const pending = plugin[Symbol.for('foundry.test.pending')];
-    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const secret = readOrCreateSecret(dir);
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n5', exp: Date.now() + 60_000 };
     pending.add('n5', payload);
     const token = signToken(payload, secret);
@@ -153,7 +153,7 @@ describe('foundry_stage_end', () => {
 
   async function beginStage(plugin, nonce = 'na') {
     const pending = plugin[Symbol.for('foundry.test.pending')];
-    const secret = plugin[Symbol.for('foundry.test.secret')];
+    const secret = readOrCreateSecret(dir);
     const payload = { route: 'forge:c', cycle: 'c', nonce, exp: Date.now() + 60_000 };
     pending.add(nonce, payload);
     const token = signToken(payload, secret);

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { signToken } from '../../src/scripts/lib/token.js';
+import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
 
 const GIT_ENV = {
   ...process.env,
@@ -38,7 +39,7 @@ function initRepo() {
 
 async function beginStage(plugin, dir, stage, cycle, nonce = 'n1') {
   const pending = plugin[Symbol.for('foundry.test.pending')];
-  const secret = plugin[Symbol.for('foundry.test.secret')];
+  const secret = readOrCreateSecret(dir);
   const payload = { route: stage, cycle, nonce, exp: Date.now() + 60_000 };
   pending.add(nonce, payload);
   const token = signToken(payload, secret);

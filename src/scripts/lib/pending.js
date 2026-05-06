@@ -12,9 +12,11 @@ export function createPendingStore() {
       map.delete(nonce);
       return meta;
     },
-    size() {
+    gc() {
       const now = Date.now();
       for (const [k, v] of map) if (v.exp < now) map.delete(k);
+    },
+    size() {
       return map.size;
     },
   };

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { signToken } from '../../src/scripts/lib/token.js';
+import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
 import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
 
@@ -60,7 +61,7 @@ function writeScript(root, rel, body) {
 
 async function beginAssay(plugin, root, cycleId = 'c') {
   const pending = plugin[Symbol.for('foundry.test.pending')];
-  const secret = plugin[Symbol.for('foundry.test.secret')];
+  const secret = readOrCreateSecret(root);
   const payload = { route: `assay:${cycleId}`, cycle: cycleId, nonce: 'n-assay', exp: Date.now() + 60_000 };
   pending.add(payload.nonce, payload);
   const token = signToken(payload, secret);

@@ -35,6 +35,14 @@ export function listFlows(foundryDir) {
         : [];
       flows.push({ id, name, startingCycles });
     } catch (err) {
+      // Include malformed flows with an error field so the caller knows something is wrong.
+      const id = entry.replace(/\.md$/, '');
+      flows.push({ 
+        id, 
+        name: id, 
+        startingCycles: [], 
+        error: err.message 
+      });
       if (!warnedFlowFiles.has(entry)) {
         console.warn(`Warning: Skipping malformed flow file ${entry}: ${err.message}`);
         warnedFlowFiles.add(entry);

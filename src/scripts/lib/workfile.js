@@ -8,6 +8,12 @@ import yaml from 'js-yaml';
 // Frontmatter parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Parse YAML frontmatter from a markdown document.
+ * NOTE: Intentionally duplicates logic from memory/frontmatter.js for
+ * different use cases. See memory/frontmatter.js for the canonical version
+ * with full error handling and line-ending normalization.
+ */
 export function parseFrontmatter(text) {
   const match = text.match(/^---\r?\n(.+?)\r?\n---/s);
   if (!match) return {};
@@ -24,7 +30,7 @@ export function parseFrontmatter(text) {
 }
 
 export function writeFrontmatter(fields) {
-  const body = yaml.dump(fields, { lineWidth: -1 }).trimEnd();
+  const body = yaml.dump(fields, { lineWidth: -1, sortKeys: false }).trimEnd();
   return `---\n${body}\n---`;
 }
 
@@ -33,6 +39,12 @@ export function getFrontmatterField(text, key) {
   return fm[key];
 }
 
+/**
+ * Update a frontmatter field.
+ * 
+ * Note: This function preserves key order but does not preserve YAML comments.
+ * If the frontmatter contains comments, they will be lost during rewrite.
+ */
 export function setFrontmatterField(text, key, value) {
   // Coerce legacy camelCase key to canonical kebab form on write.
   if (key === 'maxIterations') key = 'max-iterations';

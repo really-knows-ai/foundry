@@ -265,6 +265,255 @@ async function handleSortResult(sortResult, { cycleId, cwd, io }) {
 }
 
 // ---------------------------------------------------------------------------
+// Setup phase
+// ---------------------------------------------------------------------------
+
+/**
+ * Perform initial WORK.md setup: validate cycle, synthesise stages, write frontmatter.
+ * Returns { ok: true, workContent } on success, or a violation object on failure.
+ */
+async function setupWorkfile(args) {
+  const { cycleId, workContent, io, git, foundryDir } = args;
+
+  let cycleDefDoc;
+  try {
+    cycleDefDoc = await getCycleDefinition(foundryDir, cycleId, io);
+  } catch {
+    return violation(`cycle definition not found for id: ${cycleId}`, ['WORK.md']);
+  }
+  const cfm = cycleDefDoc.frontmatter || {};
+
+  const outputType = cfm['output-type'];
+  if (!outputType) {
+    // Loud diagnostic for cycles still carrying the pre-rename `output:` key.
+    if (cfm.output !== undefined) {
+      return violation(
+        `cycle ${cycleId} uses old schema key 'output:' for the produced artefact-type. ` +
+          `Rename it to 'output-type:' (run the upgrade-foundry skill).`,
+        ['WORK.md']
+      );
+    }
+    return violation(`cycle ${cycleId} missing output-type field`, ['WORK.md']);
+  }
+
+  try {
+    await getArtefactType(foundryDir, outputType, io);
+  } catch {
+    return violation(`artefact type not found: ${outputType}`, ['WORK.md']);
+  }
+
+  const validation = await getValidation(foundryDir, outputType, io);
+
+  // Validate and normalise the cycle's `assay:` opt-in, if present.
+  const assayBlock = cfm.assay;
+  let assayExtractors = null;
+  if (assayBlock !== undefined && assayBlock !== null) {
+    if (typeof assayBlock !== 'object' || Array.isArray(assayBlock)) {
+      return violation(`cycle ${cycleId}: 'assay' must be a mapping (got ${typeof assayBlock})`, ['WORK.md']);
+    }
+    const list = assayBlock.extractors;
+    if (!Array.isArray(list) || list.length === 0) {
+      return violation(`cycle ${cycleId}: 'assay.extractors' must be a non-empty array`, ['WORK.md']);
+    }
+
+    // Memory must be enabled.
+    const memoryEnabled = io.exists('foundry/memory/config.md');
+    if (!memoryEnabled) {
+      return violation(`cycle ${cycleId}: 'assay:' requires memory to be enabled (run the init-memory skill first)`, ['WORK.md']);
+    }
+
+    // Build the cycle's write-types set.
+    const cycleWrite = cfm.memory?.write;
+    if (!Array.isArray(cycleWrite)) {
+      return violation(`cycle ${cycleId}: 'assay:' requires the cycle to declare memory.write`, ['WORK.md']);
+    }
+    const cycleWriteSet = new Set(cycleWrite);
+
+    // Load each extractor and check its memory.write ⊆ cycle.memory.write.
+    for (const name of list) {
+      let ext;
+      try { ext = await loadExtractor(foundryDir, name, io); }
+      catch (err) { return violation(`cycle ${cycleId}: ${err.message}`, ['WORK.md']); }
+      const checkResult = checkExtractorAgainstCycle(ext, { writeTypes: cycleWriteSet });
+      if (!checkResult.ok) {
+        return violation(`cycle ${cycleId}: ${checkResult.error}`, ['WORK.md']);
+      }
+    }
+    assayExtractors = list;
+  }
+
+  let stages;
+  if (Array.isArray(cfm.stages)) {
+    if (cfm.stages.length === 0) {
+      const art = findCycleOutputArtefact(cycleId, io);
+      return violation(
+        `cycle ${cycleId} has no stages declared in cycle definition`,
+        [art?.file, 'WORK.md'].filter(Boolean)
+      );
+    }
+    stages = cfm.stages.map(s =>
+      typeof s === 'string' && s.includes(':') ? s : `${s}:${cycleId}`
+    );
+  } else {
+    stages = synthesizeStages({
+      cycleId,
+      hasValidation: !!validation && validation.length > 0,
+      humanAppraise: cfm['human-appraise'] === true,
+      assay: !!assayExtractors,
+    });
+  }
+
+  const fm = parseFrontmatter(workContent);
+  const newFm = { ...fm };
+  newFm.stages = stages;
+  newFm['max-iterations'] = cfm['max-iterations'] ?? 3;
+  newFm['human-appraise'] = cfm['human-appraise'] === true;
+  newFm['deadlock-appraise'] = cfm['deadlock-appraise'] !== false;
+  newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? 5;
+  if (cfm.models) newFm.models = cfm.models;
+  if (assayExtractors) newFm.assay = { extractors: assayExtractors };
+
+  const body = workContent.replace(/^---\n[\s\S]+?\n---\n?/, '');
+  const fmBlock = writeFrontmatter(newFm);
+  const newWork = body ? `${fmBlock}\n${body}` : fmBlock;
+  io.writeFile('WORK.md', newWork);
+
+  if (git && typeof git.commit === 'function') {
+    const v = tryCommit(
+      git,
+      `[${cycleId}] setup: configure stages and limits`,
+      [],
+      'setup',
+    );
+    if (v) return v;
+  }
+
+  return { ok: true, workContent: io.readFile('WORK.md') };
+}
+
+/**
+ * Finalise a completed stage: rollback on failure, append history, commit.
+ * Returns a violation object on error, or null on success.
+ */
+async function finaliseStage(args) {
+  const { lastStage, activeStage, cycleId, io, finalize, git } = args;
+
+  // Save original state for potential rollback BEFORE finalize mutates WORK.md
+  const originalWorkMd = io.readFile('WORK.md');
+  const originalHistory = io.exists('WORK.history.yaml') 
+    ? io.readFile('WORK.history.yaml') 
+    : null;
+
+  let finalizeResult;
+  if (typeof finalize !== 'function') {
+    return violation(
+      'orchestrate caller must inject a `finalize` function when providing lastResult; ' +
+      'the plugin wires lib/finalize.finalizeStage; tests must pass a stub.',
+      []
+    );
+  }
+  finalizeResult = await finalize({
+    cycleId,
+    stage: lastStage.stage,
+    baseSha: lastStage.baseSha,
+    io,
+  });
+
+  if (!finalizeResult.ok) {
+    const blockResult = markArtefactBlocked(cycleId, io);
+    if (activeStage) clearActiveStage(io);
+    const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
+    if (finalizeResult.error === 'unexpected_files') {
+      return violation(
+        `unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}${blockNote}`,
+        finalizeResult.files || []
+      );
+    }
+    return violation(`stage_finalize error: ${finalizeResult.error}${blockNote}`, []);
+  }
+
+  // Artefact rows already written by finalizeStage via registerArtefact.
+
+  const summary = lastStage.summary || '(no summary)';
+  const historyPath = 'WORK.history.yaml';
+  const iteration = getIteration(historyPath, cycleId, io);
+
+  const openFeedback = computeOpenFeedback(io);
+  
+  // Append history entries
+  appendEntry(historyPath, {
+    cycle: cycleId,
+    stage: 'sort',
+    iteration,
+    route: lastStage.stage,
+    comment: `route ${lastStage.stage}`,
+    openFeedback,
+  }, io);
+  appendEntry(historyPath, {
+    cycle: cycleId,
+    stage: lastStage.stage,
+    iteration,
+    comment: summary,
+    openFeedback,
+    changedFiles: finalizeResult.changedFiles ?? [],
+  }, io);
+
+  if (git && typeof git.commit === 'function') {
+    const stageBase = stageBaseOf(lastStage.stage);
+    const forgeFilePatterns = stageBase === 'forge'
+      ? (await readForgeFilePatterns(cycleId, io)) ?? []
+      : [];
+    const allowedPatterns = allowedPatternsForStage({ stageBase, forgeFilePatterns });
+    const v = tryCommit(
+      git,
+      `[${cycleId}] ${lastStage.stage}: ${summary}`,
+      allowedPatterns,
+      lastStage.stage,
+    );
+    if (v) {
+      // Commit failed - rollback WORK.md and WORK.history.yaml
+      io.writeFile('WORK.md', originalWorkMd);
+      if (originalHistory !== null) {
+        io.writeFile('WORK.history.yaml', originalHistory);
+      } else if (io.exists('WORK.history.yaml')) {
+        io.unlink('WORK.history.yaml');
+      }
+      if (activeStage) clearActiveStage(io);
+      return v;
+    }
+  }
+  // Defensive: stage_end clears activeStage already; this is a no-op in the
+  // normal lifecycle but cleans up if the subagent skipped stage_end.
+  if (activeStage) clearActiveStage(io);
+  // Clear lastStage after successful finalization to prevent stale state corruption
+  if (lastStage) clearLastStage(io);
+
+  return null;
+}
+
+/**
+ * Handle violation from lastResult (subagent crash or failure).
+ * Returns a violation object.
+ */
+function handleViolation(args) {
+  const { lastResult, activeStage, lastStage, cycleId, io } = args;
+
+  const failedStage = activeStage || lastStage;
+  if (!failedStage) {
+    return violation('lastResult.ok=false but no stage recorded — orphaned state');
+  }
+  const blockResult = markArtefactBlocked(cycleId, io);
+  if (activeStage) clearActiveStage(io);
+  if (lastStage) clearLastStage(io);
+  const art = findCycleOutputArtefact(cycleId, io);
+  const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
+  return violation(
+    `subagent dispatch failed: ${lastResult.error || 'unknown error'}${blockNote}`,
+    [art?.file].filter(Boolean)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -291,6 +540,7 @@ export async function runOrchestrate(args = {}, io) {
     return violation('WORK.md frontmatter missing cycle field', ['WORK.md']);
   }
 
+  // Setup phase: validate cycle and configure stages if needed
   if (needsSetup(workContent)) {
     if (lastResult) {
       return violation(
@@ -299,123 +549,15 @@ export async function runOrchestrate(args = {}, io) {
       );
     }
 
-    const foundryDir = 'foundry';
-    let cycleDefDoc;
-    try {
-      cycleDefDoc = await getCycleDefinition(foundryDir, cycleId, io);
-    } catch {
-      return violation(`cycle definition not found for id: ${cycleId}`, ['WORK.md']);
-    }
-    const cfm = cycleDefDoc.frontmatter || {};
-
-    const outputType = cfm['output-type'];
-    if (!outputType) {
-      // Loud diagnostic for cycles still carrying the pre-rename `output:`
-      // key. Without this branch, the unmigrated key would silently produce
-      // a generic "missing output-type field" error that doesn't tell the
-      // operator the schema changed under their feet.
-      if (cfm.output !== undefined) {
-        return violation(
-          `cycle ${cycleId} uses old schema key 'output:' for the produced artefact-type. ` +
-            `Rename it to 'output-type:' (run the upgrade-foundry skill).`,
-          ['WORK.md']
-        );
-      }
-      return violation(`cycle ${cycleId} missing output-type field`, ['WORK.md']);
-    }
-
-    try {
-      await getArtefactType(foundryDir, outputType, io);
-    } catch {
-      return violation(`artefact type not found: ${outputType}`, ['WORK.md']);
-    }
-
-    const validation = await getValidation(foundryDir, outputType, io);
-
-    // Validate and normalise the cycle's `assay:` opt-in, if present.
-    const assayBlock = cfm.assay;
-    let assayExtractors = null;
-    if (assayBlock !== undefined && assayBlock !== null) {
-      if (typeof assayBlock !== 'object' || Array.isArray(assayBlock)) {
-        return violation(`cycle ${cycleId}: 'assay' must be a mapping (got ${typeof assayBlock})`, ['WORK.md']);
-      }
-      const list = assayBlock.extractors;
-      if (!Array.isArray(list) || list.length === 0) {
-        return violation(`cycle ${cycleId}: 'assay.extractors' must be a non-empty array`, ['WORK.md']);
-      }
-
-      // Memory must be enabled.
-      const memoryEnabled = io.exists('foundry/memory/config.md');
-      if (!memoryEnabled) {
-        return violation(`cycle ${cycleId}: 'assay:' requires memory to be enabled (run the init-memory skill first)`, ['WORK.md']);
-      }
-
-      // Build the cycle's write-types set.
-      const cycleWrite = cfm.memory?.write;
-      if (!Array.isArray(cycleWrite)) {
-        return violation(`cycle ${cycleId}: 'assay:' requires the cycle to declare memory.write`, ['WORK.md']);
-      }
-      const cycleWriteSet = new Set(cycleWrite);
-
-      // Load each extractor and check its memory.write ⊆ cycle.memory.write.
-      for (const name of list) {
-        let ext;
-        try { ext = await loadExtractor(foundryDir, name, io); }
-        catch (err) { return violation(`cycle ${cycleId}: ${err.message}`, ['WORK.md']); }
-        const checkResult = checkExtractorAgainstCycle(ext, { writeTypes: cycleWriteSet });
-        if (!checkResult.ok) {
-          return violation(`cycle ${cycleId}: ${checkResult.error}`, ['WORK.md']);
-        }
-      }
-      assayExtractors = list;
-    }
-
-    let stages;
-    if (Array.isArray(cfm.stages)) {
-      if (cfm.stages.length === 0) {
-        const art = findCycleOutputArtefact(cycleId, io);
-        return violation(
-          `cycle ${cycleId} has no stages declared in cycle definition`,
-          [art?.file, 'WORK.md'].filter(Boolean)
-        );
-      }
-      stages = cfm.stages.map(s =>
-        typeof s === 'string' && s.includes(':') ? s : `${s}:${cycleId}`
-      );
-    } else {
-      stages = synthesizeStages({
-        cycleId,
-        hasValidation: !!validation && validation.length > 0,
-        humanAppraise: cfm['human-appraise'] === true,
-        assay: !!assayExtractors,
-      });
-    }
-
-    const newFm = { ...fm };
-    newFm.stages = stages;
-    newFm['max-iterations'] = cfm['max-iterations'] ?? 3;
-    newFm['human-appraise'] = cfm['human-appraise'] === true;
-    newFm['deadlock-appraise'] = cfm['deadlock-appraise'] !== false;
-    newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? 5;
-    if (cfm.models) newFm.models = cfm.models;
-    if (assayExtractors) newFm.assay = { extractors: assayExtractors };
-
-    const body = workContent.replace(/^---\n[\s\S]+?\n---\n?/, '');
-    const fmBlock = writeFrontmatter(newFm);
-    const newWork = body ? `${fmBlock}\n${body}` : fmBlock;
-    io.writeFile('WORK.md', newWork);
-
-    if (git && typeof git.commit === 'function') {
-      const v = tryCommit(
-        git,
-        `[${cycleId}] setup: configure stages and limits`,
-        [],
-        'setup',
-      );
-      if (v) return v;
-    }
-
-    workContent = io.readFile('WORK.md');
+    const setupResult = await setupWorkfile({
+      cycleId,
+      workContent,
+      io,
+      git,
+      foundryDir: 'foundry',
+    });
+    if (!setupResult.ok) return setupResult;
+    workContent = setupResult.workContent;
   }
 
   const activeStage = readActiveStage(io);
@@ -429,121 +571,27 @@ export async function runOrchestrate(args = {}, io) {
     );
   }
 
+  // Post-dispatch finalization
   if (lastResult) {
-    // Subagent crash path: stage_end may NOT have been called, so activeStage
-    // can still exist and lastStage may be stale or absent. Prefer activeStage
-    // (current dispatch) over lastStage (could be from a prior cycle).
+    // Subagent crash path: stage_end may NOT have been called.
     if (lastResult.ok === false) {
-      const failedStage = activeStage || lastStage;
-      if (!failedStage) {
-        return violation('lastResult.ok=false but no stage recorded — orphaned state');
-      }
-      const blockResult = markArtefactBlocked(cycleId, io);
-      if (activeStage) clearActiveStage(io);
-      if (lastStage) clearLastStage(io);
-      const art = findCycleOutputArtefact(cycleId, io);
-      const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
-      return violation(
-        `subagent dispatch failed: ${lastResult.error || 'unknown error'}${blockNote}`,
-        [art?.file].filter(Boolean)
-      );
+      return handleViolation({ lastResult, activeStage, lastStage, cycleId, io });
     }
 
-    // Happy path: foundry_stage_end has run, which writes lastStage and clears
-    // activeStage. lastStage is the canonical source of stage identity & baseSha.
+    // Happy path: foundry_stage_end has run, which writes lastStage and clears activeStage.
     if (!lastStage) {
       return violation('lastResult provided but no last stage recorded — orphaned state');
     }
 
-    // Save original state for potential rollback BEFORE finalize mutates WORK.md
-    const originalWorkMd = io.readFile('WORK.md');
-    const originalHistory = io.exists('WORK.history.yaml') 
-      ? io.readFile('WORK.history.yaml') 
-      : null;
-
-    let finalizeResult;
-    if (typeof finalize !== 'function') {
-      return violation(
-        'orchestrate caller must inject a `finalize` function when providing lastResult; ' +
-        'the plugin wires lib/finalize.finalizeStage; tests must pass a stub.',
-        []
-      );
-    }
-    finalizeResult = await finalize({
+    const finaliseResult = await finaliseStage({
+      lastStage,
+      activeStage,
       cycleId,
-      stage: lastStage.stage,
-      baseSha: lastStage.baseSha,
       io,
+      finalize,
+      git,
     });
-
-    if (!finalizeResult.ok) {
-      const blockResult = markArtefactBlocked(cycleId, io);
-      if (activeStage) clearActiveStage(io);
-      const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
-      if (finalizeResult.error === 'unexpected_files') {
-        return violation(
-          `unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}${blockNote}`,
-          finalizeResult.files || []
-        );
-      }
-      return violation(`stage_finalize error: ${finalizeResult.error}${blockNote}`, []);
-    }
-
-    // Artefact rows already written by finalizeStage via registerArtefact.
-
-    const summary = lastStage.summary || '(no summary)';
-    const historyPath = 'WORK.history.yaml';
-    const iteration = getIteration(historyPath, cycleId, io);
-
-    const openFeedback = computeOpenFeedback(io);
-    
-    // Append history entries
-    appendEntry(historyPath, {
-      cycle: cycleId,
-      stage: 'sort',
-      iteration,
-      route: lastStage.stage,
-      comment: `route ${lastStage.stage}`,
-      openFeedback,
-    }, io);
-    appendEntry(historyPath, {
-      cycle: cycleId,
-      stage: lastStage.stage,
-      iteration,
-      comment: summary,
-      openFeedback,
-      changedFiles: finalizeResult.changedFiles ?? [],
-    }, io);
-
-    if (git && typeof git.commit === 'function') {
-      const stageBase = stageBaseOf(lastStage.stage);
-      const forgeFilePatterns = stageBase === 'forge'
-        ? (await readForgeFilePatterns(cycleId, io)) ?? []
-        : [];
-      const allowedPatterns = allowedPatternsForStage({ stageBase, forgeFilePatterns });
-      const v = tryCommit(
-        git,
-        `[${cycleId}] ${lastStage.stage}: ${summary}`,
-        allowedPatterns,
-        lastStage.stage,
-      );
-      if (v) {
-        // Commit failed - rollback WORK.md and WORK.history.yaml
-        io.writeFile('WORK.md', originalWorkMd);
-        if (originalHistory !== null) {
-          io.writeFile('WORK.history.yaml', originalHistory);
-        } else if (io.exists('WORK.history.yaml')) {
-          io.unlink('WORK.history.yaml');
-        }
-        if (activeStage) clearActiveStage(io);
-        return v;
-      }
-    }
-    // Defensive: stage_end clears activeStage already; this is a no-op in the
-    // normal lifecycle but cleans up if the subagent skipped stage_end.
-    if (activeStage) clearActiveStage(io);
-    // Clear lastStage after successful finalization to prevent stale state corruption
-    if (lastStage) clearLastStage(io);
+    if (finaliseResult) return finaliseResult;
   }
 
   const sortResult = runSort(

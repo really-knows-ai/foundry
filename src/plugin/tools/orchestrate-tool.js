@@ -3,6 +3,7 @@ import { execFileSync } from 'child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'fs';
 import { signToken } from '../../scripts/lib/token.js';
+import { readOrCreateSecret } from '../../scripts/lib/secret.js';
 import { getCycleDefinition, getArtefactType } from '../../scripts/lib/config.js';
 import { addArtefactRow } from '../../scripts/lib/artefacts.js';
 import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
@@ -12,7 +13,7 @@ import { makeIO, makeExec, buildCyclePromptExtras } from './helpers.js';
 import { requireNotFailed } from '../../scripts/lib/failed-flow.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 
-export function createOrchestrateTool({ tool, secret, pending }) {
+export function createOrchestrateTool({ tool, pending }) {
   return {
     foundry_orchestrate: tool({
       description: 'Run the next step of the current cycle. Call with no args on first invocation; call with lastResult={ok,error?} after a dispatch/human_appraise completes. Returns {action, ...} describing what the caller should do next.',
@@ -27,6 +28,8 @@ export function createOrchestrateTool({ tool, secret, pending }) {
         const { runOrchestrate } = await import('../../scripts/orchestrate.js');
         const io = makeIO(context.worktree);
         const cwd = context.worktree;
+        // Load secret from the execution-time worktree, not boot-time directory.
+        const secret = readOrCreateSecret(context.worktree);
 
         try {
           // Branch guard. Kept inline because the orchestrate tool surfaces all errors through its violation
@@ -109,6 +112,7 @@ export function createOrchestrateTool({ tool, secret, pending }) {
               stageBase: stageBaseOf(stage),
               cycleDef,
               artefactTypes,
+              io,
               registerArtefact: ({ file, type, status }) => {
                 const text = readFileSync(workPath, 'utf-8');
                 const updated = addArtefactRow(text, { file, type, cycle: cycleId, status });

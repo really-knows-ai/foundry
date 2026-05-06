@@ -20,11 +20,33 @@ describe('pending store', () => {
     assert.equal(createPendingStore().consume('x'), null);
   });
 
-  it('expired nonce returns null and is evicted', () => {
+  it('expired nonce returns null and is evicted on consume', () => {
     const s = createPendingStore();
     s.add('old', { route: 'r', cycle: 'c', exp: Date.now() - 1 });
     assert.equal(s.consume('old'), null);
     assert.equal(s.size(), 0);
+  });
+
+  it('size() is pure and does not evict expired entries', () => {
+    const s = createPendingStore();
+    const now = Date.now();
+    s.add('expired', { route: 'r1', cycle: 'c1', exp: now - 1000 });
+    s.add('valid', { route: 'r2', cycle: 'c2', exp: now + 10000 });
+    
+    // size() should return count without evicting
+    assert.equal(s.size(), 2);
+    assert.equal(s.size(), 2, 'size() is stable and does not mutate');
+  });
+
+  it('gc() evicts expired entries', () => {
+    const s = createPendingStore();
+    const now = Date.now();
+    s.add('expired', { route: 'r1', cycle: 'c1', exp: now - 1000 });
+    s.add('valid', { route: 'r2', cycle: 'c2', exp: now + 10000 });
+    
+    assert.equal(s.size(), 2);
+    s.gc();
+    assert.equal(s.size(), 1, 'gc() should evict expired entries');
   });
 
   it('consumes valid nonce and evicts expired nonce correctly', () => {

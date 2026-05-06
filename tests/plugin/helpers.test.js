@@ -257,7 +257,7 @@ Body`, 'utf-8');
         assert.equal(flows[0].id, 'valid-flow');
         
         // Should NOT have warned about the file with no frontmatter (it just skips with `continue`)
-        // So we need a file that actually throws an error...
+        // Files that skip (no frontmatter) are not included in results
         assert.equal(warnings.length, 0, 'No warnings for files that skip with continue');
       } finally {
         console.warn = originalWarn;
@@ -293,9 +293,17 @@ Body`, 'utf-8');
       try {
         const flows = listFlows(foundryDir);
         
-        // Should have parsed the valid flow
-        assert.equal(flows.length, 1);
-        assert.equal(flows[0].id, 'valid-flow');
+        // Should have parsed the valid flow AND included the malformed one
+        assert.equal(flows.length, 2, 'Should include both valid and malformed flows');
+        
+        // The valid flow should be present
+        const valid = flows.find(f => f.id === 'valid-flow');
+        assert.ok(valid, 'Should include valid flow');
+        
+        // The malformed flow should have an error field
+        const malformed = flows.find(f => f.id === 'bad-dir');
+        assert.ok(malformed, 'Should include malformed flow');
+        assert.ok(malformed.error, 'Malformed flow should have error field');
         
         // Should have warned about bad-dir.md (directory instead of file)
         assert.equal(warnings.length, 1, 'Should have one warning');
@@ -325,7 +333,12 @@ Body`, 'utf-8');
       console.warn = (...args) => warnings.push(args.join(' '));
       
       try {
-        listFlows(foundryDir);
+        const flows = listFlows(foundryDir);
+        
+        // Should include the malformed flow with error details
+        assert.equal(flows.length, 1);
+        assert.equal(flows[0].id, 'directory');
+        assert.ok(flows[0].error, 'Should have error field');
         
         // Should have warned with error details
         assert.equal(warnings.length, 1);

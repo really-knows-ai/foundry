@@ -37,12 +37,7 @@ const allSkillsDir = path.join(packageRoot, 'skills');
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
 export const FoundryPlugin = async ({ directory }) => {
-  // Bootstrap per-worktree HMAC secret (created on first boot, persisted to .foundry/.secret).
-  // Note: `directory` is the worktree root at plugin-boot time. Per-invocation `context.worktree`
-  // may differ in multi-worktree setups — we still use `context.worktree` inside tool `execute`
-  // bodies to locate `.foundry/` on disk, and use the plugin-boot `secret` only for
-  // signing/verifying. A worktree change mid-session would mismatch; deferred out of v2.2.0 scope.
-  const secret = readOrCreateSecret(directory);
+  // Pending store is per-plugin-instance (shared across all tool invocations).
   const pending = createPendingStore();
 
   const plugin = {
@@ -71,9 +66,9 @@ export const FoundryPlugin = async ({ directory }) => {
 
     tool: {
       ...createHistoryTools({ tool }),
-      ...createStageTools({ tool, secret, pending }),
+      ...createStageTools({ tool, pending }),
       ...createWorkfileTools({ tool }),
-      ...createOrchestrateTool({ tool, secret, pending }),
+      ...createOrchestrateTool({ tool, pending }),
       ...createArtefactTools({ tool }),
       ...createFeedbackTools({ tool }),
       ...createGitTools({ tool }),
@@ -90,6 +85,5 @@ export const FoundryPlugin = async ({ directory }) => {
   };
 
   Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.secret'), { value: secret });
   return plugin;
 };

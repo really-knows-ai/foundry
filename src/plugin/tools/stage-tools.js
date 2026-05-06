@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import { createHash } from 'node:crypto';
 import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage, clearLastStage } from '../../scripts/lib/state.js';
 import { verifyToken } from '../../scripts/lib/token.js';
+import { readOrCreateSecret } from '../../scripts/lib/secret.js';
 import { getContext, invalidateStore } from '../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
@@ -10,7 +11,7 @@ import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
-export function createStageTools({ tool, secret, pending }) {
+export function createStageTools({ tool, pending }) {
   return {
     foundry_stage_begin: tool({
       description: 'Open a subagent work stage; consumes a dispatch token from foundry_orchestrate.',
@@ -21,6 +22,8 @@ export function createStageTools({ tool, secret, pending }) {
       },
       execute: guarded('foundry_stage_begin', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
+        // Load secret from the execution-time worktree, not boot-time directory.
+        const secret = readOrCreateSecret(context.worktree);
         // Precondition: no active stage.
         const current = readActiveStage(io);
         if (current) {
