@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { load as loadYaml } from 'js-yaml';
 import { parseFrontmatter } from '../workfile.js';
 import { parseArtefactsTable } from '../artefacts.js';
 import { parseAllHistoryEntries } from '../history.js';
@@ -60,8 +61,7 @@ export async function buildAttestation({
   }
 
   // 3. No unresolved feedback
-  const { load } = await import('js-yaml');
-  const feedbackDoc = feedbackText.trim() ? (load(feedbackText) ?? {}) : {};
+  const feedbackDoc = feedbackText.trim() ? (loadYaml(feedbackText) ?? {}) : {};
   const feedbackItems = feedbackDoc.items ?? [];
   const unresolved = feedbackItems.filter(item => item?.history?.[0]?.state !== 'resolved');
   if (unresolved.length > 0) {

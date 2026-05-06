@@ -179,7 +179,7 @@ describe('selectAppraisers', () => {
       'foundry/appraisers/a.md': '---\nid: alice\n---\nAlice.',
       'foundry/appraisers/b.md': '---\nid: bob\n---\nBob.',
     });
-    const result = await selectAppraisers('foundry', 'code', null, io);
+    const result = await selectAppraisers('foundry', 'code', { io, countOverride: null });
     assert.equal(result.length, 5);
     assert.equal(result[0].id, 'alice');
     assert.equal(result[1].id, 'bob');
@@ -193,7 +193,7 @@ describe('selectAppraisers', () => {
       'foundry/appraisers/a.md': '---\nid: alice\n---\nAlice.',
       'foundry/appraisers/b.md': '---\nid: bob\n---\nBob.',
     });
-    const result = await selectAppraisers('foundry', 'code', io);
+    const result = await selectAppraisers('foundry', 'code', { io });
     assert.equal(result.length, 3);
     assert.ok(result.every(r => r.id === 'bob'));
   });
@@ -204,7 +204,7 @@ describe('selectAppraisers', () => {
       'foundry/appraisers': ['a.md'],
       'foundry/appraisers/a.md': '---\nid: alice\n---\nAlice.',
     });
-    const result = await selectAppraisers('foundry', 'code', 2, io);
+    const result = await selectAppraisers('foundry', 'code', { io, countOverride: 2 });
     assert.equal(result.length, 2);
   });
 });

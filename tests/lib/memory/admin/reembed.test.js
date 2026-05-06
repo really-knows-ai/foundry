@@ -9,7 +9,7 @@ import { putEntity } from '../../../../src/scripts/lib/memory/writes.js';
 import { reembed } from '../../../../src/scripts/lib/memory/admin/reembed.js';
 
 
-import { diskIO } from '../_helpers.js';
+import { diskIO, rawDiskIO } from '../_helpers.js';
 
 function fakeEmbedder(dim, signature) {
   return async (inputs) => inputs.map((s) => {
@@ -82,6 +82,7 @@ describe('reembed', () => {
         await reembed({
           worktreeRoot: root2,
           io,
+          rawIO: rawDiskIO(),
           dbAbsolutePath,
           newModel: 'new',
           newDimensions: 5,
@@ -178,6 +179,7 @@ describe('reembed', () => {
         await reembed({
           worktreeRoot: root3,
           io,
+          rawIO: rawDiskIO(),
           dbAbsolutePath,
           newModel: 'new',
           newDimensions: 5,
@@ -237,6 +239,7 @@ describe('reembed', () => {
     await reembed({
       worktreeRoot: root,
       io,
+      rawIO: rawDiskIO(),
       dbAbsolutePath: join(root, 'memory.db'),
       newModel: 'new',
       newDimensions: 5,

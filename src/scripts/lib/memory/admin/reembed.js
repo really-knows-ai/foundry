@@ -3,7 +3,6 @@ import { loadSchema, writeSchema, bumpVersion } from '../schema.js';
 import { entRelName } from '../cozo.js';
 import { putEntity } from '../writes.js';
 import { invalidateStore } from '../singleton.js';
-import { existsSync, renameSync, unlinkSync } from 'node:fs';
 
 /**
  * Atomic re-embedding via a staging DB.
@@ -19,6 +18,7 @@ import { existsSync, renameSync, unlinkSync } from 'node:fs';
 export async function reembed({
   worktreeRoot,
   io,
+  rawIO,
   dbAbsolutePath,
   newModel,
   newDimensions,
@@ -30,6 +30,7 @@ export async function reembed({
     throw new Error('newDimensions must be positive integer');
   }
   if (!dbAbsolutePath) throw new Error('reembed requires dbAbsolutePath');
+  if (!rawIO) throw new Error('reembed requires rawIO for absolute path operations');
 
   const foundryDir = 'foundry';
   const oldSchema = await loadSchema(foundryDir, io);
@@ -57,7 +58,7 @@ export async function reembed({
   // Phase 2: build the new state in a staging DB sibling to the live one.
   // Durable state changes only after the embedding loop completes cleanly.
   const stagingPath = `${dbAbsolutePath}.reembed-tmp`;
-  unlinkDbFiles(stagingPath); // clean up any stale prior run
+  unlinkDbFiles(stagingPath, rawIO); // clean up any stale prior run
 
   const newSchema = {
     ...oldSchema,
@@ -102,7 +103,7 @@ export async function reembed({
     if (stagingStore) {
       try { closeStore(stagingStore); } catch { /* closing best effort */ }
     }
-    unlinkDbFiles(stagingPath);
+    unlinkDbFiles(stagingPath, rawIO);
     throw err;
   }
 
@@ -115,10 +116,10 @@ export async function reembed({
 
   try {
     await writeSchema(foundryDir, newSchema, io);
-    renameDbFiles(stagingPath, dbAbsolutePath);
+    renameDbFiles(stagingPath, dbAbsolutePath, rawIO);
   } catch (err) {
     // Best-effort cleanup of staging siblings; surface the error.
-    unlinkDbFiles(stagingPath);
+    unlinkDbFiles(stagingPath, rawIO);
     throw err;
   }
 
@@ -146,11 +147,11 @@ export async function reembed({
  * Operates on absolute filesystem paths (reembed works outside the IO
  * shim's foundry-relative tree).
  */
-function unlinkDbFiles(dbPath) {
+function unlinkDbFiles(dbPath, rawIO) {
   for (const suffix of ['', '-wal', '-shm']) {
     const p = dbPath + suffix;
     try {
-      if (existsSync(p)) unlinkSync(p);
+      if (rawIO.exists(p)) rawIO.unlink(p);
     } catch {
       // best-effort cleanup
     }
@@ -164,21 +165,21 @@ function unlinkDbFiles(dbPath) {
  * are recreated on next open. We still move them when present so that a
  * subsequent open picks up any pending state.
  */
-function renameDbFiles(fromPath, toPath) {
+function renameDbFiles(fromPath, toPath, rawIO) {
   // Remove target sidecars first; the main file is overwritten by rename.
   for (const suffix of ['-wal', '-shm']) {
     const t = toPath + suffix;
-    try { if (existsSync(t)) unlinkSync(t); } catch { /* ignore */ }
+    try { if (rawIO.exists(t)) rawIO.unlink(t); } catch { /* ignore */ }
   }
-  renameSync(fromPath, toPath);
+  rawIO.rename(fromPath, toPath);
   for (const suffix of ['-wal', '-shm']) {
     const src = fromPath + suffix;
-    if (existsSync(src)) {
+    if (rawIO.exists(src)) {
       try {
-        renameSync(src, toPath + suffix);
+        rawIO.rename(src, toPath + suffix);
       } catch {
         // non-critical; sqlite will recreate these
-        try { unlinkSync(src); } catch { /* ignore */ }
+        try { rawIO.unlink(src); } catch { /* ignore */ }
       }
     }
   }

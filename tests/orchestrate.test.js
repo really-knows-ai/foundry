@@ -1148,6 +1148,7 @@ test('finalizeStage returns sorted changed files for forge output', () => {
     stageBase: 'forge',
     cycleDef: { outputArtefactType: 'haiku' },
     artefactTypes: { haiku: { filePatterns: ['out/*.md'] } },
+    io: { exec: (argv) => execFileSync(argv[0], argv.slice(1), { cwd: repoDir, encoding: 'utf8', stdio: 'pipe' }) },
     registerArtefact: (a) => artefacts.push(a),
   });
 
@@ -1300,6 +1301,7 @@ test('finalizeStage returns deterministic sorted changedFiles for controlled for
     stageBase: 'forge',
     cycleDef: { outputArtefactType: 'haiku' },
     artefactTypes: { haiku: { filePatterns: ['out/*.md'] } },
+    io: { exec: (argv) => execFileSync(argv[0], argv.slice(1), { cwd: testDir, encoding: 'utf8', stdio: 'pipe' }) },
     registerArtefact: (a) => artefacts.push(a),
   });
   

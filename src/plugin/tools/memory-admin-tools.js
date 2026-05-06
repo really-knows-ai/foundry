@@ -1,4 +1,5 @@
 import path from 'path';
+import { existsSync, unlinkSync, renameSync } from 'fs';
 import { createEntityType as admCreateEntity } from '../../scripts/lib/memory/admin/create-entity-type.js';
 import { createExtractor as admCreateExtractor } from '../../scripts/lib/memory/admin/create-extractor.js';
 import { createEdgeType as admCreateEdge } from '../../scripts/lib/memory/admin/create-edge-type.js';
@@ -240,9 +241,17 @@ export function createMemoryAdminTools({ tool }) {
           }
           const dbAbsolutePath = path.join(context.worktree, 'foundry/memory/memory.db');
           const embedder = (inputs) => memEmbed({ config: newConfig, inputs });
+          // rawIO for absolute path operations (DB file manipulation)
+          const rawIO = {
+            exists: (p) => existsSync(p),
+            unlink: (p) => { if (existsSync(p)) unlinkSync(p); },
+            rename: (from, to) => renameSync(from, to),
+          };
           const out = await admReembed({
             worktreeRoot: context.worktree,
-            io, dbAbsolutePath,
+            io,
+            rawIO,
+            dbAbsolutePath,
             newModel: args.model,
             newDimensions: args.dimensions,
             embedder,

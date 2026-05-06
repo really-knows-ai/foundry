@@ -17,9 +17,10 @@ export function createAppraiserTools({ tool }) {
       // failed-flow gate so wrong-branch refusals win over failed-state.
       execute: guarded('foundry_appraisers_select', [flowBranchGuard, gateNotFailed], async (args, context) => {
         const io = makeIO(context.worktree);
-        const result = args.count
-          ? await selectAppraisers('foundry', args.typeId, args.count, io)
-          : await selectAppraisers('foundry', args.typeId, io);
+        const result = await selectAppraisers('foundry', args.typeId, {
+          io,
+          countOverride: args.count ?? null,
+        });
         return JSON.stringify(result);
       }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),

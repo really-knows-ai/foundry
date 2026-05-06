@@ -1,5 +1,4 @@
 // scripts/lib/finalize.js
-import { execFileSync } from 'node:child_process';
 import { minimatch } from 'minimatch';
 import { sortPaths } from './attestation/hash.js';
 import { isToolManaged } from './git-policy.js';
@@ -17,21 +16,24 @@ function assertValidSha(baseSha) {
   }
 }
 
-function git(cwd, args) {
-  return execFileSync('git', args, { cwd }).toString().split('\n').filter(Boolean);
+function git(exec, args) {
+  return exec(['git', ...args]).toString().split('\n').filter(Boolean);
 }
 
-function changedFiles(cwd, baseSha) {
-  const tracked = git(cwd, ['diff', '--name-only', '--no-renames', baseSha, 'HEAD']);
-  const diffUnstaged = git(cwd, ['diff', '--name-only', '--no-renames']);
-  const diffStaged = git(cwd, ['diff', '--cached', '--name-only', '--no-renames']);
-  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard']);
+function changedFiles(exec, baseSha) {
+  const tracked = git(exec, ['diff', '--name-only', '--no-renames', baseSha, 'HEAD']);
+  const diffUnstaged = git(exec, ['diff', '--name-only', '--no-renames']);
+  const diffStaged = git(exec, ['diff', '--cached', '--name-only', '--no-renames']);
+  const untracked = git(exec, ['ls-files', '--others', '--exclude-standard']);
   return [...new Set([...tracked, ...diffUnstaged, ...diffStaged, ...untracked])];
 }
 
-export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, registerArtefact }) {
+export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, registerArtefact, io }) {
+  if (!io?.exec) {
+    throw new Error('finalizeStage: io.exec is required');
+  }
   assertValidSha(baseSha);
-  const files = changedFiles(cwd, baseSha).filter(f => !isToolManaged(f));
+  const files = changedFiles(io.exec, baseSha).filter(f => !isToolManaged(f));
   const allowedPatterns = stageBase === 'forge'
     ? (artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [])
     : stageBase === 'assay'

@@ -15,6 +15,7 @@ import {
   mkdirSync,
   readdirSync,
   unlinkSync,
+  renameSync,
 } from 'node:fs';
 import { join } from 'node:path';
 
@@ -32,5 +33,18 @@ export function diskIO(root) {
     },
     mkdir: async (p) => mkdirSync(abs(p), { recursive: true }),
     unlink: async (p) => { if (existsSync(abs(p))) unlinkSync(abs(p)); },
+  };
+}
+
+/**
+ * Raw IO shim for absolute paths.
+ * Used by reembed tests where DB file manipulation happens outside the
+ * foundry-relative tree.
+ */
+export function rawDiskIO() {
+  return {
+    exists: (p) => existsSync(p),
+    unlink: (p) => { if (existsSync(p)) unlinkSync(p); },
+    rename: (from, to) => renameSync(from, to),
   };
 }

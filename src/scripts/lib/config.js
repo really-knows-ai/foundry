@@ -141,11 +141,9 @@ export async function getFlow(foundryDir, flowId, io) {
   return parseDoc(text);
 }
 
-export async function selectAppraisers(foundryDir, typeId, countOverride, io) {
-  // Handle optional countOverride
-  if (countOverride && typeof countOverride === 'object' && typeof countOverride.exists === 'function') {
-    io = countOverride;
-    countOverride = null;
+export async function selectAppraisers(foundryDir, typeId, { io, countOverride } = {}) {
+  if (!io) {
+    throw new Error('selectAppraisers: io is required');
   }
 
   const { frontmatter } = await getArtefactType(foundryDir, typeId, io);

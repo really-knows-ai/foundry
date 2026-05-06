@@ -2,7 +2,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { finalizeStage } from '../../src/scripts/lib/finalize.js';
@@ -13,6 +13,12 @@ const GIT_ENV = {
   GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
 };
 function git(cwd, cmd) { return execSync(`git ${cmd}`, { cwd, env: GIT_ENV }).toString().trim(); }
+
+function makeTestIo(cwd) {
+  return {
+    exec: (argv) => execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', stdio: 'pipe' }),
+  };
+}
 
 describe('finalizeStage', () => {
   let dir, baseSha;
@@ -32,6 +38,7 @@ describe('finalizeStage', () => {
       stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, true);
@@ -46,6 +53,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
@@ -59,6 +67,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'quench',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
@@ -70,6 +79,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'quench',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, true);
@@ -85,6 +95,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'quench',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, true);
@@ -97,6 +108,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
@@ -113,6 +125,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: a => registered.push(a),
     });
     assert.equal(res.ok, true);
@@ -130,6 +143,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
@@ -146,6 +160,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
@@ -165,6 +180,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: a => registered.push(a),
     });
     assert.equal(res.ok, true);
@@ -178,7 +194,8 @@ describe('finalizeStage', () => {
         cwd: dir, baseSha: badSha, stageBase: 'forge',
         cycleDef: { outputArtefactType: 'haiku' },
         artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
-        registerArtefact: () => {},
+        io: makeTestIo(dir),
+      registerArtefact: () => {},
       });
     }
 
@@ -223,7 +240,8 @@ describe('finalizeStage', () => {
         cwd: dir, baseSha, stageBase: 'quench',
         cycleDef: { outputArtefactType: 'haiku' },
         artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
-        registerArtefact: () => {},
+        io: makeTestIo(dir),
+      registerArtefact: () => {},
       });
       assert.equal(res.ok, true);
     });
@@ -234,7 +252,8 @@ describe('finalizeStage', () => {
         cwd: dir, baseSha: shortSha, stageBase: 'quench',
         cycleDef: { outputArtefactType: 'haiku' },
         artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
-        registerArtefact: () => {},
+        io: makeTestIo(dir),
+      registerArtefact: () => {},
       });
       assert.equal(res.ok, true);
     });
@@ -250,6 +269,7 @@ describe('finalizeStage', () => {
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+      io: makeTestIo(dir),
       registerArtefact: artefact => registered.push(artefact),
     });
 

@@ -11,6 +11,10 @@ import yaml from 'js-yaml';
  * Throws with a filename-prefixed message on malformed YAML so errors are
  * actionable (bare `YAMLException` from `js-yaml` gives no file context).
  *
+ * NOTE: Intentionally duplicates core logic from ../workfile.js for different
+ * use cases. This version provides full error handling and returns structured
+ * metadata; workfile.js provides a simpler interface for WORK.md manipulation.
+ *
  * @param {string} text
  * @param {{ filename?: string }} [opts]
  * @returns {{ frontmatter: object, body: string, hasFrontmatter: boolean }}
