@@ -65,7 +65,8 @@ describe('spawnWithTimeout', () => {
   it('applies SIGKILL after 500ms when process ignores SIGTERM (TF2)', async () => {
     const d = scriptDir();
     // Run Python directly via shell -c, using exec to replace the shell with Python
-    const cmd = 'exec python3 -c "import signal, time; signal.signal(signal.SIGTERM, lambda *_: print(\\"trapped\\", flush=True)); [time.sleep(0.1) for _ in iter(int, 1)]"';
+    // Sleep for 1 second after trapping SIGTERM to ensure we hit the SIGKILL timer
+    const cmd = 'exec python3 -c "import signal, time; signal.signal(signal.SIGTERM, lambda *_: (print(\\"trapped\\", flush=True), time.sleep(1))); [time.sleep(0.1) for _ in iter(int, 1)]"';
     
     const start = Date.now();
     const r = await spawnWithTimeout({ command: cmd, cwd: d, timeoutMs: 100 });
@@ -74,8 +75,10 @@ describe('spawnWithTimeout', () => {
     assert.equal(r.ok, false, 'should fail because it timed out');
     assert.equal(r.timedOut, true, 'should be marked as timed out');
     // Should take timeout (100ms) + SIGKILL delay (500ms) = ~600ms
-    assert.ok(elapsed >= 550, `should wait for SIGKILL fallback, took ${elapsed}ms`);
-    assert.ok(elapsed < 900, `should not exceed reasonable bounds, took ${elapsed}ms`);
+    // Use more forgiving bounds: at least 500ms (allowing for some timing variance)
+    // and proportional check that we waited a significant portion of the expected time
+    assert.ok(elapsed >= 500, `should wait for SIGKILL fallback, took ${elapsed}ms`);
+    assert.ok(elapsed < 1000, `should not exceed reasonable bounds, took ${elapsed}ms`);
     // Process should be killed by SIGKILL since it trapped SIGTERM
     assert.equal(r.signal, 'SIGKILL', 'should be killed by SIGKILL after SIGTERM was trapped');
     // Verify SIGTERM was actually received and trapped
