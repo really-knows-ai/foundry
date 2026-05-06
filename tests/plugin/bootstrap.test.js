@@ -11,7 +11,7 @@ describe('getBootstrapContent', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
     try {
       const out = getBootstrapContent(dir, '/fake/pkg');
-      assert.ok(out.includes('Foundry is installed but not initialized'));
+      assert.ok(out.includes('Foundry is installed but not initialised'));
       assert.ok(out.includes('init-foundry'));
       assert.ok(!out.includes('Defined flows'));
     } finally {
