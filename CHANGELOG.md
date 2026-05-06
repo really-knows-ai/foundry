@@ -169,6 +169,31 @@ feedback items in an existing `WORK.feedback.yaml` are no longer reachable
 by the state machine. `foundry_workfile_delete` + re-flow is the supported
 path.
 
+## 2.7.0 — 2026-04-27
+
+### Breaking changes
+
+- **Cycle frontmatter key `output:` renamed to `output-type:`.** The
+  orchestrator no longer reads `output:` on cycles. All cycle definitions
+  in `foundry/cycles/<id>.md` must use `output-type:` to declare the
+  artefact-type ID the cycle produces. Unmigrated cycles yield a hard
+  violation pointing to the upgrade skill.
+
+### Removed
+
+- **Artefact-type `output:` field.** The `output:` directory path in
+  artefact-type frontmatter (`foundry/artefacts/<id>/definition.md`) had
+  no runtime consumer — forge's write scope is governed by `file-patterns`,
+  not a directory hint. Stale `output:` entries are harmless (parsers
+  ignore unknown keys) but should be deleted for hygiene.
+
+### Migration
+
+1. For every `foundry/cycles/<id>.md` whose frontmatter has `output: <type-id>`,
+   rename the key to `output-type:`. The value is unchanged.
+2. (Optional but recommended) For every `foundry/artefacts/<id>/definition.md`
+   whose frontmatter has `output: <dir-path>`, delete the line.
+
 ## 2.6.0 — 2026-04-24
 
 ### Breaking changes
