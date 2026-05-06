@@ -872,8 +872,7 @@ applied to the flow schema.
 
 ### `foundry_config_create_cycle`
 
-> Create a new cycle markdown file under
-> `foundry/flows/<flowId>/cycles/<cycleId>.md`.
+> Create a new cycle markdown file under `foundry/cycles/<cycleId>.md`.
 
 **Args:**
 - `name` (string, required): cycleId (kebab-case slug).
