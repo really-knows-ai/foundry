@@ -152,3 +152,40 @@ test('trace content copied and original truncated', async () => {
   assert.equal(readFileSync(join(snap, 'trace.jsonl'), 'utf8'), seed);
   assert.equal(readFileSync(traceFile, 'utf8'), '');
 });
+
+test('write failure leaves worktree on dry-run branch', async () => {
+  const { dir, git } = setupRepo();
+  writeFileSync(join(dir, 'WORK.md'), '---\nflow: f\ngoal: "g"\nstatus: done\n---\nbody\n');
+  git('add', '.');
+  git('commit', '-qm', 'work');
+
+  // Create a failing IO adapter that fails during writeFile of README.md
+  const failingIo = {
+    ...realFsIo(dir),
+    writeFile: async (path, content) => {
+      if (path.includes('README.md')) {
+        throw new Error('simulated write failure');
+      }
+      return realFsIo(dir).writeFile(path, content);
+    },
+  };
+
+  const r = await finishDryRun({
+    message: 'test',
+    branch: 'dry-run/foo/flow-x-y',
+    io: failingIo,
+    execFile: execFn(dir),
+  });
+
+  // Should fail
+  assert.equal(r.ok, false);
+  assert.match(r.error, /snapshot write failed/);
+
+  // CRITICAL: worktree should still be on dry-run branch, not parent
+  const head = git('branch', '--show-current');
+  assert.equal(head, 'dry-run/foo/flow-x-y', 'worktree should remain on dry-run branch after write failure');
+
+  // dry-run branch should still exist for manual cleanup
+  const branches = git('branch', '--list');
+  assert.ok(branches.includes('dry-run/foo/flow-x-y'), 'dry-run branch should exist for cleanup');
+});

@@ -4,8 +4,7 @@
  * dry-run branch. Implements §11.3 of the config-branch design.
  *
  * Recovery: If snapshot write fails (line 73), the function returns early
- * with {ok: false, ...} after checking out the parent branch but before
- * deleting the dry-run branch or truncating the trace file. The dry-run
+ * with {ok: false, ...} whilst still on the dry-run branch. The dry-run
  * branch and partial `.snapshots/<runId>/` directory (if any) remain.
  * Manual cleanup: delete the dry-run branch with `git branch -D <branch>`
  * and remove the incomplete snapshot directory under `.snapshots/` if present.
@@ -64,10 +63,7 @@ export async function finishDryRun({ message, branch, io, execFile }) {
     traceText,
   });
 
-  // 8. Checkout parent.
-  await execFile(['checkout', parent]);
-
-  // 9. Materialise snapshot directory. If any write fails, preserve dry-run branch.
+  // 8. Materialise snapshot directory. If any write fails, preserve dry-run branch.
   try {
     await io.mkdirp(`${snapDir}/work`);
     await io.writeFile(`${snapDir}/README.md`, readme);
@@ -79,6 +75,9 @@ export async function finishDryRun({ message, branch, io, execFile }) {
   } catch (err) {
     return { ok: false, error: `snapshot write failed: ${err.message}` };
   }
+
+  // 9. Checkout parent.
+  await execFile(['checkout', parent]);
 
   // 10. Force-delete dry-run branch.
   await execFile(['branch', '-D', branch]);
