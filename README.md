@@ -513,7 +513,7 @@ Tools are backed by shared modules in `src/scripts/lib/` (pipeline) and `src/scr
 @really-knows-ai/foundry
 ├── src/
 │   ├── plugin/
-│   │   ├── foundry.js          # plugin entrypoint: skills + 63 custom tools
+│   │   ├── foundry.js          # plugin entrypoint: skills + 64 custom tools
 │   │   └── tools/              # tool registration + plugin helpers
 │   ├── skills/                 # shipped skill definitions
 │   │   ├── flow/               # pipeline
