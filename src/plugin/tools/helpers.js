@@ -248,7 +248,10 @@ export async function buildCyclePromptExtras({ worktree, cycleId, stage }) {
         try {
           const ex = await loadExtractor(foundryDir, name, io);
           extractors.push({ name: ex.name, body: ex.body });
-        } catch {
+        } catch (err) {
+          if (process.env.FOUNDRY_DIAGNOSTICS === '1') {
+            console.error(`buildCyclePromptExtras: Failed to load extractor '${name}': ${err.message}`);
+          }
           // Skip extractors that fail to load; never block prompt rendering.
         }
       }
@@ -256,7 +259,10 @@ export async function buildCyclePromptExtras({ worktree, cycleId, stage }) {
     }
 
     return renderMemoryPrompt({ permissions: perms, schema: store?.schema, extractors });
-  } catch {
+  } catch (err) {
+    if (process.env.FOUNDRY_DIAGNOSTICS === '1') {
+      console.error(`buildCyclePromptExtras: Memory context failed for cycle '${cycleId}': ${err.message}`);
+    }
     return '';
   }
 }
