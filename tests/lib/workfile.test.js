@@ -36,6 +36,21 @@ describe('parseFrontmatter', () => {
     const fm = parseFrontmatter(text);
     assert.deepEqual(fm.tags, ['a', 'b']);
   });
+
+  it('parses frontmatter with CRLF line endings', () => {
+    const text = '---\r\ncycle: forge\r\nstage: quench\r\n---\r\n# Goal\r\nDo stuff';
+    const fm = parseFrontmatter(text);
+    assert.equal(fm.cycle, 'forge');
+    assert.equal(fm.stage, 'quench');
+  });
+
+  it('parses frontmatter with mixed LF and CRLF line endings', () => {
+    // Opening delimiter CRLF, content LF, closing delimiter CRLF
+    const text = '---\r\ncycle: forge\nstage: quench\n---\r\n# Goal';
+    const fm = parseFrontmatter(text);
+    assert.equal(fm.cycle, 'forge');
+    assert.equal(fm.stage, 'quench');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -205,6 +220,17 @@ describe('setFrontmatterField', () => {
     const text = '---\ncycle: forge\n---\n# Goal\nImportant stuff';
     const result = setFrontmatterField(text, 'cycle', 'appraise');
     assert.ok(result.includes('# Goal\nImportant stuff'));
+  });
+
+  it('handles CRLF line endings when updating fields', () => {
+    const text = '---\r\ncycle: forge\r\n---\r\n# Goal\r\nStuff';
+    // First verify we can parse the CRLF input
+    const fmBefore = parseFrontmatter(text);
+    assert.equal(fmBefore.cycle, 'forge', 'Should parse CRLF frontmatter before update');
+    // Then verify we can update it
+    const result = setFrontmatterField(text, 'cycle', 'appraise');
+    const fm = parseFrontmatter(result);
+    assert.equal(fm.cycle, 'appraise');
   });
 });
 

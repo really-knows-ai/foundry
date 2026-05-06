@@ -9,7 +9,7 @@ import yaml from 'js-yaml';
 // ---------------------------------------------------------------------------
 
 export function parseFrontmatter(text) {
-  const match = text.match(/^---\n(.+?)\n---/s);
+  const match = text.match(/^---\r?\n(.+?)\r?\n---/s);
   if (!match) return {};
   const fm = yaml.load(match[1]) || {};
   // Normalize: on-disk canonical key is `max-iterations` (kebab).
@@ -41,7 +41,7 @@ export function setFrontmatterField(text, key, value) {
   const fmBlock = writeFrontmatter(fm);
 
   // Strip existing frontmatter (if any) and prepend new one
-  const body = text.replace(/^---\n.+?\n---\n?/s, '');
+  const body = text.replace(/^---\r?\n.+?\r?\n---\r?\n?/s, '');
   return body ? `${fmBlock}\n${body}` : fmBlock;
 }
 
