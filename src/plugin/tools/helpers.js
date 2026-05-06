@@ -134,12 +134,11 @@ export function makeIO(directory) {
     // unlink: succeeds silently when the file is missing.
     unlink: (p) => { if (existsSync(resolve(p))) unlinkSync(resolve(p)); },
     rename: (from, to) => renameSync(resolve(from), resolve(to)),
-    // exec: run a shell command in the worktree and return stdout as a UTF-8 string.
+    // exec: run a command in the worktree and return stdout as a UTF-8 string.
     // Used by sort.js (getDirtyToolManagedFiles, getModifiedFiles) for git enforcement.
-    // Call sites pass full shell strings (e.g. 'git status --porcelain ...'), so we
-    // must use execSync here. Throws on non-zero exit; callers
-    // already wrap in try/catch.
-    exec: (cmd) => execSync(cmd, { cwd: directory, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }),
+    // Takes an array [command, ...args] to prevent shell injection.
+    // Throws on non-zero exit; callers already wrap in try/catch.
+    exec: (argv) => execFileSync(argv[0], argv.slice(1), { cwd: directory, encoding: 'utf8', stdio: 'pipe' }),
   };
 }
 

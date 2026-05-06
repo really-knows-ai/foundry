@@ -385,12 +385,13 @@ describe('getModifiedFiles', () => {
   it('returns empty when sort commit is HEAD (no stage commits since last sort)', () => {
     const diffArgs = [];
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) {
           return 'abc1234 [c1] sort: forge:write\ndef5678 older commit';
         }
         if (cmd.startsWith('git diff')) {
-          diffArgs.push(cmd);
+          diffArgs.push(argv);
           // diff from sort SHA (HEAD) to HEAD is empty
           return '';
         }
@@ -400,19 +401,21 @@ describe('getModifiedFiles', () => {
     const result = getModifiedFiles('c1', io);
     assert.deepEqual(result, []);
     assert.equal(diffArgs.length, 1);
-    assert.ok(diffArgs[0].includes('abc1234'), `expected diff to use sort SHA abc1234, got: ${diffArgs[0]}`);
-    assert.ok(diffArgs[0].includes('--no-renames'), `expected --no-renames, got: ${diffArgs[0]}`);
+    const diffCmd = diffArgs[0].join(' ');
+    assert.ok(diffCmd.includes('abc1234'), `expected diff to use sort SHA abc1234, got: ${diffCmd}`);
+    assert.ok(diffCmd.includes('--no-renames'), `expected --no-renames, got: ${diffCmd}`);
   });
 
   it('diffs from sort commit SHA to HEAD when sort commit is HEAD~1 (one stage commit after)', () => {
     const diffArgs = [];
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) {
           return 'aaa1111 forge stage commit\nbbb2222 [c1] sort: forge:write\nccc3333 older';
         }
         if (cmd.startsWith('git diff')) {
-          diffArgs.push(cmd);
+          diffArgs.push(argv);
           return 'src/main.ts\0WORK.md\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
@@ -420,15 +423,17 @@ describe('getModifiedFiles', () => {
     };
     const result = getModifiedFiles('c1', io);
     assert.deepEqual(result, ['src/main.ts', 'WORK.md']);
-    assert.ok(diffArgs[0].includes('bbb2222'), `expected sort SHA bbb2222 in diff, got: ${diffArgs[0]}`);
+    const diffCmd = diffArgs[0].join(' ');
+    assert.ok(diffCmd.includes('bbb2222'), `expected sort SHA bbb2222 in diff, got: ${diffCmd}`);
     // Must NOT use the parent of the sort commit — that would include the sort commit's own changes
-    assert.ok(!diffArgs[0].includes('HEAD~'), `expected SHA-based diff, not HEAD~ relative, got: ${diffArgs[0]}`);
+    assert.ok(!diffCmd.includes('HEAD~'), `expected SHA-based diff, not HEAD~ relative, got: ${diffCmd}`);
   });
 
   it('diffs from sort commit SHA across multiple intervening stage commits', () => {
     const diffArgs = [];
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) {
           return [
             'aaa1111 appraise commit',
@@ -439,7 +444,7 @@ describe('getModifiedFiles', () => {
           ].join('\n');
         }
         if (cmd.startsWith('git diff')) {
-          diffArgs.push(cmd);
+          diffArgs.push(argv);
           return 'src/a.ts\0src/b.ts\0WORK.md\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
@@ -447,7 +452,8 @@ describe('getModifiedFiles', () => {
     };
     const result = getModifiedFiles('c1', io);
     assert.deepEqual(result, ['src/a.ts', 'src/b.ts', 'WORK.md']);
-    assert.ok(diffArgs[0].includes('ddd4444'), `expected sort SHA ddd4444, got: ${diffArgs[0]}`);
+    const diffCmd = diffArgs[0].join(' ');
+    assert.ok(diffCmd.includes('ddd4444'), `expected sort SHA ddd4444, got: ${diffCmd}`);
   });
 
   it('returns empty when no matching sort commit is found in recent history', () => {
@@ -455,7 +461,8 @@ describe('getModifiedFiles', () => {
     // than diffing against an arbitrary depth (which risked false violations).
     let diffCalled = false;
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) {
           return 'aaa1111 some commit\nbbb2222 another commit';
         }
@@ -474,7 +481,8 @@ describe('getModifiedFiles', () => {
   it('finds sort commit deeper in history with several stage commits after it', () => {
     const diffArgs = [];
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) {
           const lines = [];
           for (let i = 0; i < 10; i++) lines.push(`hash${i.toString().padStart(4, '0')} stage commit ${i}`);
@@ -483,7 +491,7 @@ describe('getModifiedFiles', () => {
           return lines.join('\n');
         }
         if (cmd.startsWith('git diff')) {
-          diffArgs.push(cmd);
+          diffArgs.push(argv);
           return 'src/x.ts\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
@@ -491,14 +499,16 @@ describe('getModifiedFiles', () => {
     };
     const result = getModifiedFiles('c1', io);
     assert.deepEqual(result, ['src/x.ts']);
-    assert.ok(diffArgs[0].includes('sortsha1'), `expected sort SHA sortsha1, got: ${diffArgs[0]}`);
+    const diffCmd = diffArgs[0].join(' ');
+    assert.ok(diffCmd.includes('sortsha1'), `expected sort SHA sortsha1, got: ${diffCmd}`);
   });
 
   it('only matches sort commits for the requested cycle', () => {
     // A sort commit for a different cycle must not be picked up as the base.
     const diffArgs = [];
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) {
           return [
             'aaa1111 forge work',
@@ -508,7 +518,7 @@ describe('getModifiedFiles', () => {
           ].join('\n');
         }
         if (cmd.startsWith('git diff')) {
-          diffArgs.push(cmd);
+          diffArgs.push(argv);
           return 'src/main.ts\0';
         }
         throw new Error(`unexpected cmd: ${cmd}`);
@@ -516,7 +526,8 @@ describe('getModifiedFiles', () => {
     };
     const result = getModifiedFiles('c1', io);
     assert.deepEqual(result, ['src/main.ts']);
-    assert.ok(diffArgs[0].includes('ccc3333'), `expected c1 sort SHA ccc3333, got: ${diffArgs[0]}`);
+    const diffCmd = diffArgs[0].join(' ');
+    assert.ok(diffCmd.includes('ccc3333'), `expected c1 sort SHA ccc3333, got: ${diffCmd}`);
   });
 
   it('returns empty on exec error (e.g. shallow history with no commits)', () => {
@@ -528,7 +539,8 @@ describe('getModifiedFiles', () => {
     // Git's default output C-escapes special filenames, but -z outputs raw bytes.
     // This test ensures we use -z and split on null chars for correct parsing.
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) {
           return 'abc1234 [c1] sort: forge:write';
         }
@@ -601,7 +613,8 @@ describe('checkModifiedFiles', () => {
 
   it('detects violations for disallowed files', () => {
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) return 'abc [c1] sort: forge:write';
         if (cmd.startsWith('git diff')) return 'WORK.md\0src/main.ts\0package.json\0';
         return '';
@@ -617,7 +630,8 @@ describe('checkModifiedFiles', () => {
 
   it('passes when all files match allowed patterns', () => {
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) return 'abc [c1] sort: forge:write';
         if (cmd.startsWith('git diff')) return 'WORK.md\0WORK.history.yaml\0';
         return '';
@@ -631,7 +645,8 @@ describe('checkModifiedFiles', () => {
 
   it('allows WORK.feedback.yaml changes from feedback-writing stages', () => {
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git log')) return 'abc [c1] sort: appraise:check';
         if (cmd.startsWith('git diff')) return 'WORK.feedback.yaml\0';
         return '';
@@ -647,7 +662,7 @@ describe('checkModifiedFiles', () => {
 describe('getDirtyToolManagedFiles', () => {
   it('detects dirty WORK.feedback.yaml as tool-managed state', () => {
     const io = {
-      exec: (cmd) => cmd.includes('WORK.feedback.yaml') ? ' M WORK.feedback.yaml\0' : '',
+      exec: (argv) => argv.join(' ').includes('WORK.feedback.yaml') ? ' M WORK.feedback.yaml\0' : '',
     };
     assert.deepEqual(getDirtyToolManagedFiles(io), ['WORK.feedback.yaml']);
   });
@@ -655,7 +670,7 @@ describe('getDirtyToolManagedFiles', () => {
   it('handles filenames with spaces and special characters using -z flag', () => {
     // git status --porcelain -z outputs null-terminated filenames with no escaping
     const io = {
-      exec: (cmd) => {
+      exec: (argv) => {
         // Simulate -z output: status code, space, filename, null terminator
         // Files: "WORK with spaces.md", ".foundry/state file.json"
         return ' M WORK with spaces.md\0 M .foundry/state file.json\0';
@@ -907,7 +922,8 @@ describe('runSort micro-commit enforcement', () => {
         if (p === 'history.yaml') return historyYaml;
         throw new Error(`unexpected read: ${p}`);
       },
-      exec: (cmd) => {
+      exec: (argv) => {
+        const cmd = argv.join(' ');
         if (cmd.startsWith('git status --porcelain')) return statusOutput;
         if (cmd.startsWith('git log')) return '';
         if (cmd.startsWith('git diff')) return '';
@@ -1100,7 +1116,8 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
       rename(from, to);
       if (to === 'WORK.feedback.yaml') feedbackWasWritten = true;
     };
-    io.exec = (cmd) => {
+    io.exec = (argv) => {
+      const cmd = argv.join(' ');
       if (cmd.startsWith('git status --porcelain')) {
         return feedbackWasWritten ? ' M WORK.feedback.yaml\n' : '';
       }

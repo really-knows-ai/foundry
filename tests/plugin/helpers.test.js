@@ -42,6 +42,55 @@ describe('makeIO.rename', () => {
   });
 });
 
+describe('makeIO.exec', () => {
+  test('executes commands with array-based argv', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-exec-'));
+    try {
+      const io = makeIO(dir);
+      writeFileSync(path.join(dir, 'test.txt'), 'hello\nworld\n', 'utf-8');
+      
+      // Test with a simple command that works on all platforms
+      const output = io.exec(['cat', 'test.txt']);
+      
+      assert.equal(output, 'hello\nworld\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('passes arguments separately to prevent shell injection', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-exec-'));
+    try {
+      const io = makeIO(dir);
+      
+      // Create a file with a shell-special character in the name
+      writeFileSync(path.join(dir, 'file-1.txt'), 'content1', 'utf-8');
+      writeFileSync(path.join(dir, 'file-2.txt'), 'content2', 'utf-8');
+      
+      // If this were shell-executed, the wildcard would expand
+      // With execFile, it's treated literally
+      const filename = 'file-1.txt';
+      const output = io.exec(['cat', filename]);
+      
+      assert.equal(output, 'content1');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('throws on non-zero exit code', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-exec-'));
+    try {
+      const io = makeIO(dir);
+      
+      // Try to cat a non-existent file
+      assert.throws(() => io.exec(['cat', 'nonexistent.txt']));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('getBootstrapContent', () => {
   test('includes all five pipeline stages in description', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));

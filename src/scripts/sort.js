@@ -146,7 +146,7 @@ function getModifiedFiles(cycle, io = defaultIO) {
     // When no matching sort commit is found in recent history (first sort of
     // a cycle, or shallow clone), return an empty list to avoid false
     // violations from guessed diff boundaries.
-    const log = io.exec('git log --oneline -20');
+    const log = io.exec(['git', 'log', '--oneline', '-20']);
     const sortPattern = `[${cycle}] sort:`;
     let sortSha = null;
     for (const line of log.trim().split('\n')) {
@@ -157,7 +157,7 @@ function getModifiedFiles(cycle, io = defaultIO) {
       }
     }
     if (!sortSha) return [];
-    const output = io.exec(`git diff --name-only --no-renames -z ${sortSha} HEAD`);
+    const output = io.exec(['git', 'diff', '--name-only', '--no-renames', '-z', sortSha, 'HEAD']);
     return output.split('\0').filter(Boolean);
   } catch {
     return [];
@@ -231,7 +231,7 @@ function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultI
  */
 function getDirtyToolManagedFiles(io = defaultIO) {
   try {
-    const output = io.exec('git status --porcelain -z -- WORK.md WORK.feedback.yaml WORK.history.yaml .foundry');
+    const output = io.exec(['git', 'status', '--porcelain', '-z', '--', 'WORK.md', 'WORK.feedback.yaml', 'WORK.history.yaml', '.foundry']);
     return output
       .split('\0')
       .map(line => line.trim())
