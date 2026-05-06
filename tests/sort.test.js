@@ -681,6 +681,55 @@ describe('getDirtyToolManagedFiles', () => {
 });
 
 // ---------------------------------------------------------------------------
+// defaultIO.exec — verify array argument handling
+// ---------------------------------------------------------------------------
+
+describe('defaultIO.exec', () => {
+  it('executes git commands with array arguments', () => {
+    // This test ensures defaultIO.exec can handle array arguments.
+    // We trigger exec by providing a history that causes runSort to call
+    // getDirtyToolManagedFiles, which uses git status.
+    const workText = [
+      '---',
+      'cycle: c1',
+      'stages:',
+      '  - forge:write',
+      '---',
+      '',
+    ].join('\n');
+    
+    const historyYaml = '- { cycle: c1, stage: forge:write, iteration: 1, comment: x }\n';
+    
+    let execCalled = false;
+    let execArgs = null;
+    
+    const io = {
+      exists: (p) => p === 'WORK.md' || p === 'history.yaml',
+      readFile: (p) => {
+        if (p === 'WORK.md') return workText;
+        if (p === 'history.yaml') return historyYaml;
+        throw new Error(`unexpected read: ${p}`);
+      },
+      exec: (argv) => {
+        if (!execCalled) {
+          execCalled = true;
+          execArgs = argv;
+        }
+        return ''; // git commands return empty strings
+      },
+    };
+    
+    // runSort calls exec internally for git operations
+    runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    
+    // Verify exec was called with array arguments
+    assert.ok(execCalled, 'exec should be called during runSort');
+    assert.ok(Array.isArray(execArgs), 'exec should receive array arguments');
+    assert.equal(execArgs[0], 'git', 'exec should receive git command');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // runSort
 // ---------------------------------------------------------------------------
 

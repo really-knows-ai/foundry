@@ -14,7 +14,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import yaml from 'js-yaml';
 import { minimatch } from 'minimatch';
 import { parseFrontmatter } from './lib/workfile.js';
@@ -60,7 +60,7 @@ const defaultIO = {
   writeFile: (p, c) => writeFileSync(p, c),
   rename: (from, to) => renameSync(from, to),
   exists: (p) => existsSync(p),
-  exec: (cmd) => execSync(cmd, { encoding: 'utf8' }),
+  exec: (argv) => execFileSync(argv[0], argv.slice(1), { encoding: 'utf8' }),
 };
 
 // ---------------------------------------------------------------------------
