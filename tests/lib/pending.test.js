@@ -26,4 +26,22 @@ describe('pending store', () => {
     assert.equal(s.consume('old'), null);
     assert.equal(s.size(), 0);
   });
+
+  it('consumes valid nonce and evicts expired nonce correctly', () => {
+    const s = createPendingStore();
+    const now = Date.now();
+    
+    // Add expired and valid nonces
+    s.add('expired', { route: 'r1', cycle: 'c1', exp: now - 1000 });
+    s.add('valid', { route: 'r2', cycle: 'c2', exp: now + 10000 });
+    
+    // Consuming expired nonce should return null and delete it
+    assert.equal(s.consume('expired'), null);
+    assert.equal(s.size(), 1, 'Only valid nonce remains');
+    
+    // Consuming valid nonce should return meta and delete it
+    const validMeta = s.consume('valid');
+    assert.equal(validMeta.route, 'r2');
+    assert.equal(s.size(), 0, 'All nonces consumed');
+  });
 });

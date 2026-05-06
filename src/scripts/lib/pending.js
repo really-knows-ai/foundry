@@ -5,8 +5,11 @@ export function createPendingStore() {
     consume(nonce) {
       const meta = map.get(nonce);
       if (!meta) return null;
+      if (meta.exp < Date.now()) {
+        map.delete(nonce);
+        return null;
+      }
       map.delete(nonce);
-      if (meta.exp < Date.now()) return null;
       return meta;
     },
     size() {
