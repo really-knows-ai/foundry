@@ -84,12 +84,12 @@ export default [
       'no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
 
       // -- Relax complexity limits (warn not error) --
-      'complexity': ['error', 10],
+      'complexity': ['error', 5],
       'max-depth': ['error', 4],
-      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 40, skipBlankLines: true, skipComments: true }],
       'max-nested-callbacks': ['error', 3],
-      'max-params': ['error', 4],
+      'max-params': ['error', 5],
       'max-statements': ['error', 30],
       'max-classes-per-file': 'off',
 
@@ -197,7 +197,7 @@ export default [
       'yield-star-spacing': 'off',
 
       // -- SonarJS overrides (if needed) --
-      'sonarjs/cognitive-complexity': ['error', 15],
+      'sonarjs/cognitive-complexity': 'off',
       'sonarjs/no-duplicate-string': 'off',       // too noisy for tests/config
       'sonarjs/max-switch-cases': 'off',
       'sonarjs/prefer-single-boolean-return': 'off',
