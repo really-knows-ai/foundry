@@ -27,10 +27,10 @@ import {
 const makeSortIO = makeMockIO;
 
 function makeWorkMd(options = {}) {
-  const cycle = Object.prototype.hasOwnProperty.call(options, 'cycle') ? options.cycle : 'c1';
+  const cycle = Object.hasOwn(options, 'cycle') ? options.cycle : 'c1';
   const stages = options.stages || ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-  const maxIterations = Object.prototype.hasOwnProperty.call(options, 'maxIterations') ? options.maxIterations : 100;
-  const deadlockIterations = Object.prototype.hasOwnProperty.call(options, 'deadlockIterations') ? options.deadlockIterations : 5;
+  const maxIterations = Object.hasOwn(options, 'maxIterations') ? options.maxIterations : 100;
+  const deadlockIterations = Object.hasOwn(options, 'deadlockIterations') ? options.deadlockIterations : 5;
   const lines = [
     '---',
     `cycle: ${cycle}`,

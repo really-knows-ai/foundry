@@ -1,9 +1,16 @@
-// ESLint flat config for ESM Node.js project
+// ESLint flat config — super-strict for ESM Node.js project
 import js from '@eslint/js';
 import globals from 'globals';
+import sonarjs from 'eslint-plugin-sonarjs';
 
 export default [
-  js.configs.recommended,
+  // Base: ALL core ESLint rules enabled
+  js.configs.all,
+
+  // SonarJS recommended rules (bug detection + code smell)
+  sonarjs.configs.recommended,
+
+  // Project-specific language options and rule overrides
   {
     languageOptions: {
       ecmaVersion: 2022,
@@ -12,17 +19,205 @@ export default [
         ...globals.node,
       },
     },
+
     rules: {
-      // Enforce British spelling in comments would require a plugin, skip for now
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      'no-console': 'off', // CLI tools use console
-      'no-empty': ['error', { allowEmptyCatch: true }], // Allow empty catch blocks
-      'no-sparse-arrays': 'off', // Allow sparse arrays in tests
-      'no-control-regex': 'off', // Allow control chars in regex (for validation tests)
+      // -- Project-specific relaxations (CLI tool / test patterns) --
+
+      'no-console': 'off',                    // CLI tools use console
+      'no-process-exit': 'off',               // CLI tools exit with codes
+      'no-empty': ['error', { allowEmptyCatch: true }],
+
+      // -- Stylistic: relax opinionated formatting rules --
+      // (When using Prettier alongside, many of these should be off)
+      'max-len': ['warn', { code: 120, ignoreUrls: true, ignoreStrings: true, ignoreTemplateLiterals: true }],
+      'capitalized-comments': 'off',
+      'line-comment-position': 'off',
+      'no-inline-comments': 'off',
+      'multiline-comment-style': 'off',
+      'no-warning-comments': 'off',
+      'spaced-comment': ['error', 'always', { markers: ['/'] }],
+      'curly': 'off',                         // project uses braceless single-line if statements
+
+      // -- Relax overly restrictive style rules --
+      'camelcase': 'off',
+      'func-style': 'off',
+      'func-names': 'off',
+      'logical-assignment-operators': 'off',
+      'one-var': 'off',
+      'no-ternary': 'off',
+      'no-nested-ternary': 'warn',
+      'no-plusplus': 'off',
+      'no-continue': 'off',
+      'no-labels': ['error', { allowLoop: true }],
+      'no-underscore-dangle': 'off',
+      'no-void': 'off',
+      'no-undefined': 'off',
+      'no-use-before-define': ['error', { functions: false, classes: true, variables: true }],
+      'no-param-reassign': ['error', { props: false }],
+      'consistent-return': 'off',
+      'default-case': 'off',
+      'default-case-last': 'warn',
+      'no-else-return': ['warn', { allowElseIf: false }],
+
+      // -- Relax variable / naming rules --
+      'id-length': 'off',
+      'id-denylist': 'off',
+      'init-declarations': 'off',
+      'sort-imports': 'off',
+      'sort-keys': 'off',
+      'sort-vars': 'off',
+      'no-unused-vars': 'off', // prefer sonarjs/no-unused-vars
+      'no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
+
+      // -- Relax complexity limits (warn not error) --
+      'complexity': ['warn', 10],
+      'max-depth': ['warn', 4],
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-nested-callbacks': ['warn', 3],
+      'max-params': ['warn', 4],
+      'max-statements': ['warn', 30],
+      'max-classes-per-file': 'off',
+
+      // -- Relax style preferences --
+      'prefer-destructuring': 'off',
+      'prefer-template': 'off',
+      'prefer-arrow-callback': 'off',
+      'prefer-object-spread': 'off',
+      'prefer-spread': 'off',
+      'prefer-rest-params': 'off',
+      'prefer-exponentiation-operator': 'off',
+      'prefer-named-capture-group': 'off',
+      'prefer-numeric-literals': 'off',
+      'require-unicode-regexp': 'off',
+      'prefer-regex-literals': 'off',
+      'object-shorthand': 'off',
+      'arrow-body-style': 'off',
+      'no-array-constructor': 'off',
+      'no-new-object': 'off',
+      'no-new-wrappers': 'error',
+
+      // -- Other relaxations --
+      'no-await-in-loop': 'off',
+      'require-await': 'off',               // async plugin interfaces don't always use await
+      'no-restricted-syntax': 'off',
+      'no-restricted-properties': 'off',
+      'no-restricted-imports': 'off',
+      'no-restricted-exports': 'off',
+      'require-atomic-updates': 'warn',
+      'no-return-await': 'off',
+      'no-magic-numbers': 'off',
+      'no-invalid-this': 'off',
+      'no-extra-bind': 'off',
+      'no-implicit-coercion': 'off',
+      'no-lonely-if': 'off',
+      'no-negated-condition': 'off',
+      'no-prototype-builtins': 'error',
+      'no-sequences': ['error', { allowInParentheses: true }],
+      'no-confusing-arrow': 'off',
+      'no-mixed-operators': 'off',
+      'yoda': 'off',
+      'radix': 'off',
+      'guard-for-in': 'error',
+      'operator-assignment': 'off',
+      'prefer-numeric-literals': 'warn',
+      'new-cap': 'off',
+      'no-new': 'off',
+      'no-alert': 'off',
+      'strict': 'off',
+      'wrap-iife': 'off',
+      'quote-props': 'off',
+      'quotes': 'off',
+      'semi': 'off',
+      'comma-dangle': 'off',
+      'indent': 'off',
+      'no-tabs': 'off',
+      'no-trailing-spaces': 'off',
+      'eol-last': 'off',
+      'no-multiple-empty-lines': 'off',
+      'padding-line-between-statements': 'off',
+      'dot-location': 'off',
+      'array-element-newline': 'off',
+      'array-bracket-newline': 'off',
+      'array-bracket-spacing': 'off',
+      'arrow-parens': 'off',
+      'arrow-spacing': 'off',
+      'block-spacing': 'off',
+      'brace-style': 'off',
+      'comma-spacing': 'off',
+      'comma-style': 'off',
+      'computed-property-spacing': 'off',
+      'function-call-argument-newline': 'off',
+      'function-paren-newline': 'off',
+      'generator-star-spacing': 'off',
+      'implicit-arrow-linebreak': 'off',
+      'key-spacing': 'off',
+      'keyword-spacing': 'off',
+      'lines-around-comment': 'off',
+      'lines-between-class-members': 'off',
+      'max-statements-per-line': 'off',
+      'multiline-ternary': 'off',
+      'new-parens': 'off',
+      'newline-per-chained-call': 'off',
+      'no-extra-parens': 'off',
+      'no-whitespace-before-property': 'off',
+      'nonblock-statement-body-position': 'off',
+      'object-curly-newline': 'off',
+      'object-curly-spacing': 'off',
+      'object-property-newline': 'off',
+      'operator-linebreak': 'off',
+      'padded-blocks': 'off',
+      'rest-spread-spacing': 'off',
+      'semi-spacing': 'off',
+      'semi-style': 'off',
+      'space-before-blocks': 'off',
+      'space-before-function-paren': 'off',
+      'space-in-parens': 'off',
+      'space-infix-ops': 'off',
+      'space-unary-ops': 'off',
+      'switch-colon-spacing': 'off',
+      'template-curly-spacing': 'off',
+      'template-tag-spacing': 'off',
+      'unicode-bom': 'off',
+      'wrap-regex': 'off',
+      'yield-star-spacing': 'off',
+
+      // -- SonarJS overrides (if needed) --
+      'sonarjs/cognitive-complexity': ['warn', 15],
+      'sonarjs/no-duplicate-string': 'off',       // too noisy for tests/config
+      'sonarjs/max-switch-cases': 'off',
+      'sonarjs/prefer-single-boolean-return': 'off',
+      'sonarjs/no-small-switch': 'off',
     },
   },
+
+  // Test files: relax rules that don't make sense in test contexts
   {
-    // Ignore build output and dependencies
+    files: ['tests/**/*.js', '**/*.test.js', '**/*.spec.js'],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
+      'max-statements': 'off',
+      'max-nested-callbacks': 'off',
+      'no-sparse-arrays': 'off',
+      'no-control-regex': 'off',
+      'max-params': 'off',
+      'sonarjs/no-duplicate-string': 'off',
+      'sonarjs/no-identical-functions': 'off',
+    },
+  },
+
+  // Scripts: allow more procedural patterns
+  {
+    files: ['scripts/**/*.js'],
+    rules: {
+      'max-lines-per-function': 'off',
+      'max-statements': 'off',
+    },
+  },
+
+  // Ignore build output and dependencies
+  {
     ignores: ['dist/', 'node_modules/', '.foundry/', '.snapshots/', '.worktrees/'],
   },
 ];

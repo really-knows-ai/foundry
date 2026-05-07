@@ -8,14 +8,14 @@ import { openFeedbackStore } from '../../src/scripts/lib/feedback-store.js';
 function mockIO(initial = {}) {
   const files = { ...initial };
   return {
-    exists: (p) => Object.prototype.hasOwnProperty.call(files, p),
+    exists: (p) => Object.hasOwn(files, p),
     readFile: (p) => {
-      if (!Object.prototype.hasOwnProperty.call(files, p)) throw new Error(`ENOENT: ${p}`);
+      if (!Object.hasOwn(files, p)) throw new Error(`ENOENT: ${p}`);
       return files[p];
     },
     writeFile: (p, c) => { files[p] = c; },
     rename: (from, to) => {
-      if (!Object.prototype.hasOwnProperty.call(files, from)) throw new Error(`ENOENT: ${from}`);
+      if (!Object.hasOwn(files, from)) throw new Error(`ENOENT: ${from}`);
       files[to] = files[from];
       delete files[from];
     },

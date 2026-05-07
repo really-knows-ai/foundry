@@ -2,7 +2,7 @@ export function makeAsyncMockIO(files = {}) {
   const store = { ...files };
   const dirs = new Set();
   return {
-    exists: async (p) => Object.prototype.hasOwnProperty.call(store, p),
+    exists: async (p) => Object.hasOwn(store, p),
     readFile: async (p) => {
       if (!(p in store)) throw new Error(`ENOENT: ${p}`);
       return store[p];

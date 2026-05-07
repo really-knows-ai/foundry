@@ -29,7 +29,8 @@
     "prepublishOnly": "npm run build",
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage",
-    "lint": "eslint src/ tests/ scripts/"
+    "lint": "eslint src/ tests/ scripts/",
+    "build:full": "npm run lint -- --fix && npm run test && npm run build"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.4.0",
@@ -46,8 +47,13 @@
     "dist/LICENSE",
     "dist/CHANGELOG.md"
   ],
+  "pnpm": {
+    "onlyBuiltDependencies": ["cozo-node", "msgpackr-extract"]
+  },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "eslint": "^9.39.4",
+    "eslint-plugin-sonarjs": "^4.0.3",
     "globals": "^17.6.0"
   }
 }

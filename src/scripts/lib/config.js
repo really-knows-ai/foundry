@@ -152,7 +152,7 @@ export async function selectAppraisers(foundryDir, typeId, { io, countOverride }
   const allowed = appraiserConfig.allowed || null;
 
   const allAppraisers = await getAppraisers(foundryDir, io);
-  let pool = allowed
+  const pool = allowed
     ? allAppraisers.filter(a => allowed.includes(a.id))
     : allAppraisers;
 

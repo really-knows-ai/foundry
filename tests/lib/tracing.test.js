@@ -21,11 +21,11 @@ function makeIo({ useAppendFile = true, initialFiles = {} } = {}) {
     },
     async exists(path) {
       calls.push(['exists', path]);
-      return Object.prototype.hasOwnProperty.call(files, path);
+      return Object.hasOwn(files, path);
     },
     async readFile(path) {
       calls.push(['readFile', path]);
-      if (!Object.prototype.hasOwnProperty.call(files, path)) {
+      if (!Object.hasOwn(files, path)) {
         const err = new Error(`ENOENT: ${path}`);
         err.code = 'ENOENT';
         throw err;
@@ -133,7 +133,7 @@ describe('truncateTrace', () => {
     await truncateTrace({ branch: 'dry-run/foo/bar', io });
 
     const path = '.foundry/trace/dry-run-foo-bar.jsonl';
-    assert.equal(Object.prototype.hasOwnProperty.call(files, path), false);
+    assert.equal(Object.hasOwn(files, path), false);
     // Must not have called writeFile.
     assert.ok(!calls.some((c) => c[0] === 'writeFile'));
   });

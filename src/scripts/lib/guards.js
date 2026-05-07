@@ -88,7 +88,7 @@ export function guarded(toolName, guards, execute, opts = {}) {
         // can diagnose programmer errors (bad JSON, misconfigured io)
         // without polluting normal stderr.
         if (process.env.FOUNDRY_DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.warn(
             `[foundry] ${toolName}: trace write failed (${traceErr?.message ?? String(traceErr)})`,
           );

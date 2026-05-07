@@ -1,7 +1,7 @@
 export function makeMockIO(files = {}, { exec = () => '' } = {}) {
   const store = { ...files };
   return {
-    exists: (p) => Object.prototype.hasOwnProperty.call(store, p),
+    exists: (p) => Object.hasOwn(store, p),
     readFile: (p) => {
       if (!(p in store)) throw new Error(`ENOENT: ${p}`);
       return store[p];
