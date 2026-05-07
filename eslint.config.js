@@ -2,10 +2,24 @@
 import js from '@eslint/js';
 import globals from 'globals';
 import sonarjs from 'eslint-plugin-sonarjs';
+import eslintComments from 'eslint-plugin-eslint-comments';
 
 export default [
   // Base: ALL core ESLint rules enabled
   js.configs.all,
+
+  // Ban all eslint-disable comments
+  {
+    plugins: { 'eslint-comments': eslintComments },
+    rules: {
+      'eslint-comments/no-use': 'error',
+      'eslint-comments/no-unused-disable': 'error',
+      'eslint-comments/no-unused-enable': 'error',
+      'eslint-comments/no-unlimited-disable': 'error',
+      'eslint-comments/no-duplicate-disable': 'error',
+    },
+  },
+
 
   // SonarJS recommended rules (bug detection + code smell)
   sonarjs.configs.recommended,
