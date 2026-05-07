@@ -15,6 +15,13 @@ function shellQuote(value) {
   return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
+/**
+ * Extract error message from various error object properties.
+ */
+function fallbackMessage(err) {
+  return (err.stderr || err.stdout || err.message || '').trim();
+}
+
 export function createValidateTools({ tool }) {
   return {
     foundry_validate_run: tool({
@@ -47,7 +54,13 @@ export function createValidateTools({ tool }) {
             const output = execSync(expanded, { cwd: context.worktree, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
             results.push({ id: entry.id, command: expanded, passed: true, output: output.trim() });
           } catch (err) {
-            results.push({ id: entry.id, command: expanded, passed: false, output: (err.stderr || err.stdout || err.message || '').trim(), failureMeans: entry.failureMeans });
+            results.push({
+              id: entry.id,
+              command: expanded,
+              passed: false,
+              output: fallbackMessage(err),
+              failureMeans: entry.failureMeans,
+            });
           }
         }
         return JSON.stringify(results);

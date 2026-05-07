@@ -235,6 +235,14 @@ export default [
     },
   },
 
+  // Plugin validation tool: requires OS command execution
+  {
+    files: ['src/plugin/tools/validate-tools.js'],
+    rules: {
+      'sonarjs/os-command': 'off',
+    },
+  },
+
   // Ignore build output and dependencies
   {
     ignores: ['dist/', 'node_modules/', '.foundry/', '.snapshots/', '.worktrees/'],
