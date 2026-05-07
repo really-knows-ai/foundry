@@ -1,6 +1,6 @@
 import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openStore, closeStore } from '../../../../src/scripts/lib/memory/store.js';
@@ -101,7 +101,7 @@ describe('reembed', () => {
         'NDJSON must be unchanged after embedder failure');
 
       // Original DB must still exist and be usable under the old schema.
-      assert.ok(fs.existsSync(dbAbsolutePath), 'memory.db must still exist');
+      assert.ok(existsSync(dbAbsolutePath), 'memory.db must still exist');
       const dbAfter = readFileSync(dbAbsolutePath);
       assert.equal(dbAfter.length, dbBefore.length,
         'memory.db byte length must match pre-reembed state');
@@ -116,7 +116,7 @@ describe('reembed', () => {
       closeStore(store);
 
       // No stray temp DB should remain behind.
-      const siblings = fs.readdirSync(root2).filter((f) => f.startsWith('memory.db'));
+      const siblings = readdirSync(root2).filter((f) => f.startsWith('memory.db'));
       assert.deepEqual(
         siblings.filter((f) => f !== 'memory.db' && !/^memory\.db-(wal|shm)$/.test(f)),
         [],
