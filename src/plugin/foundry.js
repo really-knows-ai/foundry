@@ -10,7 +10,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { tool } from '@opencode-ai/plugin';
-import { readOrCreateSecret } from '../scripts/lib/secret.js';
 import { createPendingStore } from '../scripts/lib/pending.js';
 import { getBootstrapContent } from './tools/helpers.js';
 import { createHistoryTools } from './tools/history-tools.js';

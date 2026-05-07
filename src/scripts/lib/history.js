@@ -15,7 +15,7 @@ function parseHistory(text) {
       throw new Error('root is not an array');
     }
   } catch (err) {
-    throw new Error(`WORK.history.yaml malformed: ${err.message}`);
+    throw new Error(`WORK.history.yaml malformed: ${err.message}`, { cause: err });
   }
   return data;
 }
@@ -61,7 +61,7 @@ export function loadHistory(historyPath, cycle, io) {
  * Append a history entry with auto-generated ISO timestamp.
  */
 export function appendEntry(historyPath, { cycle, stage, iteration, comment, route, openFeedback, changedFiles }, io) {
-  if (iteration == null) throw new Error('iteration is required');
+  if (iteration === null) throw new Error('iteration is required');
   if (!comment) throw new Error('comment is required');
   if (route !== undefined && stage !== 'sort') {
     throw new Error(`route is only valid on stage='sort' entries; got stage='${stage}'`);

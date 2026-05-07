@@ -29,7 +29,7 @@ export default [
 
       // -- Stylistic: relax opinionated formatting rules --
       // (When using Prettier alongside, many of these should be off)
-      'max-len': ['warn', { code: 120, ignoreUrls: true, ignoreStrings: true, ignoreTemplateLiterals: true }],
+      'max-len': ['error', { code: 120, ignoreUrls: true, ignoreStrings: true, ignoreTemplateLiterals: true }],
       'capitalized-comments': 'off',
       'line-comment-position': 'off',
       'no-inline-comments': 'off',
@@ -45,7 +45,7 @@ export default [
       'logical-assignment-operators': 'off',
       'one-var': 'off',
       'no-ternary': 'off',
-      'no-nested-ternary': 'warn',
+      'no-nested-ternary': 'error',
       'no-plusplus': 'off',
       'no-continue': 'off',
       'no-labels': ['error', { allowLoop: true }],
@@ -56,8 +56,8 @@ export default [
       'no-param-reassign': ['error', { props: false }],
       'consistent-return': 'off',
       'default-case': 'off',
-      'default-case-last': 'warn',
-      'no-else-return': ['warn', { allowElseIf: false }],
+      'default-case-last': 'error',
+      'no-else-return': ['error', { allowElseIf: false }],
 
       // -- Relax variable / naming rules --
       'id-length': 'off',
@@ -70,13 +70,13 @@ export default [
       'no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
 
       // -- Relax complexity limits (warn not error) --
-      'complexity': ['warn', 10],
-      'max-depth': ['warn', 4],
-      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
-      'max-nested-callbacks': ['warn', 3],
-      'max-params': ['warn', 4],
-      'max-statements': ['warn', 30],
+      'complexity': ['error', 10],
+      'max-depth': ['error', 4],
+      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-nested-callbacks': ['error', 3],
+      'max-params': ['error', 4],
+      'max-statements': ['error', 30],
       'max-classes-per-file': 'off',
 
       // -- Relax style preferences --
@@ -104,7 +104,7 @@ export default [
       'no-restricted-properties': 'off',
       'no-restricted-imports': 'off',
       'no-restricted-exports': 'off',
-      'require-atomic-updates': 'warn',
+      'require-atomic-updates': 'error',
       'no-return-await': 'off',
       'no-magic-numbers': 'off',
       'no-invalid-this': 'off',
@@ -120,7 +120,7 @@ export default [
       'radix': 'off',
       'guard-for-in': 'error',
       'operator-assignment': 'off',
-      'prefer-numeric-literals': 'warn',
+      'prefer-numeric-literals': 'error',
       'new-cap': 'off',
       'no-new': 'off',
       'no-alert': 'off',
@@ -183,7 +183,7 @@ export default [
       'yield-star-spacing': 'off',
 
       // -- SonarJS overrides (if needed) --
-      'sonarjs/cognitive-complexity': ['warn', 15],
+      'sonarjs/cognitive-complexity': ['error', 15],
       'sonarjs/no-duplicate-string': 'off',       // too noisy for tests/config
       'sonarjs/max-switch-cases': 'off',
       'sonarjs/prefer-single-boolean-return': 'off',
@@ -204,6 +204,11 @@ export default [
       'max-params': 'off',
       'sonarjs/no-duplicate-string': 'off',
       'sonarjs/no-identical-functions': 'off',
+      'sonarjs/no-os-command-from-path': 'off',
+      'sonarjs/os-command': 'off',
+      'sonarjs/publicly-writable-directories': 'off',
+      'no-empty-function': 'off',
+      'no-loop-func': 'off',
     },
   },
 

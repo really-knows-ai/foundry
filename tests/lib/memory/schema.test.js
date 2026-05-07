@@ -9,7 +9,7 @@ function mockIO(files = {}) {
     exists: async (p) => p in store,
     readFile: async (p) => store[p],
     writeFile: async (p, content) => { store[p] = content; },
-    mkdir: async () => {},
+    mkdir: async () => undefined,
   };
 }
 

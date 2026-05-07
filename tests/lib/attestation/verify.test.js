@@ -31,7 +31,7 @@ function createSignedRepo() {
       '  STATUS_FD=2\n' +
       '  for arg in "$@"; do\n' +
       '    case "$arg" in\n' +
-      '      --status-fd=*) STATUS_FD="${arg#--status-fd=}" ;;\n' +
+      '      --status-fd=*) STATUS_FD="\${arg#--status-fd=}" ;;\n' +
       '    esac\n' +
       '  done\n' +
       '  echo "[GNUPG:] NEWSIG" >&"$STATUS_FD"\n' +
@@ -135,7 +135,7 @@ test('verifyAttestationRef throws descriptive error for malformed JSON in attest
         '  STATUS_FD=2\n' +
         '  for arg in "$@"; do\n' +
         '    case "$arg" in\n' +
-        '      --status-fd=*) STATUS_FD="${arg#--status-fd=}" ;;\n' +
+        '      --status-fd=*) STATUS_FD="\${arg#--status-fd=}" ;;\n' +
         '    esac\n' +
         '  done\n' +
         '  echo "[GNUPG:] NEWSIG" >&"$STATUS_FD"\n' +
@@ -205,7 +205,7 @@ test('verifyAttestationRef throws when signed commit has no attestation block', 
         '  STATUS_FD=2\n' +
         '  for arg in "$@"; do\n' +
         '    case "$arg" in\n' +
-        '      --status-fd=*) STATUS_FD="${arg#--status-fd=}" ;;\n' +
+        '      --status-fd=*) STATUS_FD="\${arg#--status-fd=}" ;;\n' +
         '    esac\n' +
         '  done\n' +
         '  echo "[GNUPG:] NEWSIG" >&"$STATUS_FD"\n' +

@@ -8,7 +8,7 @@ export function verifyAttestationRef({ cwd, ref = 'HEAD' }) {
   let payload;
   try {
     payload = JSON.parse(json);
-  } catch (err) {
+  } catch {
     throw new Error(`malformed attestation JSON: ${json}`);
   }
   return { status: 'verified', schema: payload.schema, payload };

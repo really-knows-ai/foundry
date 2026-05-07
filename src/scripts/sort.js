@@ -15,7 +15,7 @@
 
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
 import { execFileSync } from 'child_process';
-import yaml from 'js-yaml';
+
 import { minimatch } from 'minimatch';
 import { parseFrontmatter } from './lib/workfile.js';
 import { parseArtefactsTable } from './lib/artefacts.js';

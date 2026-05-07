@@ -8,7 +8,7 @@ import { getCycleDefinition, getArtefactType } from '../../scripts/lib/config.js
 import { addArtefactRow } from '../../scripts/lib/artefacts.js';
 import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
 import { finalizeStage } from '../../scripts/lib/finalize.js';
-import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
+import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
 import { makeIO, makeExec, buildCyclePromptExtras } from './helpers.js';
 import { requireNotFailed } from '../../scripts/lib/failed-flow.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
@@ -73,7 +73,7 @@ export function createOrchestrateTool({ tool, pending }) {
               return sha;
             },
             status: () => {
-              const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
+                  const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
               return { clean: out === '', dirty: out.split('\n').filter(Boolean) };
             },
           };

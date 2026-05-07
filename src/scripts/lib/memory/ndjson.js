@@ -28,7 +28,9 @@ function serialiseLine(row) {
 }
 
 function compareEntity(a, b) {
-  return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  if (a.name < b.name) return -1;
+  if (a.name > b.name) return 1;
+  return 0;
 }
 
 const EDGE_KEY_ORDER = ['from_type', 'from_name', 'to_type', 'to_name'];

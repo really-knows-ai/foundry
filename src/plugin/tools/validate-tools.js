@@ -12,7 +12,7 @@ const gateNotFailed = notFailedGuard(makeIO);
  * containing spaces, semicolons, `$()`, backticks, quotes, and newlines.
  */
 function shellQuote(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+  return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
 export function createValidateTools({ tool }) {

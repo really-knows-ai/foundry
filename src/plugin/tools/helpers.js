@@ -1,9 +1,8 @@
 // Shared helpers for the Foundry plugin. Pure functions — no plugin deps.
 
 import path from 'path';
-import fs from 'fs';
-import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, renameSync, rmSync } from 'fs';
-import { execSync, execFileSync } from 'child_process';
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, renameSync, rmSync, statSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { getCycleDefinition } from '../../scripts/lib/config.js';
 import { getOrOpenStore, getContext } from '../../scripts/lib/memory/singleton.js';
 import { resolvePermissions } from '../../scripts/lib/memory/permissions.js';
@@ -16,7 +15,7 @@ const warnedFlowFiles = new Set();
 
 export function listFlows(foundryDir) {
   const flowsDir = path.join(foundryDir, 'flows');
-  if (!fs.existsSync(flowsDir)) return [];
+  if (!existsSync(flowsDir)) return [];
   const flows = [];
   for (const entry of readdirSync(flowsDir)) {
     if (!entry.endsWith('.md') || entry === '.gitkeep') continue;
@@ -54,7 +53,7 @@ export function listFlows(foundryDir) {
 
 export function getBootstrapContent(directory, packageRoot) {
   const foundryDir = path.join(directory, 'foundry');
-  const foundryExists = fs.existsSync(foundryDir) && fs.statSync(foundryDir).isDirectory();
+  const foundryExists = existsSync(foundryDir) && statSync(foundryDir).isDirectory();
 
   if (!foundryExists) {
     return `<FOUNDRY_CONTEXT>

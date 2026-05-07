@@ -12,7 +12,7 @@ function loadItems(path, io) {
   const raw = io.readFile(path);
   if (!raw || !raw.trim()) return [];
   const doc = yaml.load(raw);
-  if (doc == null) return [];
+  if (doc === null) return [];
   if (Array.isArray(doc)) {
     throw new Error(`WORK.feedback.yaml malformed: top-level must be an object with an 'items' array`);
   }

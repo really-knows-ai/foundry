@@ -33,7 +33,7 @@ export async function runQuery(store, query) {
     res = await store.db.run(query);
   } catch (err) {
     const msg = err?.display ?? err?.message ?? String(err);
-    throw new Error(`query error: ${msg}`);
+    throw new Error(`query error: ${msg}`, { cause: err });
   }
   const headers = res.headers ?? [];
   const rows = (res.rows ?? []).map((row) => {

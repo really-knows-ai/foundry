@@ -34,11 +34,14 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
   }
   assertValidSha(baseSha);
   const files = changedFiles(io.exec, baseSha).filter(f => !isToolManaged(f));
-  const allowedPatterns = stageBase === 'forge'
-    ? (artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [])
-    : stageBase === 'assay'
-      ? ['foundry-memory/**']
-      : [];
+  let allowedPatterns;
+  if (stageBase === 'forge') {
+    allowedPatterns = artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [];
+  } else if (stageBase === 'assay') {
+    allowedPatterns = ['foundry-memory/**'];
+  } else {
+    allowedPatterns = [];
+  }
   const unexpected = [];
   const matched = [];
   for (const f of files) {

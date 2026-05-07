@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -157,7 +157,7 @@ describe('runAssay', () => {
     writeExtractor(root, 'emb', { command: 'x', write: ['class'] });
     const putCalls = [];
     const putEntity = async (_store, row, _vocab, opts) => { putCalls.push({ row, opts }); };
-    const relate = async () => {};
+    const relate = async () => undefined;
     const writeEmbedder = async (inputs) => inputs.map(() => [0.1, 0.2, 0.3]);
     const res = await runAssay({
       foundryDir: 'foundry', cwd: root, io: diskIO(root),
@@ -183,7 +183,7 @@ describe('runAssay', () => {
     writeExtractor(root, 'plain', { command: 'x', write: ['class'] });
     const putCalls = [];
     const putEntity = async (_store, row, _vocab, opts) => { putCalls.push({ row, opts }); };
-    const relate = async () => {};
+    const relate = async () => undefined;
     const res = await runAssay({
       foundryDir: 'foundry', cwd: root, io: diskIO(root),
       extractors: ['plain'], store: {}, vocabulary,

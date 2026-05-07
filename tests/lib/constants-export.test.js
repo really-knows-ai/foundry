@@ -8,11 +8,8 @@ import {
   isToolManaged as isToolManaged_POLICY,
 } from '../../src/scripts/lib/git-policy.js';
 
-// Q2: Import DRY_RUN_RE from branch-guard (canonical source)
-import { DRY_RUN_RE } from '../../src/scripts/lib/branch-guard.js';
-
-// Q3: Import CONFIG_RE from branch-guard (canonical source)
-import { CONFIG_RE } from '../../src/scripts/lib/branch-guard.js';
+// Q2 & Q3: Import DRY_RUN_RE and CONFIG_RE from branch-guard (canonical source)
+import { DRY_RUN_RE, CONFIG_RE } from '../../src/scripts/lib/branch-guard.js';
 
 describe('Q1: TOOL_MANAGED exports from git-policy', () => {
   it('exports TOOL_MANAGED array', () => {

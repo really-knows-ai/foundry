@@ -64,7 +64,7 @@ describe('Concurrency and race conditions (G1)', () => {
         unlink: (path) => {
           sharedFiles.delete(path);
         },
-        mkdir: (_path) => {},
+        mkdir: (_path) => undefined,
         readdir: (_path) => [],
         isDirectory: (_path) => false,
       };

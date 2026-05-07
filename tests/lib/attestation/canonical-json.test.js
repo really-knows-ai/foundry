@@ -55,21 +55,21 @@ test('canonicalJson converts sparse array holes to null', () => {
 
 test('canonicalJson unwraps boxed Number primitive', () => {
   assert.equal(
-    canonicalJson(new Number(1)),
+    canonicalJson(Object(1)),
     '1'
   );
 });
 
 test('canonicalJson unwraps boxed String primitive', () => {
   assert.equal(
-    canonicalJson(new String('x')),
+    canonicalJson(Object('x')),
     '"x"'
   );
 });
 
 test('canonicalJson unwraps boxed Boolean primitive', () => {
   assert.equal(
-    canonicalJson(new Boolean(false)),
+    canonicalJson(Object(false)),
     'false'
   );
 });

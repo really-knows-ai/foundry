@@ -125,7 +125,7 @@ function makeIo({ workMd = WORK_MD_VALID, history = HISTORY_VALID, feedback = FE
     '/repo/WORK.feedback.yaml': feedback,
   };
   return {
-    readFile: (p) => { if (files[p] === undefined) throw new Error(`ENOENT: ${p}`); return files[p]; },
+    readFile: (p) => { if (files[p] === undefined) { throw new Error(`ENOENT: ${p}`); } return files[p]; },
     fileExists: (p) => files[p] !== undefined,
   };
 }

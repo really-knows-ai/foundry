@@ -8,9 +8,7 @@ import { createEntityType } from '../../../../src/scripts/lib/memory/admin/creat
 import { createEdgeType } from '../../../../src/scripts/lib/memory/admin/create-edge-type.js';
 import { createExtractor } from '../../../../src/scripts/lib/memory/admin/create-extractor.js';
 import { dropEntityType } from '../../../../src/scripts/lib/memory/admin/drop-entity-type.js';
-import { dropEdgeType } from '../../../../src/scripts/lib/memory/admin/drop-edge-type.js';
 import { renameEntityType } from '../../../../src/scripts/lib/memory/admin/rename-entity-type.js';
-import { renameEdgeType } from '../../../../src/scripts/lib/memory/admin/rename-edge-type.js';
 import { resetMemory } from '../../../../src/scripts/lib/memory/admin/reset.js';
 import { disposeStores } from '../../../../src/scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../../../src/scripts/lib/memory/schema.js';

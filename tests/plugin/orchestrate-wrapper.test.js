@@ -12,7 +12,7 @@
 //
 // Each test stands up a real worktree + git repo so the wrapper's git commit
 // path and finalize bridge (which shells out via execFileSync) run end-to-end.
-import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';

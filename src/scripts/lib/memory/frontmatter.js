@@ -27,7 +27,7 @@ export function parseFrontmatter(text, { filename = '<unknown>' } = {}) {
     parsed = yaml.load(m[1]);
   } catch (err) {
     const msg = err?.message ?? String(err);
-    throw new Error(`${filename}: malformed YAML frontmatter: ${msg}`);
+    throw new Error(`${filename}: malformed YAML frontmatter: ${msg}`, { cause: err });
   }
   return {
     frontmatter: parsed && typeof parsed === 'object' ? parsed : {},

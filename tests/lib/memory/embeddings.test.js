@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { embed, probeEmbeddings } from '../../../src/scripts/lib/memory/embeddings.js';
 

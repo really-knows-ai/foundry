@@ -56,13 +56,13 @@ async function callWithRetry({ config, inputs }) {
         if (isLastAttempt && attempt > 0) {
           // Add retry context to the error message
           const retriesAttempted = attempt; // attempt is 0-indexed, so attempt=2 means 2 retries
-          throw new Error(`${error.message} (after ${retriesAttempted} retries)`);
+          throw new Error(`${error.message} (after ${retriesAttempted} retries)`, { cause: error });
         }
         throw error;
       }
 
       // Wait before retrying (only if not the last attempt and error is retryable)
-      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+      await new Promise((resolve) => { setTimeout(resolve, delays[attempt]); });
     }
   }
 

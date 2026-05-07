@@ -62,6 +62,7 @@ export async function withStore(context) {
       if (fromActiveStage) {
         throw new Error(
           `active stage references cycle '${cycleId}' but its definition could not be loaded: ${err.message ?? err}`,
+          { cause: err },
         );
       }
       permissions = null;

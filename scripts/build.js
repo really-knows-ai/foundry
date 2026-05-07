@@ -50,9 +50,6 @@ async function rewriteImports(filePath, fromDir, toDir) {
   // For foundry.js: src/plugin → dist/.opencode/plugins (need ../../.. to reach package root)
   // For tool files: src/plugin/tools → dist/.opencode/plugins/foundry-tools (need ../../../.. to reach package root)
   
-  const relativeFromRoot = path.relative(projectRoot, fromDir);
-  const relativeToRoot = path.relative(projectRoot, toDir);
-  
   // Rewrite imports that reference scripts or other package-local files
   const rewritten = content
     // Rewrite ../../scripts/ style imports to account for new depth

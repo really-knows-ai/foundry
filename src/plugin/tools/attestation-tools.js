@@ -24,6 +24,7 @@ export function createAttestationTools({ tool }) {
           const cwd = context.worktree;
           
           // Read commit message
+
           const message = execFileSync(
             'git',
             ['log', '-1', '--pretty=%B', ref],
@@ -37,7 +38,7 @@ export function createAttestationTools({ tool }) {
           let payload;
           try {
             payload = JSON.parse(json);
-          } catch (err) {
+          } catch {
             return errorJson(new Error(`malformed attestation JSON: ${json}`));
           }
           
@@ -119,8 +120,10 @@ export function createAttestationTools({ tool }) {
 
         const execGit = (argv) => {
           if (argv[0] === 'diff') {
+  
             return execFileSync('git', argv, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
           }
+
           return execFileSync('git', argv, opts).toString();
         };
 
@@ -152,10 +155,13 @@ export function createAttestationTools({ tool }) {
         writeFileSync(attestPath, result.content, 'utf8');
 
         try {
+
           execFileSync('git', ['add', 'ATTEST.md'], opts);
           const commitMsg = `[${cycle}] attest: cycle complete`;
+
           execFileSync('git', ['commit', '--no-gpg-sign', '-m', commitMsg], opts);
         } catch (err) {
+
           try { execFileSync('git', ['reset', 'HEAD', 'ATTEST.md'], opts); } catch { /* best effort */ }
           try { unlinkSync(attestPath); } catch { /* best effort */ }
           const stderr = err?.stderr || err?.stdout || '';

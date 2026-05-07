@@ -48,7 +48,7 @@ export async function spawnWithTimeout({ command, cwd, timeoutMs, env }) {
 
     const killGroup = (signal) => {
       // G25: Guard against undefined pid (spawn failure)
-      if (child.pid == null) return;
+      if (child.pid === null || child.pid === undefined) return;
       // Negative pid targets the process group. Wrap in try/catch because
       // the group may already be gone (ESRCH) by the time we signal.
       try { process.kill(-child.pid, signal); } catch {}

@@ -77,7 +77,7 @@ export function parseExtractorOutput(text) {
     try {
       obj = JSON.parse(trimmed);
     } catch (err) {
-      throw new Error(`extractor output line ${i + 1}: invalid JSON (${err.message}). Extractors must output one JSON object per line (JSONL/NDJSON format), not pretty-printed multi-line JSON.`);
+      throw new Error(`extractor output line ${i + 1}: invalid JSON (${err.message}). Extractors must output one JSON object per line (JSONL/NDJSON format), not pretty-printed multi-line JSON.`, { cause: err });
     }
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
       throw new Error(`extractor output line ${i + 1}: expected a JSON object`);

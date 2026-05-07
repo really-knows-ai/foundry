@@ -64,7 +64,7 @@ function validateStartingBranch(kind, branch) {
   if (kind === KIND_DRY_RUN) {
     if (!branch || !CONFIG_RE.test(branch))
       return `kind="dry-run" requires a config/<description> branch as starting point; ` +
-             `currently on ${branch ? `'${branch}'` : 'detached HEAD'}.`;
+             `currently on ${branch ? "'" + branch + "'" : 'detached HEAD'}.`;
     return null;
   }
   return null;
@@ -223,7 +223,7 @@ async function finishWorkBranch({ workBranch, base, cwd, args }) {
       cwd,
     });
     return JSON.stringify(result);
-  } catch (err) {
+    } catch (err) {
     const stderr = (err && (err.stderr || err.stdout)) ? String(err.stderr || err.stdout).trim() : '';
     return JSON.stringify({
       ok: false,
@@ -311,7 +311,7 @@ export function createGitTools({ tool }) {
         if (built.error) return refuse(`foundry_git_branch: ${built.error}`);
 
         try {
-          execFileSync('git', ['checkout', '-b', built.name],
+                  execFileSync('git', ['checkout', '-b', built.name],
             { cwd: context.worktree, encoding: 'utf8', stdio: 'pipe' });
         } catch (err) {
           const stderr = (err && (err.stderr || err.stdout))

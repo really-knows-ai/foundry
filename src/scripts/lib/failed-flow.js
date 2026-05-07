@@ -85,7 +85,7 @@ export function requireNotFailed(io) {
   let failed;
   try {
     failed = readFailedStatus(io);
-  } catch (err) {
+  } catch {
     // WORK.md is corrupted (malformed YAML) or unreadable (IO error).
     // This is a trouble signal - refuse to proceed.
     return {

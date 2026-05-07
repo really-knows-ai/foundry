@@ -9,7 +9,7 @@ import {
   getValidation,
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
-import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from './lib/artefacts.js';
+import { parseArtefactsTable, setArtefactStatus } from './lib/artefacts.js';
 import { readActiveStage, readLastStage, clearActiveStage, clearLastStage } from './lib/state.js';
 import { appendEntry, getIteration } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
