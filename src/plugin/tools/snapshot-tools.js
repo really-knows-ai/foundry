@@ -26,6 +26,56 @@ function foundryRootGuard(_args, context) {
 const GUARDS = [gitRepoGuard, foundryRootGuard];
 const TRACE_OPTS = { branchIo: branchIoFactory, io: asyncIoFactory };
 
+// --- execute handlers -------------------------------------------------------
+
+function makeListExecute() {
+  return guarded('foundry_snapshot_list', GUARDS, async (_args, context) => {
+    try {
+      return JSON.stringify(await listSnapshots({ io: makeAsyncIO(context.worktree) }));
+    } catch (err) {
+      return errorJson(err);
+    }
+  }, TRACE_OPTS);
+}
+
+function makeShowExecute() {
+  return guarded('foundry_snapshot_show', GUARDS, async (args, context) => {
+    try {
+      return JSON.stringify(await showSnapshot({ runId: args.runId, io: makeAsyncIO(context.worktree) }));
+    } catch (err) {
+      return errorJson(err);
+    }
+  }, TRACE_OPTS);
+}
+
+function makeDeleteExecute() {
+  return guarded('foundry_snapshot_delete', GUARDS, async (args, context) => {
+    try {
+      return JSON.stringify(await deleteSnapshot({
+        runId: args.runId, io: makeAsyncIO(context.worktree), confirm: args.confirm === true,
+      }));
+    } catch (err) {
+      return errorJson(err);
+    }
+  }, TRACE_OPTS);
+}
+
+function makePruneExecute() {
+  return guarded('foundry_snapshot_prune', GUARDS, async (args, context) => {
+    if (!Number.isInteger(args.olderThanDays) || args.olderThanDays <= 0) {
+      return JSON.stringify({ ok: false, error: 'olderThanDays must be a positive integer' });
+    }
+    try {
+      return JSON.stringify(await pruneSnapshots({
+        olderThanDays: args.olderThanDays, io: makeAsyncIO(context.worktree),
+        confirm: args.confirm === true, now: Date.now(),
+      }));
+    } catch (err) {
+      return errorJson(err);
+    }
+  }, TRACE_OPTS);
+}
+
 // --- tool factory ----------------------------------------------------------
 
 export function createSnapshotTools({ tool }) {
@@ -33,73 +83,22 @@ export function createSnapshotTools({ tool }) {
     foundry_snapshot_list: tool({
       description: 'List forensic snapshots from past dry-run finishes.',
       args: {},
-      execute: guarded('foundry_snapshot_list', GUARDS, async (_args, context) => {
-        try {
-          const io = makeAsyncIO(context.worktree);
-          return JSON.stringify(await listSnapshots({ io }));
-        } catch (err) {
-          return errorJson(err);
-        }
-      }, TRACE_OPTS),
+      execute: makeListExecute(),
     }),
-
     foundry_snapshot_show: tool({
       description: 'Show a structured summary of one forensic snapshot.',
-      args: {
-        runId: tool.schema.string(),
-      },
-      execute: guarded('foundry_snapshot_show', GUARDS, async (args, context) => {
-        try {
-          const io = makeAsyncIO(context.worktree);
-          return JSON.stringify(await showSnapshot({ runId: args.runId, io }));
-        } catch (err) {
-          return errorJson(err);
-        }
-      }, TRACE_OPTS),
+      args: { runId: tool.schema.string() },
+      execute: makeShowExecute(),
     }),
-
     foundry_snapshot_delete: tool({
       description: 'Delete a forensic snapshot directory. Requires {confirm: true} to actually remove.',
-      args: {
-        runId: tool.schema.string(),
-        confirm: tool.schema.boolean().optional(),
-      },
-      execute: guarded('foundry_snapshot_delete', GUARDS, async (args, context) => {
-        try {
-          const io = makeAsyncIO(context.worktree);
-          return JSON.stringify(await deleteSnapshot({
-            runId: args.runId,
-            io,
-            confirm: args.confirm === true,
-          }));
-        } catch (err) {
-          return errorJson(err);
-        }
-      }, TRACE_OPTS),
+      args: { runId: tool.schema.string(), confirm: tool.schema.boolean().optional() },
+      execute: makeDeleteExecute(),
     }),
-
     foundry_snapshot_prune: tool({
       description: 'Prune forensic snapshots older than `olderThanDays`. Requires {confirm: true} to actually remove.',
-      args: {
-        olderThanDays: tool.schema.number(),
-        confirm: tool.schema.boolean().optional(),
-      },
-      execute: guarded('foundry_snapshot_prune', GUARDS, async (args, context) => {
-        if (!Number.isInteger(args.olderThanDays) || args.olderThanDays <= 0) {
-          return JSON.stringify({ ok: false, error: 'olderThanDays must be a positive integer' });
-        }
-        try {
-          const io = makeAsyncIO(context.worktree);
-          return JSON.stringify(await pruneSnapshots({
-            olderThanDays: args.olderThanDays,
-            io,
-            confirm: args.confirm === true,
-            now: Date.now(),
-          }));
-        } catch (err) {
-          return errorJson(err);
-        }
-      }, TRACE_OPTS),
+      args: { olderThanDays: tool.schema.number(), confirm: tool.schema.boolean().optional() },
+      execute: makePruneExecute(),
     }),
   };
 }

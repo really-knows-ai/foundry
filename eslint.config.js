@@ -118,7 +118,7 @@ export default [
       'no-restricted-properties': 'off',
       'no-restricted-imports': 'off',
       'no-restricted-exports': 'off',
-      'require-atomic-updates': 'error',
+      'require-atomic-updates': 'off',        // false positives for locally-scoped async mutations
       'no-return-await': 'off',
       'no-magic-numbers': 'off',
       'no-invalid-this': 'off',

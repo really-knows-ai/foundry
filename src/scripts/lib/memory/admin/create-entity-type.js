@@ -28,7 +28,6 @@ export async function createEntityType({ worktreeRoot, io, name, body }) {
   await io.writeFile(p.entityTypeFile(name), fileContent);
   await io.writeFile(p.relationFile(name), '');
 
-  // eslint-disable-next-line require-atomic-updates
   schema.entities[name] = { frontmatterHash: hashFrontmatter(frontmatter) };
   bumpVersion(schema);
   await writeSchema(foundryDir, schema, io);

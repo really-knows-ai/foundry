@@ -16,12 +16,15 @@ export const DEFAULT_CONFIG = Object.freeze({
   }),
 });
 
+function mergeEmbeddingsKey(base, key, value) {
+  if (key in base && value !== undefined) base[key] = value;
+}
+
 function mergeEmbeddings(userE) {
   const base = { ...DEFAULT_CONFIG.embeddings };
-  if (!userE) return base;
-  if (typeof userE !== 'object') return base;
+  if (!userE || typeof userE !== 'object') return base;
   for (const [key, value] of Object.entries(userE)) {
-    if (key in base && value !== undefined) base[key] = value;
+    mergeEmbeddingsKey(base, key, value);
   }
   return base;
 }
@@ -36,16 +39,27 @@ function assertEmbeddingsEnabled(e) {
   if (typeof e.enabled !== 'boolean') throw new Error('memory config: embeddings.enabled must be boolean');
 }
 
+function assertValidBaseUrl(e) {
+  if (!(typeof e.baseURL === 'string' && e.baseURL)) throw new Error('memory config: embeddings.baseURL required');
+}
+
+function assertValidModel(e) {
+  if (!(typeof e.model === 'string' && e.model)) throw new Error('memory config: embeddings.model required');
+}
+
+function assertValidDimensions(e) {
+  if (!(Number.isInteger(e.dimensions) && e.dimensions > 0)) throw new Error('memory config: embeddings.dimensions must be positive integer');
+}
+
+function assertValidBatchSize(e) {
+  if (!(Number.isInteger(e.batchSize) && e.batchSize > 0)) throw new Error('memory config: embeddings.batchSize must be positive integer');
+}
+
 function assertEmbeddingsFields(e) {
-  const checks = [
-    [typeof e.baseURL === 'string' && e.baseURL, 'memory config: embeddings.baseURL required'],
-    [typeof e.model === 'string' && e.model, 'memory config: embeddings.model required'],
-    [Number.isInteger(e.dimensions) && e.dimensions > 0, 'memory config: embeddings.dimensions must be positive integer'],
-    [Number.isInteger(e.batchSize) && e.batchSize > 0, 'memory config: embeddings.batchSize must be positive integer'],
-  ];
-  for (const [ok, msg] of checks) {
-    if (!ok) throw new Error(msg);
-  }
+  assertValidBaseUrl(e);
+  assertValidModel(e);
+  assertValidDimensions(e);
+  assertValidBatchSize(e);
 }
 
 function validate(cfg) {
@@ -102,15 +116,19 @@ async function loadExistingFrontmatter(p, io) {
   return { frontmatter: {}, body: text };
 }
 
+function mergeEmbeddingsUpdate(existingFm, updates) {
+  const baseE = typeof existingFm.embeddings === 'object' && existingFm.embeddings
+    ? existingFm.embeddings
+    : {};
+  return { ...baseE, ...updates.embeddings };
+}
+
 function mergeFrontmatterUpdates(existingFm, updates) {
   const nextFm = { ...existingFm };
   if ('enabled' in updates) nextFm.enabled = updates.enabled;
   if ('validation' in updates) nextFm.validation = updates.validation;
   if (updates.embeddings && typeof updates.embeddings === 'object') {
-    const baseE = typeof existingFm.embeddings === 'object' && existingFm.embeddings
-      ? existingFm.embeddings
-      : {};
-    nextFm.embeddings = { ...baseE, ...updates.embeddings };
+    nextFm.embeddings = mergeEmbeddingsUpdate(existingFm, updates);
   }
   return nextFm;
 }

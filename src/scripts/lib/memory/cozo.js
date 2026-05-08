@@ -80,8 +80,18 @@ function isIgnorableError(err, patterns) {
   return patterns.some((p) => p.test(msg));
 }
 
-export async function createHnswIndex(db, relationName, { dim, ef = 50, m = 16 } = {}) {
+function assertHnswDim(dim) {
   if (!Number.isInteger(dim) || dim <= 0) throw new Error('createHnswIndex: dim must be positive integer');
+}
+
+function resolveHnswOpts(opts) {
+  const { dim, ef = 50, m = 16 } = opts ?? {};
+  return { dim, ef, m };
+}
+
+export async function createHnswIndex(db, relationName, opts) {
+  const { dim, ef, m } = resolveHnswOpts(opts);
+  assertHnswDim(dim);
   try {
     await db.run(`::hnsw create ${relationName}:vec { fields: [embedding], dim: ${dim}, ef: ${ef}, m: ${m} }`);
   } catch (err) {
@@ -103,7 +113,7 @@ export async function checkpoint(db) {
   try {
     await db.run('::compact');
   } catch (err) {
-    if (isIgnorableError(err, [/unknown system op/i, /parser::pest/i])) return;
+    if (!isIgnorableError(err, [/unknown system op/i, /parser::pest/i])) throw err;
   }
 }
 

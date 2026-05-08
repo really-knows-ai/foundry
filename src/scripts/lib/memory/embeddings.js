@@ -1,7 +1,7 @@
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 
 function isRetryableStatus(statusCode) {
-  return statusCode != null && RETRYABLE_STATUS_CODES.has(statusCode);
+  return statusCode !== null && statusCode !== undefined && RETRYABLE_STATUS_CODES.has(statusCode);
 }
 
 function isRetryableError(error, statusCode) {
@@ -86,17 +86,28 @@ async function callWithRetry({ config, inputs }) {
   throw lastError;
 }
 
-function validateVector(v, dimensions) {
+function assertVectorShape(v, dimensions) {
   if (!Array.isArray(v) || v.length !== dimensions) {
     throw new Error(`embedding dimension mismatch: expected ${dimensions}, got ${Array.isArray(v) ? v.length : 'non-array'}`);
   }
+}
+
+function assertVectorFinite(v) {
   for (const x of v) if (!Number.isFinite(x)) throw new Error('embedding contains non-finite number');
+}
+
+function validateVector(v, dimensions) {
+  assertVectorShape(v, dimensions);
+  assertVectorFinite(v);
 }
 
 export async function embed({ config, inputs }) {
   if (!config.enabled) throw new Error('embeddings are disabled in memory config');
   if (!Array.isArray(inputs) || inputs.length === 0) return [];
+  return embedBatches(config, inputs);
+}
 
+async function embedBatches(config, inputs) {
   const out = [];
   for (let i = 0; i < inputs.length; i += config.batchSize) {
     const batch = inputs.slice(i, i + config.batchSize);

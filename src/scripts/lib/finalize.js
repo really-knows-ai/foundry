@@ -59,7 +59,8 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
   const { matched, unexpected } = classifyFiles(files, allowedPatterns);
   if (unexpected.length) return { ok: false, error: 'unexpected_files', files: unexpected };
   const sortedFiles = sortPaths(matched);
-  // For non-forge stages, matched files are tool-managed side effects (e.g. assay's memory writes) that should not become artefacts.
+  // For non-forge stages, matched files are tool-managed side effects
+  // (e.g. assay's memory writes) that should not become artefacts.
   if (stageBase !== 'forge') return { ok: true, artefacts: [], changedFiles: sortedFiles };
   const artefacts = sortedFiles.map(file => {
     registerArtefact({ file, type: cycleDef.outputArtefactType, status: 'draft' });
