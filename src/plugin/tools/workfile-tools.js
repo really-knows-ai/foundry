@@ -7,6 +7,56 @@ import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './help
 
 const gateNotFailed = notFailedGuard(makeIO);
 
+function buildFrontmatter(args) {
+  const fm = { flow: args.flow, cycle: args.cycle };
+  if (args.stages) {
+    fm.stages = enrichStages(args.stages, args.cycle);
+  }
+  if (args.maxIterations !== undefined) {
+    fm['max-iterations'] = args.maxIterations;
+  }
+  if (args.models) {
+    fm.models = parseModelsValue(args.models);
+  }
+  return fm;
+}
+
+function deleteIfExists(...paths) {
+  for (const p of paths) {
+    if (existsSync(p)) {
+      unlinkSync(p);
+    }
+  }
+}
+
+async function executeWorkfileCreate(args, context) {
+  const io = makeIO(context.worktree);
+  const guard = requireNoActiveStage(io);
+  if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_create ${guard.error}` });
+  const workPath = path.join(context.worktree, 'WORK.md');
+  if (existsSync(workPath)) {
+    return JSON.stringify({ error: 'foundry_workfile_create requires no WORK.md; current: exists' });
+  }
+  const fm = buildFrontmatter(args);
+  const content = createWorkfile(fm, args.goal);
+  writeFileSync(workPath, content, 'utf-8');
+  return JSON.stringify({ ok: true });
+}
+
+async function executeWorkfileDelete(args, context) {
+  const io = makeIO(context.worktree);
+  const guard = requireNoActiveStage(io);
+  if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_delete ${guard.error}` });
+  if (args.confirm !== true) {
+    return JSON.stringify({ error: 'foundry_workfile_delete requires {confirm: true}' });
+  }
+  const workPath = path.join(context.worktree, 'WORK.md');
+  const historyPath = path.join(context.worktree, 'WORK.history.yaml');
+  const feedbackPath = path.join(context.worktree, 'WORK.feedback.yaml');
+  deleteIfExists(workPath, historyPath, feedbackPath);
+  return JSON.stringify({ ok: true });
+}
+
 export function createWorkfileTools({ tool }) {
   return {
     foundry_workfile_create: tool({
@@ -19,28 +69,7 @@ export function createWorkfileTools({ tool }) {
         goal: tool.schema.string().describe('Goal text'),
         models: tool.schema.string().optional().describe('Per-stage model overrides as JSON object, e.g. \'{"forge":"openai/gpt-4o"}\''),
       },
-      execute: guarded('foundry_workfile_create', [flowBranchGuard, gateNotFailed], async (args, context) => {
-        const io = makeIO(context.worktree);
-        const guard = requireNoActiveStage(io);
-        if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_create ${guard.error}` });
-        const workPath = path.join(context.worktree, 'WORK.md');
-        if (existsSync(workPath)) {
-          return JSON.stringify({ error: 'foundry_workfile_create requires no WORK.md; current: exists' });
-        }
-        const fm = { flow: args.flow, cycle: args.cycle };
-        if (args.stages) {
-          fm.stages = enrichStages(args.stages, args.cycle);
-        }
-        if (args.maxIterations !== undefined) {
-          fm['max-iterations'] = args.maxIterations;
-        }
-        if (args.models) {
-          fm.models = parseModelsValue(args.models);
-        }
-        const content = createWorkfile(fm, args.goal);
-        writeFileSync(workPath, content, 'utf-8');
-        return JSON.stringify({ ok: true });
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
+      execute: guarded('foundry_workfile_create', [flowBranchGuard, gateNotFailed], executeWorkfileCreate, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
     foundry_workfile_get: tool({
@@ -67,27 +96,7 @@ export function createWorkfileTools({ tool }) {
       // Branch guard only: workfile_delete is the failed-flow escape hatch,
       // so it must remain callable when WORK.md has status: failed under
       // the branch guard alone.
-      execute: guarded('foundry_workfile_delete', [flowBranchGuard], async (args, context) => {
-        const io = makeIO(context.worktree);
-        const guard = requireNoActiveStage(io);
-        if (!guard.ok) return JSON.stringify({ error: `foundry_workfile_delete ${guard.error}` });
-        if (args.confirm !== true) {
-          return JSON.stringify({ error: 'foundry_workfile_delete requires {confirm: true}' });
-        }
-        const workPath = path.join(context.worktree, 'WORK.md');
-        const historyPath = path.join(context.worktree, 'WORK.history.yaml');
-        const feedbackPath = path.join(context.worktree, 'WORK.feedback.yaml');
-        if (existsSync(workPath)) {
-          unlinkSync(workPath);
-        }
-        if (existsSync(historyPath)) {
-          unlinkSync(historyPath);
-        }
-        if (existsSync(feedbackPath)) {
-          unlinkSync(feedbackPath);
-        }
-        return JSON.stringify({ ok: true });
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
+      execute: guarded('foundry_workfile_delete', [flowBranchGuard], executeWorkfileDelete, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
 }
