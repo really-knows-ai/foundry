@@ -52,33 +52,18 @@ function makeExecFile(cwd) {
 const CREATE_GUARDS = [gitRepoGuard, foundryRootGuard, configBranchGuard, gateNotFailed];
 const VALIDATE_GUARDS = [gitRepoGuard, foundryRootGuard];
 
-// --- tool factory ---------------------------------------------------------
+// --- tool factories --------------------------------------------------------
 
-export function createConfigCreateTools({ tool }) {
-  const baseArgs = {
-    name: tool.schema.string(),
-    body: tool.schema.string(),
-  };
-
-  // The plugin schema may not support discriminated unions; accept a
-  // permissive object and let the law creator validate the shape.
-  const lawTargetSchema = tool.schema.object({
-    kind: tool.schema.string(),
-    file: tool.schema.string().optional(),
-    typeId: tool.schema.string().optional(),
-  });
-
-  // Helper to build a create-tool. `creator` is the async create fn.
-  // `extraArgs` lets `law` add its `target` parameter.
-  function makeCreate(toolName, creator, extraArgs = {}) {
+// Module-level helper: returns a `makeCreate` function bound to `tool` and `baseArgs`.
+function createMakeCreate(tool, baseArgs) {
+  return function makeCreate(toolName, creator, extraArgs = {}) {
     const kind = toolName.replace('foundry_config_create_', '');
     let desc = `Create a new ${kind} definition (config-tier; requires a config/* branch).`;
-    
-    // Law tools need structured target examples since the schema can't express the union
+
     if (kind === 'law') {
       desc += ' target must be {kind:"global", file:"<name>.md"} or {kind:"type-specific", typeId:"<id>"}.';
     }
-    
+
     return tool({
       description: desc,
       args: { ...baseArgs, ...extraArgs },
@@ -89,11 +74,6 @@ export function createConfigCreateTools({ tool }) {
           const out = await creator({ ...args, io, execFile });
           return JSON.stringify(out);
         } catch (err) {
-          // Preserve the structured file list from commit-policy refusals
-          // so callers can surface an actionable diagnostic with the paths
-          // that offended the gate.
-          // Mirrors the `affected_files` envelope produced by
-          // foundry_orchestrate's violation path.
           if (err instanceof UnexpectedFilesError) {
             return JSON.stringify({ error: err.message, affected_files: err.files });
           }
@@ -101,9 +81,12 @@ export function createConfigCreateTools({ tool }) {
         }
       }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     });
-  }
+  };
+}
 
-  function makeValidate(toolName, validator) {
+// Module-level helper: returns a `makeValidate` function bound to `tool` and `baseArgs`.
+function createMakeValidate(tool, baseArgs) {
+  return function makeValidate(toolName, validator) {
     return tool({
       description: `Validate a ${toolName.replace('foundry_config_validate_', '')} body without writing it.`,
       args: baseArgs,
@@ -117,7 +100,25 @@ export function createConfigCreateTools({ tool }) {
         }
       }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     });
-  }
+  };
+}
+
+// --- tool factory ---------------------------------------------------------
+
+export function createConfigCreateTools({ tool }) {
+  const baseArgs = {
+    name: tool.schema.string(),
+    body: tool.schema.string(),
+  };
+
+  const lawTargetSchema = tool.schema.object({
+    kind: tool.schema.string(),
+    file: tool.schema.string().optional(),
+    typeId: tool.schema.string().optional(),
+  });
+
+  const makeCreate = createMakeCreate(tool, baseArgs);
+  const makeValidate = createMakeValidate(tool, baseArgs);
 
   return {
     foundry_config_create_artefact_type: makeCreate('foundry_config_create_artefact_type', createArtefactType),
