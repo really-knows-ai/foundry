@@ -65,7 +65,7 @@ describe('embed', () => {
 
   it('times out after timeoutMs', async () => {
     restore = installMockFetch(async (_url, init) => {
-      await new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+      await new Promise((_, reject) => { init.signal.addEventListener('abort', () => reject(new Error('aborted'))); });
     });
     await assert.rejects(
       () => embed({ config: { ...baseConfig, timeoutMs: 50 }, inputs: ['a'] }),
@@ -131,11 +131,10 @@ describe('embed', () => {
 
   it('retries on timeout/abort errors', async () => {
     let attempt = 0;
-    const start = Date.now();
     restore = installMockFetch(async (_url, init) => {
       attempt++;
       if (attempt === 1) {
-        await new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+        await new Promise((_, reject) => { init.signal.addEventListener('abort', () => reject(new Error('aborted'))); });
       }
       return new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3], index: 0 }] }), { status: 200 });
     });
