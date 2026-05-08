@@ -27,56 +27,56 @@ const HUMAN_OVERRIDE_TARGETS = new Set(['resolved', 'rejected']);
 const KNOWN_STATES = new Set(['open', 'actioned', 'wont-fix', 'rejected', 'deadlocked', 'resolved']);
 const SOURCE_STAGES = new Set(['quench', 'appraise', 'human-appraise']);
 
-export function validateTransition({ currentState, target, stageBase, sourceMatches }) {
+function validateDeadlocked(target, stageBase) {
+  if (stageBase !== 'human-appraise') {
+    return { ok: false, reason: `only human-appraise may resolve a deadlocked item; got ${stageBase}` };
+  }
+  if (!HUMAN_OVERRIDE_TARGETS.has(target)) {
+    return { ok: false, reason: `invalid deadlock-override transition → ${target}` };
+  }
+  return { ok: true };
+}
+
+function validateForge(currentState, target) {
+  if (currentState !== 'open' && currentState !== 'rejected') {
+    return { ok: false, reason: `forge cannot transition from ${currentState}` };
+  }
+  if (!FORGE_TARGETS.has(target)) {
+    return { ok: false, reason: `forge cannot produce ${target}` };
+  }
+  return { ok: true };
+}
+
+function validateSourceStage(currentState, target, stageBase, sourceMatches) {
+  if (currentState !== 'actioned' && currentState !== 'wont-fix') {
+    return { ok: false, reason: `${stageBase} cannot transition from ${currentState}` };
+  }
+  if (!SOURCE_TARGETS.has(target)) {
+    return { ok: false, reason: `${stageBase} cannot produce ${target}` };
+  }
+  if (!sourceMatches) {
+    return { ok: false, reason: `only the source stage may resolve/reject this item` };
+  }
+  return { ok: true };
+}
+
+function checkPreconditions(currentState, sourceMatches) {
   if (typeof sourceMatches !== 'boolean') {
     throw new TypeError(
       `validateTransition: sourceMatches must be a boolean; got ${typeof sourceMatches}`
     );
   }
-  if (!KNOWN_STATES.has(currentState)) {
-    return { ok: false, reason: `unknown state: ${currentState}` };
-  }
+  if (!KNOWN_STATES.has(currentState)) return { ok: false, reason: `unknown state: ${currentState}` };
+  if (currentState === 'resolved') return { ok: false, reason: 'resolved is terminal' };
+  return null;
+}
 
-  if (currentState === 'resolved') {
-    return { ok: false, reason: 'resolved is terminal' };
-  }
-
-  // Deadlocked: only human-appraise may transition, and only to override targets.
-  if (currentState === 'deadlocked') {
-    if (stageBase !== 'human-appraise') {
-      return { ok: false, reason: `only human-appraise may resolve a deadlocked item; got ${stageBase}` };
-    }
-    if (!HUMAN_OVERRIDE_TARGETS.has(target)) {
-      return { ok: false, reason: `invalid deadlock-override transition → ${target}` };
-    }
-    return { ok: true };
-  }
-
-  // Forge path: {open, rejected} → {actioned, wont-fix}.
-  if (stageBase === 'forge') {
-    if (currentState !== 'open' && currentState !== 'rejected') {
-      return { ok: false, reason: `forge cannot transition from ${currentState}` };
-    }
-    if (!FORGE_TARGETS.has(target)) {
-      return { ok: false, reason: `forge cannot produce ${target}` };
-    }
-    return { ok: true };
-  }
-
-  // Source-stage path: {actioned, wont-fix} → {resolved, rejected}, source must match.
-  if (SOURCE_STAGES.has(stageBase)) {
-    if (currentState !== 'actioned' && currentState !== 'wont-fix') {
-      return { ok: false, reason: `${stageBase} cannot transition from ${currentState}` };
-    }
-    if (!SOURCE_TARGETS.has(target)) {
-      return { ok: false, reason: `${stageBase} cannot produce ${target}` };
-    }
-    if (!sourceMatches) {
-      return { ok: false, reason: `only the source stage may resolve/reject this item` };
-    }
-    return { ok: true };
-  }
-
+export function validateTransition({ currentState, target, stageBase, sourceMatches }) {
+  const pre = checkPreconditions(currentState, sourceMatches);
+  if (pre) return pre;
+  if (currentState === 'deadlocked') return validateDeadlocked(target, stageBase);
+  if (stageBase === 'forge') return validateForge(currentState, target);
+  if (SOURCE_STAGES.has(stageBase)) return validateSourceStage(currentState, target, stageBase, sourceMatches);
   return { ok: false, reason: `unsupported stage base: ${stageBase}` };
 }
 
