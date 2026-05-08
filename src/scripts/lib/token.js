@@ -6,21 +6,52 @@ export function signToken(payload, secret) {
   return `${body}.${mac}`;
 }
 
-export function verifyToken(token, secret) {
-  if (typeof token !== 'string' || !token.includes('.')) return { ok: false, reason: 'malformed' };
+function splitToken(token) {
+  if (typeof token !== 'string' || !token.includes('.')) return null;
   const [body, mac] = token.split('.');
-  if (!body || !mac) return { ok: false, reason: 'malformed' };
+  if (!body || !mac) return null;
+  return { body, mac };
+}
+
+function decodeMac(mac) {
+  try { return Buffer.from(mac, 'base64url'); }
+  catch { return null; }
+}
+
+function decodePayload(body) {
+  try { return JSON.parse(Buffer.from(body, 'base64url').toString()); }
+  catch { return null; }
+}
+
+function checkSignature(body, mac, secret) {
   const expected = createHmac('sha256', secret).update(body).digest();
-  let given;
-  try { given = Buffer.from(mac, 'base64url'); } catch { return { ok: false, reason: 'malformed' }; }
+  const given = decodeMac(mac);
+  if (!given) return { ok: false, reason: 'malformed' };
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
     return { ok: false, reason: 'bad_signature' };
   }
-  let payload;
-  try { payload = JSON.parse(Buffer.from(body, 'base64url').toString()); }
-  catch { return { ok: false, reason: 'malformed' }; }
+  return { ok: true };
+}
+
+function checkExpiry(payload) {
   if (typeof payload.exp !== 'number' || payload.exp < Date.now()) {
     return { ok: false, reason: 'expired' };
   }
+  return { ok: true };
+}
+
+export function verifyToken(token, secret) {
+  const parts = splitToken(token);
+  if (!parts) return { ok: false, reason: 'malformed' };
+
+  const sigCheck = checkSignature(parts.body, parts.mac, secret);
+  if (!sigCheck.ok) return sigCheck;
+
+  const payload = decodePayload(parts.body);
+  if (!payload) return { ok: false, reason: 'malformed' };
+
+  const expiryCheck = checkExpiry(payload);
+  if (!expiryCheck.ok) return expiryCheck;
+
   return { ok: true, payload };
 }

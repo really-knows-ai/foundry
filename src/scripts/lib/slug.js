@@ -22,8 +22,9 @@ export function slugify(input) {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .join('-');
 
   if (slug.length === 0) {
     throw new Error(`slugify: input produced empty slug (input: ${JSON.stringify(input)})`);

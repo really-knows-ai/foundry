@@ -10,9 +10,10 @@ const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 function encodeTime(ms) {
   let out = '';
+  let remaining = ms;
   for (let i = 9; i >= 0; i--) {
-    out = ALPHABET[ms % 32] + out;
-    ms = Math.floor(ms / 32);
+    out = ALPHABET[remaining % 32] + out;
+    remaining = Math.floor(remaining / 32);
   }
   return out;
 }
@@ -25,11 +26,11 @@ function randomIndexes() {
   let bits = 0;
   let j = 0;
   for (let i = 0; i < bytes.length; i++) {
-    bitBuffer = (bitBuffer << 8) | bytes[i];
+    bitBuffer = bitBuffer * 256 + bytes[i];
     bits += 8;
     while (bits >= 5) {
       bits -= 5;
-      out[j++] = (bitBuffer >>> bits) & 31;
+      out[j++] = Math.floor(bitBuffer / Math.pow(2, bits)) % 32;
     }
   }
   return out;

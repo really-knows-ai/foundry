@@ -12,14 +12,20 @@ export function requireNoActiveStage(io) {
   return { ok: false, error: `tool requires no active stage; current: ${a.stage}` };
 }
 
+function stageMismatchError(active, stageBase, cycle) {
+  if (stageBase && stageBaseOf(active.stage) !== stageBase) {
+    return `tool requires active ${stageBase} stage; current: ${active.stage}`;
+  }
+  if (cycle && active.cycle !== cycle) {
+    return `tool requires active stage in cycle ${cycle}; current cycle: ${active.cycle}`;
+  }
+  return null;
+}
+
 export function requireActiveStage(io, { stageBase, cycle } = {}) {
   const a = readActiveStage(io);
   if (!a) return { ok: false, error: `tool requires active stage; current: none` };
-  if (stageBase && stageBaseOf(a.stage) !== stageBase) {
-    return { ok: false, error: `tool requires active ${stageBase} stage; current: ${a.stage}` };
-  }
-  if (cycle && a.cycle !== cycle) {
-    return { ok: false, error: `tool requires active stage in cycle ${cycle}; current cycle: ${a.cycle}` };
-  }
+  const mismatch = stageMismatchError(a, stageBase, cycle);
+  if (mismatch) return { ok: false, error: mismatch };
   return { ok: true, active: a };
 }

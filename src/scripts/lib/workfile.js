@@ -47,9 +47,9 @@ export function getFrontmatterField(text, key) {
  */
 export function setFrontmatterField(text, key, value) {
   // Coerce legacy camelCase key to canonical kebab form on write.
-  if (key === 'maxIterations') key = 'max-iterations';
+  const normalisedKey = key === 'maxIterations' ? 'max-iterations' : key;
   const fm = parseFrontmatter(text);
-  fm[key] = value;
+  fm[normalisedKey] = value;
   const fmBlock = writeFrontmatter(fm);
 
   // Strip existing frontmatter (if any) and prepend new one
@@ -85,19 +85,7 @@ export function parseStagesValue(raw) {
   return raw.split(',').map(s => s.trim()).filter(Boolean);
 }
 
-/**
- * Parse a models value from tool input.
- * Accepts JSON object string or "key: value, key: value" string.
- * Always returns an object mapping stage base names to model IDs.
- */
-export function parseModelsValue(raw) {
-  if (!raw || !raw.trim()) return {};
-  // Try JSON first
-  try {
-    const parsed = JSON.parse(raw);
-    if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-  } catch { /* not JSON */ }
-  // Fall back to "key: value, key: value" format
+function parseKvPairs(raw) {
   const result = {};
   for (const part of raw.split(',')) {
     const colonIdx = part.indexOf(':');
@@ -107,6 +95,26 @@ export function parseModelsValue(raw) {
     if (key && val) result[key] = val;
   }
   return result;
+}
+
+function tryParseJsonObject(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  } catch { /* not JSON */ }
+  return null;
+}
+
+/**
+ * Parse a models value from tool input.
+ * Accepts JSON object string or "key: value, key: value" string.
+ * Always returns an object mapping stage base names to model IDs.
+ */
+export function parseModelsValue(raw) {
+  if (!raw || !raw.trim()) return {};
+  const jsonResult = tryParseJsonObject(raw);
+  if (jsonResult) return jsonResult;
+  return parseKvPairs(raw);
 }
 
 // ---------------------------------------------------------------------------
