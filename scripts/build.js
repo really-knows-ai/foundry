@@ -71,82 +71,63 @@ async function rewriteImports(filePath, fromDir, toDir) {
 /**
  * Main build process
  */
-async function build() {
-  console.log('🔨 Building Foundry plugin...\n');
-
-  // Clean dist directory
+async function cleanDist() {
   console.log('🧹 Cleaning dist/...');
   await fs.rm(distDir, { recursive: true, force: true });
   await fs.mkdir(distDir, { recursive: true });
+}
 
-  // Create .opencode/plugins structure
-  const pluginsDir = path.join(distDir, '.opencode', 'plugins');
-  const toolsDir = path.join(pluginsDir, 'foundry-tools');
-  await fs.mkdir(toolsDir, { recursive: true });
-
-  // Copy plugin entry point
+async function copyPluginEntryPoint(pluginsDir) {
   console.log('📦 Copying plugin files...');
   const pluginSrc = path.join(srcDir, 'plugin', 'foundry.js');
   const pluginDest = path.join(pluginsDir, 'foundry.js');
   await fs.copyFile(pluginSrc, pluginDest);
-  
-  // Rewrite imports in main plugin file
-  await rewriteImports(
-    pluginDest,
-    path.join(srcDir, 'plugin'),
-    pluginsDir
-  );
+  await rewriteImports(pluginDest, path.join(srcDir, 'plugin'), pluginsDir);
+}
 
-  // Copy tool files
+async function copyToolFiles(toolsDir) {
   console.log('🔧 Copying tool files...');
   const toolsSrc = path.join(srcDir, 'plugin', 'tools');
   const toolsEntries = await fs.readdir(toolsSrc);
-  
+
   for (const file of toolsEntries) {
     const srcPath = path.join(toolsSrc, file);
     const destPath = path.join(toolsDir, file);
     await fs.copyFile(srcPath, destPath);
-    
-    // Rewrite imports in each tool file
-    await rewriteImports(
-      destPath,
-      toolsSrc,
-      toolsDir
-    );
+    await rewriteImports(destPath, toolsSrc, toolsDir);
   }
+}
 
-  // Copy skills
+async function copyTopLevelTrees() {
   console.log('📚 Copying skills...');
-  const skillsSrc = path.join(srcDir, 'skills');
-  const skillsDest = path.join(distDir, 'skills');
-  await copyDir(skillsSrc, skillsDest);
+  await copyDir(path.join(srcDir, 'skills'), path.join(distDir, 'skills'));
 
-  // Copy scripts
   console.log('📜 Copying scripts...');
-  const scriptsSrc = path.join(srcDir, 'scripts');
-  const scriptsDest = path.join(distDir, 'scripts');
-  await copyDir(scriptsSrc, scriptsDest);
+  await copyDir(path.join(srcDir, 'scripts'), path.join(distDir, 'scripts'));
 
-  // Copy docs (keep at root level for npm)
   console.log('📖 Copying docs...');
-  const docsSrc = path.join(projectRoot, 'docs');
-  const docsDest = path.join(distDir, 'docs');
-  await copyDir(docsSrc, docsDest);
+  await copyDir(path.join(projectRoot, 'docs'), path.join(distDir, 'docs'));
+}
 
-  // Copy root files
+async function copyRootFile(file) {
+  const srcPath = path.join(projectRoot, file);
+  try {
+    await fs.copyFile(srcPath, path.join(distDir, file));
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+    console.log(`  ⚠️  ${file} not found, skipping`);
+  }
+}
+
+async function copyRootFiles() {
   console.log('📄 Copying root files...');
   const rootFiles = ['README.md', 'LICENSE', 'CHANGELOG.md'];
   for (const file of rootFiles) {
-    const srcPath = path.join(projectRoot, file);
-    try {
-      const destPath = path.join(distDir, file);
-      await fs.copyFile(srcPath, destPath);
-    } catch (err) {
-      if (err.code !== 'ENOENT') throw err;
-      console.log(`  ⚠️  ${file} not found, skipping`);
-    }
+    await copyRootFile(file);
   }
+}
 
+function printSummary() {
   console.log('\n✅ Build complete! Output in dist/');
   console.log('\nStructure:');
   console.log('  dist/.opencode/plugins/foundry.js');
@@ -154,6 +135,23 @@ async function build() {
   console.log('  dist/skills/');
   console.log('  dist/scripts/');
   console.log('  dist/docs/');
+}
+
+async function build() {
+  console.log('🔨 Building Foundry plugin...\n');
+
+  await cleanDist();
+
+  const pluginsDir = path.join(distDir, '.opencode', 'plugins');
+  const toolsDir = path.join(pluginsDir, 'foundry-tools');
+  await fs.mkdir(toolsDir, { recursive: true });
+
+  await copyPluginEntryPoint(pluginsDir);
+  await copyToolFiles(toolsDir);
+  await copyTopLevelTrees();
+  await copyRootFiles();
+
+  printSummary();
 }
 
 // Run build

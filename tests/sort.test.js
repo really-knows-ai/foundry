@@ -295,43 +295,79 @@ describe('nextAfterAppraise', () => {
 
   it('loops back to forge on open feedback', () => {
     const feedback = [{ state: 'open' }];
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 0, 3), 'forge:write');
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 0, maxIterations: 3 }),
+      'forge:write',
+    );
   });
 
   it('blocks when max iterations reached', () => {
     const feedback = [{ state: 'open' }];
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 3, 3), 'blocked');
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 3, maxIterations: 3 }),
+      'blocked',
+    );
   });
 
   it('loops back to appraise when actioned but not approved', () => {
     const feedback = [{ state: 'actioned', resolved: false }];
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 1, 3), 'appraise:check');
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 1, maxIterations: 3 }),
+      'appraise:check',
+    );
   });
 
   it('loops back to appraise when wont-fix but not approved', () => {
     const feedback = [{ state: 'wont-fix', resolved: false }];
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 1, 3), 'appraise:check');
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 1, maxIterations: 3 }),
+      'appraise:check',
+    );
   });
 
   it('returns done when all resolved', () => {
     const feedback = [{ state: 'resolved' }];
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 1, 3), 'done');
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 1, maxIterations: 3 }),
+      'done',
+    );
   });
 
   it('returns done with empty feedback', () => {
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', [], 1, 3), 'done');
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback: [], forgeCount: 1, maxIterations: 3 }),
+      'done',
+    );
   });
 
   it('advances to next stage when all feedback resolved', () => {
     const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
     const feedback = [{ state: 'resolved' }];
-    assert.equal(nextAfterAppraise(stagesWithHuman, 'appraise:check', feedback, 0, 3), 'human-appraise:review');
+    assert.equal(
+      nextAfterAppraise({
+        stages: stagesWithHuman,
+        current: 'appraise:check',
+        feedback,
+        forgeCount: 0,
+        maxIterations: 3,
+      }),
+      'human-appraise:review',
+    );
   });
 
   it('returns done when appraise is last stage and all resolved', () => {
     const stagesThree = ['forge:write', 'quench:review', 'appraise:check'];
     const feedback = [{ state: 'resolved' }];
-    assert.equal(nextAfterAppraise(stagesThree, 'appraise:check', feedback, 0, 3), 'done');
+    assert.equal(
+      nextAfterAppraise({
+        stages: stagesThree,
+        current: 'appraise:check',
+        feedback,
+        forgeCount: 0,
+        maxIterations: 3,
+      }),
+      'done',
+    );
   });
 });
 

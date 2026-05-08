@@ -13,235 +13,20 @@
  * Exit code: 0 on success, 1 on error
  */
 
-import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
-import { execFileSync } from 'child_process';
-
-import { minimatch } from 'minimatch';
 import { parseFrontmatter } from './lib/workfile.js';
-import { parseArtefactsTable } from './lib/artefacts.js';
 import { loadHistory } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
-
-// ---------------------------------------------------------------------------
-// Stage helpers
-// ---------------------------------------------------------------------------
-
-// Spec §6.1: an item is "open" (still in flight) when its head state is
-// 'open', 'actioned', 'rejected', or 'wont-fix' — equivalently, when the
-// state is neither 'resolved' nor 'deadlocked'.
-const isOpenItem = (f) => f.state !== 'resolved' && f.state !== 'deadlocked';
-
-function baseStage(stage) {
-  return stage.split(':')[0];
-}
-
-function findFirst(stages, base) {
-  for (const s of stages) {
-    if (baseStage(s) === base) return s;
-  }
-  return null;
-}
-
-function nextInRoute(stages, current) {
-  const idx = stages.indexOf(current);
-  if (idx !== -1 && idx + 1 < stages.length) {
-    return stages[idx + 1];
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// I/O boundary — injectable for testing
-// ---------------------------------------------------------------------------
-
-const defaultIO = {
-  readFile: (p) => readFileSync(p, 'utf-8'),
-  writeFile: (p, c) => writeFileSync(p, c),
-  rename: (from, to) => renameSync(from, to),
-  exists: (p) => existsSync(p),
-  exec: (argv) => execFileSync(argv[0], argv.slice(1), { encoding: 'utf8' }),
-};
-
-// ---------------------------------------------------------------------------
-// Routing logic
-// ---------------------------------------------------------------------------
-
-function determineRoute(stages, history, feedback, maxIterations, opts = {}) {
-  const forgeCount = history.filter(e => baseStage(e.stage || '') === 'forge').length;
-
-  const nonSortHistory = history.filter(e => baseStage(e.stage || '') !== 'sort');
-  const lastEntry = nonSortHistory.length > 0 ? nonSortHistory[nonSortHistory.length - 1].stage : null;
-  const lastBase = lastEntry ? baseStage(lastEntry) : null;
-
-  if (lastBase === null) return stages[0];
-
-  if (lastBase === 'assay') {
-    return findFirst(stages, 'forge') ?? 'blocked';
-  }
-
-  if (lastBase === 'forge') {
-    const next = nextInRoute(stages, lastEntry);
-    return next ?? 'done';
-  }
-
-  if (lastBase === 'quench') {
-    return nextAfterQuench(stages, lastEntry, feedback, forgeCount, maxIterations);
-  }
-
-  if (lastBase === 'appraise') {
-    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory, opts);
-  }
-
-  if (lastBase === 'human-appraise') {
-    return nextAfterAppraise(stages, lastEntry, feedback, forgeCount, maxIterations, nonSortHistory, opts);
-  }
-
-  return 'blocked';
-}
-
-function nextAfterQuench(stages, current, feedback, forgeCount, maxIterations) {
-  const openItems = feedback.filter(isOpenItem);
-  const needsForge = openItems.some(f => f.state === 'open' || f.state === 'rejected');
-  if (needsForge) {
-    if (forgeCount >= maxIterations) return 'blocked';
-    return findFirst(stages, 'forge') ?? 'blocked';
-  }
-
-  return nextInRoute(stages, current) ?? 'done';
-}
-
-function nextAfterAppraise(stages, current, feedback, forgeCount, maxIterations, history = [], opts = {}) {
-  // Note: deadlock detection is now handled by runDeadlockPass at the top of
-  // runSort (spec §6.1). This helper assumes routing has already been allowed
-  // to fall through (i.e., no item qualifies as deadlocked).
-
-  const openItems = feedback.filter(isOpenItem);
-
-  const needsForge = openItems.some(f => f.state === 'open' || f.state === 'rejected');
-  if (needsForge) {
-    if (forgeCount >= maxIterations) return 'blocked';
-    return findFirst(stages, 'forge') ?? 'blocked';
-  }
-
-  const pendingApproval = openItems.some(f => f.state === 'actioned' || f.state === 'wont-fix');
-  if (pendingApproval) {
-    return findFirst(stages, 'appraise') ?? 'blocked';
-  }
-
-  return nextInRoute(stages, current) ?? 'done';
-}
-
-// ---------------------------------------------------------------------------
-// File modification enforcement
-// ---------------------------------------------------------------------------
-
-function getModifiedFiles(cycle, io = defaultIO) {
-  try {
-    // Find the most recent sort commit for this cycle and diff from its SHA
-    // to HEAD. The diff captures every file changed by stage commits made
-    // after the last sort invocation; when the sort commit is HEAD (no stage
-    // commits since), the diff is empty.
-    //
-    // When no matching sort commit is found in recent history (first sort of
-    // a cycle, or shallow clone), return an empty list to avoid false
-    // violations from guessed diff boundaries.
-    const log = io.exec(['git', 'log', '--oneline', '-20']);
-    const sortPattern = `[${cycle}] sort:`;
-    let sortSha = null;
-    for (const line of log.trim().split('\n')) {
-      if (line.includes(sortPattern)) {
-        // `git log --oneline` format: "<sha> <subject>"
-        sortSha = line.split(' ', 1)[0];
-        break;
-      }
-    }
-    if (!sortSha) return [];
-    const output = io.exec(['git', 'diff', '--name-only', '--no-renames', '-z', sortSha, 'HEAD']);
-    return output.split('\0').filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function globMatch(filePath, pattern) {
-  return minimatch(filePath, pattern);
-}
-
-function getAllowedPatterns(lastBase, foundryDir, cycleDef, io = defaultIO) {
-  const always = ['WORK.md', 'WORK.feedback.yaml', 'WORK.history.yaml'];
-
-  if (lastBase === 'assay') {
-    return [...always, '.foundry/**', 'foundry-memory/**'];
-  }
-
-  if (lastBase !== 'forge') {
-    return always;
-  }
-
-  // For forge: also allow the output artefact's file-patterns
-  try {
-    const cycleText = io.readFile(cycleDef);
-    const cycleFm = parseFrontmatter(cycleText);
-    const outputType = cycleFm['output-type'];
-    if (!outputType) return always;
-
-    const artDefPath = `${foundryDir}/artefacts/${outputType}/definition.md`;
-    if (!io.exists(artDefPath)) return always;
-
-    const artText = io.readFile(artDefPath);
-    const artFm = parseFrontmatter(artText);
-    const filePatterns = artFm['file-patterns'] || [];
-    return [...always, ...filePatterns];
-  } catch {
-    return always;
-  }
-}
-
-function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = defaultIO) {
-  const allowedPatterns = getAllowedPatterns(lastBase, foundryDir, cycleDef, io);
-  const modified = getModifiedFiles(cycle, io);
-
-  if (modified.length === 0) {
-    return { ok: true, violations: [] };
-  }
-
-  const violations = modified.filter(f =>
-    !allowedPatterns.some(pattern => globMatch(f, pattern))
-  );
-
-  return { ok: violations.length === 0, violations };
-}
-
-// ---------------------------------------------------------------------------
-// Micro-commit enforcement
-// ---------------------------------------------------------------------------
-
-/**
- * Return a list of tool-managed files that have uncommitted changes
- * (modified, staged, or untracked) in the working tree.
- *
- * Tool-managed files are WORK.md, WORK.feedback.yaml, WORK.history.yaml,
- * and anything under .foundry/. `foundry_orchestrate` is the sole writer
- * of these between stages, and every stage commit is performed internally
- * by the orchestrator's git bridge (the previously-public
- * `foundry_git_commit` tool was deregistered in v2.3.0). If this function
- * returns a non-empty list at the start of a sort invocation, a prior
- * stage's commit was skipped or aborted.
- */
-function getDirtyToolManagedFiles(io = defaultIO) {
-  try {
-    const output = io.exec(['git', 'status', '--porcelain', '-z', '--', 'WORK.md', 'WORK.feedback.yaml', 'WORK.history.yaml', '.foundry']);
-    return output
-      .split('\0')
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => line.replace(/^[\sMADRCU?!]+/, '').trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
+import {
+  baseStage,
+  findFirst,
+  determineRoute,
+} from './lib/sort-routing.js';
+import {
+  defaultIO,
+  checkModifiedFiles,
+  getDirtyToolManagedFiles,
+} from './lib/sort-fs-check.js';
 
 // ---------------------------------------------------------------------------
 // Top-level deadlock pass (spec §6.1)
@@ -276,126 +61,114 @@ function runDeadlockPass(store, { threshold, enabled, cycle }) {
 }
 
 // ---------------------------------------------------------------------------
-// Exported runSort — structured result for programmatic use
+// runSort — structured result for programmatic use
 // ---------------------------------------------------------------------------
 
 function isDispatchableRoute(route) {
   return typeof route === 'string' && /^(assay|forge|quench|appraise|human-appraise):/.test(route);
 }
 
-export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml', foundryDir = 'foundry', cycleDef, agentsDir = '.opencode/agents', mint, now = Date.now(), ulid = defaultUlid } = {}, io = defaultIO) {
-  if (!io.exists(workPath)) {
-    return { route: 'blocked', details: 'WORK.md not found' };
-  }
+function validateStages(stages) {
+  if (!stages || !Array.isArray(stages)) return { error: 'No stages in WORK.md frontmatter' };
+  if (!findFirst(stages, 'forge')) return { error: 'stages must include at least one forge stage' };
+  return null;
+}
 
+function validateWorkMd(workPath, io) {
+  if (!io.exists(workPath)) return { error: 'WORK.md not found' };
   const workText = io.readFile(workPath);
   const frontmatter = parseFrontmatter(workText);
+  if (!frontmatter.cycle) return { error: 'No cycle in WORK.md frontmatter' };
+  const stagesError = validateStages(frontmatter.stages);
+  if (stagesError) return stagesError;
+  return { frontmatter, cycle: frontmatter.cycle, stages: frontmatter.stages };
+}
 
-  const cycle = frontmatter.cycle;
-  const stages = frontmatter.stages;
-  const maxIterations = frontmatter['max-iterations'] ?? 3;
-  const humanAppraiseEnabled = frontmatter['human-appraise'] === true;
-  const deadlockAppraise = frontmatter['deadlock-appraise'] !== false; // default true
-  const deadlockIterations = frontmatter['deadlock-iterations'] ?? 5;
+function extractFrontmatterDefaults(frontmatter) {
+  return {
+    maxIterations: frontmatter['max-iterations'] ?? 3,
+    humanAppraiseEnabled: frontmatter['human-appraise'] === true,
+    deadlockAppraise: frontmatter['deadlock-appraise'] !== false,
+    deadlockIterations: frontmatter['deadlock-iterations'] ?? 5,
+  };
+}
 
-  if (!cycle) return { route: 'blocked', details: 'No cycle in WORK.md frontmatter' };
-  if (!stages || !Array.isArray(stages)) return { route: 'blocked', details: 'No stages in WORK.md frontmatter' };
-  if (!findFirst(stages, 'forge')) return { route: 'blocked', details: 'stages must include at least one forge stage' };
+function checkDirtyFiles(history, io) {
+  if (history.length === 0) return null;
+  const dirty = getDirtyToolManagedFiles(io);
+  if (dirty.length === 0) return null;
+  return `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. `
+    + `Each stage's commit is performed internally by foundry_orchestrate; `
+    + `if you see this, the prior stage's commit was skipped or aborted. `
+    + `Re-run foundry_orchestrate or commit the listed files manually before retrying.`;
+}
 
-  const artefacts = parseArtefactsTable(workText);
-  const history = loadHistory(historyPath, cycle, io);
-
-  // Micro-commit enforcement checks for dirt left by prior stages. Run it
-  // before sort's own deadlock pass, because that pass may write
-  // WORK.feedback.yaml during this invocation.
-  // The first sort of a cycle has empty history — WORK.md may be untracked
-  // or dirty at that point, which is fine.
-  if (history.length > 0) {
-    const dirty = getDirtyToolManagedFiles(io);
-    if (dirty.length > 0) {
-      return {
-        route: 'violation',
-        details: `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. Each stage's commit is performed internally by foundry_orchestrate; if you see this, the prior stage's commit was skipped or aborted. Re-run foundry_orchestrate or commit the listed files manually before retrying.`,
-      };
-    }
-  }
-
-  // Open the feedback store and run the per-item deadlock pass before any
-  // routing decision (spec §6.1). The pass is a single atomic batch write.
+function loadFeedbackAndRunDeadlock(cycle, deadlockIterations, deadlockAppraise, io) {
   const store = openFeedbackStore('WORK.feedback.yaml', io);
-  runDeadlockPass(store, {
-    threshold: deadlockIterations,
-    enabled: deadlockAppraise,
-    cycle,
-  });
-
-  // runDeadlockPass calls store.list() internally to find qualifying items and
-  // may write new 'deadlocked' history entries via the batch primitive. Re-list
-  // here so the routing layer below sees the post-write state.
+  runDeadlockPass(store, { threshold: deadlockIterations, enabled: deadlockAppraise, cycle });
   const feedback = store.list().map(item => ({
     id: item.id,
     file: item.file,
-    state: item.history[0].state, // 'open' | 'actioned' | 'wont-fix' | 'rejected' | 'deadlocked' | 'resolved'
+    state: item.history[0].state,
     depth: item.history.length,
   }));
   const anyDeadlocked = feedback.some(f => f.state === 'deadlocked');
+  return { feedback, anyDeadlocked };
+}
 
-  // File modification enforcement
+function resolveCycleDef(cycleDef, frontmatter, foundryDir, cycle) {
+  return cycleDef || frontmatter['cycle-def'] || `${foundryDir}/cycles/${cycle}.md`;
+}
+
+function checkModifiedFilesAfterLastStage({ history, foundryDir, cycleDef, cycle, frontmatter, io }) {
   const nonSortHistory = history.filter(e => baseStage(e.stage || '') !== 'sort');
-  if (nonSortHistory.length > 0) {
-    const lastEntry = nonSortHistory[nonSortHistory.length - 1];
-    const lastBase = baseStage(lastEntry.stage || '');
-    const resolvedCycleDef = cycleDef || frontmatter['cycle-def'] || `${foundryDir}/cycles/${cycle}.md`;
-    const result = checkModifiedFiles(lastBase, foundryDir, resolvedCycleDef, cycle, io);
-    if (!result.ok) {
-      return { route: 'violation', details: `File modification violation after ${lastBase} stage: ${result.violations.join(', ')}` };
-    }
+  if (nonSortHistory.length === 0) return { nonSortHistory };
+  const lastBase = baseStage(nonSortHistory[nonSortHistory.length - 1].stage || '');
+  const resolvedCycleDef = resolveCycleDef(cycleDef, frontmatter, foundryDir, cycle);
+  const result = checkModifiedFiles(lastBase, foundryDir, resolvedCycleDef, cycle, io);
+  if (!result.ok) {
+    return { error: `File modification violation after ${lastBase} stage: ${result.violations.join(', ')}` };
   }
+  return { nonSortHistory };
+}
 
-  // Spec §6.1 — if the deadlock pass produced any deadlocked items, override
-  // normal routing and head straight to human-appraise. Runs BEFORE
-  // determineRoute so a deadlock detected with last completed stage = forge
-  // routes directly to human-appraise.
-  let route;
-  if (anyDeadlocked) {
-    const currentNonSort = nonSortHistory.length > 0 ? nonSortHistory[nonSortHistory.length - 1].stage : null;
-    const alreadyInHumanAppraise = currentNonSort && baseStage(currentNonSort) === 'human-appraise';
-    if (alreadyInHumanAppraise) {
-      route = 'blocked';
-    } else {
-      const inStages = findFirst(stages, 'human-appraise');
-      if (inStages) {
-        route = inStages;
-      } else {
-        route = `human-appraise:${cycle}`;
-      }
-    }
-  } else {
-    route = determineRoute(stages, history, feedback, maxIterations, {
-      humanAppraise: humanAppraiseEnabled,
-      deadlockAppraise,
-      deadlockIterations,
-      cycle,
-    });
-  }
+function getCurrentNonSortStage(nonSortHistory) {
+  return nonSortHistory.length > 0 ? nonSortHistory[nonSortHistory.length - 1].stage : null;
+}
 
-  // Model resolution
-  let model = null;
+function resolveDeadlockRoute(stages, nonSortHistory, cycle) {
+  const currentNonSort = getCurrentNonSortStage(nonSortHistory);
+  if (currentNonSort && baseStage(currentNonSort) === 'human-appraise') return 'blocked';
+  return findFirst(stages, 'human-appraise') || `human-appraise:${cycle}`;
+}
+
+function resolveRoute(ctx) {
+  if (ctx.anyDeadlocked) return resolveDeadlockRoute(ctx.stages, ctx.nonSortHistory, ctx.cycle);
+  return determineRoute(ctx.stages, ctx.history, ctx.feedback, ctx.maxIterations);
+}
+
+function resolveModel(route, frontmatter, agentsDir, io) {
   const routeBase = baseStage(route);
-  if (frontmatter.models && frontmatter.models[routeBase]) {
-    const modelId = frontmatter.models[routeBase];
-    model = `foundry-${modelId.replace(/[/.]/g, '-')}`;
-
-    // Fail-fast: required subagent file must exist
-    const agentPath = `${agentsDir}/${model}.md`;
-    if (!io.exists(agentPath)) {
-      return {
-        route: 'violation',
-        details: `Missing required subagent: ${model}.md is not present in ${agentsDir}/. Run the refresh-agents skill to regenerate agent files, then restart.`,
-      };
-    }
+  if (!frontmatter.models || !frontmatter.models[routeBase]) return null;
+  const modelId = frontmatter.models[routeBase];
+  const model = `foundry-${modelId.replace(/[/.]/g, '-')}`;
+  const agentPath = `${agentsDir}/${model}.md`;
+  if (!io.exists(agentPath)) {
+    return {
+      error: `Missing required subagent: ${model}.md is not present in ${agentsDir}/. `
+        + `Run the refresh-agents skill to regenerate agent files, then restart.`,
+    };
   }
+  return model;
+}
 
+function checkModel(route, frontmatter, agentsDir, io) {
+  const modelResult = resolveModel(route, frontmatter, agentsDir, io);
+  if (modelResult && modelResult.error) return { error: modelResult.error };
+  return { model: typeof modelResult === 'string' ? modelResult : null };
+}
+
+function mintToken({ route, model, mint, cycle, now, ulid }) {
   const result = { route, ...(model ? { model } : {}) };
   if (mint && isDispatchableRoute(route)) {
     const token = mint({ route, cycle, exp: now + 10 * 60 * 1000, nonce: ulid(now) });
@@ -404,24 +177,102 @@ export function runSort({ workPath = 'WORK.md', historyPath = 'WORK.history.yaml
   return result;
 }
 
+// runSort is decomposed into single-purpose phase helpers above so the
+// orchestrating function itself stays within the configured complexity
+// limit. Each phase either returns an error envelope (handled by
+// firstError) or contributes data to the routing decision.
+
+function firstError(...envelopes) {
+  for (const env of envelopes) {
+    if (env && env.error) return env.error;
+  }
+  return null;
+}
+
+function preparePhases({ workPath, historyPath, foundryDir, cycleDef, io }) {
+  const validation = validateWorkMd(workPath, io);
+  if (validation.error) return { kind: 'blocked', details: validation.error };
+  const { frontmatter, cycle, stages } = validation;
+  const defaults = extractFrontmatterDefaults(frontmatter);
+  const history = loadHistory(historyPath, cycle, io);
+  const dirtyError = checkDirtyFiles(history, io);
+  if (dirtyError) return { kind: 'violation', details: dirtyError };
+  const { feedback, anyDeadlocked } = loadFeedbackAndRunDeadlock(
+    cycle, defaults.deadlockIterations, defaults.deadlockAppraise, io,
+  );
+  const fileCheck = checkModifiedFilesAfterLastStage({
+    history, foundryDir, cycleDef, cycle, frontmatter, io,
+  });
+  const violation = firstError(fileCheck);
+  if (violation) return { kind: 'violation', details: violation };
+  return {
+    kind: 'ok',
+    frontmatter, cycle, stages, defaults, history, feedback, anyDeadlocked,
+    nonSortHistory: fileCheck.nonSortHistory,
+  };
+}
+
+const RUN_SORT_DEFAULTS = Object.freeze({
+  workPath: 'WORK.md',
+  historyPath: 'WORK.history.yaml',
+  foundryDir: 'foundry',
+  cycleDef: undefined,
+  agentsDir: '.opencode/agents',
+  mint: undefined,
+});
+
+function withRunSortDefaults(args) {
+  const merged = { ...RUN_SORT_DEFAULTS, ...args };
+  if (merged.now === undefined) merged.now = Date.now();
+  if (merged.ulid === undefined) merged.ulid = defaultUlid;
+  return merged;
+}
+
+function buildRouteCtx(prep) {
+  return {
+    stages: prep.stages,
+    history: prep.history,
+    feedback: prep.feedback,
+    maxIterations: prep.defaults.maxIterations,
+    cycle: prep.cycle,
+    anyDeadlocked: prep.anyDeadlocked,
+    nonSortHistory: prep.nonSortHistory,
+  };
+}
+
+export function runSort(args = {}, io = defaultIO) {
+  const opts = withRunSortDefaults(args);
+  const prep = preparePhases({ ...opts, io });
+  if (prep.kind !== 'ok') return { route: prep.kind, details: prep.details };
+
+  const route = resolveRoute(buildRouteCtx(prep));
+  const modelCheck = checkModel(route, prep.frontmatter, opts.agentsDir, io);
+  if (modelCheck.error) return { route: 'violation', details: modelCheck.error };
+
+  return mintToken({
+    route, model: modelCheck.model, mint: opts.mint, cycle: prep.cycle, now: opts.now, ulid: opts.ulid,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Exports (for testing) — keep main() private
 // ---------------------------------------------------------------------------
 
 export { parseArtefactsTable } from './lib/artefacts.js';
 export { loadHistory } from './lib/history.js';
-
+export { parseFrontmatter } from './lib/workfile.js';
 export {
   baseStage,
   findFirst,
   nextInRoute,
-  parseFrontmatter,
   determineRoute,
   nextAfterQuench,
   nextAfterAppraise,
+} from './lib/sort-routing.js';
+export {
   globMatch,
   getModifiedFiles,
   getAllowedPatterns,
   checkModifiedFiles,
   getDirtyToolManagedFiles,
-};
+} from './lib/sort-fs-check.js';

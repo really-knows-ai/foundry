@@ -229,15 +229,6 @@ export default [
     },
   },
 
-  // Scripts: allow more procedural patterns
-  {
-    files: ['scripts/**/*.js'],
-    rules: {
-      'max-lines-per-function': 'off',
-      'max-statements': 'off',
-    },
-  },
-
   // Plugin validation tool: requires OS command execution
   {
     files: ['src/plugin/tools/validate-tools.js'],
