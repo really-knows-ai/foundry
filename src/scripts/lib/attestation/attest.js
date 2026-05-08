@@ -14,6 +14,63 @@ import { buildAttestationPayload } from './payload.js';
 import { canonicalJson } from './canonical-json.js';
 import { renderAttestedCommitMessage } from './render.js';
 
+function readWorkFiles(cwd, io) {
+  const workPath = path.join(cwd, 'WORK.md');
+  const historyPath = path.join(cwd, 'WORK.history.yaml');
+  const feedbackPath = path.join(cwd, 'WORK.feedback.yaml');
+
+  return {
+    workText: io.readFile(workPath),
+    historyText: io.fileExists(historyPath) ? io.readFile(historyPath) : '',
+    feedbackText: io.fileExists(feedbackPath) ? io.readFile(feedbackPath) : '',
+  };
+}
+
+function checkBlockedArtefacts(artefacts) {
+  const blocked = artefacts.filter(a => a.status === 'blocked');
+  if (blocked.length > 0) {
+    return `foundry_attest: cycle has blocked artefact(s): ${blocked.map(a => a.file).join(', ')}`;
+  }
+  return null;
+}
+
+function checkMissingStages(frontmatter, historyText) {
+  const entries = parseAllHistoryEntries(historyText);
+  const completed = new Set(entries.map(e => e.stage));
+  const missing = (frontmatter.stages ?? []).filter(s => !completed.has(s));
+  if (missing.length > 0) {
+    return `foundry_attest: required stage(s) not completed: ${missing.join(', ')}`;
+  }
+  return null;
+}
+
+function checkUnresolvedFeedback(feedbackText) {
+  const doc = feedbackText.trim() ? (loadYaml(feedbackText) ?? {}) : {};
+  const items = doc.items ?? [];
+  const unresolved = items.filter(item => item?.history?.[0]?.state !== 'resolved');
+  if (unresolved.length > 0) {
+    return `foundry_attest: ${unresolved.length} unresolved feedback item(s): ${unresolved.map(i => i.id).join(', ')}`;
+  }
+  return null;
+}
+
+function findCycleError(frontmatter, artefacts, historyText, feedbackText) {
+  const blockedError = checkBlockedArtefacts(artefacts);
+  if (blockedError) return blockedError;
+
+  const missingError = checkMissingStages(frontmatter, historyText);
+  if (missingError) return missingError;
+
+  return checkUnresolvedFeedback(feedbackText);
+}
+
+function computeDiffSha(execGit, baseBranch) {
+  const mergeBase = execGit(['merge-base', 'HEAD', baseBranch]).trim();
+  const diffOutput = execGit(['diff', mergeBase, 'HEAD']);
+  const diffBuf = Buffer.isBuffer(diffOutput) ? diffOutput : Buffer.from(diffOutput, 'utf8');
+  return sha256Buffer(diffBuf);
+}
+
 export async function buildAttestation({
   cwd,
   baseBranch,
@@ -23,61 +80,17 @@ export async function buildAttestation({
   io,
   execGit,
 }) {
-  const readFile = io.readFile;
-  const fileExists = io.fileExists;
-
-  const workPath = path.join(cwd, 'WORK.md');
-  const historyPath = path.join(cwd, 'WORK.history.yaml');
-  const feedbackPath = path.join(cwd, 'WORK.feedback.yaml');
-
-  const workText = readFile(workPath);
-  const historyText = fileExists(historyPath) ? readFile(historyPath) : '';
-  const feedbackText = fileExists(feedbackPath) ? readFile(feedbackPath) : '';
-
+  const { workText, historyText, feedbackText } = readWorkFiles(cwd, io);
   const frontmatter = parseFrontmatter(workText);
   const artefacts = parseArtefactsTable(workText);
-  const requiredStages = frontmatter.stages ?? [];
 
-  // --- Verification ---
-
-  // 1. No blocked artefacts
-  const blockedArtefacts = artefacts.filter(a => a.status === 'blocked');
-  if (blockedArtefacts.length > 0) {
-    return {
-      ok: false,
-      error: `foundry_attest: cycle has blocked artefact(s): ${blockedArtefacts.map(a => a.file).join(', ')}`,
-    };
+  const cycleError = findCycleError(frontmatter, artefacts, historyText, feedbackText);
+  if (cycleError) {
+    return { ok: false, error: cycleError };
   }
 
-  // 2. All required stages present in history
-  const allEntries = parseAllHistoryEntries(historyText);
-  const completedStages = new Set(allEntries.map(e => e.stage));
-  const missingStages = requiredStages.filter(s => !completedStages.has(s));
-  if (missingStages.length > 0) {
-    return {
-      ok: false,
-      error: `foundry_attest: required stage(s) not completed: ${missingStages.join(', ')}`,
-    };
-  }
+  const diffSha = computeDiffSha(execGit, baseBranch);
 
-  // 3. No unresolved feedback
-  const feedbackDoc = feedbackText.trim() ? (loadYaml(feedbackText) ?? {}) : {};
-  const feedbackItems = feedbackDoc.items ?? [];
-  const unresolved = feedbackItems.filter(item => item?.history?.[0]?.state !== 'resolved');
-  if (unresolved.length > 0) {
-    return {
-      ok: false,
-      error: `foundry_attest: ${unresolved.length} unresolved feedback item(s): ${unresolved.map(i => i.id).join(', ')}`,
-    };
-  }
-
-  // --- Diff SHA ---
-  const mergeBase = execGit(['merge-base', 'HEAD', baseBranch]).trim();
-  const diffOutput = execGit(['diff', mergeBase, 'HEAD']);
-  const diffBuf = Buffer.isBuffer(diffOutput) ? diffOutput : Buffer.from(diffOutput, 'utf8');
-  const diffSha = sha256Buffer(diffBuf);
-
-  // --- Build payload ---
   const payload = buildAttestationPayload({
     cwd,
     goalText,
@@ -89,7 +102,6 @@ export async function buildAttestation({
   const payloadJson = canonicalJson(payload);
   const commitMessage = renderAttestedCommitMessage({ humanSummary: goalText, payloadJson });
 
-  // Prepend diff-sha256 line before the attestation block
   const content = commitMessage.replace(
     '-----BEGIN FOUNDRY ATTESTATION-----',
     `diff-sha256: ${diffSha}\n\n-----BEGIN FOUNDRY ATTESTATION-----`
