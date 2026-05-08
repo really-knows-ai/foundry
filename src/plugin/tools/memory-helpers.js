@@ -30,44 +30,61 @@ function resolveCycleId(context) {
   return { cycleId: null, fromActiveStage: false };
 }
 
+// Build an embedder function from the embeddings config, or null when
+// embeddings are disabled.
+function createEmbedder(embeddingsCfg) {
+  if (!embeddingsCfg || !embeddingsCfg.enabled) return null;
+  return (inputs) => memEmbed({ config: embeddingsCfg, inputs });
+}
+
+// Build a write-capable embedder. Requires both a working embedder and
+// schema-declared vector dimensions (provisioned by init-memory).
+function createWriteEmbedder(embedder, schemaEmbeddings) {
+  if (!embedder) return null;
+  if (!schemaEmbeddings || !schemaEmbeddings.dimensions) return null;
+  return embedder;
+}
+
+// Resolve cycle-scoped permissions. When the cycle definition cannot be
+// loaded and the call originated from an active stage, the error is
+// rethrown; otherwise permissions fall back to null (full access).
+async function resolveCyclePermissions(cycleId, fromActiveStage, io, vocabulary) {
+  try {
+    const cycleDef = await getCycleDefinition('foundry', cycleId, io);
+    return resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary });
+  } catch (err) {
+    if (fromActiveStage) {
+      throw new Error(
+        `active stage references cycle '${cycleId}' but its definition could not be loaded: ${err.message ?? err}`,
+        { cause: err },
+      );
+    }
+    return null;
+  }
+}
+
+// Build a sync callback that reconciles the store when the call is
+// unscoped (no active cycle).
+function makeSyncCallback(cycleId, store, io) {
+  return async () => {
+    if (!cycleId) await syncStore({ store, io });
+  };
+}
+
 export async function withStore(context) {
   const io = makeMemoryIO(context.worktree);
   const store = await getOrOpenStore({ worktreeRoot: context.worktree, io });
   const ctx = getContext(context.worktree);
   const embeddingsCfg = ctx?.config?.embeddings;
   const schemaEmbeddings = ctx?.schema?.embeddings;
-  // `embedder` follows the provider config (enabled → available for queries
-  // like search/probe). `writeEmbedder` additionally requires that the schema
-  // declare vector dimensions (i.e. init-memory has provisioned the typed
-  // column); otherwise put paths stay embedding-free to keep the relation
-  // compatible with the non-HNSW column type.
-  const embedder = embeddingsCfg && embeddingsCfg.enabled
-    ? (inputs) => memEmbed({ config: embeddingsCfg, inputs })
-    : null;
-  const writeEmbedder = embedder && schemaEmbeddings && schemaEmbeddings.dimensions
-    ? embedder
-    : null;
-  let permissions = null;
+  const embedder = createEmbedder(embeddingsCfg);
+  const writeEmbedder = createWriteEmbedder(embedder, schemaEmbeddings);
   const { cycleId, fromActiveStage } = resolveCycleId(context);
+  let permissions = null;
   if (cycleId) {
-    try {
-      const cycleDef = await getCycleDefinition('foundry', cycleId, io);
-      permissions = resolvePermissions({ cycleFrontmatter: cycleDef.frontmatter, vocabulary: ctx.vocabulary });
-    } catch (err) {
-      // Active stages enforce cycle-scoped permissions, so an unresolved
-      // cycle keeps the call within those permissions. Explicit
-      // `context.cycle` calls continue to treat an unresolved cycle as
-      // "no permissions" (full access), because that path is a
-      // trust-the-caller contract.
-      if (fromActiveStage) {
-        throw new Error(
-          `active stage references cycle '${cycleId}' but its definition could not be loaded: ${err.message ?? err}`,
-          { cause: err },
-        );
-      }
-      permissions = null;
-    }
+    permissions = await resolveCyclePermissions(cycleId, fromActiveStage, io, ctx.vocabulary);
   }
+  const syncIfOutOfCycle = makeSyncCallback(cycleId, store, io);
   return {
     io,
     store,
@@ -75,6 +92,6 @@ export async function withStore(context) {
     permissions,
     embedder,
     writeEmbedder,
-    syncIfOutOfCycle: async () => { if (!cycleId) await syncStore({ store, io }); },
+    syncIfOutOfCycle,
   };
 }
