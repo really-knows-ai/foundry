@@ -112,7 +112,7 @@ describe('writeMemoryConfig', () => {
         enabled: true,
         model: 'new-model',
         dimensions: 1024,
-        baseURL: 'http://new',
+        baseURL: 'https://new',
         apiKey: null,
         batchSize: 64,
         timeoutMs: 30000,
@@ -121,27 +121,27 @@ describe('writeMemoryConfig', () => {
     const text = files['foundry/memory/config.md'];
     assert.match(text, /model: new-model/);
     assert.match(text, /dimensions: 1024/);
-    assert.match(text, /baseURL: http:\/\/new/);
+    assert.match(text, /baseURL: https:\/\/new/);
     assert.match(text, /# Memory configuration/);
     assert.match(text, /Hand-written notes preserved here\./);
     // The reloaded config matches what we wrote.
     const cfg = await loadMemoryConfig('foundry', mockIO(files));
     assert.equal(cfg.embeddings.model, 'new-model');
     assert.equal(cfg.embeddings.dimensions, 1024);
-    assert.equal(cfg.embeddings.baseURL, 'http://new');
+    assert.equal(cfg.embeddings.baseURL, 'https://new');
     assert.equal(cfg.enabled, true);
   });
 
   it('merges embeddings partial updates onto existing values', async () => {
     const files = {
       'foundry/memory/config.md':
-        `---\nenabled: true\nembeddings:\n  enabled: true\n  baseURL: http://keep\n  model: keep-model\n  dimensions: 768\n  batchSize: 32\n---\n`,
+        `---\nenabled: true\nembeddings:\n  enabled: true\n  baseURL: https://keep\n  model: keep-model\n  dimensions: 768\n  batchSize: 32\n---\n`,
     };
     await writeMemoryConfig('foundry', {
       embeddings: { model: 'swapped', dimensions: 1536 },
     }, mockIO(files));
     const cfg = await loadMemoryConfig('foundry', mockIO(files));
-    assert.equal(cfg.embeddings.baseURL, 'http://keep');
+    assert.equal(cfg.embeddings.baseURL, 'https://keep');
     assert.equal(cfg.embeddings.batchSize, 32);
     assert.equal(cfg.embeddings.model, 'swapped');
     assert.equal(cfg.embeddings.dimensions, 1536);
@@ -154,7 +154,7 @@ describe('writeMemoryConfig', () => {
       validation: 'strict',
       embeddings: {
         enabled: true,
-        baseURL: 'http://x',
+        baseURL: 'https://x',
         model: 'm',
         dimensions: 8,
         batchSize: 16,
