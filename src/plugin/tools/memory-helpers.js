@@ -63,6 +63,14 @@ async function resolveCyclePermissions(cycleId, fromActiveStage, io, vocabulary)
   }
 }
 
+// Extract embeddings config and schema from a possibly-null context.
+function getContextEmbeddings(ctx) {
+  return {
+    embeddingsCfg: ctx ? ctx.config?.embeddings : null,
+    schemaEmbeddings: ctx ? ctx.schema?.embeddings : null,
+  };
+}
+
 // Build a sync callback that reconciles the store when the call is
 // unscoped (no active cycle).
 function makeSyncCallback(cycleId, store, io) {
@@ -75,8 +83,7 @@ export async function withStore(context) {
   const io = makeMemoryIO(context.worktree);
   const store = await getOrOpenStore({ worktreeRoot: context.worktree, io });
   const ctx = getContext(context.worktree);
-  const embeddingsCfg = ctx?.config?.embeddings;
-  const schemaEmbeddings = ctx?.schema?.embeddings;
+  const { embeddingsCfg, schemaEmbeddings } = getContextEmbeddings(ctx);
   const embedder = createEmbedder(embeddingsCfg);
   const writeEmbedder = createWriteEmbedder(embedder, schemaEmbeddings);
   const { cycleId, fromActiveStage } = resolveCycleId(context);
