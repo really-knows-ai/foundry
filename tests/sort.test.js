@@ -26,38 +26,63 @@ import {
 
 const makeSortIO = makeMockIO;
 
+function buildStageLines(stages) {
+  return ['stages:', ...stages.map(stage => `  - ${stage}`)];
+}
+
+function appendOptional(lines, key, value) {
+  if (value !== undefined) lines.push(`${key}: ${value}`);
+}
+
+function resolveOption(options, key, defaultValue) {
+  return Object.hasOwn(options, key) ? options[key] : defaultValue;
+}
+
 function makeWorkMd(options = {}) {
-  const cycle = Object.hasOwn(options, 'cycle') ? options.cycle : 'c1';
+  const cycle = resolveOption(options, 'cycle', 'c1');
   const stages = options.stages || ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-  const maxIterations = Object.hasOwn(options, 'maxIterations') ? options.maxIterations : 100;
-  const deadlockIterations = Object.hasOwn(options, 'deadlockIterations') ? options.deadlockIterations : 5;
+  const maxIterations = resolveOption(options, 'maxIterations', 100);
+  const deadlockIterations = resolveOption(options, 'deadlockIterations', 5);
   const lines = [
     '---',
     `cycle: ${cycle}`,
-    'stages:',
-    ...stages.map(stage => `  - ${stage}`),
+    ...buildStageLines(stages),
   ];
-  if (maxIterations !== undefined) lines.push(`max-iterations: ${maxIterations}`);
-  if (deadlockIterations !== undefined) lines.push(`deadlock-iterations: ${deadlockIterations}`);
-  if (options.deadlockAppraise !== undefined) lines.push(`deadlock-appraise: ${options.deadlockAppraise}`);
+  appendOptional(lines, 'max-iterations', maxIterations);
+  appendOptional(lines, 'deadlock-iterations', deadlockIterations);
+  appendOptional(lines, 'deadlock-appraise', options.deadlockAppraise);
   lines.push('---', '');
   return lines.join('\n');
 }
 
 // Build a WORK.feedback.yaml string with N items. Each item's history[0] is
 // the current state; tests can set the history array directly to control depth.
+function buildDefaultHistory(item) {
+  return [{ state: 'open', stage: 'appraise:w', cycle: item.cycle || 'c1', timestamp: '2026-04-24T10:00:00.000Z' }];
+}
+
+function itemDefaults(item, i) {
+  return {
+    file: item.file || 'a.md',
+    tag: item.tag || 'law:x',
+    text: item.text || `item-${i}`,
+  };
+}
+
+function itemSourceAndHistory(item) {
+  return {
+    source: item.source || 'appraise:w',
+    history: item.history || buildDefaultHistory(item),
+  };
+}
+
+function buildFeedbackItem(item, i) {
+  return { id: `EXJ${String(i).padStart(23, '0')}`, ...itemDefaults(item, i), ...itemSourceAndHistory(item) };
+}
+
 function makeFeedbackYaml(items) {
   return yaml.dump({
-    items: items.map((it, i) => ({
-      id: `EXJ${String(i).padStart(23, '0')}`,
-      file: it.file || 'a.md',
-      tag: it.tag || 'law:x',
-      text: it.text || `item-${i}`,
-      source: it.source || 'appraise:w',
-      history: it.history || [
-        { state: 'open', stage: 'appraise:w', cycle: it.cycle || 'c1', timestamp: '2026-04-24T10:00:00.000Z' },
-      ],
-    })),
+    items: items.map(buildFeedbackItem),
   });
 }
 
@@ -203,28 +228,28 @@ describe('determineRoute', () => {
   });
 
   it('routes to human-appraise after appraise when enabled', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
     const history = [
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
       { stage: 'appraise:check', cycle: 'c1' },
     ];
-    assert.equal(determineRoute(stages, history, [], 3), 'human-appraise:review');
+    assert.equal(determineRoute(stagesWithHuman, history, [], 3), 'human-appraise:review');
   });
 
   it('advances to done after human-appraise', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
     const history = [
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
       { stage: 'appraise:check', cycle: 'c1' },
       { stage: 'human-appraise:review', cycle: 'c1' },
     ];
-    assert.equal(determineRoute(stages, history, [], 3), 'done');
+    assert.equal(determineRoute(stagesWithHuman, history, [], 3), 'done');
   });
 
   it('loops back to forge when human-appraise adds feedback', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
     const history = [
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
@@ -232,7 +257,7 @@ describe('determineRoute', () => {
       { stage: 'human-appraise:review', cycle: 'c1' },
     ];
     const feedback = [{ state: 'open', tag: 'human' }];
-    assert.equal(determineRoute(stages, history, feedback, 3), 'forge:write');
+    assert.equal(determineRoute(stagesWithHuman, history, feedback, 3), 'forge:write');
   });
 });
 
@@ -298,15 +323,15 @@ describe('nextAfterAppraise', () => {
   });
 
   it('advances to next stage when all feedback resolved', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
     const feedback = [{ state: 'resolved' }];
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 0, 3), 'human-appraise:review');
+    assert.equal(nextAfterAppraise(stagesWithHuman, 'appraise:check', feedback, 0, 3), 'human-appraise:review');
   });
 
   it('returns done when appraise is last stage and all resolved', () => {
-    const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    const stagesThree = ['forge:write', 'quench:review', 'appraise:check'];
     const feedback = [{ state: 'resolved' }];
-    assert.equal(nextAfterAppraise(stages, 'appraise:check', feedback, 0, 3), 'done');
+    assert.equal(nextAfterAppraise(stagesThree, 'appraise:check', feedback, 0, 3), 'done');
   });
 });
 
@@ -577,7 +602,7 @@ describe('getAllowedPatterns', () => {
       'foundry/artefacts/haiku/definition.md': '---\nfile-patterns:\n  - "src/**/*.ts"\n  - "src/**/*.tsx"\n---\n',
     };
     const io = {
-      readFile: (p) => { if (files[p]) return files[p]; throw new Error(`not found: ${p}`); },
+      readFile: (p) => { if (files[p]) { return files[p]; } throw new Error(`not found: ${p}`); },
       exists: (p) => !!files[p],
     };
     const result = getAllowedPatterns('forge', 'foundry', 'foundry/cycles/c1.md', io);
