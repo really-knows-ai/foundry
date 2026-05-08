@@ -58,22 +58,37 @@ function appendHistory(worktree, entry) {
   appendEntry('WORK.history.yaml', entry, makeIO(worktree));
 }
 
-function assertFeedbackHistoryConsistent(feedbackDoc, historyEntries) {
-  const historyPairs = new Set(historyEntries.map(e => `${e.stage}||${e.cycle}`));
-  const missing = [];
+function isExemptSnapshot(snap) {
+  // Sort-written deadlocked snapshots are exempt per spec §9.3. Any
+  // other state on stage: sort is a bug and must be flagged. The reverse
+  // direction is intentionally not asserted per spec §9.3.
+  return snap.stage === 'sort' && snap.state === 'deadlocked';
+}
 
-  for (const item of feedbackDoc.items || []) {
+function checkSnapshotHistory(item, snap, historyPairs) {
+  if (isExemptSnapshot(snap)) return null;
+  const key = `${snap.stage}||${snap.cycle}`;
+  if (!historyPairs.has(key)) {
+    return `${item.id}@${snap.state}: stage=${snap.stage} cycle=${snap.cycle}`;
+  }
+  return null;
+}
+
+function findMissingSnapshots(items, historyPairs) {
+  const missing = [];
+  for (const item of items) {
     for (const snap of item.history) {
-      // Sort-written deadlocked snapshots are exempt per spec §9.3. Any
-      // other state on stage: sort is a bug and must be flagged. The reverse
-      // direction is intentionally not asserted per spec §9.3.
-      if (snap.stage === 'sort' && snap.state === 'deadlocked') continue;
-      const key = `${snap.stage}||${snap.cycle}`;
-      if (!historyPairs.has(key)) {
-        missing.push(`${item.id}@${snap.state}: stage=${snap.stage} cycle=${snap.cycle}`);
-      }
+      const mismatch = checkSnapshotHistory(item, snap, historyPairs);
+      if (mismatch) missing.push(mismatch);
     }
   }
+  return missing;
+}
+
+function assertFeedbackHistoryConsistent(feedbackDoc, historyEntries) {
+  const historyPairs = new Set(historyEntries.map(e => `${e.stage}||${e.cycle}`));
+  const items = feedbackDoc.items || [];
+  const missing = findMissingSnapshots(items, historyPairs);
 
   if (missing.length) {
     assert.fail(`feedback/history inconsistency: ${missing.length} snapshots lack matching history rows:\n${missing.join('\n')}`);

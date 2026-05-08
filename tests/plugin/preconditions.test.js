@@ -55,15 +55,23 @@ describe('feedback tools require active stage', () => {
   let dir, plugin;
   beforeEach(async () => { dir = initRepo(); plugin = await FoundryPlugin({ directory: dir }); });
 
+function feedbackArgs(toolName) {
+  const base = { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' };
+  if (toolName === 'foundry_feedback_add') {
+    return { file: 'x.md', tag: 'validation', text: 't' };
+  }
+  if (toolName === 'foundry_feedback_resolve') {
+    return { ...base, resolution: 'approved' };
+  }
+  if (toolName === 'foundry_feedback_wontfix') {
+    return { ...base, reason: 'r' };
+  }
+  return base; // foundry_feedback_action
+}
+
   for (const toolName of ['foundry_feedback_add', 'foundry_feedback_action', 'foundry_feedback_wontfix', 'foundry_feedback_resolve']) {
     it(`${toolName} errors with no active stage`, async () => {
-      const args = toolName === 'foundry_feedback_add'
-        ? { file: 'x.md', tag: 'validation', text: 't' }
-        : toolName === 'foundry_feedback_resolve'
-        ? { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', resolution: 'approved' }
-        : toolName === 'foundry_feedback_wontfix'
-        ? { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', reason: 'r' }
-        : { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' };
+      const args = feedbackArgs(toolName);
       const res = JSON.parse(await plugin.tool[toolName].execute(args, makeCtx(dir)));
       assert.match(res.error, /requires active/);
     });

@@ -51,30 +51,47 @@ function makeReadme({ branch, parent, flow, goal, startedAt, finishedAt, exitRea
   ].join('\n');
 }
 
+function defaultReadme() {
+  return makeReadme({
+    branch: 'dry-run/main/x',
+    parent: 'config/main',
+    flow: 'creative-flow',
+    goal: 'do a thing',
+    startedAt: '2025-01-01T00:00:00.000Z',
+    finishedAt: '2025-01-01T00:01:00.000Z',
+    exitReason: 'completed',
+  });
+}
+
+function writeSnapshotReadme(snapDir, opts) {
+  const content = opts.readme || defaultReadme();
+  writeFileSync(join(snapDir, 'README.md'), content);
+}
+
+function writeSnapshotWork(snapDir) {
+  writeFileSync(join(snapDir, 'work/WORK.md'), '---\nflow: x\n---\n# Goal\n');
+}
+
+function writeSnapshotDiff(snapDir) {
+  writeFileSync(join(snapDir, 'diff.patch'), 'diff --git a/x b/x\n+a\n-b\n');
+}
+
+function writeSnapshotTrace(snapDir) {
+  writeFileSync(join(snapDir, 'trace.jsonl'),
+    '{"ts":"2025-01-01T00:00:00.000Z"}\n{"ts":"2025-01-01T00:01:00.000Z"}\n');
+}
+
+function writeSnapshotFiles(snapDir, opts) {
+  if (opts.readme !== false) writeSnapshotReadme(snapDir, opts);
+  if (opts.work !== false) writeSnapshotWork(snapDir);
+  if (opts.diff !== false) writeSnapshotDiff(snapDir);
+  if (opts.trace !== false) writeSnapshotTrace(snapDir);
+}
+
 function writeSnapshot(dir, runId, opts = {}) {
   const snapDir = join(dir, '.snapshots', runId);
   mkdirSync(join(snapDir, 'work'), { recursive: true });
-  if (opts.readme !== false) {
-    writeFileSync(join(snapDir, 'README.md'), opts.readme ?? makeReadme({
-      branch: 'dry-run/main/x',
-      parent: 'config/main',
-      flow: 'creative-flow',
-      goal: 'do a thing',
-      startedAt: '2025-01-01T00:00:00.000Z',
-      finishedAt: '2025-01-01T00:01:00.000Z',
-      exitReason: 'completed',
-    }));
-  }
-  if (opts.work !== false) {
-    writeFileSync(join(snapDir, 'work/WORK.md'), '---\nflow: x\n---\n# Goal\n');
-  }
-  if (opts.diff !== false) {
-    writeFileSync(join(snapDir, 'diff.patch'), 'diff --git a/x b/x\n+a\n-b\n');
-  }
-  if (opts.trace !== false) {
-    writeFileSync(join(snapDir, 'trace.jsonl'),
-      '{"ts":"2025-01-01T00:00:00.000Z"}\n{"ts":"2025-01-01T00:01:00.000Z"}\n');
-  }
+  writeSnapshotFiles(snapDir, opts);
 }
 
 // ---------------------------------------------------------------------------
