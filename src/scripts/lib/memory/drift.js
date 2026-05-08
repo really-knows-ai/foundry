@@ -1,5 +1,35 @@
 import { hashFrontmatter } from './schema.js';
 
+function compareLoadedType({ family, name, loadedEntry, recordedEntry }) {
+  const currentHash = hashFrontmatter(loadedEntry.frontmatter);
+  if (currentHash !== recordedEntry.frontmatterHash) {
+    return {
+      kind: 'frontmatter-mismatch',
+      typeFamily: family,
+      typeName: name,
+      message: `${family} type '${name}' frontmatter was modified outside of a skill`,
+      suggestedSkills: [`rename-memory-${family}-type`, `drop-memory-${family}-type`],
+    };
+  }
+  return null;
+}
+
+function findMissingFiles({ family, loadedNames, recordedNames }) {
+  const items = [];
+  for (const name of recordedNames) {
+    if (!loadedNames.has(name)) {
+      items.push({
+        kind: 'missing-file',
+        typeFamily: family,
+        typeName: name,
+        message: `${family} type '${name}' is recorded in schema.json but its file is missing on disk`,
+        suggestedSkills: [`drop-memory-${family}-type`, `rename-memory-${family}-type`],
+      });
+    }
+  }
+  return items;
+}
+
 function compareFamily({ family, loaded, recorded }) {
   const items = [];
   const loadedNames = new Set(Object.keys(loaded));
@@ -16,29 +46,18 @@ function compareFamily({ family, loaded, recorded }) {
       });
       continue;
     }
-    const currentHash = hashFrontmatter(loaded[name].frontmatter);
-    if (currentHash !== recorded[name].frontmatterHash) {
-      items.push({
-        kind: 'frontmatter-mismatch',
-        typeFamily: family,
-        typeName: name,
-        message: `${family} type '${name}' frontmatter was modified outside of a skill`,
-        suggestedSkills: [`rename-memory-${family}-type`, `drop-memory-${family}-type`],
-      });
+    const item = compareLoadedType({
+      family,
+      name,
+      loadedEntry: loaded[name],
+      recordedEntry: recorded[name],
+    });
+    if (item) {
+      items.push(item);
     }
   }
 
-  for (const name of recordedNames) {
-    if (!loadedNames.has(name)) {
-      items.push({
-        kind: 'missing-file',
-        typeFamily: family,
-        typeName: name,
-        message: `${family} type '${name}' is recorded in schema.json but its file is missing on disk`,
-        suggestedSkills: [`drop-memory-${family}-type`, `rename-memory-${family}-type`],
-      });
-    }
-  }
+  items.push(...findMissingFiles({ family, loadedNames, recordedNames }));
 
   return items;
 }
