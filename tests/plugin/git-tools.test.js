@@ -545,7 +545,6 @@ test('foundry_git_branch kind=dry-run truncates existing trace file', async () =
     assert.equal(r.ok, true, r.error);
     assert.equal(r.branch, 'dry-run/foo/flow-x');
 
-    const { readFileSync } = await import('node:fs');
     const contents = readFileSync(tracePath, 'utf-8');
     assert.equal(contents, '', `expected trace truncated, got: ${JSON.stringify(contents)}`);
   } finally { cleanup(dir); }

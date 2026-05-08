@@ -23,7 +23,7 @@ function setupWorktree({ count } = {}) {
   execFileSync('git', ['checkout', '-q', '-b', 'work/appraiser-test'], { cwd: root, env: GIT_ENV });
   mkdirSync(join(root, 'foundry/artefacts/code'), { recursive: true });
   mkdirSync(join(root, 'foundry/appraisers'), { recursive: true });
-  const countLine = count != null ? `\nappraisers:\n  count: ${count}\n` : '\n';
+  const countLine = count !== null ? `\nappraisers:\n  count: ${count}\n` : '\n';
   writeFileSync(
     join(root, 'foundry/artefacts/code/definition.md'),
     `---\nname: Code${countLine}---\nCode artefact.\n`,

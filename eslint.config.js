@@ -221,6 +221,8 @@ export default [
       'sonarjs/no-os-command-from-path': 'off',
       'sonarjs/os-command': 'off',
       'sonarjs/publicly-writable-directories': 'off',
+      'sonarjs/slow-regex': 'off',             // test regexes match fixed git output, not user input
+      'no-template-curly-in-string': 'off',     // test fixtures contain bash/template-like syntax
       'no-empty-function': 'off',
       'no-loop-func': 'off',
     },

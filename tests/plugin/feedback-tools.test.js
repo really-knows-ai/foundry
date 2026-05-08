@@ -52,6 +52,8 @@ async function getPlugin(dir) {
   return FoundryPlugin({ directory: dir });
 }
 
+let worktree;
+
 async function tools(dir) {
   const plugin = await getPlugin(dir);
   return plugin.tool;
@@ -75,7 +77,6 @@ async function setupToActioned(stage, cycle = 'write-haiku') {
   return id;
 }
 
-let worktree;
 afterEach(() => {
   if (worktree) {
     rmSync(worktree, { recursive: true, force: true });
