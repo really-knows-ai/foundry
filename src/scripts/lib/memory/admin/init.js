@@ -22,6 +22,88 @@ const DEFAULT_GITIGNORE_ENTRIES = [
   'foundry/memory/memory.db-shm',
 ];
 
+function buildEmbeddingsBlock(embeddingsEnabled) {
+  const d = DEFAULT_CONFIG.embeddings;
+  return {
+    enabled: embeddingsEnabled,
+    baseURL: d.baseURL,
+    model: d.model,
+    dimensions: d.dimensions,
+    apiKey: null,
+    batchSize: d.batchSize,
+    timeoutMs: d.timeoutMs,
+  };
+}
+
+function buildConfigFm(embeddingsBlock) {
+  return {
+    enabled: true,
+    validation: 'strict',
+    embeddings: embeddingsBlock,
+  };
+}
+
+async function createGitkeeps(io, dirs, created) {
+  for (const d of dirs) {
+    const f = join(d, '.gitkeep');
+    await io.writeFile(f, '');
+    created.push(f);
+  }
+}
+
+function handleProbeError(err) {
+  return { ok: false, error: err?.message ?? String(err) };
+}
+
+async function runProbe(embeddingsBlock) {
+  try {
+    const result = await probeEmbeddings({ config: embeddingsBlock });
+    if (result.ok) {
+      return { probeResult: result, actualDimensions: result.dimensions };
+    }
+    return { probeResult: result, actualDimensions: DEFAULT_CONFIG.embeddings.dimensions };
+  } catch (err) {
+    return { probeResult: handleProbeError(err), actualDimensions: DEFAULT_CONFIG.embeddings.dimensions };
+  }
+}
+
+async function probeEmbeddingsIfNeeded(embeddingsEnabled, probe, embeddingsBlock) {
+  if (!probe || !embeddingsEnabled) {
+    return { probeResult: null, actualDimensions: DEFAULT_CONFIG.embeddings.dimensions };
+  }
+  return runProbe(embeddingsBlock);
+}
+
+function buildSchema(embeddingsEnabled, model, dimensions) {
+  return {
+    version: 1,
+    entities: {},
+    edges: {},
+    embeddings: embeddingsEnabled
+      ? { model, dimensions }
+      : null,
+  };
+}
+
+async function validatePrerequisites(io, p) {
+  if (!(await io.exists('foundry'))) {
+    throw new Error('foundry/ does not exist; run init-foundry first');
+  }
+  if (await io.exists(p.root)) {
+    throw new Error('foundry/memory/ already exists');
+  }
+  if (await io.exists('foundry-memory')) {
+    throw new Error('foundry-memory/ already exists');
+  }
+}
+
+async function writeConfigFile(io, configPath, embeddingsEnabled) {
+  const embeddingsBlock = buildEmbeddingsBlock(embeddingsEnabled);
+  const configFm = buildConfigFm(embeddingsBlock);
+  await io.writeFile(configPath, renderMarkdown(configFm, CONFIG_BODY));
+  return embeddingsBlock;
+}
+
 /**
  * Scaffold `foundry/memory/` and `foundry-memory/relations/` deterministically.
  *
@@ -48,70 +130,27 @@ const DEFAULT_GITIGNORE_ENTRIES = [
  */
 export async function initMemory({ io, embeddingsEnabled = true, probe = true }) {
   const p = memoryPaths('foundry');
-
-  if (!(await io.exists('foundry'))) {
-    throw new Error('foundry/ does not exist; run init-foundry first');
-  }
-  if (await io.exists(p.root)) {
-    throw new Error('foundry/memory/ already exists');
-  }
-  if (await io.exists('foundry-memory')) {
-    throw new Error('foundry-memory/ already exists');
-  }
+  await validatePrerequisites(io, p);
 
   const created = [];
 
   await io.mkdir(p.entitiesDir);
   await io.mkdir(p.edgesDir);
   await io.mkdir(p.relationsDir);
+  await createGitkeeps(io, [p.entitiesDir, p.edgesDir, p.relationsDir], created);
 
-  for (const d of [p.entitiesDir, p.edgesDir, p.relationsDir]) {
-    const f = join(d, '.gitkeep');
-    await io.writeFile(f, '');
-    created.push(f);
-  }
-
-  const defaults = DEFAULT_CONFIG.embeddings;
-  const embeddingsBlock = {
-    enabled: embeddingsEnabled,
-    baseURL: defaults.baseURL,
-    model: defaults.model,
-    dimensions: defaults.dimensions,
-    apiKey: null,
-    batchSize: defaults.batchSize,
-    timeoutMs: defaults.timeoutMs,
-  };
-  const configFm = {
-    enabled: true,
-    validation: 'strict',
-    embeddings: embeddingsBlock,
-  };
-  await io.writeFile(p.config, renderMarkdown(configFm, CONFIG_BODY));
+  const embeddingsBlock = await writeConfigFile(io, p.config, embeddingsEnabled);
   created.push(p.config);
 
   const gitignoreAdded = await appendGitignore(io, DEFAULT_GITIGNORE_ENTRIES);
 
-  let probeResult = null;
-  let actualDimensions = defaults.dimensions;
-  if (probe && embeddingsEnabled) {
-    try {
-      probeResult = await probeEmbeddings({ config: embeddingsBlock });
-      if (probeResult.ok) {
-        actualDimensions = probeResult.dimensions;
-      }
-    } catch (err) {
-      probeResult = { ok: false, error: err?.message ?? String(err) };
-    }
-  }
+  const { probeResult, actualDimensions } = await probeEmbeddingsIfNeeded(
+    embeddingsEnabled,
+    probe,
+    embeddingsBlock,
+  );
 
-  const schema = {
-    version: 1,
-    entities: {},
-    edges: {},
-    embeddings: embeddingsEnabled
-      ? { model: defaults.model, dimensions: actualDimensions }
-      : null,
-  };
+  const schema = buildSchema(embeddingsEnabled, DEFAULT_CONFIG.embeddings.model, actualDimensions);
   await io.writeFile(p.schema, JSON.stringify(schema, null, 2) + '\n');
   created.push(p.schema);
 
