@@ -13,57 +13,57 @@ export async function listEntities(store, { type }) {
   return res.rows.map(([name, value]) => ({ type, name, value }));
 }
 
-export async function neighbours(store, { type, name, depth = 1, edge_types }, vocabulary) {
-  const edgeTypes = edge_types && edge_types.length > 0
-    ? edge_types.filter((t) => vocabulary.edges[t])
-    : Object.keys(vocabulary.edges);
+function filterEdgeTypes(edge_types, vocabulary) {
+  if (edge_types && edge_types.length > 0) {
+    return edge_types.filter((t) => vocabulary.edges[t]);
+  }
+  return Object.keys(vocabulary.edges);
+}
 
-  const visited = new Map();
+async function queryOutgoing(store, rel, et, node) {
+  const res = await store.db.run(
+    `?[tt, tn] := *${rel}{from_type: ${cozoLit(node.type)}, from_name: ${cozoLit(node.name)}, to_type: tt, to_name: tn}`,
+  );
+  return res.rows.map(([tt, tn]) => ({
+    edge: { edge_type: et, from_type: node.type, from_name: node.name, to_type: tt, to_name: tn },
+    target: { type: tt, name: tn },
+  }));
+}
+
+async function queryIncoming(store, rel, et, node) {
+  const res = await store.db.run(
+    `?[ft, fn] := *${rel}{from_type: ft, from_name: fn, to_type: ${cozoLit(node.type)}, to_name: ${cozoLit(node.name)}}`,
+  );
+  return res.rows.map(([ft, fn]) => ({
+    edge: { edge_type: et, from_type: ft, from_name: fn, to_type: node.type, to_name: node.name },
+    target: { type: ft, name: fn },
+  }));
+}
+
+async function processDepthLevel(store, frontier, edgeTypes, visited) {
   const edgesOut = [];
-  const frontier = new Map();
-  frontier.set(`${type}/${name}`, { type, name });
+  const nextFrontier = new Map();
 
-  const start = await getEntity(store, { type, name });
-  if (start) visited.set(`${type}/${name}`, start);
-  else visited.set(`${type}/${name}`, { type, name, value: null });
+  for (const et of edgeTypes) {
+    const rel = edgeRelName(et);
+    for (const [, node] of frontier) {
+      const outgoing = await queryOutgoing(store, rel, et, node);
+      const incoming = await queryIncoming(store, rel, et, node);
 
-  for (let d = 0; d < depth; d++) {
-    const nextFrontier = new Map();
-    for (const et of edgeTypes) {
-      const rel = edgeRelName(et);
-      for (const [, node] of frontier) {
-        {
-          const res = await store.db.run(
-            `?[tt, tn] := *${rel}{from_type: ${cozoLit(node.type)}, from_name: ${cozoLit(node.name)}, to_type: tt, to_name: tn}`,
-          );
-          for (const [tt, tn] of res.rows) {
-            edgesOut.push({ edge_type: et, from_type: node.type, from_name: node.name, to_type: tt, to_name: tn });
-            const key = `${tt}/${tn}`;
-            if (!visited.has(key)) nextFrontier.set(key, { type: tt, name: tn });
-          }
-        }
-        {
-          const res = await store.db.run(
-            `?[ft, fn] := *${rel}{from_type: ft, from_name: fn, to_type: ${cozoLit(node.type)}, to_name: ${cozoLit(node.name)}}`,
-          );
-          for (const [ft, fn] of res.rows) {
-            edgesOut.push({ edge_type: et, from_type: ft, from_name: fn, to_type: node.type, to_name: node.name });
-            const key = `${ft}/${fn}`;
-            if (!visited.has(key)) nextFrontier.set(key, { type: ft, name: fn });
-          }
+      for (const result of [...outgoing, ...incoming]) {
+        edgesOut.push(result.edge);
+        const key = `${result.target.type}/${result.target.name}`;
+        if (!visited.has(key)) {
+          nextFrontier.set(key, result.target);
         }
       }
     }
-    for (const [key, node] of nextFrontier) {
-      if (visited.has(key)) continue;
-      const ent = await getEntity(store, node);
-      visited.set(key, ent ?? { ...node, value: null });
-    }
-    frontier.clear();
-    for (const [k, v] of nextFrontier) frontier.set(k, v);
-    if (frontier.size === 0) break;
   }
 
+  return { edgesOut, nextFrontier };
+}
+
+function deduplicateEdges(edgesOut) {
   const edgeKey = (e) => [e.edge_type, e.from_type, e.from_name, e.to_type, e.to_name].join('\u0000');
   const seen = new Set();
   const edges = [];
@@ -73,6 +73,37 @@ export async function neighbours(store, { type, name, depth = 1, edge_types }, v
     seen.add(k);
     edges.push(e);
   }
+  return edges;
+}
 
-  return { entities: [...visited.values()], edges };
+async function expandFrontier(store, frontier, edgeTypes, visited, edgesOut) {
+  const { edgesOut: levelEdges, nextFrontier } = await processDepthLevel(store, frontier, edgeTypes, visited);
+  edgesOut.push(...levelEdges);
+
+  for (const [key, node] of nextFrontier) {
+    const ent = await getEntity(store, node);
+    visited.set(key, ent ?? { ...node, value: null });
+  }
+
+  frontier.clear();
+  for (const [k, v] of nextFrontier) frontier.set(k, v);
+  return frontier.size > 0;
+}
+
+export async function neighbours(store, { type, name, depth = 1, edge_types }, vocabulary) {
+  const edgeTypes = filterEdgeTypes(edge_types, vocabulary);
+  const visited = new Map();
+  const edgesOut = [];
+  const frontier = new Map();
+  frontier.set(`${type}/${name}`, { type, name });
+
+  const start = await getEntity(store, { type, name });
+  visited.set(`${type}/${name}`, start ?? { type, name, value: null });
+
+  for (let d = 0; d < depth; d++) {
+    const hasMore = await expandFrontier(store, frontier, edgeTypes, visited, edgesOut);
+    if (!hasMore) break;
+  }
+
+  return { entities: [...visited.values()], edges: deduplicateEdges(edgesOut) };
 }
