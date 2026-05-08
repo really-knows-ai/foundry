@@ -6,6 +6,7 @@
   "main": "dist/.opencode/plugins/foundry.js",
   "license": "MIT",
   "author": "Really Knows AI",
+  "packageManager": "pnpm@10.15.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/really-knows-ai/foundry.git"
@@ -30,7 +31,8 @@
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage",
     "lint": "eslint src/ tests/ scripts/",
-    "build:full": "npm run lint -- --fix && npm run test && npm run build"
+    "build:full": "npm run lint -- --fix && npm run test && npm run build",
+    "build:all": "pnpm run lint && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.4.0",
