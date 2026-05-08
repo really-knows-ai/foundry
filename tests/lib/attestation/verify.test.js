@@ -7,6 +7,10 @@ import { join } from 'node:path';
 import { extractAttestationBlock } from '../../../src/scripts/lib/attestation/parse.js';
 import { verifyAttestationRef } from '../../../src/scripts/lib/attestation/verify.js';
 
+// Dollar sign for shell variable interpolation in GPG wrapper scripts
+// (avoids ESLint no-template-curly-in-string / no-useless-escape on literal '${...}')
+const DOLLAR = String.fromCharCode(36);
+
 const GIT_ENV = {
   ...process.env,
   GIT_AUTHOR_NAME: 't',
@@ -31,7 +35,7 @@ function createSignedRepo() {
       '  STATUS_FD=2\n' +
       '  for arg in "$@"; do\n' +
       '    case "$arg" in\n' +
-      '      --status-fd=*) STATUS_FD="\${arg#--status-fd=}" ;;\n' +
+      '      --status-fd=*) STATUS_FD="' + DOLLAR + '{arg#--status-fd=}" ;;\n' +
       '    esac\n' +
       '  done\n' +
       '  echo "[GNUPG:] NEWSIG" >&"$STATUS_FD"\n' +
@@ -135,7 +139,7 @@ test('verifyAttestationRef throws descriptive error for malformed JSON in attest
         '  STATUS_FD=2\n' +
         '  for arg in "$@"; do\n' +
         '    case "$arg" in\n' +
-        '      --status-fd=*) STATUS_FD="\${arg#--status-fd=}" ;;\n' +
+        '      --status-fd=*) STATUS_FD="' + DOLLAR + '{arg#--status-fd=}" ;;\n' +
         '    esac\n' +
         '  done\n' +
         '  echo "[GNUPG:] NEWSIG" >&"$STATUS_FD"\n' +
@@ -205,7 +209,7 @@ test('verifyAttestationRef throws when signed commit has no attestation block', 
         '  STATUS_FD=2\n' +
         '  for arg in "$@"; do\n' +
         '    case "$arg" in\n' +
-        '      --status-fd=*) STATUS_FD="\${arg#--status-fd=}" ;;\n' +
+        '      --status-fd=*) STATUS_FD="' + DOLLAR + '{arg#--status-fd=}" ;;\n' +
         '    esac\n' +
         '  done\n' +
         '  echo "[GNUPG:] NEWSIG" >&"$STATUS_FD"\n' +
