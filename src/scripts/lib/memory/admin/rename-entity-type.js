@@ -7,29 +7,45 @@ import { parseFrontmatter } from '../frontmatter.js';
 import { renderEdgeFrontmatter, composeMarkdown } from './helpers.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
+const TYPE_LINE = /^type:\s*\S.*$/m;
+const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---/;
 
-export async function renameEntityType({ worktreeRoot, io, from, to }) {
-  if (!IDENT.test(to)) throw new Error(`invalid identifier: '${to}'`);
+function assertValidIdentifier(id) {
+  if (!IDENT.test(id)) throw new Error(`invalid identifier: '${id}'`);
+}
+
+function assertDistinct(from, to) {
   if (from === to) throw new Error(`from and to are identical`);
+}
 
-  const foundryDir = 'foundry';
-  const p = memoryPaths(foundryDir);
-  const schema = await loadSchema(foundryDir, io);
+function assertSourceExists(schema, from) {
   if (!schema.entities[from]) throw new Error(`entity type '${from}' not declared`);
-  if (schema.entities[to] || schema.edges[to]) throw new Error(`'${to}' already exists`);
+}
 
-  // Rewrite entity type file. Use a targeted regex replace to preserve
-  // key order, comments, and any additional user frontmatter fields.
+function assertTargetFree(schema, to) {
+  if (schema.entities[to]) throw new Error(`'${to}' already exists`);
+  if (schema.edges[to]) throw new Error(`'${to}' already exists`);
+}
+
+function validateRename(schema, from, to) {
+  assertValidIdentifier(to);
+  assertDistinct(from, to);
+  assertSourceExists(schema, from);
+  assertTargetFree(schema, to);
+}
+
+async function rewriteEntityTypeFile(from, to, p, io) {
   const oldFile = p.entityTypeFile(from);
   const text = await io.readFile(oldFile);
-  const newText = text.replace(/^---\r?\n([\s\S]*?)\r?\n---/, (_, fm) => {
-    const replaced = fm.replace(/^type:\s*.+$/m, `type: ${to}`);
+  const newText = text.replace(FRONTMATTER_BLOCK, (_, fm) => {
+    const replaced = fm.replace(TYPE_LINE, `type: ${to}`);
     return `---\n${replaced}\n---`;
   });
   await io.writeFile(p.entityTypeFile(to), newText);
   await io.unlink(oldFile);
+}
 
-  // Rewrite entity relation file.
+async function rewriteEntityRelationFile(from, to, p, io) {
   const oldRel = p.relationFile(from);
   if (await io.exists(oldRel)) {
     const rows = parseEntityRows(await io.readFile(oldRel));
@@ -38,48 +54,97 @@ export async function renameEntityType({ worktreeRoot, io, from, to }) {
   } else {
     await io.writeFile(p.relationFile(to), '');
   }
+}
 
-  // Update every edge type that mentions `from` and rewrite that edge's relation rows.
-  for (const edgeName of Object.keys(schema.edges)) {
-    const edgeFile = p.edgeTypeFile(edgeName);
-    const edgeText = await io.readFile(edgeFile);
-    const parsed = parseFrontmatter(edgeText, { filename: edgeFile });
-    if (!parsed.hasFrontmatter) continue;
-    const fm = parsed.frontmatter;
-    let changed = false;
-    for (const key of ['sources', 'targets']) {
-      if (fm[key] === 'any') continue;
-      if (Array.isArray(fm[key]) && fm[key].includes(from)) {
-        fm[key] = fm[key].map((x) => (x === from ? to : x));
-        changed = true;
-      }
-    }
-    if (changed) {
-      const body = parsed.body;
-      await io.writeFile(edgeFile, composeMarkdown(renderEdgeFrontmatter(fm), body));
-      schema.edges[edgeName].frontmatterHash = hashFrontmatter({ type: edgeName, sources: fm.sources, targets: fm.targets });
-    }
+function mapEdgeArray(arr, from, to) {
+  return arr.map((x) => (x === from ? to : x));
+}
 
-    // Rewrite edge rows that reference the renamed type.
-    const relFile = p.relationFile(edgeName);
-    if (await io.exists(relFile)) {
-      const rows = parseEdgeRows(await io.readFile(relFile));
-      let rowsChanged = false;
-      const newRows = rows.map((r) => {
-        let nr = r;
-        if (r.from_type === from) { nr = { ...nr, from_type: to }; rowsChanged = true; }
-        if (r.to_type === from) { nr = { ...nr, to_type: to }; rowsChanged = true; }
-        return nr;
-      });
-      if (rowsChanged) await io.writeFile(relFile, serialiseEdgeRows(newRows));
+function needsRename(fm, from) {
+  if (fm === 'any') return false;
+  return Array.isArray(fm) && fm.includes(from);
+}
+
+function applyRename(fm, from, to) {
+  let changed = false;
+  for (const key of ['sources', 'targets']) {
+    if (needsRename(fm[key], from)) {
+      fm[key] = mapEdgeArray(fm[key], from, to);
+      changed = true;
     }
   }
+  return changed;
+}
 
-  // Schema updates.
+function mapEdgeRows(rows, from, to) {
+  let rowsChanged = false;
+  const newRows = rows.map((r) => {
+    let nr = r;
+    if (r.from_type === from) { nr = { ...nr, from_type: to }; rowsChanged = true; }
+    if (r.to_type === from) { nr = { ...nr, to_type: to }; rowsChanged = true; }
+    return nr;
+  });
+  return { newRows, rowsChanged };
+}
+
+async function updateEdgeTypeRows(edgeName, from, to, ctx) {
+  const relFile = ctx.p.relationFile(edgeName);
+  if (await ctx.io.exists(relFile)) {
+    const rows = parseEdgeRows(await ctx.io.readFile(relFile));
+    const { newRows, rowsChanged } = mapEdgeRows(rows, from, to);
+    if (rowsChanged) await ctx.io.writeFile(relFile, serialiseEdgeRows(newRows));
+  }
+}
+
+async function updateEdgeTypeFrontmatter(edgeName, from, to, ctx) {
+  const edgeFile = ctx.p.edgeTypeFile(edgeName);
+  const edgeText = await ctx.io.readFile(edgeFile);
+  const parsed = parseFrontmatter(edgeText, { filename: edgeFile });
+  if (!parsed.hasFrontmatter) return null;
+
+  const changed = applyRename(parsed.frontmatter, from, to);
+  if (!changed) return null;
+
+  const body = parsed.body;
+  const hash = hashFrontmatter({
+    type: edgeName,
+    sources: parsed.frontmatter.sources,
+    targets: parsed.frontmatter.targets,
+  });
+  await ctx.io.writeFile(edgeFile, composeMarkdown(renderEdgeFrontmatter(parsed.frontmatter), body));
+  return hash;
+}
+
+async function updateAllEdgeTypes(from, to, ctx) {
+  const hashes = new Map();
+  for (const edgeName of Object.keys(ctx.schema.edges)) {
+    const hash = await updateEdgeTypeFrontmatter(edgeName, from, to, ctx);
+    if (hash !== null) hashes.set(edgeName, hash);
+    await updateEdgeTypeRows(edgeName, from, to, ctx);
+  }
+  for (const [edgeName, hash] of hashes) {
+    ctx.schema.edges[edgeName].frontmatterHash = hash;
+  }
+}
+
+async function updateSchema(schema, from, to, foundryDir, io) {
   schema.entities[to] = { frontmatterHash: hashFrontmatter({ type: to }) };
   delete schema.entities[from];
   bumpVersion(schema);
   await writeSchema(foundryDir, schema, io);
+}
+
+export async function renameEntityType({ worktreeRoot, io, from, to }) {
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
+
+  validateRename(schema, from, to);
+  await rewriteEntityTypeFile(from, to, p, io);
+  await rewriteEntityRelationFile(from, to, p, io);
+  const ctx = { p, io, schema };
+  await updateAllEdgeTypes(from, to, ctx);
+  await updateSchema(schema, from, to, foundryDir, io);
 
   invalidateStore(worktreeRoot);
   return { from, to };
