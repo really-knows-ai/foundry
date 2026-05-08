@@ -28,20 +28,17 @@ function changedFiles(exec, baseSha) {
   return [...new Set([...tracked, ...diffUnstaged, ...diffStaged, ...untracked])];
 }
 
-export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, registerArtefact, io }) {
-  if (!io?.exec) {
-    throw new Error('finalizeStage: io.exec is required');
-  }
-  assertValidSha(baseSha);
-  const files = changedFiles(io.exec, baseSha).filter(f => !isToolManaged(f));
-  let allowedPatterns;
+function getAllowedPatterns(stageBase, cycleDef, artefactTypes) {
   if (stageBase === 'forge') {
-    allowedPatterns = artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [];
-  } else if (stageBase === 'assay') {
-    allowedPatterns = ['foundry-memory/**'];
-  } else {
-    allowedPatterns = [];
+    return artefactTypes[cycleDef.outputArtefactType]?.filePatterns ?? [];
   }
+  if (stageBase === 'assay') {
+    return ['foundry-memory/**'];
+  }
+  return [];
+}
+
+function classifyFiles(files, allowedPatterns) {
   const unexpected = [];
   const matched = [];
   for (const f of files) {
@@ -49,10 +46,20 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
     if (hit) matched.push(f);
     else unexpected.push(f);
   }
+  return { matched, unexpected };
+}
+
+export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, registerArtefact, io }) {
+  if (!io?.exec) {
+    throw new Error('finalizeStage: io.exec is required');
+  }
+  assertValidSha(baseSha);
+  const files = changedFiles(io.exec, baseSha).filter(f => !isToolManaged(f));
+  const allowedPatterns = getAllowedPatterns(stageBase, cycleDef, artefactTypes);
+  const { matched, unexpected } = classifyFiles(files, allowedPatterns);
   if (unexpected.length) return { ok: false, error: 'unexpected_files', files: unexpected };
   const sortedFiles = sortPaths(matched);
-  // For non-forge stages, matched files are tool-managed side effects (e.g.
-  // assay's memory writes) that should not become artefacts.
+  // For non-forge stages, matched files are tool-managed side effects (e.g. assay's memory writes) that should not become artefacts.
   if (stageBase !== 'forge') return { ok: true, artefacts: [], changedFiles: sortedFiles };
   const artefacts = sortedFiles.map(file => {
     registerArtefact({ file, type: cycleDef.outputArtefactType, status: 'draft' });
