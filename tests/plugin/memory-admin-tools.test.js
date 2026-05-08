@@ -54,19 +54,31 @@ function populateMemoryTree(root, { edges = true } = {}) {
   writeFileSync(join(root, 'foundry-memory/relations/class.ndjson'), '');
 }
 
-function setupWorktree({ withMemory = true, edges = true, branch = 'config/test' } = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'plug-mem-adm-'));
-  initRepoAt(root);
-  if (!withMemory) {
-    if (branch && branch !== 'main') {
-      execSync(`git checkout -q -b ${branch}`, { cwd: root, env: GIT_ENV });
-    }
-    return root;
-  }
-  populateMemoryTree(root, { edges });
+function maybeCheckoutBranch(root, branch) {
   if (branch && branch !== 'main') {
     execSync(`git checkout -q -b ${branch}`, { cwd: root, env: GIT_ENV });
   }
+}
+
+function resolveSetupOpts(opts) {
+  const result = { withMemory: true, edges: true, branch: 'config/test' };
+  if (!opts) return result;
+  if (opts.withMemory !== undefined) result.withMemory = opts.withMemory;
+  if (opts.edges !== undefined) result.edges = opts.edges;
+  if (opts.branch !== undefined) result.branch = opts.branch;
+  return result;
+}
+
+function setupWorktree(opts) {
+  const { withMemory, edges, branch } = resolveSetupOpts(opts);
+  const root = mkdtempSync(join(tmpdir(), 'plug-mem-adm-'));
+  initRepoAt(root);
+  if (!withMemory) {
+    maybeCheckoutBranch(root, branch);
+    return root;
+  }
+  populateMemoryTree(root, { edges });
+  maybeCheckoutBranch(root, branch);
   return root;
 }
 
