@@ -6,9 +6,14 @@ import yaml from 'js-yaml';
 function mockIO(initial = null) {
   // Accept legacy single-arg form: a string or null means one file at 'h.yaml'.
   // Accept object form: { path: content, ... }.
-  const files = initial === null
-    ? {}
-    : (typeof initial === 'string' ? { 'h.yaml': initial } : { ...initial });
+  let files;
+  if (initial === null) {
+    files = {};
+  } else if (typeof initial === 'string') {
+    files = { 'h.yaml': initial };
+  } else {
+    files = { ...initial };
+  }
   return {
     exists: (p) => Object.hasOwn(files, p),
     readFile: (p) => {
