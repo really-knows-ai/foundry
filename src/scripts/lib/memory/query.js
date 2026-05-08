@@ -17,7 +17,7 @@ const ALLOWED_SYSTEM_OPS = new Set([
   '::show_triggers',
 ]);
 
-export async function runQuery(store, query) {
+function validateQuery(query) {
   if (typeof query !== 'string') throw new Error('query must be a string');
   if (WRITE_ASSERTIONS.test(query)) {
     throw new Error('query is read-only; write assertions (:put, :rm, :create, etc.) are not permitted');
@@ -28,13 +28,9 @@ export async function runQuery(store, query) {
       throw new Error(`query is read-only; system op ${op} is not permitted (allowed: ${[...ALLOWED_SYSTEM_OPS].sort().join(', ')})`);
     }
   }
-  let res;
-  try {
-    res = await store.db.run(query);
-  } catch (err) {
-    const msg = err?.display ?? err?.message ?? String(err);
-    throw new Error(`query error: ${msg}`, { cause: err });
-  }
+}
+
+function formatResult(res) {
   const headers = res.headers ?? [];
   const rows = (res.rows ?? []).map((row) => {
     const obj = {};
@@ -42,4 +38,19 @@ export async function runQuery(store, query) {
     return obj;
   });
   return { headers, rows };
+}
+
+function errorMessage(err) {
+  return err?.display ?? err?.message ?? String(err);
+}
+
+export async function runQuery(store, query) {
+  validateQuery(query);
+  let res;
+  try {
+    res = await store.db.run(query);
+  } catch (err) {
+    throw new Error(`query error: ${errorMessage(err)}`, { cause: err });
+  }
+  return formatResult(res);
 }
