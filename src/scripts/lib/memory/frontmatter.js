@@ -1,6 +1,36 @@
 import yaml from 'js-yaml';
 
 /**
+ * Safely parse a YAML string, rethrowing with a filename-prefixed message
+ * on failure so errors are actionable.
+ *
+ * @param {string} yamlStr
+ * @param {string} filename
+ * @returns {unknown}
+ */
+function safeYamlLoad(yamlStr, filename) {
+  try {
+    return yaml.load(yamlStr);
+  } catch (err) {
+    const msg = err?.message ?? String(err);
+    throw new Error(`${filename}: malformed YAML frontmatter: ${msg}`, { cause: err });
+  }
+}
+
+/**
+ * Normalise a parsed YAML value into a frontmatter object.
+ *
+ * @param {unknown} parsed
+ * @returns {object}
+ */
+function normaliseFrontmatter(parsed) {
+  if (parsed && typeof parsed === 'object') {
+    return /** @type {object} */ (parsed);
+  }
+  return {};
+}
+
+/**
  * Parse a markdown document with YAML frontmatter.
  *
  * Accepts both LF and CRLF line endings (so files saved on Windows parse the
@@ -21,16 +51,12 @@ import yaml from 'js-yaml';
  */
 export function parseFrontmatter(text, { filename = '<unknown>' } = {}) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!m) return { frontmatter: {}, body: text, hasFrontmatter: false };
-  let parsed;
-  try {
-    parsed = yaml.load(m[1]);
-  } catch (err) {
-    const msg = err?.message ?? String(err);
-    throw new Error(`${filename}: malformed YAML frontmatter: ${msg}`, { cause: err });
+  if (!m) {
+    return { frontmatter: {}, body: text, hasFrontmatter: false };
   }
+  const parsed = safeYamlLoad(m[1], filename);
   return {
-    frontmatter: parsed && typeof parsed === 'object' ? parsed : {},
+    frontmatter: normaliseFrontmatter(parsed),
     body: m[2] ?? '',
     hasFrontmatter: true,
   };
