@@ -5,17 +5,20 @@ export function emptySchema() {
   return { version: 1, entities: {}, edges: {}, embeddings: null };
 }
 
-export async function loadSchema(foundryDir, io) {
-  const p = memoryPaths(foundryDir);
-  if (!(await io.exists(p.schema))) return emptySchema();
-  const text = await io.readFile(p.schema);
-  const parsed = JSON.parse(text);
+function applyDefaults(parsed) {
   return {
     version: parsed.version ?? 1,
     entities: parsed.entities ?? {},
     edges: parsed.edges ?? {},
     embeddings: parsed.embeddings ?? null,
   };
+}
+
+export async function loadSchema(foundryDir, io) {
+  const p = memoryPaths(foundryDir);
+  if (!(await io.exists(p.schema))) return emptySchema();
+  const text = await io.readFile(p.schema);
+  return applyDefaults(JSON.parse(text));
 }
 
 function normaliseForWrite(schema) {
