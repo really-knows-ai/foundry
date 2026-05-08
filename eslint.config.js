@@ -243,6 +243,14 @@ export default [
     },
   },
 
+  // Attestation tools: requires OS command execution via PATH
+  {
+    files: ['src/plugin/tools/attestation-tools.js'],
+    rules: {
+      'sonarjs/no-os-command-from-path': 'off',
+    },
+  },
+
   // Ignore build output and dependencies
   {
     ignores: ['dist/', 'node_modules/', '.foundry/', '.snapshots/', '.worktrees/'],
