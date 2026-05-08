@@ -1,5 +1,10 @@
 import { join } from 'node:path';
-import { parseFrontmatter } from '../workfile.js';
+import {
+  tryParseFrontmatter,
+  requireNonEmptyString,
+  validateIdMatch,
+  validateStringArrayEntries,
+} from './helpers.js';
 
 const VALID_INPUT_TYPES = new Set(['any-of', 'all-of']);
 
@@ -13,70 +18,114 @@ const VALID_INPUT_TYPES = new Set(['any-of', 'all-of']);
  * @returns {Promise<{ok: true} | {ok: false, errors: string[]}>}
  */
 export async function validate({ name, body, io }) {
-  const errors = [];
-  if (!/^---\n[\s\S]*?\n---/.test(body)) {
-    errors.push('frontmatter is missing or unparseable');
-    return { ok: false, errors };
-  }
-  let fm;
-  try {
-    fm = parseFrontmatter(body);
-  } catch (err) {
-    return { ok: false, errors: [`frontmatter is unparseable: ${err.message}`] };
-  }
+  const parsed = tryParseFrontmatter(body);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  const fm = parsed.fm;
 
-  if (typeof fm.id !== 'string' || !fm.id.trim())
-    errors.push('frontmatter.id is required and must be a non-empty string');
-  if (fm.id && fm.id !== name)
-    errors.push(`frontmatter.id (${fm.id}) must match the supplied name (${name})`);
-  if (typeof fm.name !== 'string' || !fm.name.trim())
-    errors.push('frontmatter.name is required and must be a non-empty string');
-
-  if (typeof fm['output-type'] !== 'string' || !fm['output-type'].trim()) {
-    errors.push('frontmatter.output-type is required and must be a non-empty string');
-  } else {
-    const filePath = join('foundry', 'artefacts', fm['output-type'], 'definition.md');
-    if (!(await io.exists(filePath)))
-      errors.push(`output-type references artefact type "${fm['output-type']}" but ${filePath} does not exist`);
-  }
-
-  if (fm.inputs !== undefined) {
-    if (typeof fm.inputs !== 'object' || fm.inputs === null || Array.isArray(fm.inputs)) {
-      errors.push('frontmatter.inputs, when present, must be an object with type and artefacts');
-    } else {
-      if (!VALID_INPUT_TYPES.has(fm.inputs.type))
-        errors.push('frontmatter.inputs.type must be one of: any-of, all-of');
-      if (!Array.isArray(fm.inputs.artefacts) || fm.inputs.artefacts.length === 0) {
-        errors.push('frontmatter.inputs.artefacts must be a non-empty array of artefact-type ids');
-      } else {
-        for (const id of fm.inputs.artefacts) {
-          if (typeof id !== 'string' || !id.trim()) {
-            errors.push('every frontmatter.inputs.artefacts entry must be a non-empty string');
-            continue;
-          }
-          const filePath = join('foundry', 'artefacts', id, 'definition.md');
-          if (!(await io.exists(filePath)))
-            errors.push(`inputs.artefacts references artefact type "${id}" but ${filePath} does not exist`);
-        }
-      }
-    }
-  }
-
-  if (fm.targets !== undefined) {
-    if (!Array.isArray(fm.targets)) {
-      errors.push('frontmatter.targets, when present, must be an array of cycle ids');
-    } else {
-      for (const id of fm.targets) {
-        if (typeof id !== 'string' || !id.trim()) {
-          errors.push('every frontmatter.targets entry must be a non-empty string');
-          continue;
-        }
-        const filePath = join('foundry', 'cycles', `${id}.md`);
-        if (!(await io.exists(filePath)))
-          errors.push(`targets references cycle "${id}" but ${filePath} does not exist`);
-      }
-    }
-  }
+  const errors = [
+    requireNonEmptyString(fm.id, 'frontmatter.id'),
+    validateIdMatch(fm, name),
+    requireNonEmptyString(fm.name, 'frontmatter.name'),
+    await checkOutputType(fm, io),
+    ...await checkInputs(fm, io),
+    ...await checkTargets(fm, io),
+  ].filter(Boolean);
 
   return errors.length ? { ok: false, errors } : { ok: true };
+}
+
+async function checkOutputType(fm, io) {
+  const outputType = fm['output-type'];
+  const strErr = requireNonEmptyString(outputType, 'frontmatter.output-type');
+  if (strErr) return strErr;
+  const filePath = join('foundry', 'artefacts', outputType, 'definition.md');
+  if (!(await io.exists(filePath))) {
+    return `output-type references artefact type "${outputType}" but ${filePath} does not exist`;
+  }
+  return null;
+}
+
+async function checkInputs(fm, io) {
+  const inputs = fm.inputs;
+  if (inputs === undefined) return [];
+
+  const shapeErrors = checkInputsShape(inputs);
+  if (shapeErrors.length) return shapeErrors;
+
+  const typeErrors = checkInputType(inputs);
+  const artefactErrors = await checkInputArtefacts(inputs, io);
+  return [...typeErrors, ...artefactErrors];
+}
+
+function checkInputsShape(inputs) {
+  const errors = [];
+  const isInvalidShape = typeof inputs !== 'object' || inputs === null || Array.isArray(inputs);
+  if (isInvalidShape) {
+    errors.push('frontmatter.inputs, when present, must be an object with type and artefacts');
+  }
+  return errors;
+}
+
+function checkInputType(inputs) {
+  const errors = [];
+  if (!VALID_INPUT_TYPES.has(inputs.type)) {
+    errors.push('frontmatter.inputs.type must be one of: any-of, all-of');
+  }
+  return errors;
+}
+
+async function checkInputArtefacts(inputs, io) {
+  const artefacts = inputs.artefacts;
+  const noArtefacts = !Array.isArray(artefacts) || artefacts.length === 0;
+  if (noArtefacts) {
+    return ['frontmatter.inputs.artefacts must be a non-empty array of artefact-type ids'];
+  }
+
+  const entryErr = validateStringArrayEntries(artefacts, 'frontmatter.inputs.artefacts');
+  const refErrors = await validateArtefactRefs(artefacts, io);
+  return entryErr ? [entryErr, ...refErrors] : refErrors;
+}
+
+async function validateArtefactRefs(artefacts, io) {
+  const errors = [];
+  for (const id of artefacts) {
+    const isValidId = typeof id === 'string' && id.trim();
+    if (!isValidId) continue;
+    const refErr = await validateArtefactRef(id, io, 'inputs.artefacts');
+    if (refErr) errors.push(refErr);
+  }
+  return errors;
+}
+
+async function validateArtefactRef(id, io, label) {
+  const filePath = join('foundry', 'artefacts', id, 'definition.md');
+  if (!(await io.exists(filePath))) {
+    return `${label} references artefact type "${id}" but ${filePath} does not exist`;
+  }
+  return null;
+}
+
+async function checkTargets(fm, io) {
+  const targets = fm.targets;
+  if (targets === undefined) return [];
+
+  if (!Array.isArray(targets)) {
+    return ['frontmatter.targets, when present, must be an array of cycle ids'];
+  }
+
+  const entryErr = validateStringArrayEntries(targets, 'frontmatter.targets');
+  const refErrors = await validateCycleRefs(targets, io);
+  return entryErr ? [entryErr, ...refErrors] : refErrors;
+}
+
+async function validateCycleRefs(targets, io) {
+  const errors = [];
+  for (const id of targets) {
+    if (typeof id !== 'string' || !id.trim()) continue;
+    const filePath = join('foundry', 'cycles', `${id}.md`);
+    if (!(await io.exists(filePath))) {
+      errors.push(`targets references cycle "${id}" but ${filePath} does not exist`);
+    }
+  }
+  return errors;
 }

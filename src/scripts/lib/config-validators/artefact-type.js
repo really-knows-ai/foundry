@@ -1,4 +1,10 @@
-import { parseFrontmatter } from '../workfile.js';
+import {
+  tryParseFrontmatter,
+  requireNonEmptyString,
+  validateNameMatch,
+  requireHeading,
+  validateStringArrayEntries,
+} from './helpers.js';
 
 /**
  * Validate an artefact-type definition body.
@@ -9,30 +15,25 @@ import { parseFrontmatter } from '../workfile.js';
  * @returns {Promise<{ok: true} | {ok: false, errors: string[]}>}
  */
 export async function validate({ name, body }) {
-  const errors = [];
-  if (!/^---\n[\s\S]*?\n---/.test(body)) {
-    errors.push('frontmatter is missing or unparseable');
-    return { ok: false, errors };
-  }
-  let fm;
-  try {
-    fm = parseFrontmatter(body);
-  } catch (err) {
-    errors.push(`frontmatter is unparseable: ${err.message}`);
-    return { ok: false, errors };
-  }
-  if (typeof fm.name !== 'string' || !fm.name.trim())
-    errors.push('frontmatter.name is required and must be a non-empty string');
-  if (fm.name && fm.name !== name)
-    errors.push(`frontmatter.name (${fm.name}) must match the supplied name (${name})`);
-  if (typeof fm['output-type'] !== 'string' || !fm['output-type'].trim())
-    errors.push('frontmatter.output-type is required and must be a non-empty string');
-  if (!Array.isArray(fm['file-patterns']) || fm['file-patterns'].length === 0)
-    errors.push('frontmatter.file-patterns is required and must be a non-empty array of glob strings');
-  if (Array.isArray(fm['file-patterns']) &&
-      fm['file-patterns'].some((p) => typeof p !== 'string' || !p.trim()))
-    errors.push('every frontmatter.file-patterns entry must be a non-empty string');
-  if (!/^##\s+Definition\s*$/m.test(body))
-    errors.push('body must contain a "## Definition" section');
+  const parsed = tryParseFrontmatter(body);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  const fm = parsed.fm;
+
+  const errors = [
+    requireNonEmptyString(fm.name, 'frontmatter.name'),
+    validateNameMatch(fm, name),
+    requireNonEmptyString(fm['output-type'], 'frontmatter.output-type'),
+    checkFilePatterns(fm),
+    requireHeading(body, 'Definition'),
+  ].filter(Boolean);
+
   return errors.length ? { ok: false, errors } : { ok: true };
+}
+
+function checkFilePatterns(fm) {
+  const patterns = fm['file-patterns'];
+  if (!Array.isArray(patterns) || patterns.length === 0) {
+    return 'frontmatter.file-patterns is required and must be a non-empty array of glob strings';
+  }
+  return validateStringArrayEntries(patterns, 'frontmatter.file-patterns');
 }

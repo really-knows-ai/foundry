@@ -1,5 +1,11 @@
 import { join } from 'node:path';
-import { parseFrontmatter } from '../workfile.js';
+import {
+  tryParseFrontmatter,
+  requireNonEmptyString,
+  validateIdMatch,
+  requireHeading,
+  validateStringArrayEntries,
+} from './helpers.js';
 
 /**
  * Validate a flow definition body.
@@ -11,41 +17,41 @@ import { parseFrontmatter } from '../workfile.js';
  * @returns {Promise<{ok: true} | {ok: false, errors: string[]}>}
  */
 export async function validate({ name, body, io }) {
-  const errors = [];
-  if (!/^---\n[\s\S]*?\n---/.test(body)) {
-    errors.push('frontmatter is missing or unparseable');
-    return { ok: false, errors };
-  }
-  let fm;
-  try {
-    fm = parseFrontmatter(body);
-  } catch (err) {
-    return { ok: false, errors: [`frontmatter is unparseable: ${err.message}`] };
-  }
+  const parsed = tryParseFrontmatter(body);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  const fm = parsed.fm;
 
-  if (typeof fm.id !== 'string' || !fm.id.trim())
-    errors.push('frontmatter.id is required and must be a non-empty string');
-  if (fm.id && fm.id !== name)
-    errors.push(`frontmatter.id (${fm.id}) must match the supplied name (${name})`);
-  if (typeof fm.name !== 'string' || !fm.name.trim())
-    errors.push('frontmatter.name is required and must be a non-empty string');
-
-  const starting = fm['starting-cycles'];
-  if (!Array.isArray(starting) || starting.length === 0) {
-    errors.push('frontmatter.starting-cycles is required and must be a non-empty array of cycle ids');
-  } else {
-    if (starting.some((c) => typeof c !== 'string' || !c.trim()))
-      errors.push('every frontmatter.starting-cycles entry must be a non-empty string');
-    for (const cycleId of starting) {
-      if (typeof cycleId !== 'string' || !cycleId.trim()) continue;
-      const path = join('foundry', 'cycles', `${cycleId}.md`);
-      if (!(await io.exists(path)))
-        errors.push(`starting-cycles references cycle "${cycleId}" but ${path} does not exist`);
-    }
-  }
-
-  if (!/^##\s+Cycles\s*$/m.test(body))
-    errors.push('body must contain a "## Cycles" section');
+  const errors = [
+    requireNonEmptyString(fm.id, 'frontmatter.id'),
+    validateIdMatch(fm, name),
+    requireNonEmptyString(fm.name, 'frontmatter.name'),
+    await checkStartingCycles(fm, io),
+    requireHeading(body, 'Cycles'),
+  ].filter(Boolean);
 
   return errors.length ? { ok: false, errors } : { ok: true };
+}
+
+async function checkStartingCycles(fm, io) {
+  const starting = fm['starting-cycles'];
+  const isEmpty = !Array.isArray(starting) || starting.length === 0;
+  if (isEmpty) {
+    return 'frontmatter.starting-cycles is required and must be a non-empty array of cycle ids';
+  }
+
+  const entryErr = validateStringArrayEntries(starting, 'frontmatter.starting-cycles');
+  if (entryErr) return entryErr;
+
+  return await checkCycleRefsExist(starting, io, 'starting-cycles');
+}
+
+async function checkCycleRefsExist(ids, io, label) {
+  for (const id of ids) {
+    if (typeof id !== 'string' || !id.trim()) continue;
+    const filePath = join('foundry', 'cycles', `${id}.md`);
+    if (!(await io.exists(filePath))) {
+      return `${label} references cycle "${id}" but ${filePath} does not exist`;
+    }
+  }
+  return null;
 }
