@@ -176,32 +176,29 @@ describe('Concurrency and race conditions (G1)', () => {
   it('concurrent commits via commitWithPolicy handle rejection consistently', async () => {
     // Test that concurrent commits to the same worktree are handled safely
     let commitCount = 0;
+
+    function doCommit() {
+      commitCount++;
+      if (commitCount === 1) {
+        return '[main abc123] commit message';
+      }
+      throw new Error('nothing to commit, working tree clean');
+    }
+
+    function getStatusResult() {
+      return commitCount === 0 ? 'M  file.txt\x00' : '';
+    }
+
     const mockExecCommit = (args) => {
-      if (args.includes('status') && args.includes('-z')) {
-        // Return porcelain-z format (NUL-separated)
-        if (commitCount === 0) {
-          return 'M  file.txt\x00'; // Modified file
-        }
-        return ''; // Clean on subsequent calls
-      }
       if (args.includes('commit')) {
-        commitCount++;
-        if (commitCount === 1) {
-          return '[main abc123] commit message';
-        }
-        // Second commit has nothing to commit
-        throw new Error('nothing to commit, working tree clean');
+        return doCommit();
       }
-      if (args.includes('reset')) {
-        return '';
+
+      if (args.includes('status') && args.includes('-z')) {
+        return getStatusResult();
       }
-      if (args.includes('add')) {
-        return '';
-      }
-      if (args.includes('rev-parse')) {
-        return 'abc123\n';
-      }
-      return '';
+
+      return args.includes('rev-parse') ? 'abc123\n' : '';
     };
     
     // Run multiple concurrent commits
