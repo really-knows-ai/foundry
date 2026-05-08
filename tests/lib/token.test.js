@@ -16,7 +16,7 @@ describe('token.js', () => {
   it('rejects tampered payload', () => {
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n1', exp: Date.now() + 60_000 };
     const t = signToken(payload, SECRET);
-    const [p, s] = t.split('.');
+    const [, s] = t.split('.');
     const tampered = Buffer.from(JSON.stringify({ ...payload, route: 'forge:other' })).toString('base64url') + '.' + s;
     assert.equal(verifyToken(tampered, SECRET).ok, false);
     assert.equal(verifyToken(tampered, SECRET).reason, 'bad_signature');

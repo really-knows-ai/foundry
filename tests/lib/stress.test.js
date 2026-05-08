@@ -86,7 +86,12 @@ describe('Stress tests (G2)', () => {
     for (let i = 0; i < 3000; i++) {
       feedback.push({
         id: i,
-        type: i % 3 === 0 ? 'error' : i % 3 === 1 ? 'warning' : 'info',
+        type: (() => {
+          const mod = i % 3;
+          if (mod === 0) return 'error';
+          if (mod === 1) return 'warning';
+          return 'info';
+        })(),
         message: `This is feedback message number ${i} with some additional context about what went wrong or right.`,
         location: `file_${i % 100}.js:${i % 500}`,
       });
