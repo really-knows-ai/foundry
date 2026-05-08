@@ -225,6 +225,7 @@ export default [
       'no-template-curly-in-string': 'off',     // test fixtures contain bash/template-like syntax
       'no-empty-function': 'off',
       'no-loop-func': 'off',
+      'require-atomic-updates': 'off',        // false positives for save/restore globals in finally blocks
     },
   },
 
