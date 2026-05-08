@@ -4,19 +4,19 @@ export const MAX_VALUE_BYTES = 4096;
 // query literals, and appear in error messages. Reject newline, CR, tab, and
 // NUL so round-trips stay lossless and users can't craft names that would
 // split across lines in the relation files.
-const CONTROL_CHARS = /[\u0000\n\r\t]/;
-
-function byteLen(s) {
-  return Buffer.byteLength(s, 'utf8');
-}
+const FORBIDDEN_CHARS = /[\n\r\t]/;
 
 function assertValidName(label, v) {
   if (typeof v !== 'string' || v.length === 0) {
     throw new Error(`${label} must be a non-empty string`);
   }
-  if (CONTROL_CHARS.test(v)) {
+  if (FORBIDDEN_CHARS.test(v) || v.includes('\0')) {
     throw new Error(`${label} must not contain newline, carriage return, tab, or NUL`);
   }
+}
+
+function byteLen(s) {
+  return Buffer.byteLength(s, 'utf8');
 }
 
 export function validateEntityWrite({ type, name, value }, vocabulary) {
@@ -35,27 +35,24 @@ export function validateEntityWrite({ type, name, value }, vocabulary) {
   }
 }
 
+function checkEdgeRole(entities, allowed, actualType, label, edgeType) {
+  if (allowed !== 'any') {
+    if (!entities[actualType]) {
+      throw new Error(`edge ${label} type '${actualType}' is not a declared entity type`);
+    }
+    if (!allowed.includes(actualType)) {
+      throw new Error(`edge '${edgeType}' does not permit ${label} type '${actualType}' (allowed: ${allowed.join(', ')})`);
+    }
+  }
+}
+
 export function validateEdgeWrite({ edge_type, from_type, from_name, to_type, to_name }, vocabulary) {
   const edge = vocabulary.edges[edge_type];
   if (!edge) {
     throw new Error(`edge type '${edge_type}' is not declared`);
   }
-  if (edge.sources !== 'any') {
-    if (!vocabulary.entities[from_type]) {
-      throw new Error(`edge source type '${from_type}' is not a declared entity type`);
-    }
-    if (!edge.sources.includes(from_type)) {
-      throw new Error(`edge '${edge_type}' does not permit source type '${from_type}' (allowed: ${edge.sources.join(', ')})`);
-    }
-  }
-  if (edge.targets !== 'any') {
-    if (!vocabulary.entities[to_type]) {
-      throw new Error(`edge target type '${to_type}' is not a declared entity type`);
-    }
-    if (!edge.targets.includes(to_type)) {
-      throw new Error(`edge '${edge_type}' does not permit target type '${to_type}' (allowed: ${edge.targets.join(', ')})`);
-    }
-  }
+  checkEdgeRole(vocabulary.entities, edge.sources, from_type, 'source', edge_type);
+  checkEdgeRole(vocabulary.entities, edge.targets, to_type, 'target', edge_type);
   assertValidName('from_name', from_name);
   assertValidName('to_name', to_name);
 }

@@ -21,6 +21,18 @@ function validateEntity(filename, parsed) {
   }
 }
 
+function isNonEmptyStringArray(v) {
+  return Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'string' && s);
+}
+
+function validateEdgeField(filename, key, value) {
+  if (value === undefined) throw new Error(`edge type ${filename}: missing frontmatter '${key}'`);
+  if (value === 'any') return;
+  if (!isNonEmptyStringArray(value)) {
+    throw new Error(`edge type ${filename}: '${key}' must be 'any' or a non-empty list of strings`);
+  }
+}
+
 function validateEdge(filename, parsed) {
   const stem = basename(filename, extname(filename));
   const fm = parsed.frontmatter;
@@ -30,14 +42,8 @@ function validateEdge(filename, parsed) {
   if (fm.type !== stem) {
     throw new Error(`edge type ${filename}: frontmatter type '${fm.type}' does not match filename stem '${stem}'`);
   }
-  for (const key of ['sources', 'targets']) {
-    const v = fm[key];
-    if (v === undefined) throw new Error(`edge type ${filename}: missing frontmatter '${key}'`);
-    if (v === 'any') continue;
-    if (!Array.isArray(v) || v.length === 0 || !v.every((s) => typeof s === 'string' && s)) {
-      throw new Error(`edge type ${filename}: '${key}' must be 'any' or a non-empty list of strings`);
-    }
-  }
+  validateEdgeField(filename, 'sources', fm.sources);
+  validateEdgeField(filename, 'targets', fm.targets);
   if (!parsed.body) {
     throw new Error(`edge type ${filename}: empty body is not allowed`);
   }
