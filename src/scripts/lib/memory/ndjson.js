@@ -1,14 +1,25 @@
-function assertFiniteNumbers(value, path) {
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error(`NDJSON: non-finite number at ${path}`);
-    return;
+function assertFiniteNumber(value, path) {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw new Error(`NDJSON: non-finite number at ${path}`);
   }
+}
+
+function assertFiniteArray(value, path) {
+  value.forEach((v, i) => assertFiniteNumbers(v, `${path}[${i}]`));
+}
+
+function assertFiniteObject(value, path) {
+  for (const [k, v] of Object.entries(value)) assertFiniteNumbers(v, `${path}.${k}`);
+}
+
+function assertFiniteNumbers(value, path) {
+  assertFiniteNumber(value, path);
   if (Array.isArray(value)) {
-    value.forEach((v, i) => assertFiniteNumbers(v, `${path}[${i}]`));
+    assertFiniteArray(value, path);
     return;
   }
   if (value && typeof value === 'object') {
-    for (const [k, v] of Object.entries(value)) assertFiniteNumbers(v, `${path}.${k}`);
+    assertFiniteObject(value, path);
   }
 }
 
@@ -63,7 +74,7 @@ function parseLines(text) {
     try {
       out.push(JSON.parse(line));
     } catch (err) {
-      throw new Error(`NDJSON: invalid JSON at line ${i + 1}: ${err.message}`);
+      throw new Error(`NDJSON: invalid JSON at line ${i + 1}: ${err.message}`, { cause: err });
     }
   }
   return out;
