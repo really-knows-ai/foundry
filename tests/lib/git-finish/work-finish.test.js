@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { finishWorkBranchWithArchive } from '../../../src/scripts/lib/git-finish/work-finish.js';
 import { sha256Buffer } from '../../../src/scripts/lib/attestation/hash.js';
 
-// Compute a real diff SHA so tests can construct matching readAttest
 const FAKE_DIFF = Buffer.from('fake diff');
 const FAKE_DIFF_SHA = sha256Buffer(FAKE_DIFF);
 
@@ -11,23 +10,64 @@ function makeValidAttest(sha = FAKE_DIFF_SHA) {
   return `Write a haiku\n\ndiff-sha256: ${sha}\n\n-----BEGIN FOUNDRY ATTESTATION-----\n{}\n-----END FOUNDRY ATTESTATION-----\n`;
 }
 
-function makeExecGit(overrides = {}) {
+function makeGitError(argv) {
+  const err = new Error(`${argv[0]} failed`);
+  err.stderr = `error: ${argv[0]} failed`;
+  return err;
+}
+
+function matchPrefixCmd(first, second, sha) {
+  if (first === 'rev-parse' && second?.startsWith('work/')) return sha;
+  if (first === 'diff') return FAKE_DIFF;
+  return '';
+}
+
+function buildResponses(options) {
+  const { shortHash, workSha, logLine, overrides: extraResponses } = options;
+  const sha = workSha || 'abc1234567890123456789012345678901234567\n';
+  const short = shortHash || 'abc1234\n';
+  const log = logLine || 'abc1234 [forge] attest: cycle complete\n';
+
+  return {
+    sha,
+    map: {
+      'rev-parse --short HEAD': short,
+      'log --oneline -1': log,
+      'merge-base': 'basesha\n',
+      ...extraResponses,
+    },
+  };
+}
+
+function makeSuccessExecGit(options = {}) {
+  const { sha, map } = buildResponses(options);
+
   return (argv) => {
     const cmd = argv.join(' ');
-    if (overrides[cmd] !== undefined) return overrides[cmd];
-    if (cmd.startsWith('rev-parse work/')) return 'abc1234567890123456789012345678901234567\n';
-    if (cmd === 'rev-parse --short HEAD') return 'abc1234\n';
-    if (cmd.startsWith('log --oneline -1')) return 'abc1234 [forge] attest: cycle complete\n';
-    if (cmd.startsWith('merge-base')) return 'basesha\n';
-    if (cmd.startsWith('diff')) return FAKE_DIFF;
-    if (cmd.startsWith('branch archive/')) return '';
-    if (cmd.startsWith('checkout')) return '';
-    if (cmd.startsWith('merge --squash')) return '';
-    if (cmd.startsWith('commit')) return '';
-    if (cmd.startsWith('branch -D')) return '';
-    if (cmd.startsWith('reset')) return '';
-    return '';
+    if (map[cmd] !== undefined) return map[cmd];
+    return matchPrefixCmd(argv[0], argv[1], sha);
   };
+}
+
+function makeFailingExecGit(failWhen, options = {}) {
+  const { sha, map } = buildResponses(options);
+
+  return (argv) => {
+    const cmd = argv.join(' ');
+    if (failWhen(argv)) throw makeGitError(argv);
+    if (map[cmd] !== undefined) return map[cmd];
+    return matchPrefixCmd(argv[0], argv[1], sha);
+  };
+}
+
+function withCallTracking(execGit) {
+  const calls = [];
+  const tracked = (argv) => {
+    calls.push(argv);
+    return execGit(argv);
+  };
+  tracked.calls = calls;
+  return tracked;
 }
 
 function baseArgs(overrides = {}) {
@@ -35,7 +75,7 @@ function baseArgs(overrides = {}) {
     branchName: 'work/test',
     baseBranch: 'main',
     confirm: true,
-    execGit: makeExecGit(),
+    execGit: makeSuccessExecGit(),
     fileExists: (p) => p.endsWith('ATTEST.md'),
     readAttest: () => makeValidAttest(),
     deleteFile: () => {},
@@ -57,8 +97,8 @@ test('finishWorkBranchWithArchive returns ok:false when ATTEST.md does not exist
 
 test('finishWorkBranchWithArchive returns ok:false when HEAD commit is not the ATTEST commit', async () => {
   const result = await finishWorkBranchWithArchive(baseArgs({
-    execGit: makeExecGit({
-      'log --oneline -1': 'abc1234 regular commit, not attest\n',
+    execGit: makeSuccessExecGit({
+      overrides: { 'log --oneline -1': 'abc1234 regular commit, not attest\n' },
     }),
   }));
   assert.equal(result.ok, false);
@@ -88,22 +128,11 @@ test('finishWorkBranchWithArchive rejects when confirm !== true', async () => {
 // --- Happy path test ---
 
 test('finishWorkBranchWithArchive executes expected git sequence and returns correct shape', async () => {
-  const calls = [];
-  const res = await finishWorkBranchWithArchive(baseArgs({
-    execGit(argv) {
-      calls.push(argv);
-      if (argv[0] === 'rev-parse' && argv[1]?.startsWith('work/')) {
-        return 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n';
-      }
-      if (argv[0] === 'rev-parse' && argv[1] === '--short') {
-        return 'deadbee\n';
-      }
-      if (argv[0] === 'log') return 'deadbee [forge] attest: cycle complete\n';
-      if (argv[0] === 'merge-base') return 'basesha\n';
-      if (argv[0] === 'diff') return FAKE_DIFF;
-      return '';
-    },
+  const execGit = withCallTracking(makeSuccessExecGit({
+    shortHash: 'deadbee\n',
+    workSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n',
   }));
+  const res = await finishWorkBranchWithArchive(baseArgs({ execGit }));
 
   // Verify return shape
   assert.equal(res.ok, true);
@@ -113,6 +142,7 @@ test('finishWorkBranchWithArchive executes expected git sequence and returns cor
   assert.equal(res.hash, 'deadbee');
 
   // Verify git call sequence
+  const calls = execGit.calls;
   const branchArchiveIdx = calls.findIndex(c => c[0] === 'branch' && c[1]?.startsWith('archive/'));
   const checkoutIdx = calls.findIndex(c => c[0] === 'checkout' && c[1] === 'main');
   const mergeIdx = calls.findIndex(c => c[0] === 'merge' && c[1] === '--squash');
@@ -133,21 +163,10 @@ test('finishWorkBranchWithArchive executes expected git sequence and returns cor
 });
 
 test('finishWorkBranchWithArchive invokes signed commit with -S flag', async () => {
-  const calls = [];
-  await finishWorkBranchWithArchive(baseArgs({
-    execGit(argv) {
-      calls.push(argv);
-      if (argv[0] === 'rev-parse' && argv[1]?.startsWith('work/')) {
-        return 'abc1234567890123456789012345678901234567\n';
-      }
-      if (argv[0] === 'log') return 'abc1234 [forge] attest: cycle complete\n';
-      if (argv[0] === 'merge-base') return 'basesha\n';
-      if (argv[0] === 'diff') return FAKE_DIFF;
-      return '';
-    },
-  }));
+  const execGit = withCallTracking(makeSuccessExecGit());
+  await finishWorkBranchWithArchive(baseArgs({ execGit }));
 
-  const commitCall = calls.find(argv => argv[0] === 'commit');
+  const commitCall = execGit.calls.find(argv => argv[0] === 'commit');
   assert.ok(commitCall, 'Should have a commit call');
   assert.ok(commitCall.includes('-S'), 'Commit should include -S flag for signing');
 });
@@ -155,30 +174,17 @@ test('finishWorkBranchWithArchive invokes signed commit with -S flag', async () 
 // --- Failure tests ---
 
 test('finishWorkBranchWithArchive restores branch on squash-merge failure', async () => {
-  const calls = [];
+  const execGit = withCallTracking(makeFailingExecGit(
+    (argv) => argv[0] === 'merge' && argv[1] === '--squash',
+  ));
 
-  const result = await finishWorkBranchWithArchive(baseArgs({
-    execGit(argv) {
-      calls.push(argv);
-      if (argv[0] === 'rev-parse' && argv[1]?.startsWith('work/')) {
-        return 'abc1234567890123456789012345678901234567\n';
-      }
-      if (argv[0] === 'log') return 'abc1234 [forge] attest: cycle complete\n';
-      if (argv[0] === 'merge-base') return 'basesha\n';
-      if (argv[0] === 'diff') return FAKE_DIFF;
-      if (argv[0] === 'merge' && argv[1] === '--squash') {
-        const err = new Error('merge conflict');
-        err.stderr = 'CONFLICT: Merge conflict in file.txt';
-        throw err;
-      }
-      return '';
-    },
-  }));
+  const result = await finishWorkBranchWithArchive(baseArgs({ execGit }));
 
   assert.equal(result.ok, false, 'Should fail on merge conflict');
   assert.match(result.error, /squash merge failed/, 'Should report squash merge failure');
 
   // Verify rollback occurred
+  const calls = execGit.calls;
   const resetIdx = calls.findIndex(argv => argv[0] === 'reset' && argv[1] === '--merge');
   const checkoutBackIdx = calls.findIndex(argv => argv[0] === 'checkout' && argv[1] === 'work/test');
 
@@ -187,30 +193,17 @@ test('finishWorkBranchWithArchive restores branch on squash-merge failure', asyn
 });
 
 test('finishWorkBranchWithArchive restores state on commit failure', async () => {
-  const calls = [];
+  const execGit = withCallTracking(makeFailingExecGit(
+    (argv) => argv[0] === 'commit' && argv.includes('-S'),
+  ));
 
-  const result = await finishWorkBranchWithArchive(baseArgs({
-    execGit(argv) {
-      calls.push(argv);
-      if (argv[0] === 'rev-parse' && argv[1]?.startsWith('work/')) {
-        return 'abc1234567890123456789012345678901234567\n';
-      }
-      if (argv[0] === 'log') return 'abc1234 [forge] attest: cycle complete\n';
-      if (argv[0] === 'merge-base') return 'basesha\n';
-      if (argv[0] === 'diff') return FAKE_DIFF;
-      if (argv[0] === 'commit' && argv.includes('-S')) {
-        const err = new Error('GPG signing failed');
-        err.stderr = 'error: gpg failed to sign the data';
-        throw err;
-      }
-      return '';
-    },
-  }));
+  const result = await finishWorkBranchWithArchive(baseArgs({ execGit }));
 
   assert.equal(result.ok, false, 'Should fail on commit error');
   assert.match(result.error, /commit failed/, 'Should report commit failure');
 
   // Verify rollback occurred
+  const calls = execGit.calls;
   const resetIdx = calls.findIndex(argv => argv[0] === 'reset' && argv[1] === '--merge');
   const checkoutBackIdx = calls.findIndex(argv => argv[0] === 'checkout' && argv[1] === 'work/test');
 
@@ -219,29 +212,12 @@ test('finishWorkBranchWithArchive restores state on commit failure', async () =>
 });
 
 test('finishWorkBranchWithArchive returns success when branch deletion fails after commit succeeds', async () => {
-  const calls = [];
+  const execGit = makeFailingExecGit(
+    (argv) => argv[0] === 'branch' && argv[1] === '-D',
+    { shortHash: 'def5678\n' },
+  );
 
-  const result = await finishWorkBranchWithArchive(baseArgs({
-    execGit(argv) {
-      calls.push(argv);
-      if (argv[0] === 'rev-parse' && argv[1]?.startsWith('work/')) {
-        return 'abc1234567890123456789012345678901234567\n';
-      }
-      if (argv[0] === 'rev-parse' && argv[1] === '--short') {
-        return 'def5678\n';
-      }
-      if (argv[0] === 'log') return 'abc1234 [forge] attest: cycle complete\n';
-      if (argv[0] === 'merge-base') return 'basesha\n';
-      if (argv[0] === 'diff') return FAKE_DIFF;
-      if (argv[0] === 'branch' && argv[1] === '-D') {
-        // Simulate branch deletion failure (e.g., branch checked out elsewhere)
-        const err = new Error('branch deletion failed');
-        err.stderr = "error: Cannot delete branch 'work/test' checked out at '/other/worktree'";
-        throw err;
-      }
-      return '';
-    },
-  }));
+  const result = await finishWorkBranchWithArchive(baseArgs({ execGit }));
 
   // Critical: the signed commit succeeded, so ok should be true
   assert.equal(result.ok, true, 'Should report success when commit succeeded even if branch deletion fails');
@@ -274,21 +250,12 @@ test('finishWorkBranchWithArchive cleans up temp commit-message file on rollback
   const deletedFiles = [];
   const tempFile = '/tmp/git-dir/COMMIT_EDITMSG_1234567890';
 
+  const execGit = makeFailingExecGit(
+    (argv) => argv[0] === 'commit' && argv.includes('-S'),
+  );
+
   await finishWorkBranchWithArchive(baseArgs({
-    execGit(argv) {
-      if (argv[0] === 'rev-parse' && argv[1]?.startsWith('work/')) {
-        return 'abc1234567890123456789012345678901234567\n';
-      }
-      if (argv[0] === 'log') return 'abc1234 [forge] attest: cycle complete\n';
-      if (argv[0] === 'merge-base') return 'basesha\n';
-      if (argv[0] === 'diff') return FAKE_DIFF;
-      if (argv[0] === 'commit' && argv.includes('-S')) {
-        const err = new Error('GPG signing failed');
-        err.stderr = 'error: gpg failed to sign the data';
-        throw err;
-      }
-      return '';
-    },
+    execGit,
     writeTempMessage: () => tempFile,
     deleteFile: (filePath) => {
       deletedFiles.push(filePath);
