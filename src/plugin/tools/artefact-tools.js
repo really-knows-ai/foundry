@@ -7,6 +7,25 @@ import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './help
 
 const gateNotFailed = notFailedGuard(makeIO);
 
+function makeListTool(tool) {
+  return tool({
+    description: 'List artefacts from the WORK.md table. Optionally filter by cycle — callers should always pass the current cycle to avoid picking up stale rows from prior sessions.',
+    args: {
+      cycle: tool.schema.string().optional().describe('Only return rows whose Cycle column matches this value'),
+    },
+    async execute(args, context) {
+      const workPath = path.join(context.worktree, 'WORK.md');
+      if (!existsSync(workPath)) {
+        return JSON.stringify({ error: 'WORK.md not found' });
+      }
+      const text = readFileSync(workPath, 'utf-8');
+      const rows = parseArtefactsTable(text);
+      const filtered = args.cycle ? rows.filter(r => r.cycle === args.cycle) : rows;
+      return JSON.stringify(filtered);
+    },
+  });
+}
+
 export function createArtefactTools({ tool }) {
   return {
     // NOTE: `foundry_artefacts_add` was removed in v2.2.0. Artefacts are now
@@ -34,21 +53,6 @@ export function createArtefactTools({ tool }) {
       }, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
 
-    foundry_artefacts_list: tool({
-      description: 'List artefacts from the WORK.md table. Optionally filter by cycle — callers should always pass the current cycle to avoid picking up stale rows from prior sessions.',
-      args: {
-        cycle: tool.schema.string().optional().describe('Only return rows whose Cycle column matches this value'),
-      },
-      async execute(args, context) {
-        const workPath = path.join(context.worktree, 'WORK.md');
-        if (!existsSync(workPath)) {
-          return JSON.stringify({ error: 'WORK.md not found' });
-        }
-        const text = readFileSync(workPath, 'utf-8');
-        const rows = parseArtefactsTable(text);
-        const filtered = args.cycle ? rows.filter(r => r.cycle === args.cycle) : rows;
-        return JSON.stringify(filtered);
-      },
-    }),
+    foundry_artefacts_list: makeListTool(tool),
   };
 }
