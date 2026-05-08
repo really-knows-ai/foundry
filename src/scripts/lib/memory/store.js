@@ -53,10 +53,41 @@ async function exportEdgeRelation(db, type) {
   return res.rows.map(([ft, fn, tt, tn]) => ({ from_type: ft, from_name: fn, to_type: tt, to_name: tn }));
 }
 
-export async function openStore({ foundryDir, schema, io, dbAbsolutePath, cozo = cozoModule }) {
-  const p = memoryPaths(foundryDir);
+async function ensureDirs(p, io) {
   if (!(await io.exists(p.root))) await io.mkdir(p.root);
   if (!(await io.exists(p.relationsDir))) await io.mkdir(p.relationsDir);
+}
+
+async function setupEntityTypes(db, { schema, embeddingsDim, paths: p, io, cozo }) {
+  for (const type of Object.keys(schema.entities)) {
+    await cozo.createEntityRelation(db, type, embeddingsDim ? { dim: embeddingsDim } : {});
+    if (embeddingsDim) {
+      await cozo.createHnswIndex(db, entRelName(type), { dim: embeddingsDim });
+    }
+    const file = p.relationFile(type);
+    if (await io.exists(file)) {
+      const text = await io.readFile(file);
+      const rows = parseEntityRows(text);
+      await importRelation(db, entRelName(type), rows, 'entity');
+    }
+  }
+}
+
+async function setupEdgeTypes(db, { schema, paths: p, io, cozo }) {
+  for (const type of Object.keys(schema.edges)) {
+    await cozo.createEdgeRelation(db, type);
+    const file = p.relationFile(type);
+    if (await io.exists(file)) {
+      const text = await io.readFile(file);
+      const rows = parseEdgeRows(text);
+      await importRelation(db, edgeRelName(type), rows, 'edge');
+    }
+  }
+}
+
+export async function openStore({ foundryDir, schema, io, dbAbsolutePath, cozo = cozoModule }) {
+  const p = memoryPaths(foundryDir);
+  await ensureDirs(p, io);
 
   const db = cozo.openMemoryDb(dbAbsolutePath);
 
@@ -74,27 +105,8 @@ export async function openStore({ foundryDir, schema, io, dbAbsolutePath, cozo =
     await reconcileRelations(db, schema);
 
     const embeddingsDim = schema.embeddings && schema.embeddings.dimensions;
-    for (const type of Object.keys(schema.entities)) {
-      await cozo.createEntityRelation(db, type, embeddingsDim ? { dim: embeddingsDim } : {});
-      if (embeddingsDim) {
-        await cozo.createHnswIndex(db, entRelName(type), { dim: embeddingsDim });
-      }
-      const file = p.relationFile(type);
-      if (await io.exists(file)) {
-        const text = await io.readFile(file);
-        const rows = parseEntityRows(text);
-        await importRelation(db, entRelName(type), rows, 'entity');
-      }
-    }
-    for (const type of Object.keys(schema.edges)) {
-      await cozo.createEdgeRelation(db, type);
-      const file = p.relationFile(type);
-      if (await io.exists(file)) {
-        const text = await io.readFile(file);
-        const rows = parseEdgeRows(text);
-        await importRelation(db, edgeRelName(type), rows, 'edge');
-      }
-    }
+    await setupEntityTypes(db, { schema, embeddingsDim, paths: p, io, cozo });
+    await setupEdgeTypes(db, { schema, paths: p, io, cozo });
   } catch (err) {
     try {
       cozo.closeMemoryDb(db);
@@ -105,6 +117,15 @@ export async function openStore({ foundryDir, schema, io, dbAbsolutePath, cozo =
   }
 
   return { db, foundryDir, schema, paths: p };
+}
+
+async function dropUnexpectedRelation(db, rel, expected) {
+  if (!/^(ent|edge)_[^:]+$/.test(rel)) return;
+  if (expected.has(rel)) return;
+  if (rel.startsWith('ent_')) {
+    await dropHnswIndex(db, rel); // no-op if absent
+  }
+  await dropRelation(db, rel);
 }
 
 async function reconcileRelations(db, schema) {
@@ -119,16 +140,7 @@ async function reconcileRelations(db, schema) {
     return; // fresh db; ::relations may error before any :create.
   }
   for (const rel of existing) {
-    // Only touch top-level ent_/edge_ relations. ::relations also lists HNSW
-    // index entries (e.g. `ent_class:vec`) — those are dropped transitively
-    // when the base relation is removed, and `::hnsw drop foo:vec:vec` is a
-    // parse error.
-    if (!/^(ent|edge)_[^:]+$/.test(rel)) continue;
-    if (expected.has(rel)) continue;
-    if (rel.startsWith('ent_')) {
-      await dropHnswIndex(db, rel); // no-op if absent
-    }
-    await dropRelation(db, rel);
+    await dropUnexpectedRelation(db, rel, expected);
   }
 }
 
