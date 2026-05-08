@@ -35,6 +35,38 @@ const allSkillsDir = path.join(packageRoot, 'skills');
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
+function buildTools(createTool, pending) {
+  return {
+    ...createHistoryTools({ tool: createTool }),
+    ...createStageTools({ tool: createTool, pending }),
+    ...createWorkfileTools({ tool: createTool }),
+    ...createOrchestrateTool({ tool: createTool, pending }),
+    ...createArtefactTools({ tool: createTool }),
+    ...createFeedbackTools({ tool: createTool }),
+    ...createGitTools({ tool: createTool }),
+    ...createConfigTools({ tool: createTool }),
+    ...createConfigCreateTools({ tool: createTool }),
+    ...createValidateTools({ tool: createTool }),
+    ...createAssayTools({ tool: createTool }),
+    ...createAppraiserTools({ tool: createTool }),
+    ...createMemoryTools({ tool: createTool }),
+    ...createMemoryAdminTools({ tool: createTool }),
+    ...createSnapshotTools({ tool: createTool }),
+    ...createAttestationTools({ tool: createTool }),
+  };
+}
+
+function hasFoundryContext(parts) {
+  return parts.some(p => p.type === 'text' && p.text.includes('FOUNDRY_CONTEXT'));
+}
+
+function getFirstUserWithParts(output) {
+  if (!output.messages.length) return null;
+  const firstUser = output.messages.find(m => m.info.role === 'user');
+  if (!firstUser || !firstUser.parts.length) return null;
+  return firstUser;
+}
+
 export const FoundryPlugin = async ({ directory }) => {
   // Pending store is per-plugin-instance (shared across all tool invocations).
   const pending = createPendingStore();
@@ -52,35 +84,18 @@ export const FoundryPlugin = async ({ directory }) => {
 
     'experimental.chat.messages.transform': async (_input, output) => {
       const bootstrap = getBootstrapContent(directory, packageRoot);
-      if (!bootstrap || !output.messages.length) return;
+      if (!bootstrap) return;
 
-      const firstUser = output.messages.find(m => m.info.role === 'user');
-      if (!firstUser || !firstUser.parts.length) return;
+      const firstUser = getFirstUserWithParts(output);
+      if (!firstUser) return;
 
-      if (firstUser.parts.some(p => p.type === 'text' && p.text.includes('FOUNDRY_CONTEXT'))) return;
+      if (hasFoundryContext(firstUser.parts)) return;
 
       const ref = firstUser.parts[0];
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
     },
 
-    tool: {
-      ...createHistoryTools({ tool }),
-      ...createStageTools({ tool, pending }),
-      ...createWorkfileTools({ tool }),
-      ...createOrchestrateTool({ tool, pending }),
-      ...createArtefactTools({ tool }),
-      ...createFeedbackTools({ tool }),
-      ...createGitTools({ tool }),
-      ...createConfigTools({ tool }),
-      ...createConfigCreateTools({ tool }),
-      ...createValidateTools({ tool }),
-      ...createAssayTools({ tool }),
-      ...createAppraiserTools({ tool }),
-      ...createMemoryTools({ tool }),
-      ...createMemoryAdminTools({ tool }),
-      ...createSnapshotTools({ tool }),
-      ...createAttestationTools({ tool }),
-    },
+    tool: buildTools(tool, pending),
   };
 
   Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
