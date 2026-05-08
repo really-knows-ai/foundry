@@ -5,9 +5,13 @@ import { withLiveMemoryDb, createLiveEntityType } from './live-store.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
 
-export async function createEntityType({ worktreeRoot, io, name, body }) {
+function validateInputs(name, body) {
   if (!IDENT.test(name)) throw new Error(`invalid identifier: '${name}' (expected lowercase snake_case)`);
   if (typeof body !== 'string' || !body.trim()) throw new Error(`body must be a non-empty string`);
+}
+
+export async function createEntityType({ worktreeRoot, io, name, body }) {
+  validateInputs(name, body);
 
   // Use relative path 'foundry' since the IO abstraction joins with worktreeRoot.
   // worktreeRoot is used for invalidateStore() and withLiveMemoryDb() calls.
@@ -24,6 +28,7 @@ export async function createEntityType({ worktreeRoot, io, name, body }) {
   await io.writeFile(p.entityTypeFile(name), fileContent);
   await io.writeFile(p.relationFile(name), '');
 
+  // eslint-disable-next-line require-atomic-updates
   schema.entities[name] = { frontmatterHash: hashFrontmatter(frontmatter) };
   bumpVersion(schema);
   await writeSchema(foundryDir, schema, io);
