@@ -4,6 +4,12 @@ function asCozoVector(v) {
   return `vec([${v.map((n) => Number(n).toString()).join(', ')}])`;
 }
 
+function isIndexNotFoundError(err) {
+  if (!err) return false;
+  const msg = String(err.display || err.message || err);
+  return /index|not found|no such|does not exist|stored relation/i.test(msg);
+}
+
 async function searchOneType(db, type, queryVec, k) {
   const rel = entRelName(type);
   try {
@@ -11,11 +17,19 @@ async function searchOneType(db, type, queryVec, k) {
     const res = await db.run(q);
     return res.rows.map(([name, value, dist]) => ({ type, name, value, distance: dist }));
   } catch (err) {
-    // Relation may not exist, may have no HNSW index, or simply be empty.
-    const msg = String(err && (err.display || err.message || err));
-    if (/index|not found|no such|does not exist|stored relation/i.test(msg)) return [];
+    if (isIndexNotFoundError(err)) return [];
     throw err;
   }
+}
+
+function resolveTypes(typeFilter, schema) {
+  if (typeFilter && typeFilter.length > 0) return typeFilter;
+  return Object.keys(schema.entities);
+}
+
+function validateSearchParams(embedder, queryText) {
+  if (!embedder) throw new Error('search requires an embedder');
+  if (typeof queryText !== 'string' || !queryText) throw new Error('query_text required');
 }
 
 /**
@@ -40,12 +54,9 @@ async function searchOneType(db, type, queryVec, k) {
  * @returns {Promise<Array<{type: string, name: string, value: string, distance: number}>>}
  */
 export async function search({ store, query_text, k = 5, type_filter, embedder }) {
-  if (!embedder) throw new Error('search requires an embedder');
-  if (typeof query_text !== 'string' || !query_text) throw new Error('query_text required');
+  validateSearchParams(embedder, query_text);
 
-  const types = (type_filter && type_filter.length > 0)
-    ? type_filter
-    : Object.keys(store.schema.entities);
+  const types = resolveTypes(type_filter, store.schema);
   const [queryVec] = await embedder([query_text]);
 
   // K-amplification: fetch k from each type to ensure global top-k correctness.
