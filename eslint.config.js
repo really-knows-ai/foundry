@@ -259,6 +259,14 @@ export default [
     },
   },
 
+  // Orchestrate tool: requires OS command execution via PATH
+  {
+    files: ['src/plugin/tools/orchestrate-tool.js'],
+    rules: {
+      'sonarjs/no-os-command-from-path': 'off',
+    },
+  },
+
   // Git tools: requires OS command execution via PATH
   {
     files: ['src/plugin/tools/git-tools.js', 'src/plugin/tools/git-helpers.js'],

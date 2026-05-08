@@ -13,6 +13,93 @@ import { makeIO, makeExec, buildCyclePromptExtras } from './helpers.js';
 import { requireNotFailed } from '../../scripts/lib/failed-flow.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 
+function createMint(secret, pending) {
+  return ({ route, cycle, exp }) => {
+    const nonce = randomUUID();
+    const payload = { route, cycle, nonce, exp };
+    pending.add(nonce, payload);
+    return signToken(payload, secret);
+  };
+}
+
+function createGitBridge(cwd) {
+  const runGit = (argv) => execFileSync('git', argv, { cwd, encoding: 'utf8' });
+  return {
+    commit: (msg, opts = {}) => {
+      const sha = commitWithPolicy({
+        message: msg,
+        allowedPatterns: opts.allowedPatterns ?? [],
+        execFile: runGit,
+      });
+      return sha;
+    },
+    status: () => {
+      const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
+      return { clean: out === '', dirty: out.split('\n').filter(Boolean) };
+    },
+  };
+}
+
+function makeRegisterArtefact(cwd, cycleId) {
+  const workPath = path.join(cwd, 'WORK.md');
+  return ({ file, type, status }) => {
+    const text = readFileSync(workPath, 'utf-8');
+    const updated = addArtefactRow(text, { file, type, cycle: cycleId, status });
+    writeFileSync(workPath, updated, 'utf-8');
+  };
+}
+
+async function createFinalize(cwd, io) {
+  return async ({ cycleId, stage, baseSha }) => {
+    let cycleDoc;
+    try {
+      cycleDoc = await getCycleDefinition('foundry', cycleId, io);
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+    const outputType = cycleDoc.frontmatter['output-type'];
+    const cycleDef = { outputArtefactType: outputType };
+    const artefactTypes = {};
+    if (outputType) {
+      try {
+        const artDoc = await getArtefactType('foundry', outputType, io);
+        artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
+      } catch (e) {
+        return {
+          ok: false,
+          error: `missing_artefact_type: ${outputType} (${e.message})`,
+        };
+      }
+    }
+    const result = finalizeStage({
+      cwd,
+      baseSha,
+      stageBase: stageBaseOf(stage),
+      cycleDef,
+      artefactTypes,
+      io,
+      registerArtefact: makeRegisterArtefact(cwd, cycleId),
+    });
+    return result;
+  };
+}
+
+function getCycleId(result) {
+  if (result.cycle) return result.cycle;
+  if (typeof result.stage !== 'string') return null;
+  return result.stage.split(':')[1];
+}
+
+async function injectDispatchPromptExtras(result, cwd) {
+  if (!result) return;
+  if (result.action !== 'dispatch') return;
+  if (typeof result.prompt !== 'string') return;
+  const cycleId = getCycleId(result);
+  const extras = await buildCyclePromptExtras({ worktree: cwd, cycleId, stage: result.stage });
+  if (!extras) return;
+  result.prompt = `${result.prompt}\n\n${extras}`;
+}
+
 export function createOrchestrateTool({ tool, pending }) {
   return {
     foundry_orchestrate: tool({
@@ -24,11 +111,11 @@ export function createOrchestrateTool({ tool, pending }) {
         }).optional(),
         cycleDef: tool.schema.string().optional().describe('Test-mode cycle definition override (path to cycle file)'),
       },
+
       async execute(args, context) {
         const { runOrchestrate } = await import('../../scripts/orchestrate.js');
         const io = makeIO(context.worktree);
         const cwd = context.worktree;
-        // Load secret from the execution-time worktree, not boot-time directory.
         const secret = readOrCreateSecret(context.worktree);
 
         try {
@@ -50,91 +137,18 @@ export function createOrchestrateTool({ tool, pending }) {
           const failedGuard = requireNotFailed(io);
           if (!failedGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${failedGuard.error}` });
 
-          // Mint signed dispatch tokens for orchestrator routes.
-          const mint = ({ route, cycle, exp }) => {
-            const nonce = randomUUID();
-            const payload = { route, cycle, nonce, exp };
-            pending.add(nonce, payload);
-            return signToken(payload, secret);
-          };
-
-          // Git bridge: stage ONLY the files allowed for the current phase
-          // (tool-managed workfiles plus `allowedPatterns`) and commit. If the
-          // worktree contains anything else, throws UnexpectedFilesError so the
-          // orchestrator surfaces a `violation` action without committing.
-          const runGit = (argv) => execFileSync('git', argv, { cwd, encoding: 'utf8' });
-          const git = {
-            commit: (msg, opts = {}) => {
-              const sha = commitWithPolicy({
-                message: msg,
-                allowedPatterns: opts.allowedPatterns ?? [],
-                execFile: runGit,
-              });
-              return sha;
-            },
-            status: () => {
-                  const out = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
-              return { clean: out === '', dirty: out.split('\n').filter(Boolean) };
-            },
-          };
-
-          // Finalize bridge: load the cycle definition and finalise the stage.
-          const finalize = async ({ cycleId, stage, baseSha }) => {
-            let cycleDoc;
-            try {
-              cycleDoc = await getCycleDefinition('foundry', cycleId, io);
-            } catch (e) {
-              return { ok: false, error: e.message };
-            }
-            const outputType = cycleDoc.frontmatter['output-type'];
-            const cycleDef = { outputArtefactType: outputType };
-            const artefactTypes = {};
-            if (outputType) {
-              try {
-                const artDoc = await getArtefactType('foundry', outputType, io);
-                artefactTypes[outputType] = { filePatterns: artDoc.frontmatter['file-patterns'] || [] };
-              } catch (e) {
-                // Surface as a typed finalize error and avoid falling back to
-                // empty filePatterns. The fallback would let the forge-written
-                // artefact file resurface as a misleading `unexpected_files`
-                // violation, hiding the actual cause: a missing or malformed
-                // artefact-type definition.
-                return {
-                  ok: false,
-                  error: `missing_artefact_type: ${outputType} (${e.message})`,
-                };
-              }
-            }
-            const workPath = path.join(cwd, 'WORK.md');
-            const result = finalizeStage({
-              cwd,
-              baseSha,
-              stageBase: stageBaseOf(stage),
-              cycleDef,
-              artefactTypes,
-              io,
-              registerArtefact: ({ file, type, status }) => {
-                const text = readFileSync(workPath, 'utf-8');
-                const updated = addArtefactRow(text, { file, type, cycle: cycleId, status });
-                writeFileSync(workPath, updated, 'utf-8');
-              },
-            });
-            return result;
-          };
+          const mint = createMint(secret, pending);
+          const git = createGitBridge(cwd);
+          const finalize = await createFinalize(cwd, io);
 
           const result = await runOrchestrate({
             cwd, cycleDef: args.cycleDef, git, mint, finalize,
             now: () => Date.now(),
             lastResult: args.lastResult ?? null,
           }, io);
-          // Inject memory vocabulary block into dispatch prompt, if any.
-          if (result && result.action === 'dispatch' && typeof result.prompt === 'string') {
-            const cycleId = result.cycle ?? (typeof result.stage === 'string' ? result.stage.split(':')[1] : null);
-            const extras = await buildCyclePromptExtras({ worktree: cwd, cycleId, stage: result.stage });
-            if (extras) {
-              result.prompt = `${result.prompt}\n\n${extras}`;
-            }
-          }
+
+          await injectDispatchPromptExtras(result, cwd);
+
           return JSON.stringify(result);
         } catch (e) {
           return JSON.stringify({ action: 'violation', details: `orchestrate threw: ${e.message}`, recoverable: false, affected_files: [] });
