@@ -75,13 +75,17 @@ export async function dropRelation(db, relationName) {
   await db.run(`::remove ${relationName}`);
 }
 
+function isIgnorableError(err, patterns) {
+  const msg = String(err && (err.display || err.message || err));
+  return patterns.some((p) => p.test(msg));
+}
+
 export async function createHnswIndex(db, relationName, { dim, ef = 50, m = 16 } = {}) {
   if (!Number.isInteger(dim) || dim <= 0) throw new Error('createHnswIndex: dim must be positive integer');
   try {
     await db.run(`::hnsw create ${relationName}:vec { fields: [embedding], dim: ${dim}, ef: ${ef}, m: ${m} }`);
   } catch (err) {
-    const msg = String(err && (err.display || err.message || err));
-    if (/already exists|already created/i.test(msg)) return;
+    if (isIgnorableError(err, [/already exists/i, /already created/i])) return;
     throw err;
   }
 }
@@ -90,20 +94,16 @@ export async function dropHnswIndex(db, relationName) {
   try {
     await db.run(`::hnsw drop ${relationName}:vec`);
   } catch (err) {
-    const msg = String(err && (err.display || err.message || err));
-    if (/not found|does not exist|no such/i.test(msg)) return;
+    if (isIgnorableError(err, [/not found/i, /does not exist/i, /no such/i])) return;
     throw err;
   }
 }
 
 export async function checkpoint(db) {
-  // Cozo 0.7 sqlite backend exposes `::compact` for on-demand WAL flush/compaction.
-  // `::checkpoint` is not a recognised system op on this version (produces parser::pest).
   try {
     await db.run('::compact');
   } catch (err) {
-    const msg = String(err && (err.display || err.message || err));
-    if (!/unknown system op|parser::pest/i.test(msg)) throw err;
+    if (isIgnorableError(err, [/unknown system op/i, /parser::pest/i])) return;
   }
 }
 
