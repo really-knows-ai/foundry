@@ -1,15 +1,19 @@
+function filterValidTypes(types, vocabulary) {
+  const result = new Set();
+  for (const t of types ?? []) {
+    if (vocabulary.entities[t]) result.add(t);
+  }
+  return result;
+}
+
 export function resolvePermissions({ cycleFrontmatter, vocabulary }) {
   const mem = cycleFrontmatter?.memory;
-  const readTypes = new Set();
-  const writeTypes = new Set();
-
-  if (mem && typeof mem === 'object') {
-    for (const t of mem.read ?? []) if (vocabulary.entities[t]) readTypes.add(t);
-    for (const t of mem.write ?? []) if (vocabulary.entities[t]) writeTypes.add(t);
+  if (!mem || typeof mem !== 'object') {
+    return { enabled: false, readTypes: new Set(), writeTypes: new Set(), vocabulary };
   }
-
-  const enabled = readTypes.size > 0 || writeTypes.size > 0;
-  return { enabled, readTypes, writeTypes, vocabulary };
+  const readTypes = filterValidTypes(mem.read, vocabulary);
+  const writeTypes = filterValidTypes(mem.write, vocabulary);
+  return { enabled: readTypes.size > 0 || writeTypes.size > 0, readTypes, writeTypes, vocabulary };
 }
 
 function endpointInSet(endpointSpec, set) {
