@@ -33,6 +33,21 @@ function markFailedDefensive(io, msg) {
   try { markWorkfileFailed(io, msg); } catch { /* WORK.md gone; nothing to mark */ }
 }
 
+function entryTimestamp(entry) {
+  return entry.timestamp ? new Date(entry.timestamp).getTime() : 0;
+}
+
+function entrySeq(entry) {
+  return typeof entry.seq === 'number' ? entry.seq : 0;
+}
+
+function compareEntries(a, b) {
+  const ta = entryTimestamp(a);
+  const tb = entryTimestamp(b);
+  if (ta !== tb) return ta - tb;
+  return entrySeq(a) - entrySeq(b);
+}
+
 /**
  * Load history entries for a cycle, sorted by timestamp ascending.
  */
@@ -46,26 +61,45 @@ export function loadHistory(historyPath, cycle, io) {
     throw err;
   }
   const filtered = data.filter(e => e.cycle === cycle);
-  filtered.sort((a, b) => {
-    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    if (ta !== tb) return ta - tb;
-    const sa = typeof a.seq === 'number' ? a.seq : 0;
-    const sb = typeof b.seq === 'number' ? b.seq : 0;
-    return sa - sb;
-  });
+  filtered.sort(compareEntries);
   return filtered;
+}
+
+function requireIteration(value) {
+  if (value === undefined) throw new Error('iteration is required');
+  if (value === null) throw new Error('iteration is required');
+}
+
+function validateAppendArgs({ iteration, comment, route, stage }) {
+  requireIteration(iteration);
+  if (!comment) throw new Error('comment is required');
+  if (route !== undefined && stage !== 'sort') {
+    throw new Error(`route is only valid on stage='sort' entries; got stage='${stage}'`);
+  }
+}
+
+function buildEntry({ cycle, stage, iteration, comment, route, openFeedback, changedFiles }, seq) {
+  const entry = {
+    cycle,
+    stage,
+    iteration,
+    comment,
+    timestamp: new Date().toISOString(),
+    seq,
+    open_feedback: openFeedback ?? 0,
+  };
+  if (route !== undefined) entry.route = route;
+  if (changedFiles !== undefined) {
+    entry.changed_files = sortPaths(changedFiles);
+  }
+  return entry;
 }
 
 /**
  * Append a history entry with auto-generated ISO timestamp.
  */
-export function appendEntry(historyPath, { cycle, stage, iteration, comment, route, openFeedback, changedFiles }, io) {
-  if (iteration === undefined || iteration === null) throw new Error('iteration is required');
-  if (!comment) throw new Error('comment is required');
-  if (route !== undefined && stage !== 'sort') {
-    throw new Error(`route is only valid on stage='sort' entries; got stage='${stage}'`);
-  }
+export function appendEntry(historyPath, entryOpts, io) {
+  validateAppendArgs(entryOpts);
 
   let existing = [];
   if (io.exists(historyPath)) {
@@ -77,19 +111,7 @@ export function appendEntry(historyPath, { cycle, stage, iteration, comment, rou
     }
   }
 
-  const entry = {
-    cycle,
-    stage,
-    iteration,
-    comment,
-    timestamp: new Date().toISOString(),
-    seq: existing.length,
-    open_feedback: openFeedback ?? 0,
-  };
-  if (route !== undefined) entry.route = route;
-  if (changedFiles !== undefined) {
-    entry.changed_files = sortPaths(changedFiles);
-  }
+  const entry = buildEntry(entryOpts, existing.length);
   existing.push(entry);
 
   const body = yaml.dump(existing);
