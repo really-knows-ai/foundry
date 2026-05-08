@@ -9,16 +9,33 @@ function pathFor(args) {
   throw new Error(`unknown law target kind: ${args.target.kind}`);
 }
 
-function customValidation({ target }) {
+function validateGlobalTarget(target) {
+  if (typeof target.file !== 'string' || !target.file.trim()) {
+    return { ok: false, errors: ['target.file is required for kind: "global"'] };
+  }
+  return { ok: true };
+}
+
+function validateTypeSpecificTarget(target) {
+  if (typeof target.typeId !== 'string' || !target.typeId.trim()) {
+    return { ok: false, errors: ['target.typeId is required for kind: "type-specific"'] };
+  }
+  return { ok: true };
+}
+
+function validateTargetShape(target) {
   if (!target || typeof target !== 'object')
     return { ok: false, errors: ['target argument is required (object with kind + locator)'] };
   if (target.kind !== 'global' && target.kind !== 'type-specific')
     return { ok: false, errors: [`unknown target.kind: ${target.kind}`] };
-  if (target.kind === 'global' && (typeof target.file !== 'string' || !target.file.trim()))
-    return { ok: false, errors: ['target.file is required for kind: "global"'] };
-  if (target.kind === 'type-specific' && (typeof target.typeId !== 'string' || !target.typeId.trim()))
-    return { ok: false, errors: ['target.typeId is required for kind: "type-specific"'] };
-  return { ok: true };
+  return null;
+}
+
+function customValidation({ target }) {
+  const shapeError = validateTargetShape(target);
+  if (shapeError) return shapeError;
+  if (target.kind === 'global') return validateGlobalTarget(target);
+  return validateTypeSpecificTarget(target);
 }
 
 export const create = makeCreator({

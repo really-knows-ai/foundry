@@ -2,23 +2,30 @@ export const CONFIG_RE   = /^config\/[^/]+$/;
 const WORK_RE     = /^work\/.+$/;
 export const DRY_RUN_RE  = /^dry-run\/[^/]+\/[^/]+$/;
 
-export function currentBranch(io) {
-  // `git rev-parse --abbrev-ref HEAD` exits non-zero on a fresh repo with
-  // no commits (unborn branch) and on a non-repo directory. Fall back to
-  // `git symbolic-ref --short HEAD` which still resolves the unborn
-  // branch's name; if that also fails (truly detached or non-repo), treat
-   // as "no current branch" so the guard returns a structured refusal
-   // envelope rather than throwing.
-  let out;
+function tryRevParse(io) {
   try {
-    out = io.exec(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).trim();
+    const out = io.exec(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).trim();
     if (out && out !== 'HEAD') return out;
   } catch { /* fall through to symbolic-ref */ }
+  return null;
+}
+
+function trySymbolicRef(io) {
   try {
     const sym = io.exec(['git', 'symbolic-ref', '--short', 'HEAD']).trim();
     if (sym) return sym;
   } catch { /* truly detached or not a repo */ }
   return null;
+}
+
+export function currentBranch(io) {
+  // `git rev-parse --abbrev-ref HEAD` exits non-zero on a fresh repo with
+  // no commits (unborn branch) and on a non-repo directory. Fall back to
+  // `git symbolic-ref --short HEAD` which still resolves the unborn
+  // branch's name; if that also fails (truly detached or non-repo), treat
+  // as "no current branch" so the guard returns a structured refusal
+  // envelope rather than throwing.
+  return tryRevParse(io) || trySymbolicRef(io) || null;
 }
 
 function describe(branch) {
