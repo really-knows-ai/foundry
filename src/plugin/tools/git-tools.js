@@ -1,278 +1,145 @@
-import path from 'path';
 import { execFileSync } from 'child_process';
-import { existsSync, unlinkSync, writeFileSync, readFileSync } from 'fs';
-import { slugify } from '../../scripts/lib/slug.js';
-import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
-import { currentBranch, CONFIG_RE, DRY_RUN_RE } from '../../scripts/lib/branch-guard.js';
-import { finishDryRun } from '../../scripts/lib/snapshot/finish.js';
-import { truncateTrace } from '../../scripts/lib/tracing.js';
+import {
+  validateKindArgs,
+  validateStartingBranch,
+  buildBranchName,
+  classifyBranch,
+  finishWorkBranch,
+  finishConfigBranch,
+  finishDryRunBranch,
+  KIND_DRY_RUN,
+  KINDS,
+} from './git-helpers.js';
 import { makeIO, makeExec, asyncIoFactory } from './helpers.js';
-import { finishWorkBranchWithArchive } from '../../scripts/lib/git-finish/work-finish.js';
-
-const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];
-
-const KIND_CONFIG  = 'config';
-const KIND_WORK    = 'work';
-const KIND_DRY_RUN = 'dry-run';
-const KINDS = [KIND_CONFIG, KIND_WORK, KIND_DRY_RUN];
-
-const WORK_RE           = /^work\/.+$/;
-const DRY_RUN_DEEPER_RE = /^dry-run\/[^/]+\/[^/]+\/.+$/;
+import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
+import { currentBranch } from '../../scripts/lib/branch-guard.js';
+import { truncateTrace } from '../../scripts/lib/tracing.js';
 
 function refuse(error) { return JSON.stringify({ error }); }
 
-function validateKindArgs(kind, args) {
-  if (kind === KIND_CONFIG) {
-    if (args.flowId !== undefined && args.flowId !== null && args.flowId !== '')
-      return `flowId is not valid for kind="config"; supply only { kind, description }.`;
-    if (!args.description)
-      return `description is required for kind="config".`;
-    return null;
-  }
-  if (kind === KIND_WORK || kind === KIND_DRY_RUN) {
-    if (!args.flowId)
-      return `flowId is required for kind="${kind}".`;
-    if (!args.description)
-      return `description is required for kind="${kind}".`;
-    return null;
-  }
-  return `unknown kind "${kind}"; expected one of: ${KINDS.join(', ')}.`;
-}
+// -- foundry_git_branch helpers --
 
-function validateStartingBranch(kind, branch) {
-  // Already on a dry-run branch — never permit a new branch of any kind.
-  // DRY_RUN_DEEPER_RE is defensive: foundry_git_branch creates only dry-run/<parent>/<desc>,
-  // but this guard also rejects manually-created deeper nesting (e.g. dry-run/x/y/z).
-  if (branch && (DRY_RUN_RE.test(branch) || DRY_RUN_DEEPER_RE.test(branch))) {
-    return `cannot nest deeper than one dry-run level; you are on '${branch}'.`;
-  }
-  if (kind === KIND_CONFIG) {
-    if (branch && CONFIG_RE.test(branch))
-      return `already on a config/* branch ('${branch}'); edit here directly or finish first.`;
-    if (branch && WORK_RE.test(branch))
-      return `cannot start a config branch from a work branch ('${branch}'); finish or abandon it first.`;
-    return null;
-  }
-  if (kind === KIND_WORK) {
-    if (branch && CONFIG_RE.test(branch))
-      return `cannot start a work branch from a config branch ('${branch}'); ` +
-             `use kind="dry-run" to dry-run the in-progress config, or finish config first.`;
-    if (branch && WORK_RE.test(branch))
-      return `already on a work branch ('${branch}'); finish or abandon it first.`;
-    return null;
-  }
-  if (kind === KIND_DRY_RUN) {
-    if (!branch || !CONFIG_RE.test(branch))
-      return `kind="dry-run" requires a config/<description> branch as starting point; ` +
-             `currently on ${branch ? "'" + branch + "'" : 'detached HEAD'}.`;
-    return null;
-  }
+function validateBranchCreationArgs(args) {
+  if (!args.kind)
+    return 'foundry_git_branch: kind is required (one of: config, work, dry-run)';
+  if (!KINDS.includes(args.kind))
+    return `foundry_git_branch: unknown kind "${args.kind}" ` +
+           `(expected one of: ${KINDS.join(', ')})`;
+  const argErr = validateKindArgs(args.kind, args);
+  if (argErr) return `foundry_git_branch: ${argErr}`;
   return null;
 }
 
-function buildBranchName(kind, args, parentBranch) {
-  const descSlug = slugify(args.description);
-  if (!descSlug) return { error: 'description slug is empty after normalisation.' };
-  if (kind === KIND_CONFIG) return { name: `config/${descSlug}` };
-  const flowSlug = slugify(args.flowId);
-  if (!flowSlug) return { error: 'flowId slug is empty after normalisation.' };
-  if (kind === KIND_WORK)
-    return { name: `work/${flowSlug}-${descSlug}` };
-  if (kind === KIND_DRY_RUN) {
-    // parentBranch is config/<x>; encode the parent's <x> into a flat
-    // dry-run/<x>/<flow>-<desc> sibling namespace.
-    const parentSlug = parentBranch.replace(/^config\//, '');
-    return { name: `dry-run/${parentSlug}/${flowSlug}-${descSlug}` };
-  }
-  return { error: 'internal: unhandled kind' };
+function refuseBranchCreate(branchName, err) {
+  if (!err) return refuse(`foundry_git_branch: failed to create branch '${branchName}'.`);
+  const text = err.stderr || err.stdout;
+  if (!text) return refuse(`foundry_git_branch: failed to create branch '${branchName}'.`);
+  return refuse(`foundry_git_branch: failed to create branch '${branchName}'. ${String(text).trim()}`);
 }
 
-function classifyBranch(branch) {
-  if (!branch) return 'detached';
-  if (DRY_RUN_RE.test(branch)) return 'dry-run';
-  if (CONFIG_RE.test(branch)) return 'config';
-  if (WORK_RE.test(branch)) return 'work';
-  return 'other';
-}
-
-function dirtyTrackedFiles(cwd) {
-  const out = execFileSync('git',
-    ['status', '--porcelain', '--untracked-files=no'],
-    { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
-  return out ? out.split('\n').map((l) => l.slice(3)) : [];
-}
-
-function finishBranchCommon({ branchName, branchType, base, cwd, args, shouldDeleteWorkFiles }) {
-  const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
-
-  // Compute planned side effects.
-  const filesToDelete = shouldDeleteWorkFiles
-    ? WORK_FILES.filter((f) => existsSync(path.join(cwd, f)))
-    : [];
-  
-  const action = shouldDeleteWorkFiles
-    ? 'delete-work-files, commit-cleanup, checkout-base, squash-merge, commit, delete-work-branch'
-    : `checkout-base, squash-merge, commit, delete-${branchType}-branch`;
-
-  const planned = {
-    workBranch: branchName,
-    baseBranch: base,
-    filesToDelete,
-    action,
-    commitMessage: args.message,
-  };
-
-  if (args.confirm !== true) {
-    return JSON.stringify({
-      ok: false,
-      error: 'foundry_git_finish requires {confirm: true} to perform destructive operations. Re-invoke with confirm:true to apply the plan.',
-      planned,
-    });
-  }
-
-  const dirty = dirtyTrackedFiles(cwd);
-  if (dirty.length) {
-    return JSON.stringify({
-      ok: false,
-      error: 'foundry_git_finish refuses to run on a dirty worktree (uncommitted changes to tracked files). Commit or stash them first.',
-      dirty,
-    });
-  }
-
-  // Delete work files if requested
-  if (shouldDeleteWorkFiles) {
-    for (const f of filesToDelete) {
-      const p = path.join(cwd, f);
-      if (existsSync(p)) unlinkSync(p);
-    }
-
-    // Commit cleanup if there are changes
-    try {
-      execFileSync('git', ['add', '-A'], opts);
-      const status = execFileSync('git', ['status', '--porcelain'], opts).trim();
-      if (status) {
-        const cleanupMsg = `[${branchName.replace('work/', '')}] cleanup: remove work files`;
-        execFileSync('git', ['commit', '-m', cleanupMsg], opts);
-      }
-    } catch { /* no changes to commit */ }
-  }
-
-  // Switch to base and squash merge. Abort on conflict.
-  execFileSync('git', ['checkout', base], opts);
+async function tryCreateBranch(name, cwd) {
   try {
-    execFileSync('git', ['merge', '--squash', branchName], opts);
+    execFileSync('git', ['checkout', '-b', name],
+      { cwd, encoding: 'utf8', stdio: 'pipe' });
+    return null;
   } catch (err) {
-    try { execFileSync('git', ['reset', '--hard', 'HEAD'], opts); } catch { /* best-effort */ }
-    try { execFileSync('git', ['checkout', branchName], opts); } catch { /* best-effort */ }
-    const stderr = (err && (err.stderr || err.stdout)) ? String(err.stderr || err.stdout).trim() : '';
-    return JSON.stringify({
-      ok: false,
-      error: `foundry_git_finish: squash merge failed (likely a conflict). ${branchType === 'work' ? 'Work' : 'Config'} branch '${branchName}' preserved.${stderr ? ' ' + stderr : ''}`,
-    });
+    return refuseBranchCreate(name, err);
   }
-
-  execFileSync('git', ['commit', '--no-gpg-sign', '-m', args.message], opts);
-  const hash = execFileSync('git', ['rev-parse', '--short', 'HEAD'], opts).trim();
-  execFileSync('git', ['branch', '-D', branchName], opts);
-
-  return JSON.stringify({ ok: true, hash, branch: base });
 }
 
-async function finishWorkBranch({ workBranch, base, cwd, args }) {
-  const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
-
-  if (args.confirm !== true) {
-    return JSON.stringify({
-      ok: false,
-      error: 'foundry_git_finish requires {confirm: true}.',
-      planned: { workBranch, baseBranch: base,
-        action: 'verify-attest, checkout-base, squash-merge, signed-commit' },
-    });
-  }
-
-  const dirty = dirtyTrackedFiles(cwd);
-  if (dirty.length) {
-    return JSON.stringify({ ok: false, error: 'foundry_git_finish: dirty tracked files.', dirty });
-  }
-
-  const execGit = (argv) => {
-    if (argv[0] === 'diff') {
-      return execFileSync('git', argv, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
-    }
-    return execFileSync('git', argv, opts);
-  };
-
-  const writeTempMessage = (content) => {
-    const gitDir = execFileSync('git', ['rev-parse', '--git-dir'], opts).trim();
-    const gitDirAbsolute = path.isAbsolute(gitDir) ? gitDir : path.join(cwd, gitDir);
-    const tmpPath = path.join(gitDirAbsolute, `COMMIT_EDITMSG_${Date.now()}`);
-    writeFileSync(tmpPath, content, 'utf8');
-    return tmpPath;
-  };
-
+async function tryTruncateTrace(branch, worktree) {
   try {
-    const result = await finishWorkBranchWithArchive({
-      branchName: workBranch,
-      baseBranch: base,
-      confirm: args.confirm,
-      execGit,
-      fileExists: (p) => existsSync(p),
-      readAttest: (p) => readFileSync(p, 'utf8'),
-      deleteFile: (p) => { if (existsSync(p)) unlinkSync(p); },
-      writeTempMessage,
-      cwd,
+    await truncateTrace({
+      branch,
+      io: asyncIoFactory({ worktree }),
     });
-    return JSON.stringify(result);
-    } catch (err) {
-    const stderr = (err && (err.stderr || err.stdout)) ? String(err.stderr || err.stdout).trim() : '';
-    return JSON.stringify({
-      ok: false,
-      error: `foundry_git_finish: attested work finish failed. ${stderr || (err.message ?? String(err))}`,
-    });
-  }
+  } catch { /* swallow */ }
 }
 
-function finishConfigBranch({ configBranch, base, cwd, args }) {
-  return finishBranchCommon({
-    branchName: configBranch,
-    branchType: 'config',
-    base,
-    cwd,
-    args,
-    shouldDeleteWorkFiles: false,
+async function createAndFinaliseBranch(kind, built, worktree) {
+  const createErr = await tryCreateBranch(built.name, worktree);
+  if (createErr) return createErr;
+  if (kind === KIND_DRY_RUN)
+    await tryTruncateTrace(built.name, worktree);
+  return JSON.stringify({ ok: true, branch: built.name });
+}
+
+async function executeGitBranch(args, context) {
+  const io = makeIO(context.worktree);
+  const stageGuard = requireNoActiveStage(io);
+  if (!stageGuard.ok)
+    return refuse(`foundry_git_branch ${stageGuard.error}`);
+
+  const validationErr = validateBranchCreationArgs(args);
+  if (validationErr) return refuse(validationErr);
+
+  const branch = currentBranch({ exec: makeExec(context.worktree) });
+  const startErr = validateStartingBranch(args.kind, branch);
+  if (startErr) return refuse(`foundry_git_branch: ${startErr}`);
+
+  const built = buildBranchName(args.kind, args, branch);
+  if (built.error) return refuse(`foundry_git_branch: ${built.error}`);
+
+  return createAndFinaliseBranch(args.kind, built, context.worktree);
+}
+
+// -- foundry_git_finish helpers --
+
+function refuseBaseBranchForDryRun() {
+  return refuse(
+    'foundry_git_finish: baseBranch is not valid for a dry-run ' +
+    'finish; the parent config branch is determined by the dry-run ' +
+    'branch name.');
+}
+
+function makeNoopResult(base) {
+  return JSON.stringify({
+    ok: true,
+    noop: true,
+    message: `Already on ${base} — nothing to merge`,
+    branch: base,
   });
 }
 
-async function finishDryRunBranch({ branch, args, cwd }) {
-  const io = asyncIoFactory({ worktree: cwd });
-  const exec = (argv) => execFileSync('git', argv,
-    { cwd, encoding: 'utf8', stdio: 'pipe' });
-
-  // Confirm gate (matches work/* and config/* preview semantics).
-  if (args.confirm !== true) {
-    return JSON.stringify({
-      ok: false,
-      error: 'foundry_git_finish requires {confirm: true} to perform destructive operations. Re-invoke with confirm:true to apply the plan.',
-      planned: {
-        branch,
-        action: 'snapshot + discard (dry-run finish)',
-        snapshotPath: '.snapshots/<runId> (computed at apply time)',
-      },
-    });
-  }
-
-  try {
-    const out = await finishDryRun({
-      message: args.message, branch, io, execFile: exec,
-    });
-    return JSON.stringify(out);
-  } catch (err) {
-    return JSON.stringify({
-      ok: false,
-      error: `foundry_git_finish: dry-run finish failed: ${err.message ?? String(err)}`,
-    });
-  }
+function refuseUnknownFinishBranch(branch) {
+  return refuse(
+    `foundry_git_finish: nothing to finish on '${branch || 'detached HEAD'}' ` +
+    `(expected work/<x>, config/<x>, or dry-run/<x>/<y>).`);
 }
+
+function routeDryRunFinish(branch, args, cwd) {
+  if (args.baseBranch !== undefined)
+    return refuseBaseBranchForDryRun();
+  return finishDryRunBranch({ branch, args, cwd });
+}
+
+function routeBranchFinish(kind, branch, base, cwd, args) {
+  if (kind === 'work')
+    return finishWorkBranch({ workBranch: branch, base, cwd, args });
+  if (kind === 'config')
+    return finishConfigBranch({ configBranch: branch, base, cwd, args });
+  return refuseUnknownFinishBranch(branch);
+}
+
+async function executeGitFinish(args, context) {
+  const io = makeIO(context.worktree);
+  const stageGuard = requireNoActiveStage(io);
+  if (!stageGuard.ok)
+    return refuse(`foundry_git_finish ${stageGuard.error}`);
+
+  const cwd = context.worktree;
+  const branch = currentBranch({ exec: makeExec(cwd) });
+  const kind = classifyBranch(branch);
+
+  if (kind === 'dry-run')
+    return routeDryRunFinish(branch, args, cwd);
+
+  const base = args.baseBranch || 'main';
+  if (branch === base) return makeNoopResult(base);
+  return routeBranchFinish(kind, branch, base, cwd, args);
+}
+
+// -- Tool definitions --
 
 export function createGitTools({ tool }) {
   return {
@@ -289,49 +156,7 @@ export function createGitTools({ tool }) {
           .describe('Slugified description suffix.'),
       },
       async execute(args, context) {
-        const io = makeIO(context.worktree);
-        const stageGuard = requireNoActiveStage(io);
-        if (!stageGuard.ok)
-          return refuse(`foundry_git_branch ${stageGuard.error}`);
-
-        if (!args.kind)
-          return refuse('foundry_git_branch: kind is required (one of: config, work, dry-run)');
-        if (!KINDS.includes(args.kind))
-          return refuse(`foundry_git_branch: unknown kind "${args.kind}" ` +
-                        `(expected one of: ${KINDS.join(', ')})`);
-
-        const argErr = validateKindArgs(args.kind, args);
-        if (argErr) return refuse(`foundry_git_branch: ${argErr}`);
-
-        const branch = currentBranch({ exec: makeExec(context.worktree) });
-        const startErr = validateStartingBranch(args.kind, branch);
-        if (startErr) return refuse(`foundry_git_branch: ${startErr}`);
-
-        const built = buildBranchName(args.kind, args, branch);
-        if (built.error) return refuse(`foundry_git_branch: ${built.error}`);
-
-        try {
-                  execFileSync('git', ['checkout', '-b', built.name],
-            { cwd: context.worktree, encoding: 'utf8', stdio: 'pipe' });
-        } catch (err) {
-          const stderr = (err && (err.stderr || err.stdout))
-            ? String(err.stderr || err.stdout).trim() : '';
-          return refuse(`foundry_git_branch: failed to create branch ` +
-                        `'${built.name}'.${stderr ? ' ' + stderr : ''}`);
-        }
-
-        // Truncate any stale trace file when entering a dry-run branch.
-        // Must never break branch creation.
-        if (args.kind === KIND_DRY_RUN) {
-          try {
-            await truncateTrace({
-              branch: built.name,
-              io: asyncIoFactory({ worktree: context.worktree }),
-            });
-          } catch { /* swallow */ }
-        }
-
-        return JSON.stringify({ ok: true, branch: built.name });
+        return executeGitBranch(args, context);
       },
     }),
 
@@ -349,51 +174,7 @@ export function createGitTools({ tool }) {
           .describe('Must be true to perform destructive operations; otherwise returns a plan'),
       },
       async execute(args, context) {
-        const io = makeIO(context.worktree);
-        const stageGuard = requireNoActiveStage(io);
-        if (!stageGuard.ok)
-          return refuse(`foundry_git_finish ${stageGuard.error}`);
-
-        const cwd = context.worktree;
-        // Route through currentBranch() (same helper used by line 284 and
-        // by the branch guards). Raw `git branch --show-current` returns
-        // '' for both detached HEAD and unborn branches; currentBranch()
-        // distinguishes the two by falling back to symbolic-ref, so an
-        // unborn config/* HEAD is identified as a config branch instead
-        // of slipping into the catch-all 'other' refusal.
-        const branch = currentBranch({ exec: makeExec(cwd) });
-        const kind = classifyBranch(branch);
-
-        if (kind === 'dry-run') {
-          if (args.baseBranch !== undefined) {
-            return refuse(
-              'foundry_git_finish: baseBranch is not valid for a dry-run ' +
-              'finish; the parent config branch is determined by the dry-run ' +
-              'branch name.');
-          }
-          return finishDryRunBranch({ branch, args, cwd });
-        }
-
-        const base = args.baseBranch || 'main';
-
-        // Already on base — graceful no-op (nothing to merge from).
-        if (branch === base) {
-          return JSON.stringify({
-            ok: true,
-            noop: true,
-            message: `Already on ${base} — nothing to merge`,
-            branch: base,
-          });
-        }
-
-        if (kind === 'work')
-          return finishWorkBranch({ workBranch: branch, base, cwd, args });
-        if (kind === 'config')
-          return finishConfigBranch({ configBranch: branch, base, cwd, args });
-
-        return refuse(
-          `foundry_git_finish: nothing to finish on '${branch || 'detached HEAD'}' ` +
-          `(expected work/<x>, config/<x>, or dry-run/<x>/<y>).`);
+        return executeGitFinish(args, context);
       },
     }),
   };
