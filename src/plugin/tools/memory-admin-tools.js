@@ -51,218 +51,246 @@ function configBranchGuard(_args, context) {
   return requireOnConfigBranch({ exec: makeExec(context.worktree) });
 }
 
+// ── Execute handler factories ──────────────────────────────────────────
+
+function adminExecute(adminFn) {
+  return guarded(adminFn.name, [configBranchGuard, notFailedGuard], async (args, context) => {
+    try {
+      const io = makeMemoryIO(context.worktree);
+      const out = await adminFn({ worktreeRoot: context.worktree, io, ...args });
+      return JSON.stringify(out);
+    } catch (err) { return errorJson(err); }
+  }, { branchIo: branchIoFactory, io: asyncIoFactory });
+}
+
+// ── Individual tool factories ──────────────────────────────────────────
+
+function toolCreateEntityType({ tool }) {
+  return tool({
+    description: 'Create a new entity type with a prose body brief.',
+    args: {
+      name: tool.schema.string(),
+      body: tool.schema.string(),
+    },
+    execute: adminExecute(admCreateEntity),
+  });
+}
+
+function toolExtractorCreate({ tool }) {
+  return tool({
+    description: 'Create a new extractor definition under foundry/memory/extractors/.',
+    args: {
+      name: tool.schema.string(),
+      command: tool.schema.string(),
+      memoryWrite: tool.schema.array(tool.schema.string()),
+      body: tool.schema.string(),
+      timeout: tool.schema.string().optional(),
+    },
+    execute: adminExecute(admCreateExtractor),
+  });
+}
+
+function toolCreateEdgeType({ tool }) {
+  return tool({
+    description: 'Create a new edge type.',
+    args: {
+      name: tool.schema.string(),
+      sources: tool.schema.union([tool.schema.literal('any'), tool.schema.array(tool.schema.string())]),
+      targets: tool.schema.union([tool.schema.literal('any'), tool.schema.array(tool.schema.string())]),
+      body: tool.schema.string(),
+    },
+    execute: adminExecute(admCreateEdge),
+  });
+}
+
+function toolRenameEntityType({ tool }) {
+  return tool({
+    description: 'Rename an entity type and cascade updates to edges and rows.',
+    args: { from: tool.schema.string(), to: tool.schema.string() },
+    execute: adminExecute(admRenameEntity),
+  });
+}
+
+function toolRenameEdgeType({ tool }) {
+  return tool({
+    description: 'Rename an edge type.',
+    args: { from: tool.schema.string(), to: tool.schema.string() },
+    execute: adminExecute(admRenameEdge),
+  });
+}
+
+function toolDropEntityType({ tool }) {
+  return tool({
+    description:
+      'Destructive. Delete an entity type and cascade to affected edges. Call without confirm (or confirm:false) to get a preview of what would be deleted. Pass confirm:true to actually drop.',
+    args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
+    execute: adminExecute(admDropEntity),
+  });
+}
+
+function toolDropEdgeType({ tool }) {
+  return tool({
+    description:
+      'Destructive. Delete an edge type. Call without confirm (or confirm:false) to preview row count. Pass confirm:true to actually drop.',
+    args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
+    execute: adminExecute(admDropEdge),
+  });
+}
+
+function toolReset({ tool }) {
+  return tool({
+    description: 'Destructive. Purge all memory data (keeps type definitions). Requires confirm: true.',
+    args: { confirm: tool.schema.boolean() },
+    execute: adminExecute(admReset),
+  });
+}
+
+function toolValidate({ tool }) {
+  return tool({
+    description: 'Run load-time and drift checks; returns a report.',
+    args: {},
+    async execute(_args, context) {
+      try {
+        const io = makeMemoryIO(context.worktree);
+        return JSON.stringify(await admValidate({ io }));
+      } catch (err) { return errorJson(err); }
+    },
+  });
+}
+
+function toolInit({ tool }) {
+  return tool({
+    description:
+      'Scaffold foundry/memory/: creates entities/edges/relations dirs with .gitkeep, writes config.md and schema.json, appends .gitignore entries, and optionally probes the embedding provider. Fails if foundry/memory/ already exists.',
+    args: {
+      embeddings_enabled: tool.schema.boolean().optional(),
+      probe: tool.schema.boolean().optional(),
+    },
+    execute: guarded('foundry_memory_init', [configBranchGuard, notFailedGuard], async (args, context) => {
+      try {
+        const io = makeMemoryIO(context.worktree);
+        const out = await admInitMemory({
+          io,
+          embeddingsEnabled: args.embeddings_enabled ?? true,
+          probe: args.probe ?? true,
+        });
+        return JSON.stringify(out);
+      } catch (err) { return errorJson(err); }
+    }, { branchIo: branchIoFactory, io: asyncIoFactory }),
+  });
+}
+
+function toolDump({ tool }) {
+  return tool({
+    description: 'Human-readable snapshot of memory. Optional type + name.',
+    args: {
+      type: tool.schema.string().optional(),
+      name: tool.schema.string().optional(),
+      depth: tool.schema.number().optional(),
+    },
+    async execute(args, context) {
+      try {
+        const { store, vocabulary } = await withStore(context);
+        const dump = await admDump({ store, vocabulary, ...args });
+        return JSON.stringify({ dump });
+      } catch (err) { return errorJson(err); }
+    },
+  });
+}
+
+function toolVacuum({ tool }) {
+  return tool({
+    description: 'Compact the Cozo database.',
+    args: {},
+    execute: guarded('foundry_memory_vacuum', [notFailedGuard], async (_args, context) => {
+      try {
+        const { store } = await withStore(context);
+        return JSON.stringify(await admVacuum({ store }));
+      } catch (err) { return errorJson(err); }
+    }, { branchIo: branchIoFactory, io: asyncIoFactory }),
+  });
+}
+
+// ── change_embedding_model helpers ─────────────────────────────────────
+
+function buildNewEmbeddingConfig(baseConfig, args) {
+  return {
+    ...baseConfig,
+    enabled: true,
+    model: args.model,
+    dimensions: args.dimensions,
+    baseURL: args.baseURL ?? baseConfig.baseURL,
+    apiKey: args.apiKey ?? baseConfig.apiKey,
+  };
+}
+
+function validateEmbeddingProbe(probe, args) {
+  if (!probe.ok) return new Error(`probe failed: ${probe.error}`);
+  if (probe.dimensions !== args.dimensions) {
+    return new Error(`provider returned ${probe.dimensions}-dim vectors, config declares ${args.dimensions}`);
+  }
+  return null;
+}
+
+function makeRawIO() {
+  return {
+    exists: (p) => existsSync(p),
+    unlink: (p) => { if (existsSync(p)) unlinkSync(p); },
+    rename: (from, to) => renameSync(from, to),
+  };
+}
+
+function toolChangeEmbeddingModel({ tool }) {
+  return tool({
+    description: 'Swap the embedding model and re-embed all existing entities.',
+    args: {
+      model: tool.schema.string(),
+      dimensions: tool.schema.number(),
+      baseURL: tool.schema.string().optional(),
+      apiKey: tool.schema.string().optional(),
+    },
+    execute: guarded('foundry_memory_change_embedding_model', [configBranchGuard, notFailedGuard], async (args, context) => {
+      try {
+        const io = makeMemoryIO(context.worktree);
+        const currentConfig = await loadMemoryConfig('foundry', io);
+        const newConfig = buildNewEmbeddingConfig(currentConfig.embeddings, args);
+        const probe = await memProbeEmbeddings({ config: newConfig });
+        const probeError = validateEmbeddingProbe(probe, args);
+        if (probeError) return errorJson(probeError);
+        const dbAbsolutePath = path.join(context.worktree, 'foundry/memory/memory.db');
+        const embedder = (inputs) => memEmbed({ config: newConfig, inputs });
+        const out = await admReembed({
+          worktreeRoot: context.worktree,
+          io,
+          rawIO: makeRawIO(),
+          dbAbsolutePath,
+          newModel: args.model,
+          newDimensions: args.dimensions,
+          embedder,
+        });
+        await writeMemoryConfig('foundry', { embeddings: newConfig }, io);
+        return JSON.stringify(out);
+      } catch (err) { return errorJson(err); }
+    }, { branchIo: branchIoFactory, io: asyncIoFactory }),
+  });
+}
+
+// ── Export ─────────────────────────────────────────────────────────────
+
 export function createMemoryAdminTools({ tool }) {
   return {
-    foundry_memory_create_entity_type: tool({
-      description: 'Create a new entity type with a prose body brief.',
-      args: {
-        name: tool.schema.string(),
-        body: tool.schema.string(),
-      },
-      execute: guarded('foundry_memory_create_entity_type', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admCreateEntity({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_extractor_create: tool({
-      description: 'Create a new extractor definition under foundry/memory/extractors/.',
-      args: {
-        name: tool.schema.string(),
-        command: tool.schema.string(),
-        memoryWrite: tool.schema.array(tool.schema.string()),
-        body: tool.schema.string(),
-        timeout: tool.schema.string().optional(),
-      },
-      execute: guarded('foundry_extractor_create', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admCreateExtractor({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_create_edge_type: tool({
-      description: 'Create a new edge type.',
-      args: {
-        name: tool.schema.string(),
-        sources: tool.schema.union([tool.schema.literal('any'), tool.schema.array(tool.schema.string())]),
-        targets: tool.schema.union([tool.schema.literal('any'), tool.schema.array(tool.schema.string())]),
-        body: tool.schema.string(),
-      },
-      execute: guarded('foundry_memory_create_edge_type', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admCreateEdge({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_rename_entity_type: tool({
-      description: 'Rename an entity type and cascade updates to edges and rows.',
-      args: { from: tool.schema.string(), to: tool.schema.string() },
-      execute: guarded('foundry_memory_rename_entity_type', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admRenameEntity({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_rename_edge_type: tool({
-      description: 'Rename an edge type.',
-      args: { from: tool.schema.string(), to: tool.schema.string() },
-      execute: guarded('foundry_memory_rename_edge_type', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admRenameEdge({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_drop_entity_type: tool({
-      description:
-        'Destructive. Delete an entity type and cascade to affected edges. Call without confirm (or confirm:false) to get a preview of what would be deleted. Pass confirm:true to actually drop.',
-      args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
-      execute: guarded('foundry_memory_drop_entity_type', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admDropEntity({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_drop_edge_type: tool({
-      description:
-        'Destructive. Delete an edge type. Call without confirm (or confirm:false) to preview row count. Pass confirm:true to actually drop.',
-      args: { name: tool.schema.string(), confirm: tool.schema.boolean().optional() },
-      execute: guarded('foundry_memory_drop_edge_type', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admDropEdge({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_reset: tool({
-      description: 'Destructive. Purge all memory data (keeps type definitions). Requires confirm: true.',
-      args: { confirm: tool.schema.boolean() },
-      execute: guarded('foundry_memory_reset', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admReset({ worktreeRoot: context.worktree, io, ...args });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_validate: tool({
-      description: 'Run load-time and drift checks; returns a report.',
-      args: {},
-      async execute(_args, context) {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          return JSON.stringify(await admValidate({ io }));
-        } catch (err) { return errorJson(err); }
-      },
-    }),
-    foundry_memory_init: tool({
-      description:
-        'Scaffold foundry/memory/: creates entities/edges/relations dirs with .gitkeep, writes config.md and schema.json, appends .gitignore entries, and optionally probes the embedding provider. Fails if foundry/memory/ already exists.',
-      args: {
-        embeddings_enabled: tool.schema.boolean().optional(),
-        probe: tool.schema.boolean().optional(),
-      },
-      execute: guarded('foundry_memory_init', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          const out = await admInitMemory({
-            io,
-            embeddingsEnabled: args.embeddings_enabled ?? true,
-            probe: args.probe ?? true,
-          });
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_dump: tool({
-      description: 'Human-readable snapshot of memory. Optional type + name.',
-      args: {
-        type: tool.schema.string().optional(),
-        name: tool.schema.string().optional(),
-        depth: tool.schema.number().optional(),
-      },
-      async execute(args, context) {
-        try {
-          const { store, vocabulary } = await withStore(context);
-          const dump = await admDump({ store, vocabulary, ...args });
-          return JSON.stringify({ dump });
-        } catch (err) { return errorJson(err); }
-      },
-    }),
-    foundry_memory_vacuum: tool({
-      description: 'Compact the Cozo database.',
-      args: {},
-      execute: guarded('foundry_memory_vacuum', [notFailedGuard], async (_args, context) => {
-        try {
-          const { store } = await withStore(context);
-          return JSON.stringify(await admVacuum({ store }));
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-    foundry_memory_change_embedding_model: tool({
-      description: 'Swap the embedding model and re-embed all existing entities.',
-      args: {
-        model: tool.schema.string(),
-        dimensions: tool.schema.number(),
-        baseURL: tool.schema.string().optional(),
-        apiKey: tool.schema.string().optional(),
-      },
-      execute: guarded('foundry_memory_change_embedding_model', [configBranchGuard, notFailedGuard], async (args, context) => {
-        try {
-          const io = makeMemoryIO(context.worktree);
-          // Load config fresh from disk: the singleton context is only
-          // populated once a store is opened, which isn't guaranteed here.
-          const currentConfig = await loadMemoryConfig('foundry', io);
-          const baseConfig = currentConfig.embeddings;
-          const newConfig = {
-            ...baseConfig,
-            enabled: true,
-            model: args.model,
-            dimensions: args.dimensions,
-            baseURL: args.baseURL ?? baseConfig.baseURL,
-            apiKey: args.apiKey ?? baseConfig.apiKey,
-          };
-          const probe = await memProbeEmbeddings({ config: newConfig });
-          if (!probe.ok) return errorJson(new Error(`probe failed: ${probe.error}`));
-          if (probe.dimensions !== args.dimensions) {
-            return errorJson(new Error(`provider returned ${probe.dimensions}-dim vectors, config declares ${args.dimensions}`));
-          }
-          const dbAbsolutePath = path.join(context.worktree, 'foundry/memory/memory.db');
-          const embedder = (inputs) => memEmbed({ config: newConfig, inputs });
-          // rawIO for absolute path operations (DB file manipulation)
-          const rawIO = {
-            exists: (p) => existsSync(p),
-            unlink: (p) => { if (existsSync(p)) unlinkSync(p); },
-            rename: (from, to) => renameSync(from, to),
-          };
-          const out = await admReembed({
-            worktreeRoot: context.worktree,
-            io,
-            rawIO,
-            dbAbsolutePath,
-            newModel: args.model,
-            newDimensions: args.dimensions,
-            embedder,
-          });
-          // Persist the new embeddings block to config.md so a subsequent
-          // session (which re-reads config from disk) stays in sync with
-          // schema.json. Only runs on successful reembed.
-          await writeMemoryConfig('foundry', { embeddings: newConfig }, io);
-          return JSON.stringify(out);
-        } catch (err) { return errorJson(err); }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
+    foundry_memory_create_entity_type: toolCreateEntityType({ tool }),
+    foundry_extractor_create: toolExtractorCreate({ tool }),
+    foundry_memory_create_edge_type: toolCreateEdgeType({ tool }),
+    foundry_memory_rename_entity_type: toolRenameEntityType({ tool }),
+    foundry_memory_rename_edge_type: toolRenameEdgeType({ tool }),
+    foundry_memory_drop_entity_type: toolDropEntityType({ tool }),
+    foundry_memory_drop_edge_type: toolDropEdgeType({ tool }),
+    foundry_memory_reset: toolReset({ tool }),
+    foundry_memory_validate: toolValidate({ tool }),
+    foundry_memory_init: toolInit({ tool }),
+    foundry_memory_dump: toolDump({ tool }),
+    foundry_memory_vacuum: toolVacuum({ tool }),
+    foundry_memory_change_embedding_model: toolChangeEmbeddingModel({ tool }),
   };
 }
