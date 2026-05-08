@@ -7,15 +7,23 @@ import { renderEdgeFrontmatter, composeMarkdown } from './helpers.js';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
 
-export async function renameEdgeType({ worktreeRoot, io, from, to }) {
+function validateIdentifiers(from, to) {
   if (!IDENT.test(to)) throw new Error(`invalid identifier: '${to}'`);
   if (from === to) throw new Error(`from and to identical`);
+}
+
+function validateSchemaState(schema, from, to) {
+  if (!schema.edges[from]) throw new Error(`edge type '${from}' not declared`);
+  if (schema.edges[to] || schema.entities[to]) throw new Error(`'${to}' already exists`);
+}
+
+export async function renameEdgeType({ worktreeRoot, io, from, to }) {
+  validateIdentifiers(from, to);
 
   const foundryDir = 'foundry';
   const p = memoryPaths(foundryDir);
   const schema = await loadSchema(foundryDir, io);
-  if (!schema.edges[from]) throw new Error(`edge type '${from}' not declared`);
-  if (schema.edges[to] || schema.entities[to]) throw new Error(`'${to}' already exists`);
+  validateSchemaState(schema, from, to);
 
   const oldFile = p.edgeTypeFile(from);
   const text = await io.readFile(oldFile);
