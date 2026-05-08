@@ -3,53 +3,28 @@
 // into a single entry point the LLM drives via a 3-line loop.
 
 import { runSort } from './sort.js';
-import {
-  getCycleDefinition,
-  getArtefactType,
-  getValidation,
-} from './lib/config.js';
-import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
-import { parseArtefactsTable, setArtefactStatus } from './lib/artefacts.js';
-import { readActiveStage, readLastStage, clearActiveStage, clearLastStage } from './lib/state.js';
-import { appendEntry, getIteration } from './lib/history.js';
-import { openFeedbackStore } from './lib/feedback-store.js';
-import { loadExtractor } from './lib/assay/loader.js';
-import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
-import { stageBaseOf } from './lib/stage-guard.js';
-import { allowedPatternsForStage } from './lib/git-policy.js';
+import { parseFrontmatter } from './lib/workfile.js';
+import { readActiveStage, readLastStage } from './lib/state.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
+import {
+  findCycleOutputArtefact,
+  readCycleTargets,
+  readForgeFilePatterns,
+  renderDispatchPrompt,
+  synthesizeStages,
+  violation,
+  computeOpenFeedback,
+} from './orchestrate-cycle.js';
+import {
+  handleSortResult,
+  setupWorkfile,
+  finaliseStage,
+  handleViolation,
+} from './orchestrate-phases.js';
 
-export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
-  const lines = [
-    `You are a Foundry stage agent. Invoke the ${stage.split(':')[0]} skill and follow its instructions exactly.`,
-    ``,
-    `Stage: ${stage}`,
-    `Cycle: ${cycle}`,
-    `Token: ${token}`,
-    `Working directory: ${cwd}`,
-  ];
-  if (filePatterns && filePatterns.length) {
-    lines.push(`File patterns (forge only): ${JSON.stringify(filePatterns)}`);
-  }
-  lines.push(
-    ``,
-    `Your FIRST tool call MUST be foundry_stage_begin({stage, cycle, token}) using the values above.`,
-    `Your LAST tool call MUST be foundry_stage_end({summary}).`,
-    ``,
-    `When done, report back a brief summary. Do NOT call foundry_history_append, foundry_git_commit, or foundry_artefacts_add — the orchestrator handles all of those.`
-  );
-  return lines.join('\n');
-}
-
-export function synthesizeStages({ cycleId, hasValidation, humanAppraise, assay = false }) {
-  const stages = [];
-  if (assay) stages.push(`assay:${cycleId}`);
-  stages.push(`forge:${cycleId}`);
-  if (hasValidation) stages.push(`quench:${cycleId}`);
-  stages.push(`appraise:${cycleId}`);
-  if (humanAppraise) stages.push(`human-appraise:${cycleId}`);
-  return stages;
-}
+export { renderDispatchPrompt, synthesizeStages, computeOpenFeedback };
+export { findCycleOutputArtefact, readCycleTargets, readForgeFilePatterns };
+export { handleSortResult as __handleSortResultForTest };
 
 export function needsSetup(workMdContent) {
   const match = workMdContent.match(/^---\n([\s\S]*?)\n---/);
@@ -59,553 +34,130 @@ export function needsSetup(workMdContent) {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle helpers used by orchestration.
-// ---------------------------------------------------------------------------
-
-export function findCycleOutputArtefact(cycleId, io) {
-  if (!io.exists('WORK.md')) return null;
-  const content = io.readFile('WORK.md');
-  const rows = parseArtefactsTable(content);
-  const match = rows.find(r => r.cycle === cycleId);
-  return match ? { file: match.file, type: match.type, status: match.status } : null;
-}
-
-export async function readCycleTargets(cycleId, io) {
-  try {
-    const cd = await getCycleDefinition('foundry', cycleId, io);
-    return cd.frontmatter?.targets ?? [];
-  } catch {
-    return [];
-  }
-}
-
-export async function readForgeFilePatterns(cycleId, io) {
-  try {
-    const cd = await getCycleDefinition('foundry', cycleId, io);
-    const output = cd.frontmatter?.['output-type'];
-    if (!output) return null;
-    const at = await getArtefactType('foundry', output, io);
-    return at.frontmatter?.['file-patterns'] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function readRecentFeedback(io, limit = 5) {
-  // Return the most recently changed wont-fix/rejected items for the
-  // human-appraise preamble. `WORK.feedback.yaml` preserves creation order;
-  // `history[0].timestamp` records the latest transition. This helper
-  // sorts descending by timestamp and returns the first `limit` items.
-  try {
-    if (!io.exists('WORK.feedback.yaml')) return [];
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    const items = store.list();
-    const candidates = items.filter(it => {
-      const s = it.history[0].state;
-      return s === 'wont-fix' || s === 'rejected';
-    });
-    candidates.sort((a, b) => {
-      const aTs = a.history[0].timestamp;
-      const bTs = b.history[0].timestamp;
-      return aTs < bTs ? 1 : aTs > bTs ? -1 : 0;
-    });
-    return candidates.slice(0, limit).map(it => ({
-      id:     it.id,
-      file:   it.file,
-      text:   it.text,
-      state:  it.history[0].state,
-      reason: it.history[0].reason,
-    }));
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Spec §10. Count non-resolved items for stamping on every history entry.
- * Deadlocked items count as open; only 'resolved' is excluded. Returns 0 on
- * missing file or any read/parse error -- the count is debug metadata, not
- * load-bearing, so a failed read does not abort the cycle.
- */
-export function computeOpenFeedback(io) {
-  if (!io.exists('WORK.feedback.yaml')) return 0;
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    return store.list().filter(it => it.history[0].state !== 'resolved').length;
-  } catch {
-    return 0;
-  }
-}
-
-function violation(details, affectedFiles = []) {
-  return {
-    action: 'violation',
-    details,
-    recoverable: false,
-    affected_files: affectedFiles,
-  };
-}
-
-/**
- * Call git.commit with phase-appropriate allowed patterns, translating an
- * UnexpectedFilesError-style throw into a structured violation. The bridge
- * marks unexpected-files errors with `code === 'unexpected_files'` and a
- * `files` array; tests stub `git.commit` as a plain function and never throw.
- *
- * Returns null on success, a violation object on policy failure.
- */
-function tryCommit(git, message, allowedPatterns, phase) {
-  if (!git || typeof git.commit !== 'function') return null;
-  try {
-    git.commit(message, { allowedPatterns });
-    return null;
-  } catch (err) {
-    if (err && err.code === 'unexpected_files') {
-      const files = Array.isArray(err.files) ? err.files : [];
-      const where = phase === 'setup'
-        ? 'flow setup requires a clean worktree'
-        : `stage ${phase} commit may only include allowed files`;
-      return violation(
-        `${where}; refusing to commit unrelated changes: ${files.join(', ')}`,
-        files,
-      );
-    }
-    throw err;
-  }
-}
-
-function markArtefactBlocked(cycleId, io) {
-  if (!io.exists('WORK.md')) return { ok: true };
-  const content = io.readFile('WORK.md');
-  const rows = parseArtefactsTable(content);
-  const row = rows.find(r => r.cycle === cycleId);
-  if (!row) return { ok: true };
-  try {
-    io.writeFile('WORK.md', setArtefactStatus(content, row.file, 'blocked'));
-    return { ok: true };
-  } catch (e) {
-    // Surface to caller: setArtefactStatus is strict (e.g. row already
-    // blocked/done, invalid status). Don't crash; let caller annotate
-    // the violation.
-    return { ok: false, error: e?.message || String(e) };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Sort result -> action shape
-// ---------------------------------------------------------------------------
-
-async function handleSortResult(sortResult, { cycleId, cwd, io }) {
-  const { route, model, token, details } = sortResult;
-  const base = typeof route === 'string' ? route.split(':')[0] : '';
-
-  if (route === 'done') {
-    const art = findCycleOutputArtefact(cycleId, io);
-    return {
-      action: 'done',
-      cycle: cycleId,
-      artefact_file: art?.file ?? null,
-      next_cycles: await readCycleTargets(cycleId, io),
-    };
-  }
-
-  if (route === 'blocked') {
-    const art = findCycleOutputArtefact(cycleId, io);
-    return {
-      action: 'blocked',
-      cycle: cycleId,
-      artefact_file: art?.file ?? null,
-      reason: details ?? 'iteration limit reached with unresolved feedback',
-    };
-  }
-
-  if (route === 'violation') {
-    return violation(details ?? 'sort returned violation');
-  }
-
-  if (base === 'human-appraise') {
-    const art = findCycleOutputArtefact(cycleId, io);
-    return {
-      action: 'human_appraise',
-      stage: route,
-      token,
-      context: {
-        cycle: cycleId,
-        artefact_file: art?.file ?? null,
-        recent_feedback: readRecentFeedback(io),
-      },
-    };
-  }
-
-  // forge | quench | appraise
-  if (!model) {
-    const art = findCycleOutputArtefact(cycleId, io);
-    return violation(
-      `cycle ${cycleId} stage ${route} has no model declared in cycle definition (\`models:\` field) and no default available`,
-      [art?.file].filter(Boolean)
-    );
-  }
-
-  const filePatterns = base === 'forge'
-    ? await readForgeFilePatterns(cycleId, io)
-    : null;
-
-  return {
-    action: 'dispatch',
-    stage: route,
-    subagent_type: model,
-    prompt: renderDispatchPrompt({
-      stage: route,
-      cycle: cycleId,
-      token,
-      cwd,
-      filePatterns,
-    }),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Setup phase
-// ---------------------------------------------------------------------------
-
-/**
- * Perform initial WORK.md setup: validate cycle, synthesise stages, write frontmatter.
- * Returns { ok: true, workContent } on success, or a violation object on failure.
- */
-async function setupWorkfile(args) {
-  const { cycleId, workContent, io, git, foundryDir } = args;
-
-  let cycleDefDoc;
-  try {
-    cycleDefDoc = await getCycleDefinition(foundryDir, cycleId, io);
-  } catch {
-    return violation(`cycle definition not found for id: ${cycleId}`, ['WORK.md']);
-  }
-  const cfm = cycleDefDoc.frontmatter || {};
-
-  const outputType = cfm['output-type'];
-  if (!outputType) {
-    // Loud diagnostic for cycles still carrying the pre-rename `output:` key.
-    if (cfm.output !== undefined) {
-      return violation(
-        `cycle ${cycleId} uses old schema key 'output:' for the produced artefact-type. ` +
-          `Rename it to 'output-type:' (run the upgrade-foundry skill).`,
-        ['WORK.md']
-      );
-    }
-    return violation(`cycle ${cycleId} missing output-type field`, ['WORK.md']);
-  }
-
-  try {
-    await getArtefactType(foundryDir, outputType, io);
-  } catch {
-    return violation(`artefact type not found: ${outputType}`, ['WORK.md']);
-  }
-
-  const validation = await getValidation(foundryDir, outputType, io);
-
-  // Validate and normalise the cycle's `assay:` opt-in, if present.
-  const assayBlock = cfm.assay;
-  let assayExtractors = null;
-  if (assayBlock !== undefined && assayBlock !== null) {
-    if (typeof assayBlock !== 'object' || Array.isArray(assayBlock)) {
-      return violation(`cycle ${cycleId}: 'assay' must be a mapping (got ${typeof assayBlock})`, ['WORK.md']);
-    }
-    const list = assayBlock.extractors;
-    if (!Array.isArray(list) || list.length === 0) {
-      return violation(`cycle ${cycleId}: 'assay.extractors' must be a non-empty array`, ['WORK.md']);
-    }
-
-    // Memory must be enabled.
-    const memoryEnabled = io.exists('foundry/memory/config.md');
-    if (!memoryEnabled) {
-      return violation(`cycle ${cycleId}: 'assay:' requires memory to be enabled (run the init-memory skill first)`, ['WORK.md']);
-    }
-
-    // Build the cycle's write-types set.
-    const cycleWrite = cfm.memory?.write;
-    if (!Array.isArray(cycleWrite)) {
-      return violation(`cycle ${cycleId}: 'assay:' requires the cycle to declare memory.write`, ['WORK.md']);
-    }
-    const cycleWriteSet = new Set(cycleWrite);
-
-    // Load each extractor and check its memory.write ⊆ cycle.memory.write.
-    for (const name of list) {
-      let ext;
-      try { ext = await loadExtractor(foundryDir, name, io); }
-      catch (err) { return violation(`cycle ${cycleId}: ${err.message}`, ['WORK.md']); }
-      const checkResult = checkExtractorAgainstCycle(ext, { writeTypes: cycleWriteSet });
-      if (!checkResult.ok) {
-        return violation(`cycle ${cycleId}: ${checkResult.error}`, ['WORK.md']);
-      }
-    }
-    assayExtractors = list;
-  }
-
-  let stages;
-  if (Array.isArray(cfm.stages)) {
-    if (cfm.stages.length === 0) {
-      const art = findCycleOutputArtefact(cycleId, io);
-      return violation(
-        `cycle ${cycleId} has no stages declared in cycle definition`,
-        [art?.file, 'WORK.md'].filter(Boolean)
-      );
-    }
-    stages = cfm.stages.map(s =>
-      typeof s === 'string' && s.includes(':') ? s : `${s}:${cycleId}`
-    );
-  } else {
-    stages = synthesizeStages({
-      cycleId,
-      hasValidation: !!validation && validation.length > 0,
-      humanAppraise: cfm['human-appraise'] === true,
-      assay: !!assayExtractors,
-    });
-  }
-
-  const fm = parseFrontmatter(workContent);
-  const newFm = { ...fm };
-  newFm.stages = stages;
-  newFm['max-iterations'] = cfm['max-iterations'] ?? 3;
-  newFm['human-appraise'] = cfm['human-appraise'] === true;
-  newFm['deadlock-appraise'] = cfm['deadlock-appraise'] !== false;
-  newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? 5;
-  if (cfm.models) newFm.models = cfm.models;
-  if (assayExtractors) newFm.assay = { extractors: assayExtractors };
-
-  const body = workContent.replace(/^---\n[\s\S]+?\n---\n?/, '');
-  const fmBlock = writeFrontmatter(newFm);
-  const newWork = body ? `${fmBlock}\n${body}` : fmBlock;
-  io.writeFile('WORK.md', newWork);
-
-  if (git && typeof git.commit === 'function') {
-    const v = tryCommit(
-      git,
-      `[${cycleId}] setup: configure stages and limits`,
-      [],
-      'setup',
-    );
-    if (v) return v;
-  }
-
-  return { ok: true, workContent: io.readFile('WORK.md') };
-}
-
-/**
- * Finalise a completed stage: rollback on failure, append history, commit.
- * Returns a violation object on error, or null on success.
- */
-async function finaliseStage(args) {
-  const { lastStage, activeStage, cycleId, io, finalize, git } = args;
-
-  // Save original state for potential rollback BEFORE finalize mutates WORK.md
-  const originalWorkMd = io.readFile('WORK.md');
-  const originalHistory = io.exists('WORK.history.yaml') 
-    ? io.readFile('WORK.history.yaml') 
-    : null;
-
-  let finalizeResult;
-  if (typeof finalize !== 'function') {
-    return violation(
-      'orchestrate caller must inject a `finalize` function when providing lastResult; ' +
-      'the plugin wires lib/finalize.finalizeStage; tests must pass a stub.',
-      []
-    );
-  }
-  finalizeResult = await finalize({
-    cycleId,
-    stage: lastStage.stage,
-    baseSha: lastStage.baseSha,
-    io,
-  });
-
-  if (!finalizeResult.ok) {
-    const blockResult = markArtefactBlocked(cycleId, io);
-    if (activeStage) clearActiveStage(io);
-    const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
-    if (finalizeResult.error === 'unexpected_files') {
-      return violation(
-        `unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}${blockNote}`,
-        finalizeResult.files || []
-      );
-    }
-    return violation(`stage_finalize error: ${finalizeResult.error}${blockNote}`, []);
-  }
-
-  // Artefact rows already written by finalizeStage via registerArtefact.
-
-  const summary = lastStage.summary || '(no summary)';
-  const historyPath = 'WORK.history.yaml';
-  const iteration = getIteration(historyPath, cycleId, io);
-
-  const openFeedback = computeOpenFeedback(io);
-  
-  // Append history entries
-  appendEntry(historyPath, {
-    cycle: cycleId,
-    stage: 'sort',
-    iteration,
-    route: lastStage.stage,
-    comment: `route ${lastStage.stage}`,
-    openFeedback,
-  }, io);
-  appendEntry(historyPath, {
-    cycle: cycleId,
-    stage: lastStage.stage,
-    iteration,
-    comment: summary,
-    openFeedback,
-    changedFiles: finalizeResult.changedFiles ?? [],
-  }, io);
-
-  if (git && typeof git.commit === 'function') {
-    const stageBase = stageBaseOf(lastStage.stage);
-    const forgeFilePatterns = stageBase === 'forge'
-      ? (await readForgeFilePatterns(cycleId, io)) ?? []
-      : [];
-    const allowedPatterns = allowedPatternsForStage({ stageBase, forgeFilePatterns });
-    const v = tryCommit(
-      git,
-      `[${cycleId}] ${lastStage.stage}: ${summary}`,
-      allowedPatterns,
-      lastStage.stage,
-    );
-    if (v) {
-      // Commit failed - rollback WORK.md and WORK.history.yaml
-      io.writeFile('WORK.md', originalWorkMd);
-      if (originalHistory !== null) {
-        io.writeFile('WORK.history.yaml', originalHistory);
-      } else if (io.exists('WORK.history.yaml')) {
-        io.unlink('WORK.history.yaml');
-      }
-      if (activeStage) clearActiveStage(io);
-      return v;
-    }
-  }
-  // Defensive: stage_end clears activeStage already; this is a no-op in the
-  // normal lifecycle but cleans up if the subagent skipped stage_end.
-  if (activeStage) clearActiveStage(io);
-  // Clear lastStage after successful finalization to prevent stale state corruption
-  if (lastStage) clearLastStage(io);
-
-  return null;
-}
-
-/**
- * Handle violation from lastResult (subagent crash or failure).
- * Returns a violation object.
- */
-function handleViolation(args) {
-  const { lastResult, activeStage, lastStage, cycleId, io } = args;
-
-  const failedStage = activeStage || lastStage;
-  if (!failedStage) {
-    return violation('lastResult.ok=false but no stage recorded — orphaned state');
-  }
-  const blockResult = markArtefactBlocked(cycleId, io);
-  if (activeStage) clearActiveStage(io);
-  if (lastStage) clearLastStage(io);
-  const art = findCycleOutputArtefact(cycleId, io);
-  const blockNote = blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
-  return violation(
-    `subagent dispatch failed: ${lastResult.error || 'unknown error'}${blockNote}`,
-    [art?.file].filter(Boolean)
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
-export async function runOrchestrate(args = {}, io) {
-  const {
-    cwd = process.cwd(),
-    cycleDef: cycleDefOverride = null,
-    git,
-    mint,
-    now = Date.now,
-    lastResult = null,
-    finalize = null,
-    ulid = defaultUlid,
-  } = args;
-
+function guardNoWorkMd(io) {
   if (!io.exists('WORK.md')) {
     return violation('no WORK.md; flow skill must create it first');
   }
+  return null;
+}
 
-  let workContent = io.readFile('WORK.md');
+function guardMissingCycleId(io) {
+  const workContent = io.readFile('WORK.md');
   const fm = parseFrontmatter(workContent);
-  const cycleId = fm.cycle;
-  if (!cycleId) {
+  if (!fm.cycle) {
     return violation('WORK.md frontmatter missing cycle field', ['WORK.md']);
   }
+  return { cycleId: fm.cycle, workContent };
+}
 
-  // Setup phase: validate cycle and configure stages if needed
-  if (needsSetup(workContent)) {
-    if (lastResult) {
-      return violation(
-        'inconsistent state: lastResult provided but WORK.md still needs setup',
-        ['WORK.md']
-      );
-    }
-
-    const setupResult = await setupWorkfile({
-      cycleId,
-      workContent,
-      io,
-      git,
-      foundryDir: 'foundry',
-    });
-    if (!setupResult.ok) return setupResult;
-    workContent = setupResult.workContent;
+function guardSetupInconsistent(lastResult) {
+  if (lastResult) {
+    return violation(
+      'inconsistent state: lastResult provided but WORK.md still needs setup',
+      ['WORK.md'],
+    );
   }
+  return null;
+}
 
-  const activeStage = readActiveStage(io);
-  const lastStage = readLastStage(io);
-
+function guardOrphanedStage(activeStage, lastResult) {
   if (activeStage && !lastResult) {
     return violation(
       `prior stage ${activeStage.stage} orphaned — no lastResult provided but active stage exists. ` +
       `Likely cause: previous orchestrate call returned dispatch but caller did not follow up.`,
-      []
+      [],
     );
   }
-
-  // Post-dispatch finalization
-  if (lastResult) {
-    // Subagent crash path: stage_end may NOT have been called.
-    if (lastResult.ok === false) {
-      return handleViolation({ lastResult, activeStage, lastStage, cycleId, io });
-    }
-
-    // Happy path: foundry_stage_end has run, which writes lastStage and clears activeStage.
-    if (!lastStage) {
-      return violation('lastResult provided but no last stage recorded — orphaned state');
-    }
-
-    const finaliseResult = await finaliseStage({
-      lastStage,
-      activeStage,
-      cycleId,
-      io,
-      finalize,
-      git,
-    });
-    if (finaliseResult) return finaliseResult;
-  }
-
-  const sortResult = runSort(
-    {
-      cycleDef: cycleDefOverride,
-      mint,
-      now: typeof now === 'function' ? now() : now,
-      ulid,
-    },
-    io
-  );
-
-  return handleSortResult(sortResult, { cycleId, cwd, io });
+  return null;
 }
 
-// Test-only export; keep underscored to discourage runtime use.
-export { handleSortResult as __handleSortResultForTest };
+function guardMissingLastStage(lastStage) {
+  if (!lastStage) {
+    return violation('lastResult provided but no last stage recorded — orphaned state');
+  }
+  return null;
+}
+
+function buildSortArgs(args, now) {
+  return {
+    cycleDef: args.cycleDef ?? null,
+    mint: args.mint,
+    now: typeof now === 'function' ? now() : now,
+    ulid: args.ulid ?? defaultUlid,
+  };
+}
+
+function buildSortContext(cycleId, args, io) {
+  return { cycleId, cwd: args.cwd ?? process.cwd(), io };
+}
+
+function buildSetupArgs(cycleResult, args, io) {
+  return {
+    cycleId: cycleResult.cycleId,
+    workContent: cycleResult.workContent,
+    io,
+    git: args.git,
+    foundryDir: 'foundry',
+  };
+}
+
+function isViolation(result) {
+  return result && result.action === 'violation';
+}
+
+export async function runOrchestrate(args, io) {
+  const preCheck = runPreChecks(io);
+  if (preCheck.error) return preCheck.error;
+  return runOrchestrateFlow(preCheck, args, io);
+}
+
+async function runOrchestrateFlow(preCheck, args, io) {
+  const setupResult = await runSetupIfNeeded(preCheck, args, io);
+  if (isViolation(setupResult)) return setupResult;
+
+  const activeStage = readActiveStage(io);
+  const lastStage = readLastStage(io);
+
+  const orphanErr = guardOrphanedStage(activeStage, args.lastResult);
+  if (orphanErr) return orphanErr;
+
+  const postDispatchResult = await runPostDispatch(args, activeStage, lastStage, preCheck.cycleId, io);
+  if (isViolation(postDispatchResult)) return postDispatchResult;
+
+  const sortResult = runSort(buildSortArgs(args, args.now ?? Date.now), io);
+  return handleSortResult(sortResult, buildSortContext(preCheck.cycleId, args, io));
+}
+
+function runPreChecks(io) {
+  const noWork = guardNoWorkMd(io);
+  if (noWork) return { error: noWork };
+  const cycleResult = guardMissingCycleId(io);
+  if (cycleResult.error) return { error: cycleResult };
+  return cycleResult;
+}
+
+async function runSetupIfNeeded(preCheck, args, io) {
+  if (!needsSetup(preCheck.workContent)) return null;
+  const err = guardSetupInconsistent(args.lastResult);
+  if (err) return err;
+  return setupWorkfile(buildSetupArgs(preCheck, args, io));
+}
+
+async function runPostDispatch(args, activeStage, lastStage, cycleId, io) {
+  if (!args.lastResult) return null;
+  if (args.lastResult.ok === false) {
+    return handleViolation({ lastResult: args.lastResult, activeStage, lastStage, cycleId, io });
+  }
+
+  const stageErr = guardMissingLastStage(lastStage);
+  if (stageErr) return stageErr;
+
+  return finaliseStage({
+    lastStage, activeStage, cycleId, io,
+    finalize: args.finalize ?? null,
+    git: args.git,
+  });
+}
