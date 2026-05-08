@@ -13,12 +13,15 @@ import {
 } from '../cozo.js';
 import { memoryPaths } from '../paths.js';
 
+function errDisplayMessage(err) {
+  return String(err && (err.display || err.message || err));
+}
+
 async function dropRelationIfPresent(db, relationName) {
   try {
     await dropRelation(db, relationName);
   } catch (err) {
-    const msg = String(err && (err.display || err.message || err));
-    if (/not found|does not exist|no such/i.test(msg)) return;
+    if (/not found|does not exist|no such/i.test(errDisplayMessage(err))) return;
     throw err;
   }
 }
