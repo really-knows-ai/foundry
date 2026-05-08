@@ -12,90 +12,91 @@ import {
 } from './live-store.js';
 import { renderEdgeFrontmatter, composeMarkdown } from './helpers.js';
 
-/**
- * Analyse a prospective drop without mutating anything. Returns the same shape
- * regardless of whether the caller is previewing or about to confirm, so the
- * destructive path can reuse the decisions.
- */
+function adjustFmKeyValue(fm, key, name) {
+  if (fm[key] === 'any') return fm[key];
+  if (!Array.isArray(fm[key])) return fm[key];
+  const filtered = fm[key].filter((t) => t !== name);
+  return filtered.length > 0 ? filtered : fm[key];
+}
+
+function wouldCascadeForKey(fm, key, name) {
+  if (fm[key] === 'any') return false;
+  if (!Array.isArray(fm[key])) return false;
+  const filtered = fm[key].filter((t) => t !== name);
+  return filtered.length === 0 && fm[key].includes(name);
+}
+
+function computeEdgeFmAdjustment(fm, name) {
+  const nextFm = { ...fm };
+  let wouldCascade = false;
+  for (const key of ['sources', 'targets']) {
+    nextFm[key] = adjustFmKeyValue(fm, key, name);
+    if (wouldCascadeForKey(fm, key, name)) wouldCascade = true;
+  }
+  return { nextFm, wouldCascade };
+}
+
+function edgeReferencesType(fm, name) {
+  return (
+    (Array.isArray(fm.sources) && fm.sources.includes(name)) ||
+    (Array.isArray(fm.targets) && fm.targets.includes(name))
+  );
+}
+
+async function countAffectedRows(io, p, edgeName, name) {
+  const relFile = p.relationFile(edgeName);
+  if (!(await io.exists(relFile))) return 0;
+  const rows = parseEdgeRows(await io.readFile(relFile));
+  return rows.filter((r) => r.from_type === name || r.to_type === name).length;
+}
+
+async function analyseEdgeForDrop({ io, p, name, edgeName }) {
+  const edgeFile = p.edgeTypeFile(edgeName);
+  if (!(await io.exists(edgeFile))) return null;
+  const edgeText = await io.readFile(edgeFile);
+  const parsed = parseFrontmatter(edgeText, { filename: edgeFile });
+  if (!parsed.hasFrontmatter) return null;
+  const fm = parsed.frontmatter;
+
+  const { nextFm, wouldCascade } = computeEdgeFmAdjustment(fm, name);
+  if (wouldCascade) return { name: edgeName, action: 'cascadeDrop' };
+  if (!edgeReferencesType(fm, name)) return null;
+
+  const rowsAffected = await countAffectedRows(io, p, edgeName, name);
+  return { name: edgeName, action: 'prune', rowsAffected, nextFm };
+}
+
 async function analyseEntityDrop({ io, p, name, schema }) {
   const entityRelFile = p.relationFile(name);
   let entityRows = 0;
   if (await io.exists(entityRelFile)) {
     const text = await io.readFile(entityRelFile);
-    // Entity NDJSON: count non-empty lines.
     entityRows = text.split('\n').filter((l) => l.trim() !== '').length;
   }
 
   const affectedEdges = [];
   for (const edgeName of Object.keys(schema.edges)) {
-    const edgeFile = p.edgeTypeFile(edgeName);
-    if (!(await io.exists(edgeFile))) continue;
-    const edgeText = await io.readFile(edgeFile);
-    const parsed = parseFrontmatter(edgeText, { filename: edgeFile });
-    if (!parsed.hasFrontmatter) continue;
-    const fm = parsed.frontmatter;
-
-    // Mirror the destructive path's decision rules.
-    let wouldCascade = false;
-    const nextFm = { ...fm };
-    for (const key of ['sources', 'targets']) {
-      if (fm[key] === 'any') continue;
-      if (!Array.isArray(fm[key])) continue;
-      const filtered = fm[key].filter((t) => t !== name);
-      if (filtered.length === 0 && fm[key].includes(name)) wouldCascade = true;
-      nextFm[key] = filtered.length > 0 ? filtered : fm[key];
-    }
-
-    if (wouldCascade) {
-      affectedEdges.push({ name: edgeName, action: 'cascadeDrop' });
-      continue;
-    }
-
-    // References name but survives — count rows that would be pruned.
-    const referencesName =
-      (Array.isArray(fm.sources) && fm.sources.includes(name)) ||
-      (Array.isArray(fm.targets) && fm.targets.includes(name));
-    if (!referencesName) continue;
-
-    const relFile = p.relationFile(edgeName);
-    let rowsAffected = 0;
-    if (await io.exists(relFile)) {
-      const rows = parseEdgeRows(await io.readFile(relFile));
-      rowsAffected = rows.filter((r) => r.from_type === name || r.to_type === name).length;
-    }
-    affectedEdges.push({ name: edgeName, action: 'prune', rowsAffected, nextFm });
+    const result = await analyseEdgeForDrop({ io, p, name, edgeName });
+    if (result) affectedEdges.push(result);
   }
 
   return { entityRows, affectedEdges };
 }
 
-export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
-  const foundryDir = 'foundry';
-  const p = memoryPaths(foundryDir);
-  const schema = await loadSchema(foundryDir, io);
-  if (!schema.entities[name]) throw new Error(`entity type '${name}' not declared`);
+function buildPreview(analysis, name) {
+  return {
+    type: 'entity',
+    name,
+    entityRows: analysis.entityRows,
+    affectedEdges: analysis.affectedEdges.map((e) => {
+      const base = { name: e.name, action: e.action };
+      if (e.action === 'prune') base.rowsAffected = e.rowsAffected;
+      return base;
+    }),
+  };
+}
 
-  const analysis = await analyseEntityDrop({ io, p, name, schema });
-
-  if (confirm !== true) {
-    return {
-      requiresConfirm: true,
-      preview: {
-        type: 'entity',
-        name,
-        entityRows: analysis.entityRows,
-        affectedEdges: analysis.affectedEdges.map((e) => {
-          const base = { name: e.name, action: e.action };
-          if (e.action === 'prune') base.rowsAffected = e.rowsAffected;
-          return base;
-        }),
-      },
-    };
-  }
-
-  await io.unlink(p.entityTypeFile(name));
-  await io.unlink(p.relationFile(name));
-
+async function processAffectedEdgesDisk(io, p, analysis, schema, name) {
   for (const edge of analysis.affectedEdges) {
     const edgeFile = p.edgeTypeFile(edge.name);
     if (edge.action === 'cascadeDrop') {
@@ -105,15 +106,11 @@ export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
       continue;
     }
 
-    // Prune: rewrite edge file with filtered sources/targets, rewrite rows.
     const edgeText = await io.readFile(edgeFile);
     const parsed = parseFrontmatter(edgeText, { filename: edgeFile });
     const body = parsed.body;
     const nextFm = edge.nextFm;
-    await io.writeFile(
-      edgeFile,
-      composeMarkdown(renderEdgeFrontmatter(nextFm), body),
-    );
+    await io.writeFile(edgeFile, composeMarkdown(renderEdgeFrontmatter(nextFm), body));
     schema.edges[edge.name].frontmatterHash = hashFrontmatter({
       type: edge.name,
       sources: nextFm.sources,
@@ -127,27 +124,47 @@ export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
       await io.writeFile(relFile, serialiseEdgeRows(kept));
     }
   }
+}
+
+async function updateLiveDb(worktreeRoot, io, p, analysis, name) {
+  await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {
+    for (const edge of analysis.affectedEdges) {
+      if (edge.action === 'cascadeDrop') {
+        await dropLiveEdgeType(db, edge.name);
+        continue;
+      }
+      const relFile = p.relationFile(edge.name);
+      const rows = await io.exists(relFile)
+        ? parseEdgeRows(await io.readFile(relFile))
+        : [];
+      await replaceLiveEdgeRows(db, edge.name, rows);
+    }
+    await dropLiveEntityType(db, name);
+  });
+}
+
+export async function dropEntityType({ worktreeRoot, io, name, confirm }) {
+  const foundryDir = 'foundry';
+  const p = memoryPaths(foundryDir);
+  const schema = await loadSchema(foundryDir, io);
+  if (!schema.entities[name]) throw new Error(`entity type '${name}' not declared`);
+
+  const analysis = await analyseEntityDrop({ io, p, name, schema });
+
+  if (confirm !== true) {
+    return { requiresConfirm: true, preview: buildPreview(analysis, name) };
+  }
+
+  await io.unlink(p.entityTypeFile(name));
+  await io.unlink(p.relationFile(name));
+  await processAffectedEdgesDisk(io, p, analysis, schema, name);
 
   delete schema.entities[name];
   bumpVersion(schema);
   await writeSchema(foundryDir, schema, io);
 
   try {
-    await withLiveMemoryDb({ worktreeRoot, io }, async (db) => {
-      for (const edge of analysis.affectedEdges) {
-        if (edge.action === 'cascadeDrop') {
-          await dropLiveEdgeType(db, edge.name);
-          continue;
-        }
-
-        const relFile = p.relationFile(edge.name);
-        const rows = await io.exists(relFile)
-          ? parseEdgeRows(await io.readFile(relFile))
-          : [];
-        await replaceLiveEdgeRows(db, edge.name, rows);
-      }
-      await dropLiveEntityType(db, name);
-    });
+    await updateLiveDb(worktreeRoot, io, p, analysis, name);
   } finally {
     invalidateStore(worktreeRoot);
   }
