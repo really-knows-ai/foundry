@@ -27,7 +27,8 @@ describe('secret.js', () => {
 
   it('file is mode 0600', () => {
     readOrCreateSecret(dir);
-    const mode = statSync(join(dir, '.foundry/.secret')).mode & 0o777;
+    const modeOct = statSync(join(dir, '.foundry/.secret')).mode.toString(8);
+    const mode = parseInt(modeOct.slice(-3), 8);
     assert.equal(mode, 0o600);
   });
 

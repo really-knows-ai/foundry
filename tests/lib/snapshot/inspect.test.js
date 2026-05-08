@@ -33,29 +33,28 @@ function makeReadme({ branch, parent, flow, goal, startedAt, finishedAt, exitRea
   ].join('\n');
 }
 
+async function writeOptionalFile(io, filePath, value, defaultContent) {
+  if (value !== false) {
+    await io.writeFile(filePath, value ?? defaultContent);
+  }
+}
+
 async function writeSnapshot(io, runId, opts = {}) {
   const dir = `.snapshots/${runId}`;
   await io.mkdirp(`${dir}/work`);
-  if (opts.readme !== false) {
-    await io.writeFile(`${dir}/README.md`, opts.readme ?? makeReadme({
-      branch: 'dry-run/main/x',
-      parent: 'config/main',
-      flow: 'creative-flow',
-      goal: 'do a thing',
-      startedAt: '2025-01-01T00:00:00.000Z',
-      finishedAt: '2025-01-01T00:01:00.000Z',
-      exitReason: 'completed',
-    }));
-  }
-  if (opts.work !== false) {
-    await io.writeFile(`${dir}/work/WORK.md`, opts.work ?? '---\nflow: x\n---\n# Goal\n');
-  }
-  if (opts.diff !== false) {
-    await io.writeFile(`${dir}/diff.patch`, opts.diff ?? 'diff --git a/x b/x\n+a\n-b\n');
-  }
-  if (opts.trace !== false) {
-    await io.writeFile(`${dir}/trace.jsonl`, opts.trace ?? '{"ts":"2025-01-01T00:00:00.000Z"}\n{"ts":"2025-01-01T00:01:00.000Z"}\n');
-  }
+  const defaultReadme = makeReadme({
+    branch: 'dry-run/main/x',
+    parent: 'config/main',
+    flow: 'creative-flow',
+    goal: 'do a thing',
+    startedAt: '2025-01-01T00:00:00.000Z',
+    finishedAt: '2025-01-01T00:01:00.000Z',
+    exitReason: 'completed',
+  });
+  await writeOptionalFile(io, `${dir}/README.md`, opts.readme, defaultReadme);
+  await writeOptionalFile(io, `${dir}/work/WORK.md`, opts.work, '---\nflow: x\n---\n# Goal\n');
+  await writeOptionalFile(io, `${dir}/diff.patch`, opts.diff, 'diff --git a/x b/x\n+a\n-b\n');
+  await writeOptionalFile(io, `${dir}/trace.jsonl`, opts.trace, '{"ts":"2025-01-01T00:00:00.000Z"}\n{"ts":"2025-01-01T00:01:00.000Z"}\n');
 }
 
 describe('snapshot inspect', () => {
