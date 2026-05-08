@@ -1,6 +1,41 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 
+// Output byte limits
+const MAX_STDOUT = 50 * 1024 * 1024; // 50MB
+const MAX_STDERR = 1 * 1024 * 1024;  // 1MB
+
+function killGroup(child, signal) {
+  // G25: Guard against undefined pid (spawn failure)
+  if (child.pid === null || child.pid === undefined) return;
+  // Negative pid targets the process group. Wrap in try/catch because
+  // the group may already be gone (ESRCH) by the time we signal.
+  try { process.kill(-child.pid, signal); } catch {}
+}
+
+function createStreamHandler(decoder, state, prop, maxBytes, onOverflow) {
+  return (b) => {
+    // G28: Check output limit
+    if (state[prop].length >= maxBytes) {
+      if (!state.tooMuchOutput) {
+        state.tooMuchOutput = true;
+        onOverflow();
+      }
+      return;
+    }
+    const decoded = decoder.write(b);
+    // Check again after decoding
+    if (state[prop].length + decoded.length >= maxBytes) {
+      const remaining = maxBytes - state[prop].length;
+      state[prop] += decoded.slice(0, remaining);
+      state.tooMuchOutput = true;
+      onOverflow();
+      return;
+    }
+    state[prop] += decoded;
+  };
+}
+
 // Runs a command (via /bin/sh -c) with a hard timeout. Never throws.
 // Returns:
 //   { ok, exitCode, signal, stdout, stderr, timedOut, tooMuchOutput }
@@ -31,116 +66,73 @@ export async function spawnWithTimeout({ command, cwd, timeoutMs, env }) {
       detached: true,
     });
 
-    // G27: Use StringDecoder to handle multi-byte UTF-8 correctly
+    const state = { stdout: '', stderr: '', timedOut: false, tooMuchOutput: false, settled: false, hardTimer: null };
     const stdoutDecoder = new StringDecoder('utf-8');
     const stderrDecoder = new StringDecoder('utf-8');
-    
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-    let tooMuchOutput = false;
-    let settled = false;
-    let hardTimer = null; // G24: Capture the SIGKILL timer to clear it
 
-    // G28: Output byte limits
-    const MAX_STDOUT = 50 * 1024 * 1024; // 50MB
-    const MAX_STDERR = 1 * 1024 * 1024;  // 1MB
-
-    const killGroup = (signal) => {
-      // G25: Guard against undefined pid (spawn failure)
-      if (child.pid === null || child.pid === undefined) return;
-      // Negative pid targets the process group. Wrap in try/catch because
-      // the group may already be gone (ESRCH) by the time we signal.
-      try { process.kill(-child.pid, signal); } catch {}
-    };
-
-    // G27: Decode with StringDecoder to preserve multi-byte codepoints
-    child.stdout.on('data', (b) => {
-      // G28: Check output limit
-      if (stdout.length >= MAX_STDOUT) {
-        if (!tooMuchOutput) {
-          tooMuchOutput = true;
-          killGroup('SIGKILL'); // Kill immediately, don't wait for SIGTERM
-        }
-        return;
-      }
-      const decoded = stdoutDecoder.write(b);
-      // Check again after decoding
-      if (stdout.length + decoded.length >= MAX_STDOUT) {
-        const remaining = MAX_STDOUT - stdout.length;
-        stdout += decoded.slice(0, remaining);
-        tooMuchOutput = true;
-        killGroup('SIGKILL');
-        return;
-      }
-      stdout += decoded;
-    });
-
-    child.stderr.on('data', (b) => {
-      // G28: Check output limit
-      if (stderr.length >= MAX_STDERR) {
-        if (!tooMuchOutput) {
-          tooMuchOutput = true;
-          killGroup('SIGKILL'); // Kill immediately, don't wait for SIGTERM
-        }
-        return;
-      }
-      const decoded = stderrDecoder.write(b);
-      // Check again after decoding
-      if (stderr.length + decoded.length >= MAX_STDERR) {
-        const remaining = MAX_STDERR - stderr.length;
-        stderr += decoded.slice(0, remaining);
-        tooMuchOutput = true;
-        killGroup('SIGKILL');
-        return;
-      }
-      stderr += decoded;
-    });
+    child.stdout.on('data', createStreamHandler(stdoutDecoder, state, 'stdout', MAX_STDOUT, () => killGroup(child, 'SIGKILL')));
+    child.stderr.on('data', createStreamHandler(stderrDecoder, state, 'stderr', MAX_STDERR, () => killGroup(child, 'SIGKILL')));
 
     const softTimer = setTimeout(() => {
-      timedOut = true;
-      killGroup('SIGTERM');
+      state.timedOut = true;
+      killGroup(child, 'SIGTERM');
       // G24: Capture the hard timer so we can clear it on natural exit
-      hardTimer = setTimeout(() => {
-        if (!settled) { killGroup('SIGKILL'); }
+      state.hardTimer = setTimeout(() => {
+        if (!state.settled) { killGroup(child, 'SIGKILL'); }
       }, 500);
     }, timeoutMs);
 
-    child.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(softTimer);
-      // G24: Clear hard timer if it was set
-      if (hardTimer) clearTimeout(hardTimer);
-      
-      // G26: Spawn error should never set timedOut to true.
-      // The error handler fires when spawn fails (ENOENT, EMFILE, etc.),
-      // which happens before the child even starts. timedOut requires
-      // the timeout to have actually elapsed AND a child to have existed.
-      resolve({
-        ok: false,
-        exitCode: null,
-        signal: null,
-        stdout,
-        stderr: stderr + (stderr.endsWith('\n') || stderr === '' ? '' : '\n') + `spawn error: ${err.message}`,
-        timedOut: false, // G26: Explicitly false, not inheriting timedOut flag
-        tooMuchOutput: false,
-      });
-    });
-
-    child.on('close', (code, signal) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(softTimer);
-      // G24: Clear the SIGKILL timer to prevent event loop from hanging
-      if (hardTimer) clearTimeout(hardTimer);
-      
-      // Flush any remaining bytes in the decoders
-      stdout += stdoutDecoder.end();
-      stderr += stderrDecoder.end();
-      
-      const ok = !timedOut && !tooMuchOutput && code === 0;
-      resolve({ ok, exitCode: code, signal, stdout, stderr, timedOut, tooMuchOutput });
-    });
+    child.on('error', makeErrorHandler(state, softTimer, resolve));
+    child.on('close', makeCloseHandler(state, softTimer, stdoutDecoder, stderrDecoder, resolve));
   });
+}
+
+function makeErrorHandler(state, softTimer, resolve) {
+  return (err) => {
+    if (state.settled) return;
+    state.settled = true;
+    clearTimeout(softTimer);
+    // G24: Clear hard timer if it was set
+    if (state.hardTimer) clearTimeout(state.hardTimer);
+
+    // G26: Spawn error should never set timedOut to true.
+    // The error handler fires when spawn fails (ENOENT, EMFILE, etc.),
+    // which happens before the child even starts. timedOut requires
+    // the timeout to have actually elapsed AND a child to have existed.
+    const errDetail = (state.stderr.endsWith('\n') || state.stderr === '' ? '' : '\n') + `spawn error: ${err.message}`;
+    resolve({
+      ok: false,
+      exitCode: null,
+      signal: null,
+      stdout: state.stdout,
+      stderr: state.stderr + errDetail,
+      timedOut: false, // G26: Explicitly false, not inheriting timedOut flag
+      tooMuchOutput: false,
+    });
+  };
+}
+
+function makeCloseHandler(state, softTimer, stdoutDecoder, stderrDecoder, resolve) {
+  return (code, signal) => {
+    if (state.settled) return;
+    state.settled = true;
+    clearTimeout(softTimer);
+    // G24: Clear the SIGKILL timer to prevent event loop from hanging
+    if (state.hardTimer) clearTimeout(state.hardTimer);
+
+    // Flush any remaining bytes in the decoders
+    state.stdout += stdoutDecoder.end();
+    state.stderr += stderrDecoder.end();
+
+    const ok = !state.timedOut && !state.tooMuchOutput && code === 0;
+    resolve({
+      ok,
+      exitCode: code,
+      signal,
+      stdout: state.stdout,
+      stderr: state.stderr,
+      timedOut: state.timedOut,
+      tooMuchOutput: state.tooMuchOutput,
+    });
+  };
 }
