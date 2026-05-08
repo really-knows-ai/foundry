@@ -22,19 +22,29 @@ export function checkEntityRowAgainstExtractor(extractor, entityType) {
   };
 }
 
-export function checkEdgeRowAgainstExtractor(extractor, edge, vocabulary) {
-  const edgeDef = vocabulary.edges?.[edge.edge_type];
-  if (!edgeDef) {
+function lookupInVocabulary(collection, typeName, extractorName, edgeType, label) {
+  if (collection?.[typeName]) return null;
+  return { ok: false, error: `extractor '${extractorName}': edge '${edgeType}' ${label} '${typeName}' not declared in project vocabulary` };
+}
+
+function validateEdgeTypesInVocabulary(extractor, edge, vocabulary) {
+  if (!vocabulary.edges?.[edge.edge_type]) {
     return { ok: false, error: `extractor '${extractor.name}': edge type '${edge.edge_type}' not declared in project vocabulary` };
   }
-  if (!vocabulary.entities?.[edge.from_type]) {
-    return { ok: false, error: `extractor '${extractor.name}': edge '${edge.edge_type}' from_type '${edge.from_type}' not declared in project vocabulary` };
-  }
-  if (!vocabulary.entities?.[edge.to_type]) {
-    return { ok: false, error: `extractor '${extractor.name}': edge '${edge.edge_type}' to_type '${edge.to_type}' not declared in project vocabulary` };
-  }
+  const fromError = lookupInVocabulary(vocabulary.entities, edge.from_type, extractor.name, edge.edge_type, 'from_type');
+  if (fromError) return fromError;
+  return lookupInVocabulary(vocabulary.entities, edge.to_type, extractor.name, edge.edge_type, 'to_type');
+}
+
+function isEdgeWritable(extractor, edge) {
   const writable = new Set(extractor.memoryWrite);
-  if (writable.has(edge.from_type) || writable.has(edge.to_type)) return { ok: true };
+  return writable.has(edge.from_type) || writable.has(edge.to_type);
+}
+
+export function checkEdgeRowAgainstExtractor(extractor, edge, vocabulary) {
+  const validationError = validateEdgeTypesInVocabulary(extractor, edge, vocabulary);
+  if (validationError) return validationError;
+  if (isEdgeWritable(extractor, edge)) return { ok: true };
   return {
     ok: false,
     error: `extractor '${extractor.name}': edge '${edge.edge_type}' has neither endpoint in memory.write (${extractor.memoryWrite.join(', ')})`,
