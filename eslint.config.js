@@ -243,6 +243,14 @@ export default [
     },
   },
 
+  // Attestation verify: requires OS command execution via PATH
+  {
+    files: ['src/scripts/lib/attestation/verify.js'],
+    rules: {
+      'sonarjs/no-os-command-from-path': 'off',
+    },
+  },
+
   // Attestation tools: requires OS command execution via PATH
   {
     files: ['src/plugin/tools/attestation-tools.js'],
