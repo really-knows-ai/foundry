@@ -89,7 +89,7 @@ Command: \`echo ok\`
     return { ok: true, artefacts: [] };
   };
 
-  const baseArgs = {
+  const args = {
     cwd: '/tmp/project',
     git,
     mint,
@@ -101,7 +101,7 @@ Command: \`echo ok\`
   // Call 1: needs setup -> writes stages into WORK.md, commits setup,
   //         then sort routes to forge as first stage.
   // ------------------------------------------------------------------
-  const r1 = await runOrchestrate(baseArgs, io);
+  const r1 = await runOrchestrate(args, io);
   assert.strictEqual(r1.action, 'dispatch', 'first call should dispatch');
   assert.strictEqual(r1.stage, 'forge:create-haiku');
   assert.strictEqual(
@@ -147,7 +147,7 @@ Command: \`echo ok\`
   // Call 2: finalize forge, append history, commit, dispatch quench.
   // ------------------------------------------------------------------
   const r2 = await runOrchestrate(
-    { ...baseArgs, lastResult: { kind: 'dispatch', ok: true } },
+    { ...args, lastResult: { kind: 'dispatch', ok: true } },
     io
   );
   assert.strictEqual(r2.action, 'dispatch');
@@ -192,7 +192,7 @@ Command: \`echo ok\`
   // Call 3: finalize quench, dispatch appraise.
   // ------------------------------------------------------------------
   const r3 = await runOrchestrate(
-    { ...baseArgs, lastResult: { kind: 'dispatch', ok: true } },
+    { ...args, lastResult: { kind: 'dispatch', ok: true } },
     io
   );
   assert.strictEqual(r3.action, 'dispatch');
@@ -223,7 +223,7 @@ Command: \`echo ok\`
   // Call 4: finalize appraise -> sort returns 'done'.
   // ------------------------------------------------------------------
   const r4 = await runOrchestrate(
-    { ...baseArgs, lastResult: { kind: 'dispatch', ok: true } },
+    { ...args, lastResult: { kind: 'dispatch', ok: true } },
     io
   );
   assert.strictEqual(r4.action, 'done');

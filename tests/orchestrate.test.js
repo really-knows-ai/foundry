@@ -920,7 +920,7 @@ cycle: create-haiku
   );
 
   assert.deepStrictEqual(
-    result.context.recent_feedback.map(it => it.id),
+    result.context.recent_feedback.map(item => item.id),
     ['newest', 'equal-a', 'equal-b', 'older']
   );
 });
@@ -1270,8 +1270,6 @@ test('finalizeStage returns deterministic sorted changedFiles for controlled for
   const testDir = '/tmp/foundry-finalize-test';
   
   // Create a minimal git repo with two files in forge output directory
-  const io = makeIo({});
-  
   try {
     execFileSync('rm', ['-rf', testDir], { stdio: 'ignore' });
   } catch {}
