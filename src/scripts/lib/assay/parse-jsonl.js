@@ -31,30 +31,28 @@ function parseEntityRow(obj, lineNo) {
   return { kind: 'entity', type: obj.type, name: obj.name, value: obj.value };
 }
 
+function validateRef(obj, fieldName, lineNo) {
+  if (!obj[fieldName] || typeof obj[fieldName] !== 'object') {
+    throw new Error(`extractor output line ${lineNo}: edge.${fieldName} is required and must be an object {type,name}`);
+  }
+  req(obj[fieldName], 'type', lineNo, `edge.${fieldName}`);
+  req(obj[fieldName], 'name', lineNo, `edge.${fieldName}`);
+}
+
+function checkRefSize(ref, fieldName, lineNo) {
+  const bytes = Buffer.byteLength(ref.name, 'utf-8');
+  if (bytes > MAX_VALUE_BYTES) {
+    throw new Error(`extractor output line ${lineNo}: edge.${fieldName}.name is ${bytes} bytes (max ${MAX_VALUE_BYTES}, too large)`);
+  }
+}
+
 function parseEdgeRow(obj, lineNo) {
   checkFields(obj, EDGE_FIELDS, lineNo, 'edge');
-  if (!obj.from || typeof obj.from !== 'object') {
-    throw new Error(`extractor output line ${lineNo}: edge.from is required and must be an object {type,name}`);
-  }
-  if (!obj.to || typeof obj.to !== 'object') {
-    throw new Error(`extractor output line ${lineNo}: edge.to is required and must be an object {type,name}`);
-  }
-  req(obj.from, 'type', lineNo, 'edge.from');
-  req(obj.from, 'name', lineNo, 'edge.from');
-  req(obj.to, 'type', lineNo, 'edge.to');
-  req(obj.to, 'name', lineNo, 'edge.to');
+  validateRef(obj, 'from', lineNo);
+  validateRef(obj, 'to', lineNo);
   req(obj, 'edge', lineNo, 'edge');
-  
-  // Validate size of edge name fields
-  const fromNameBytes = Buffer.byteLength(obj.from.name, 'utf-8');
-  if (fromNameBytes > MAX_VALUE_BYTES) {
-    throw new Error(`extractor output line ${lineNo}: edge.from.name is ${fromNameBytes} bytes (max ${MAX_VALUE_BYTES}, too large)`);
-  }
-  const toNameBytes = Buffer.byteLength(obj.to.name, 'utf-8');
-  if (toNameBytes > MAX_VALUE_BYTES) {
-    throw new Error(`extractor output line ${lineNo}: edge.to.name is ${toNameBytes} bytes (max ${MAX_VALUE_BYTES}, too large)`);
-  }
-  
+  checkRefSize(obj.from, 'from', lineNo);
+  checkRefSize(obj.to, 'to', lineNo);
   return {
     kind: 'edge',
     edge_type: obj.edge,
@@ -65,27 +63,40 @@ function parseEdgeRow(obj, lineNo) {
   };
 }
 
+function isSkippableLine(trimmed) {
+  return trimmed === '' || trimmed.startsWith('#');
+}
+
+function parseJsonLine(trimmed, lineNo) {
+  try {
+    return JSON.parse(trimmed);
+  } catch (err) {
+    throw new Error(`extractor output line ${lineNo}: invalid JSON (${err.message}). Extractors must output one JSON object per line (JSONL/NDJSON format), not pretty-printed multi-line JSON.`, { cause: err });
+  }
+}
+
+function validateParsedObject(obj, lineNo) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    throw new Error(`extractor output line ${lineNo}: expected a JSON object`);
+  }
+}
+
+function dispatchKind(obj, lineNo) {
+  if (obj.kind === 'entity') return parseEntityRow(obj, lineNo);
+  if (obj.kind === 'edge') return parseEdgeRow(obj, lineNo);
+  throw new Error(`extractor output: unknown kind '${obj.kind}' at line ${lineNo}`);
+}
+
 export function parseExtractorOutput(text) {
   if (!text) return [];
   const lines = text.split(/\r?\n/);
   const out = [];
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    const trimmed = raw.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) continue;
-    let obj;
-    try {
-      obj = JSON.parse(trimmed);
-    } catch (err) {
-      throw new Error(`extractor output line ${i + 1}: invalid JSON (${err.message}). Extractors must output one JSON object per line (JSONL/NDJSON format), not pretty-printed multi-line JSON.`, { cause: err });
-    }
-    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
-      throw new Error(`extractor output line ${i + 1}: expected a JSON object`);
-    }
-    const kind = obj.kind;
-    if (kind === 'entity') out.push(parseEntityRow(obj, i + 1));
-    else if (kind === 'edge') out.push(parseEdgeRow(obj, i + 1));
-    else throw new Error(`extractor output: unknown kind '${kind}' at line ${i + 1}`);
+    const trimmed = lines[i].trim();
+    if (isSkippableLine(trimmed)) continue;
+    const obj = parseJsonLine(trimmed, i + 1);
+    validateParsedObject(obj, i + 1);
+    out.push(dispatchKind(obj, i + 1));
   }
   return out;
 }
