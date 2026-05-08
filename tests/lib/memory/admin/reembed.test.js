@@ -160,7 +160,6 @@ describe('reembed', () => {
       // Create a broken IO that fails on writeSchema by making foundry/memory read-only
       // after reembed starts. This simulates writeSchema failing after renameDbFiles succeeds.
       const schemaPath = join(root3, 'foundry/memory/schema.json');
-      const schemaBefore = readFileSync(schemaPath, 'utf-8');
 
       // Patch writeFile to fail on schema.json
       const origWriteFile = io.writeFile;
