@@ -31,6 +31,17 @@ export function isToolManaged(file) {
   return TOOL_MANAGED_PREFIX.some((p) => file.startsWith(p));
 }
 
+function addIfNew(seen, result, path) {
+  if (path && !seen.has(path)) {
+    seen.add(path);
+    result.push(path);
+  }
+}
+
+function isRenameOrCopy(status) {
+  return status[0] === 'R' || status[0] === 'C';
+}
+
 /**
  * Parse `git status -z --porcelain=v1` output into a list of file paths.
  *
@@ -46,21 +57,14 @@ export function parsePorcelainZ(out) {
   if (!out) return [];
   const seen = new Set();
   const result = [];
-  // Split on NUL but ignore the trailing empty entry.
   const parts = out.split('\0');
   for (let i = 0; i < parts.length; i++) {
     const entry = parts[i];
     if (!entry) continue;
-    // Status is the first 2 chars, then a space, then the path.
-    const status = entry.slice(0, 2);
     const path = entry.slice(3);
-    if (!path) continue;
-    if (!seen.has(path)) { seen.add(path); result.push(path); }
-    // Rename (R) and copy (C) entries are followed by an extra NUL-terminated
-    // source path that the caller should also account for.
-    if (status[0] === 'R' || status[0] === 'C') {
-      const src = parts[++i];
-      if (src && !seen.has(src)) { seen.add(src); result.push(src); }
+    addIfNew(seen, result, path);
+    if (isRenameOrCopy(entry)) {
+      addIfNew(seen, result, parts[++i]);
     }
   }
   return result;
