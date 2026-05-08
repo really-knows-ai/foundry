@@ -4,6 +4,186 @@ import { entRelName } from '../cozo.js';
 import { putEntity } from '../writes.js';
 import { invalidateStore } from '../singleton.js';
 
+function assertEmbedder(embedder) {
+  if (!embedder) throw new Error('reembed requires an embedder');
+}
+
+function assertDimensions(newDimensions) {
+  if (!Number.isInteger(newDimensions) || newDimensions <= 0) {
+    throw new Error('newDimensions must be positive integer');
+  }
+}
+
+function assertDbPath(dbAbsolutePath) {
+  if (!dbAbsolutePath) throw new Error('reembed requires dbAbsolutePath');
+}
+
+function assertRawIO(rawIO) {
+  if (!rawIO) throw new Error('reembed requires rawIO for absolute path operations');
+}
+
+function validateReembedParams(opts) {
+  assertEmbedder(opts.embedder);
+  assertDimensions(opts.newDimensions);
+  assertDbPath(opts.dbAbsolutePath);
+  assertRawIO(opts.rawIO);
+}
+
+function assertVectorLength(v, expected) {
+  const len = Array.isArray(v) ? v.length : 'n/a';
+  if (!Array.isArray(v) || v.length !== expected) {
+    throw new Error(`reembed: vector length ${len} != expected ${expected}`);
+  }
+}
+
+async function harvestRows(foundryDir, schema, io, dbPath) {
+  const entityTypes = Object.keys(schema.entities);
+  const store = await openStore({
+    foundryDir, schema, io, dbAbsolutePath: dbPath,
+  });
+  const rowsByType = {};
+  try {
+    for (const type of entityTypes) {
+      const rel = entRelName(type);
+      const res = await store.db.run(
+        `?[name, value] := *${rel}{name, value}`,
+      );
+      rowsByType[type] = res.rows.map(([name, value]) => ({ name, value }));
+    }
+  } finally {
+    closeStore(store);
+  }
+  return { rowsByType, entityTypes };
+}
+
+async function embedChunk(store, chunk, vectors, dims, vocab) {
+  for (let j = 0; j < chunk.length; j++) {
+    assertVectorLength(vectors[j], dims);
+    const entry = {
+      type: chunk[j].type,
+      name: chunk[j].name,
+      value: chunk[j].value,
+    };
+    await putEntity(store, entry, vocab, {
+      embedder: async () => [vectors[j]],
+    });
+  }
+}
+
+async function processBatch(opts) {
+  const chunk = opts.rows
+    .slice(opts.start, opts.start + opts.batchSize)
+    .map((r) => ({ ...r, type: opts.type }));
+  const vectors = await opts.embedder(chunk.map((r) => r.value));
+  await embedChunk(
+    opts.store, chunk, vectors, opts.dims, opts.vocab,
+  );
+}
+
+async function embedType(store, type, rows, opts) {
+  for (let i = 0; i < rows.length; i += opts.batchSize) {
+    await processBatch({
+      store, rows, start: i,
+      batchSize: opts.batchSize, type,
+      embedder: opts.embedder,
+      dims: opts.newDimensions,
+      vocab: opts.vocab,
+    });
+  }
+}
+
+async function buildStagingDb(opts) {
+  const vocab = {
+    entities: opts.newSchema.entities,
+    edges: opts.newSchema.edges,
+  };
+  const stagingStore = await openStore({
+    foundryDir: opts.foundryDir,
+    schema: opts.newSchema,
+    io: opts.io,
+    dbAbsolutePath: opts.stagingPath,
+  });
+
+  const embedOpts = {
+    batchSize: opts.batchSize,
+    embedder: opts.embedder,
+    newDimensions: opts.newDimensions,
+    vocab,
+  };
+
+  try {
+    for (const type of opts.entityTypes) {
+      const rows = opts.rowsByType[type] ?? [];
+      await embedType(stagingStore, type, rows, embedOpts);
+    }
+  } catch (err) {
+    try { closeStore(stagingStore); } catch { /* best effort */ }
+    throw err;
+  }
+
+  closeStore(stagingStore);
+}
+
+async function swapDatabases(opts) {
+  await writeSchema(opts.foundryDir, opts.newSchema, opts.io);
+  renameDbFiles(opts.stagingPath, opts.dbAbsolutePath, opts.rawIO);
+}
+
+async function refreshStore(opts) {
+  const reopened = await openStore({
+    foundryDir: opts.foundryDir,
+    schema: opts.newSchema,
+    io: opts.io,
+    dbAbsolutePath: opts.dbAbsolutePath,
+  });
+  try {
+    await syncStore({ store: reopened, io: opts.io });
+  } finally {
+    closeStore(reopened);
+  }
+  invalidateStore(opts.worktreeRoot);
+}
+
+async function runPipeline(opts) {
+  const buildOpts = {
+    stagingPath: opts.stagingPath,
+    newSchema: opts.newSchema,
+    io: opts.io,
+    foundryDir: opts.foundryDir,
+    entityTypes: opts.entityTypes,
+    rowsByType: opts.rowsByType,
+    embedder: opts.embedder,
+    batchSize: opts.batchSize,
+    newDimensions: opts.newDimensions,
+  };
+  await buildStagingDb(buildOpts);
+
+  const swapOpts = {
+    stagingPath: opts.stagingPath,
+    dbAbsolutePath: opts.dbAbsolutePath,
+    foundryDir: opts.foundryDir,
+    newSchema: opts.newSchema,
+    io: opts.io,
+    rawIO: opts.rawIO,
+  };
+  await swapDatabases(swapOpts);
+
+  await refreshStore({
+    foundryDir: opts.foundryDir,
+    newSchema: opts.newSchema,
+    io: opts.io,
+    dbAbsolutePath: opts.dbAbsolutePath,
+    worktreeRoot: opts.worktreeRoot,
+  });
+}
+
+function withCleanup(stagingPath, rawIO, fn) {
+  return fn().catch((err) => {
+    unlinkDbFiles(stagingPath, rawIO);
+    throw err;
+  });
+}
+
 /**
  * Atomic re-embedding via a staging DB.
  *
@@ -25,121 +205,36 @@ export async function reembed({
   embedder,
   batchSize = 64,
 }) {
-  if (!embedder) throw new Error('reembed requires an embedder');
-  if (!Number.isInteger(newDimensions) || newDimensions <= 0) {
-    throw new Error('newDimensions must be positive integer');
-  }
-  if (!dbAbsolutePath) throw new Error('reembed requires dbAbsolutePath');
-  if (!rawIO) throw new Error('reembed requires rawIO for absolute path operations');
+  validateReembedParams({
+    embedder, newDimensions, dbAbsolutePath, rawIO,
+  });
 
   const foundryDir = 'foundry';
   const oldSchema = await loadSchema(foundryDir, io);
-  const entityTypes = Object.keys(oldSchema.entities);
+  const { rowsByType, entityTypes } = await harvestRows(
+    foundryDir, oldSchema, io, dbAbsolutePath,
+  );
 
-  // Phase 1: harvest existing rows from the live store. The live DB stays
-  // read-only during this phase.
-  const oldStore = await openStore({
-    foundryDir,
-    schema: oldSchema,
-    io,
-    dbAbsolutePath,
-  });
-  const rowsByType = {};
-  try {
-    for (const type of entityTypes) {
-      const rel = entRelName(type);
-      const res = await oldStore.db.run(`?[name, value] := *${rel}{name, value}`);
-      rowsByType[type] = res.rows.map(([name, value]) => ({ name, value }));
-    }
-  } finally {
-    closeStore(oldStore);
-  }
-
-  // Phase 2: build the new state in a staging DB sibling to the live one.
-  // Durable state changes only after the embedding loop completes cleanly.
   const stagingPath = `${dbAbsolutePath}.reembed-tmp`;
-  unlinkDbFiles(stagingPath, rawIO); // clean up any stale prior run
+  unlinkDbFiles(stagingPath, rawIO);
 
   const newSchema = {
     ...oldSchema,
     embeddings: { model: newModel, dimensions: newDimensions },
   };
   bumpVersion(newSchema);
-  const vocabulary = { entities: newSchema.entities, edges: newSchema.edges };
 
-  let stagingStore;
-  try {
-    stagingStore = await openStore({
-      foundryDir,
-      schema: newSchema,
-      io,
-      dbAbsolutePath: stagingPath,
-    });
+  await withCleanup(stagingPath, rawIO, () => runPipeline({
+    stagingPath, newSchema, io, foundryDir,
+    entityTypes, rowsByType, embedder, batchSize,
+    newDimensions, dbAbsolutePath, rawIO, worktreeRoot,
+  }));
 
-    for (const type of entityTypes) {
-      const rows = rowsByType[type] ?? [];
-      for (let i = 0; i < rows.length; i += batchSize) {
-        const chunk = rows.slice(i, i + batchSize);
-        const vectors = await embedder(chunk.map((r) => r.value));
-        for (let j = 0; j < chunk.length; j++) {
-          const v = vectors[j];
-          if (!Array.isArray(v) || v.length !== newDimensions) {
-            throw new Error(
-              `reembed: vector length ${Array.isArray(v) ? v.length : 'n/a'} != expected ${newDimensions}`,
-            );
-          }
-          await putEntity(
-            stagingStore,
-            { type, name: chunk[j].name, value: chunk[j].value },
-            vocabulary,
-            { embedder: async () => [v] },
-          );
-        }
-      }
-    }
-  } catch (err) {
-    // Failure before swap: close and unlink the staging DB, preserve
-    // original state.
-    if (stagingStore) {
-      try { closeStore(stagingStore); } catch { /* closing best effort */ }
-    }
-    unlinkDbFiles(stagingPath, rawIO);
-    throw err;
-  }
-
-  // Phase 3: atomic swap. Close the staging DB so sqlite flushes WAL, then
-  // write the new schema and rename the DB files over the live paths.
-  // Writing schema first ensures that if it fails, the DB remains untouched.
-  // If rename fails after schema is written, the mismatch will be detected on
-  // next openStore with a clear error.
-  closeStore(stagingStore);
-
-  try {
-    await writeSchema(foundryDir, newSchema, io);
-    renameDbFiles(stagingPath, dbAbsolutePath, rawIO);
-  } catch (err) {
-    // Best-effort cleanup of staging siblings; surface the error.
-    unlinkDbFiles(stagingPath, rawIO);
-    throw err;
-  }
-
-  invalidateStore(worktreeRoot);
-
-  // Phase 4: refresh NDJSON from the newly-swapped DB so the on-disk source
-  // of truth reflects the new vectors.
-  const reopened = await openStore({
-    foundryDir,
-    schema: newSchema,
-    io,
-    dbAbsolutePath,
-  });
-  try {
-    await syncStore({ store: reopened, io });
-  } finally {
-    closeStore(reopened);
-  }
-
-  return { model: newModel, dimensions: newDimensions, types: entityTypes.length };
+  return {
+    model: newModel,
+    dimensions: newDimensions,
+    types: entityTypes.length,
+  };
 }
 
 /**
@@ -158,6 +253,22 @@ function unlinkDbFiles(dbPath, rawIO) {
   }
 }
 
+function tryUnlinkIfExists(rawIO, path) {
+  if (rawIO.exists(path)) {
+    try { rawIO.unlink(path); } catch { /* ignore */ }
+  }
+}
+
+function tryRenameIfExists(rawIO, src, dest) {
+  if (rawIO.exists(src)) {
+    try {
+      rawIO.rename(src, dest);
+    } catch {
+      try { rawIO.unlink(src); } catch { /* ignore */ }
+    }
+  }
+}
+
 /**
  * Atomically move a Cozo sqlite DB plus its WAL/SHM sidecars into place.
  *
@@ -166,21 +277,9 @@ function unlinkDbFiles(dbPath, rawIO) {
  * subsequent open picks up any pending state.
  */
 function renameDbFiles(fromPath, toPath, rawIO) {
-  // Remove target sidecars first; the main file is overwritten by rename.
-  for (const suffix of ['-wal', '-shm']) {
-    const t = toPath + suffix;
-    try { if (rawIO.exists(t)) rawIO.unlink(t); } catch { /* ignore */ }
-  }
+  tryUnlinkIfExists(rawIO, toPath + '-wal');
+  tryUnlinkIfExists(rawIO, toPath + '-shm');
   rawIO.rename(fromPath, toPath);
-  for (const suffix of ['-wal', '-shm']) {
-    const src = fromPath + suffix;
-    if (rawIO.exists(src)) {
-      try {
-        rawIO.rename(src, toPath + suffix);
-      } catch {
-        // non-critical; sqlite will recreate these
-        try { rawIO.unlink(src); } catch { /* ignore */ }
-      }
-    }
-  }
+  tryRenameIfExists(rawIO, fromPath + '-wal', toPath + '-wal');
+  tryRenameIfExists(rawIO, fromPath + '-shm', toPath + '-shm');
 }
