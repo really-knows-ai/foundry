@@ -6,7 +6,7 @@ description: Deterministic validation of an artefact by running CLI commands. Wr
 
 # Quench
 
-You run deterministic checks on an artefact by executing the CLI commands defined in the artefact type's validation config. No judgment — commands pass or fail.
+You run deterministic checks on an artefact by executing the CLI commands defined in the law-based validators for the artefact's type. No judgment — commands pass or fail.
 
 ## Prerequisites
 
@@ -41,9 +41,8 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
    Then return control to the user and stop.
 3. `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate the artefacts produced by **this** cycle. Always pass the `cycle` filter; omitting it returns rows from prior sessions and validates stale files. Skip rows whose status is `done` or `blocked`.
 4. For each remaining row:
-   a. `foundry_config_validation` with the row's type. If it returns null, skip this row.
-   b. `foundry_validate_run` with the type ID and the row's file path — executes all validation commands and returns results.
-   c. For each failure: call `foundry_feedback_add` with `{ file, text, tag: 'validation' }`. Tag MUST be `validation` — the tool rejects other tags during quench.
+   a. `foundry_validate_run` with the type ID and the row's file path — executes all law-based validators and returns results.
+   b. For each failure: call `foundry_feedback_add` with `{ file, text, tag: 'law:<law-id>:<validator-id>' }`. The tag format includes both the law ID and validator ID so operators can identify exactly which validator produced each feedback item.
 5. Call `foundry_feedback_list`. For items whose `source` matches your stage id and whose state is `actioned` or `wont-fix`, use the validation results from step 4 to resolve them by id: approve when the relevant validation now passes or the deterministic issue is gone; reject with a reason when it still fails.
 6. If every command passes for every row, add no new feedback.
 7. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
@@ -53,11 +52,9 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
 
 As a quench stage, you have two feedback responsibilities:
 
-1. **Adding new validation feedback.** If a validation command surfaces
-   an issue, call `foundry_feedback_add` with `{ file, text, tag: 'validation' }`.
-   The `source` is automatically recorded as your stage id. The tool rejects
-   any tag other than `validation` during a quench stage; do not attempt
-   `tag: 'quench-lint'` or similar — the tool will return an error.
+1. **Adding new validation feedback.** If a validator command surfaces
+   an issue, call `foundry_feedback_add` with `{ file, text, tag: 'law:<law-id>:<validator-id>' }`.
+   The `source` is automatically recorded as your stage id. Feedback tags must follow the `law:<law-id>:<validator-id>` format to identify which law and which validator on that law produced the feedback.
 
    The tool returns `{ ok: true, id, deduped }` on success. `deduped: true`
    means an existing non-resolved item with the same `(file, tag,
@@ -93,6 +90,6 @@ Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_orches
 - You do not make subjective judgments.
 - You do not revise the artefact (forge's job).
 - You do not evaluate laws — that is the appraise skill's job.
-- You do not invent validation rules — you only run commands from the validation config.
+- You do not invent validation rules — you only run commands from the law validators.
 - You do not duplicate feedback that already exists (the tool de-duplicates by text-hash, but don't rely on it).
 - You do not register artefacts — that happens automatically.

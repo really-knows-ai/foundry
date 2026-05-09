@@ -143,6 +143,40 @@ Show the user the resulting commit hash from the response.
 
 After the file is created, confirm the law id is unique across all law files. If a collision exists, ask the user to rename and edit by hand on this branch.
 
+### 8. Editing existing laws (prose or validators)
+
+When the user wants to modify an existing law — whether updating the prose description or adding/changing validators — use this flow:
+
+#### 8a. Read the existing law
+
+Call `foundry_config_read_law({ id: "<law-id>" })` to fetch the full markdown content.
+
+#### 8b. Refine with the user
+
+Show the current content and ask what should change. Iterate on the updated markdown until the user is satisfied.
+
+#### 8c. Drift mitigation: Prose changes
+
+**If the user is modifying the law's prose description**, insert this prompt before updating:
+
+> 🔍 **Drift check:** Verify that all existing validators on this law still accurately enforce the updated intent. Open each validator's command and confirm it catches the same class of failure the prose now describes.
+
+Then proceed with the update.
+
+#### 8d. Drift mitigation: Validator changes
+
+**If the user is adding or modifying a validator**, insert this prompt before updating:
+
+> 🔍 **Drift check:** Verify that the changed validator still aligns with the law's prose. If the validator has narrowed or broadened, the prose may need a corresponding update.
+
+Then proceed with the update.
+
+#### 8e. Apply the update
+
+Call `foundry_config_edit_law({ id: "<law-id>", body: "<updated-markdown>" })` with the full updated body (prose and validators combined).
+
+Validate the result. If the tool returns `{ ok: true }`, show the user the commit hash. If it returns `{ ok: false, errors }`, address each error and retry.
+
 ## What you do NOT do
 
 - You do not skip the conflict check

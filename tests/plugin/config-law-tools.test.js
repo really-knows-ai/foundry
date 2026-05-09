@@ -313,3 +313,41 @@ test('add-law skill has no Passing:/Failing: template', async () => {
   assert.ok(!skillContent.match(/lines? 62-65/),
     'Skill should not reference the removed Passing:/Failing: template');
 });
+
+test('add-law skill contains drift-mitigation prompts for prose changes', async () => {
+  const skillPath = '/Users/jledrew/foundry/src/skills/add-law/SKILL.md';
+  const skillContent = readFileSync(skillPath, 'utf-8');
+  assert.ok(skillContent.includes('Verify that all existing validators on this law still accurately enforce the updated intent'),
+    'Skill should contain prose-change drift-mitigation prompt');
+  assert.ok(skillContent.includes('Open each validator\'s command and confirm it catches the same class of failure the prose now describes'),
+    'Skill should guide checking validators when prose changes');
+});
+
+test('add-law skill contains drift-mitigation prompts for validator changes', async () => {
+  const skillPath = '/Users/jledrew/foundry/src/skills/add-law/SKILL.md';
+  const skillContent = readFileSync(skillPath, 'utf-8');
+  assert.ok(skillContent.includes('Verify that the changed validator still aligns with the law\'s prose'),
+    'Skill should contain validator-change drift-mitigation prompt');
+  assert.ok(skillContent.includes('If the validator has narrowed or broadened, the prose may need a corresponding update'),
+    'Skill should guide updating prose when validator changes');
+});
+
+test('add-law skill references law editing tools', async () => {
+  const skillPath = '/Users/jledrew/foundry/src/skills/add-law/SKILL.md';
+  const skillContent = readFileSync(skillPath, 'utf-8');
+  assert.ok(skillContent.includes('foundry_config_add_law'),
+    'Skill should reference foundry_config_add_law tool');
+  assert.ok(skillContent.includes('foundry_config_edit_law'),
+    'Skill should reference foundry_config_edit_law tool');
+  assert.ok(skillContent.includes('foundry_config_read_law'),
+    'Skill should reference foundry_config_read_law tool');
+});
+
+test('quench skill does not reference validation tag or validation.md', async () => {
+  const skillPath = '/Users/jledrew/foundry/src/skills/quench/SKILL.md';
+  const skillContent = readFileSync(skillPath, 'utf-8');
+  assert.ok(!skillContent.includes("tag: 'validation'"),
+    'Quench skill should not reference validation tag');
+  assert.ok(!skillContent.includes('validation.md'),
+    'Quench skill should not reference validation.md file');
+});
