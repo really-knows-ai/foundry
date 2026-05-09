@@ -41,7 +41,7 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
    Then return control to the user and stop.
 3. `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate the artefacts produced by **this** cycle. Always pass the `cycle` filter; omitting it returns rows from prior sessions and validates stale files. Skip rows whose status is `done` or `blocked`.
 4. For each remaining row:
-   a. `foundry_validate_run` with the type ID and the row's file path — executes all law-based validators and returns results.
+    a. `foundry_validate_run({ typeId: '<type-id>' })` — executes all law-based validators for the artefact type.
    b. For each failure: call `foundry_feedback_add` with `{ file, text, tag: 'law:<law-id>:<validator-id>' }`. The tag format includes both the law ID and validator ID so operators can identify exactly which validator produced each feedback item.
 5. Call `foundry_feedback_list`. For items whose `source` matches your stage id and whose state is `actioned` or `wont-fix`, use the validation results from step 4 to resolve them by id: approve when the relevant validation now passes or the deterministic issue is gone; reject with a reason when it still fails.
 6. If every command passes for every row, add no new feedback.

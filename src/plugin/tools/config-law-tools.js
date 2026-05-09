@@ -1,12 +1,7 @@
-// Tools for reading, adding, and editing laws.
-//
-// `foundry_config_read_law` — read-only, returns the full markdown of a law including validators block.
-// Runs anywhere (no branch guard).
-//
-// `foundry_config_add_law` — replaces foundry_config_create_law. Mutates the worktree (write + commit)
-// on a config/* branch.
-//
-// `foundry_config_edit_law` — updates an existing law's body, validates, and commits on config/* branch.
+// Tools for reading, adding, and editing laws
+// foundry_config_read_law: read-only, returns full markdown (no branch guard)
+// foundry_config_add_law: write + commit on config/* branch
+// foundry_config_edit_law: update body and commit on config/* branch
 
 import { join, dirname } from 'path';
 import { validate as validateLaw } from '../../scripts/lib/config-validators/law.js';
@@ -19,18 +14,11 @@ import { execFileSync } from 'child_process';
 
 // --- utility functions -------------------------------------------------------
 
-/**
- * Check if content contains a law with given ID.
- * Uses simple string search and heading pattern matching.
- */
 function contentContainsLaw(content, lawId) {
   const pattern = new RegExp(`^## ${lawId}(?:\\s|$)`, 'm');
   return pattern.test(content);
 }
 
-/**
- * Find the starting index of a law in an array of lines.
- */
 function findLawStart(lines, lawId) {
   for (let i = 0; i < lines.length; i++) {
     const heading = lines[i].match(/^## (.+)/);
@@ -41,9 +29,6 @@ function findLawStart(lines, lawId) {
   return -1;
 }
 
-/**
- * Find the ending index of a law in an array of lines.
- */
 function findLawEnd(lines, startIdx) {
   for (let i = startIdx + 1; i < lines.length; i++) {
     if (lines[i].match(/^## (.+)/)) {
@@ -53,10 +38,7 @@ function findLawEnd(lines, startIdx) {
   return lines.length;
 }
 
-/**
- * Extract the full markdown for a single law from file content.
- * Preserves original formatting including trailing newlines.
- */
+// Extract full markdown for a single law from file content
 function extractLawMarkdown(content, lawId) {
   const lines = content.split('\n');
   const startIdx = findLawStart(lines, lawId);
@@ -66,7 +48,6 @@ function extractLawMarkdown(content, lawId) {
   const endIdx = findLawEnd(lines, startIdx);
   const lawLines = lines.slice(startIdx, endIdx);
   
-  // Trim trailing empty lines, then add exactly one newline
   while (lawLines.length > 0 && lawLines[lawLines.length - 1] === '') {
     lawLines.pop();
   }
@@ -74,9 +55,6 @@ function extractLawMarkdown(content, lawId) {
   return lawLines.join('\n') + '\n';
 }
 
-/**
- * Search global laws directory for a law with matching ID.
- */
 async function searchGlobalLaws(io, foundryDir, lawId) {
   const globalLawsDir = join(foundryDir, 'laws');
   if (!(await io.exists(globalLawsDir))) {
@@ -96,9 +74,6 @@ async function searchGlobalLaws(io, foundryDir, lawId) {
   return null;
 }
 
-/**
- * Search type-specific laws for a law with matching ID.
- */
 async function searchTypeSpecificLaws(io, foundryDir, lawId) {
   const artefactsDir = join(foundryDir, 'artefacts');
   if (!(await io.exists(artefactsDir))) {
@@ -119,10 +94,6 @@ async function searchTypeSpecificLaws(io, foundryDir, lawId) {
   return null;
 }
 
-/**
- * Find a law by ID across all law locations (global and type-specific).
- * Returns { found: true, path, fullMarkdown, source } or { found: false }.
- */
 async function findLawByID(io, foundryDir, lawId) {
   let result = await searchGlobalLaws(io, foundryDir, lawId);
   if (result) {
@@ -195,55 +166,37 @@ async function executeReadLaw(args, context) {
 
 // --- add law validation helpers -------------------------------------------------------
 
-function isGlobalTarget(target) {
-  return target?.kind === 'global';
+function validateAddLawTarget(target) {
+  const err = validateAddLawTargetStruct(target);
+  if (err) return err;
+  return target.kind === 'global' ? validateGlobalLawTarget(target) : validateTypeSpecLawTarget(target);
 }
 
-function isTypeSpecificTarget(target) {
-  return target?.kind === 'type-specific';
-}
-
-function errorIfInvalidTargetObject(target) {
+function validateAddLawTargetStruct(target) {
   if (!target || typeof target !== 'object') {
     return 'target argument is required (object with kind + locator)';
   }
+  const kinds = ['global', 'type-specific'];
+  if (!kinds.includes(target.kind)) return `unknown target.kind: ${target.kind}`;
   return null;
 }
 
-function errorIfInvalidTargetKind(target) {
-  if (!isGlobalTarget(target) && !isTypeSpecificTarget(target)) {
-    return `unknown target.kind: ${target.kind}`;
-  }
-  return null;
-}
-
-function errorIfInvalidGlobalTarget(target) {
-  if (!isGlobalTarget(target)) return null;
+function validateGlobalLawTarget(target) {
   if (typeof target.file !== 'string' || !target.file.trim()) {
     return 'target.file is required for kind: "global"';
   }
   return null;
 }
 
-function errorIfInvalidTypeSpecificTarget(target) {
-  if (!isTypeSpecificTarget(target)) return null;
+function validateTypeSpecLawTarget(target) {
   if (typeof target.typeId !== 'string' || !target.typeId.trim()) {
     return 'target.typeId is required for kind: "type-specific"';
   }
   return null;
 }
 
-function validateAddLawTarget(target) {
-  return (
-    errorIfInvalidTargetObject(target)
-    || errorIfInvalidTargetKind(target)
-    || errorIfInvalidGlobalTarget(target)
-    || errorIfInvalidTypeSpecificTarget(target)
-  );
-}
-
 function computeTargetPath(target) {
-  if (isGlobalTarget(target)) {
+  if (target?.kind === 'global') {
     return join('foundry', 'laws', target.file);
   }
   return join('foundry', 'artefacts', target.typeId, 'laws.md');
@@ -306,6 +259,31 @@ async function executeAddLaw(args, context) {
   }
 }
 
+// --- helper for preserving sibling laws -------------------------------------------------------
+
+// Replace a law in file content while preserving other laws
+function replaceLawInContent(content, lawId, newLawMarkdown) {
+  const lines = content.split('\n');
+  const startIdx = findLawStart(lines, lawId);
+  if (startIdx < 0) return content.trimEnd() + '\n\n' + newLawMarkdown;
+  
+  const endIdx = findLawEnd(lines, startIdx);
+  const before = lines.slice(0, startIdx);
+  const after = lines.slice(endIdx);
+  
+  // Trim trailing empty lines from before
+  const beforeEnd = before.findLastIndex(l => l !== '') + 1;
+  before.length = beforeEnd;
+  
+  // Trim leading empty lines from after  
+  const afterStart = after.findIndex(l => l !== '');
+  if (afterStart > 0) after.splice(0, afterStart);
+  
+  // newLawMarkdown includes trailing newline; split and rejoin without final empty string
+  const newLines = newLawMarkdown.trimEnd().split('\n');
+  return before.concat(newLines, after).join('\n') + '\n';
+}
+
 // --- edit law executor -------------------------------------------------------
 
 async function executeEditLaw(args, context) {
@@ -326,7 +304,8 @@ async function executeEditLaw(args, context) {
       return JSON.stringify(validation);
     }
 
-    await io.writeFile(result.path, args.body);
+    const fileContent = replaceLawInContent(result.fullMarkdown, args.id, args.body);
+    await io.writeFile(result.path, fileContent);
     execFile(['add', result.path]);
     execFile(['commit', '-m', `config: edit law ${args.id}\n\nvia foundry_config_edit_law`]);
 

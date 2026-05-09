@@ -225,9 +225,6 @@ function validateValidator(validator, seenIds, lawId) {
   seenIds.add(validator.id);
 }
 
-// This line references 'validators' which should be a local in the loop above
-// Let me rewrite this function
-
 async function collectLawsFromDir(dir, io, sourcePrefix) {
   if (!(await io.exists(dir))) return [];
   const files = await io.readDir(dir);
@@ -240,7 +237,11 @@ async function collectLawsFromDir(dir, io, sourcePrefix) {
   return results;
 }
 
-export async function getLaws(foundryDir, io, { typeId } = {}) {
+/**
+ * Collect all laws (global and type-specific) for a given artefact type.
+ * Returns laws with their source and validator information.
+ */
+async function collectAllLaws(foundryDir, io, { typeId } = {}) {
   const laws = await collectLawsFromDir(join(foundryDir, 'laws'), io, 'laws');
 
   if (typeId) {
@@ -250,21 +251,19 @@ export async function getLaws(foundryDir, io, { typeId } = {}) {
       laws.push(...parseLaws(text, `artefacts/${typeId}/laws.md`));
     }
   }
+
+  return laws;
+}
+
+export async function getLaws(foundryDir, io, { typeId } = {}) {
+  const laws = await collectAllLaws(foundryDir, io, { typeId });
 
   // Return prose-only without source or validators
   return laws.map(law => ({ id: law.id, text: law.text }));
 }
 
 export async function getLawsForQuench(foundryDir, io, { typeId } = {}) {
-  const laws = await collectLawsFromDir(join(foundryDir, 'laws'), io, 'laws');
-
-  if (typeId) {
-    const typeLawsPath = join(foundryDir, 'artefacts', typeId, 'laws.md');
-    if (await io.exists(typeLawsPath)) {
-      const text = await io.readFile(typeLawsPath);
-      laws.push(...parseLaws(text, `artefacts/${typeId}/laws.md`));
-    }
-  }
+  const laws = await collectAllLaws(foundryDir, io, { typeId });
 
   // Return only laws that have validators
   return laws.filter(law => law.validators && law.validators.length > 0);

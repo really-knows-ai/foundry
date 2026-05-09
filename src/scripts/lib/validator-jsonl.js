@@ -98,7 +98,7 @@ function finalizeParsing(errors, items, resolve) {
  * Validate required fields in parsed line.
  */
 function validateRequired(obj, lineNum) {
-  if (!obj.file) {
+  if (typeof obj.file !== 'string' || obj.file.length === 0) {
     return { error: `Line ${lineNum}: Missing required field 'file'` };
   }
   if (!obj.text) {

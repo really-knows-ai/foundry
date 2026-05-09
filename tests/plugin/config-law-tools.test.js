@@ -45,9 +45,9 @@ const VALID_LAW_WITH_VALIDATORS = `## test-law-with-validators
 This law has validators.
 
 validators:
-  id: check-thing
-  command: ./scripts/check.sh
-  failure-means: The artefact did not pass the check.
+  - id: check-thing
+    command: ./scripts/check.sh
+    failure-means: The artefact did not pass the check.
 `;
 
 // ---------------------------------------------------------------------------

@@ -39,8 +39,8 @@ async function executeValidator(expanded, worktree, patterns) {
     const stream = Readable.from([output]);
     return await parseValidatorJsonl(stream, patterns);
   } catch (err) {
-    // Validator command failed - parse stderr/stdout as JSONL
-    const output = fallbackMessage(err);
+    // Validator command failed - prefer stdout for JSONL (tools like rg exit 1 with results on stdout)
+    const output = (err.stdout || err.stderr || err.message || '').trim();
     const { Readable } = await import('stream');
     const stream = Readable.from([output]);
     return await parseValidatorJsonl(stream, patterns);
@@ -111,23 +111,27 @@ async function executeValidateRun(args, context) {
 /**
  * Perform actual validation work.
  */
+async function getValidationPatterns(foundryDir, typeId, io) {
+  const artType = await getArtefactType(foundryDir, typeId, io);
+  return artType.frontmatter['file-patterns'] || [];
+}
+
 async function performValidation(args, context) {
   const io = makeIO(context.worktree);
   const foundryDir = join(context.worktree, 'foundry');
 
-  // Get artefact type definition first to validate it exists
-  const artType = await getArtefactType(foundryDir, args.typeId, io);
-  const patterns = artType.frontmatter['file-patterns'] || [];
+  let patterns;
+  try {
+    patterns = await getValidationPatterns(foundryDir, args.typeId, io);
+  } catch (err) {
+    return JSON.stringify({ ok: false, error: err.message });
+  }
   
   const validationErr = validatePatterns(patterns, args.typeId);
   if (validationErr) return JSON.stringify(validationErr);
 
-  // Get laws for this artefact type
   const laws = await getLawsForQuench(foundryDir, io, { typeId: args.typeId });
-  if (!laws || laws.length === 0) {
-    return JSON.stringify({ ok: true, validatorsRun: 0, feedbackItems: 0 });
-  }
-
+  if (!laws?.length) return JSON.stringify({ ok: true, validatorsRun: 0, feedbackItems: 0 });
   return runValidatorsAndReport(laws, patterns, context.worktree);
 }
 
@@ -166,6 +170,8 @@ function validatePatterns(patterns, typeId) {
  */
 async function expandPatterns(patterns, worktree) {
   const files = new Set();
+  const errors = [];
+  
   for (const pattern of patterns) {
     try {
       const matches = await glob(pattern, {
@@ -175,10 +181,15 @@ async function expandPatterns(patterns, worktree) {
       for (const match of matches) {
         files.add(match);
       }
-    } catch {
-      // Pattern didn't match any files
+    } catch (err) {
+      errors.push(`Invalid glob pattern '${pattern}': ${err.message}`);
     }
   }
+  
+  if (errors.length > 0) {
+    console.warn('Pattern expansion warnings:', errors.join('; '));
+  }
+  
   return Array.from(files).sort();
 }
 
