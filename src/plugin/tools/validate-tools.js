@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
-import { glob } from 'fs/promises';
-import { join } from 'path';
+import { readdir } from 'fs/promises';
+import { join, relative, sep } from 'path';
+import { minimatch } from 'minimatch';
 import { getLawsForQuench, getArtefactType } from '../../scripts/lib/config.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
@@ -180,31 +181,56 @@ function validatePatterns(patterns, typeId) {
   return null;
 }
 
+const SKIP_DIRS = new Set(['node_modules', '.git']);
+
+function toPosix(p) {
+  return sep === '/' ? p : p.split(sep).join('/');
+}
+
+async function readdirSafe(dir) {
+  try {
+    return await readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Recursively walk `dir` and yield POSIX-style paths relative to `root`.
+ * Skips `node_modules` and `.git` for speed; the artefacts we validate live
+ * elsewhere.
+ */
+async function* walkFiles(root, dir) {
+  for (const entry of await readdirSafe(dir)) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
+      yield* walkFiles(root, full);
+    } else if (entry.isFile()) {
+      yield toPosix(relative(root, full));
+    }
+  }
+}
+
+function fileMatchesAnyPattern(rel, patterns) {
+  for (const pattern of patterns) {
+    if (minimatch(rel, pattern)) return true;
+  }
+  return false;
+}
+
 /**
  * Expand glob patterns to actual files in the worktree.
+ *
+ * Implemented over `readdir` + `minimatch` so we work on Node 20, which lacks
+ * `fs/promises.glob` (added in Node 22).
  */
 async function expandPatterns(patterns, worktree) {
   const files = new Set();
-  const errors = [];
-
-  for (const pattern of patterns) {
-    try {
-      const matches = await glob(pattern, {
-        cwd: worktree,
-        nodir: true,
-      });
-      for (const match of matches) {
-        files.add(match);
-      }
-    } catch (err) {
-      errors.push(`Invalid glob pattern '${pattern}': ${err.message}`);
+  for await (const rel of walkFiles(worktree, worktree)) {
+    if (fileMatchesAnyPattern(rel, patterns)) {
+      files.add(rel);
     }
   }
-
-  if (errors.length > 0) {
-    console.warn('Pattern expansion warnings:', errors.join('; '));
-  }
-
   return Array.from(files).sort();
 }
 
