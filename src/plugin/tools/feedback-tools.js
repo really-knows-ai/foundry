@@ -34,8 +34,8 @@ const FEEDBACK_ADD_FORBIDDEN = {
 // Per-stage tag validators for stages that allow feedback with restrictions.
 const FEEDBACK_ADD_TAG_VALIDATORS = {
   quench: {
-    test: tag => tag === 'validation',
-    message: tag => `foundry_feedback_add: quench may only add tag "validation"; got "${tag}"`,
+    test: tag => tag.startsWith('law:'),
+    message: tag => `foundry_feedback_add: quench may only add tags starting with "law:"; got "${tag}"`,
   },
   appraise: {
     test: tag => tag.startsWith('law:'),

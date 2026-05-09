@@ -146,15 +146,23 @@ describe('foundry_feedback_add — id-based API', () => {
     assert.match(res.error, /active stage/);
   });
 
-  test('per-stage tag allow-list still enforced (quench may only add #validation)', async () => {
+  test('per-stage tag allow-list enforced (quench may only add law:* tags)', async () => {
     worktree = makeWorktree({ stage: 'quench:check' });
     const plugin = await getPlugin(worktree);
-    const raw = await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:nope' },
+    
+    // law:* tags should be accepted
+    const lawRes = parseResult(await plugin.tool.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'x', tag: 'law:some-law:validator-id' },
       { worktree },
-    );
-    const res = parseResult(raw);
-    assert.match(res.error, /quench.*validation/);
+    ));
+    assert.equal(lawRes.ok, true, 'law: tags should be accepted in quench');
+    
+    // bare 'validation' tag should be rejected (legacy)
+    const valRes = parseResult(await plugin.tool.foundry_feedback_add.execute(
+      { file: 'haiku.md', text: 'y', tag: 'validation' },
+      { worktree },
+    ));
+    assert.match(valRes.error, /quench.*law:/i);
   });
 });
 

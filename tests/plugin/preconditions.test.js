@@ -95,20 +95,27 @@ describe('feedback tag allow-list per stage', () => {
     assert.match(res.error, /forge stages do not add feedback/);
   });
 
-  it('quench may only add tag "validation"', async () => {
+  it('quench may only add tags starting with "law:"', async () => {
     await beginStage(plugin, dir, 'quench:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'law:foo' }, makeCtx(dir),
+    // law:* tags should be accepted
+    const goodRes = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
+      { file: 'x.md', text: 't', tag: 'law:some-law:validator' }, makeCtx(dir),
     ));
-    assert.match(res.error, /quench may only add tag/);
-  });
-
-  it('quench allows tag "validation"', async () => {
-    await beginStage(plugin, dir, 'quench:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
+    assert.equal(goodRes.ok, true);
+    
+    // non-law tags should be rejected
+    const badRes = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
       { file: 'x.md', text: 't', tag: 'validation' }, makeCtx(dir),
     ));
-    assert.equal(res.ok, true);
+    assert.match(badRes.error, /quench.*law:/i);
+  });
+
+  it('quench rejects non-law tags', async () => {
+    await beginStage(plugin, dir, 'quench:c', 'c');
+    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
+      { file: 'x.md', text: 't', tag: 'random' }, makeCtx(dir),
+    ));
+    assert.match(res.error, /quench.*law:/i);
   });
 
   it('appraise requires tag starting with "law:"', async () => {
