@@ -43,7 +43,7 @@ export async function parseValidatorJsonl(stream, patterns) {
 
     rl.on('line', (line) => {
       lineNum++;
-      processLine(line, lineNum, patterns, items, parseErrors, patternErrors);
+      processLine(line, lineNum, patterns, items, { parseErrors, patternErrors });
     });
 
     rl.on('close', () => {
@@ -67,8 +67,12 @@ function buildResult(items, parseErrors, patternErrors) {
 
 /**
  * Process a single JSONL line.
+ *
+ * `errors` bundles `parseErrors` and `patternErrors` so this function stays
+ * within the project's max-params lint budget.
  */
-function processLine(line, lineNum, patterns, items, parseErrors, patternErrors) {
+function processLine(line, lineNum, patterns, items, errors) {
+  const { parseErrors, patternErrors } = errors;
   const trimmed = line.trim();
 
   // Skip empty lines
