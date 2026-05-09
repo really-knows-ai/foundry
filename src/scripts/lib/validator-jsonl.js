@@ -101,8 +101,8 @@ function validateRequired(obj, lineNum) {
   if (typeof obj.file !== 'string' || obj.file.length === 0) {
     return { error: `Line ${lineNum}: Missing required field 'file'` };
   }
-  if (!obj.text) {
-    return { error: `Line ${lineNum}: Missing required field 'text'` };
+  if (typeof obj.text !== 'string' || obj.text.length === 0) {
+    return { error: `Line ${lineNum}: Missing or empty required field 'text'` };
   }
   return { error: null };
 }

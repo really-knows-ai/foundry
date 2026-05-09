@@ -59,12 +59,19 @@ Write the law following the standard format:
 ## <law-id>
 
 <What this law checks — one or two sentences.>
+
+validators:
+  - id: validator-id
+    command: ./script.sh
+    failure-means: (optional description)
 ```
 
 The `law-id` (heading) should be:
 - Lowercase, hyphenated
 - Short but descriptive
 - Unique across all laws (global and type-specific)
+
+The `validators:` block is optional. Include it only if you want to add validation commands for this law.
 
 ### 3. Check for conflicts
 

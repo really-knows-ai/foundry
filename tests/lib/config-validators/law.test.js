@@ -10,6 +10,15 @@ test('law validator: multi-block valid', async () => {
   assert.deepEqual(out, { ok: true });
 });
 
+test('law validator: rejects deprecated Passing:/Failing: scaffolding', async () => {
+  const body = `## clarity
+Passing: Be clear and concise.
+Failing: Be vague or wordy.`;
+  const out = await validate({ name: 'rules', body });
+  assert.equal(out.ok, false);
+  assert.ok(out.errors.some((e) => /Deprecated scaffolding/.test(e)));
+});
+
 test('law validator: prose-only law without Passing/Failing is valid', async () => {
   const body = '## clarity\nBe clear and concise.';
   const out = await validate({ name: 'rules', body });
@@ -17,7 +26,7 @@ test('law validator: prose-only law without Passing/Failing is valid', async () 
 });
 
 test('law validator: duplicate ids', async () => {
-  const dup = `## a\nPassing: x\nFailing: y\n## a\nPassing: x\nFailing: y\n`;
+  const dup = `## a\nRule a statement.\n## a\nAnother a statement.\n`;
   const out = await validate({ name: 'rules', body: dup });
   assert.equal(out.ok, false);
   assert.ok(out.errors.some((e) => /duplicate/.test(e)));

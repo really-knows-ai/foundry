@@ -1,4 +1,37 @@
 /**
+ * Check if a law block contains deprecated Passing:/Failing: scaffolding.
+ * @param {string[]} lines
+ * @returns {string[]} Array of error messages (empty if valid)
+ */
+function checkForDeprecatedScaffolding(lines) {
+  const errors = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('Passing:') || line.startsWith('Failing:')) {
+      errors.push(`Line ${i + 1}: Deprecated scaffolding (${line.split(':')[0]}:) not allowed. Prose must be plain statements without structured fields. See spec: "No structured fields within the prose — no Passing: or Failing: scaffolding."`);
+    }
+  }
+  return errors;
+}
+
+/**
+ * Check for duplicate law IDs within blocks.
+ * @param {{id: string}[]} blocks
+ * @returns {string[]} Array of error messages (empty if valid)
+ */
+function checkForDuplicateIds(blocks) {
+  const errors = [];
+  const seen = new Set();
+  for (const block of blocks) {
+    if (seen.has(block.id)) {
+      errors.push(`duplicate law id: ${block.id}`);
+    }
+    seen.add(block.id);
+  }
+  return errors;
+}
+
+/**
  * Validate a law definition body.
  *
  * Laws derive their ID from the filename rather than frontmatter, so name
@@ -11,21 +44,20 @@
  * @returns {Promise<{ok: true} | {ok: false, errors: string[]}>}
  */
 export async function validate({ body }) {
+  const lines = body.split('\n');
+  let errors = checkForDeprecatedScaffolding(lines);
+  
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+  
   const blocks = parseLawBlocks(body);
 
   if (blocks.length === 0) {
     return { ok: false, errors: ['body must contain at least one law block (## <law-id>)'] };
   }
 
-  const errors = [];
-  const seen = new Set();
-  for (const block of blocks) {
-    if (seen.has(block.id)) {
-      errors.push(`duplicate law id: ${block.id}`);
-    }
-    seen.add(block.id);
-  }
-
+  errors = checkForDuplicateIds(blocks);
   return errors.length ? { ok: false, errors } : { ok: true };
 }
 

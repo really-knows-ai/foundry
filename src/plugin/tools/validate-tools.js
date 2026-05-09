@@ -66,6 +66,11 @@ async function runValidators(laws, patterns, patternSubstitution, worktree) {
  */
 async function runLawValidators(law, patterns, patternSubstitution, worktree, results) {
   for (const validator of law.validators) {
+    // Skip validators if pattern substitution is empty (no matching files)
+    // Self-resolving validators (npm test, tsc) omit {pattern}, so they still run
+    if (patternSubstitution === '' && validator.command.includes('{pattern}')) {
+      continue;
+    }
     results.validatorsRun++;
     const expanded = expandValidatorCommand(validator.command, patternSubstitution);
     const parseResult = await executeValidator(expanded, worktree, patterns);
@@ -195,10 +200,28 @@ async function expandPatterns(patterns, worktree) {
 
 /**
  * Expand validator command by replacing {pattern} placeholder.
+ * 
+ * Only replaces {pattern} when it appears as a standalone token bounded by
+ * whitespace or string start/end. This allows self-resolving validators
+ * (e.g., npm test, tsc --noEmit) to omit the placeholder without risk of
+ * accidental substitution if they contain the literal text "{pattern}" as part
+ * of another string.
+ * 
+ * @param {string} command - The validator command
+ * @param {string} patternSubstitution - Shell-quoted file paths, space-separated
+ * @returns {string} The expanded command
  */
-function expandValidatorCommand(command, patternSubstitution) {
-  return command
+export function expandValidatorCommand(command, patternSubstitution) {
+  // First strip surrounding quotes around {pattern} to handle cases like
+  // rg "{pattern}" where authors add quotes for readability
+  const cmd = command
     .replace(/"\{pattern\}"/g, '{pattern}')
-    .replace(/'\{pattern\}'/g, '{pattern}')
-    .replace(/\{pattern\}/g, patternSubstitution);
+    .replace(/'\{pattern\}'/g, '{pattern}');
+  
+  // Only substitute {pattern} when it appears as a standalone token
+  // (bounded by whitespace or start/end of string)
+  return cmd.replace(/(?:^|\s)\{pattern\}(?=\s|$)/g, (match) => {
+    const leadingSpace = match.startsWith('{') ? '' : ' ';
+    return leadingSpace + patternSubstitution;
+  });
 }

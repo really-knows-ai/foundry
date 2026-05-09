@@ -36,9 +36,7 @@ function cleanup(dir) {
 
 const VALID_LAW_BODY = `## test-law
 
-Passing: the artefact does the thing.
-
-Failing: the artefact does not do the thing.
+The artefact must do the thing correctly and completely.
 `;
 
 const VALID_ARTEFACT_BODY = `---

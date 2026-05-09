@@ -151,61 +151,6 @@ test('foundry_config_laws returns empty array when no laws defined', async () =>
 });
 
 // ---------------------------------------------------------------------------
-// foundry_config_validation
-// ---------------------------------------------------------------------------
-
-test('foundry_config_validation returns parsed validation entries', async () => {
-  const dir = makeFoundry();
-  try {
-    mkdirSync(join(dir, 'foundry', 'artefacts', 'doc'), { recursive: true });
-    writeFileSync(
-      join(dir, 'foundry', 'artefacts', 'doc', 'validation.md'),
-      '## syntax\nCommand: `echo ok`\nFailure means: bad syntax\n\n## lint\nCommand: `echo lint`\nFailure means: lint fail\n',
-    );
-
-    const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_validation.execute(
-      { typeId: 'doc' }, makeCtx(dir),
-    ));
-
-    assert.ok(Array.isArray(out));
-    assert.equal(out.length, 2);
-    assert.equal(out[0].id, 'syntax');
-    assert.equal(out[0].command, 'echo ok');
-    assert.equal(out[0].failureMeans, 'bad syntax');
-    assert.equal(out[1].id, 'lint');
-  } finally { cleanup(dir); }
-});
-
-test('foundry_config_validation returns null when no validation file exists', async () => {
-  const dir = makeFoundry();
-  try {
-    const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_validation.execute(
-      { typeId: 'absent' }, makeCtx(dir),
-    ));
-    assert.equal(out, null);
-  } finally { cleanup(dir); }
-});
-
-test('foundry_config_validation returns empty array when validation file has no entries', async () => {
-  const dir = makeFoundry();
-  try {
-    mkdirSync(join(dir, 'foundry', 'artefacts', 'doc'), { recursive: true });
-    writeFileSync(
-      join(dir, 'foundry', 'artefacts', 'doc', 'validation.md'),
-      'No validations yet.\n',
-    );
-
-    const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_validation.execute(
-      { typeId: 'doc' }, makeCtx(dir),
-    ));
-    assert.deepEqual(out, []);
-  } finally { cleanup(dir); }
-});
-
-// ---------------------------------------------------------------------------
 // foundry_config_appraisers
 // ---------------------------------------------------------------------------
 

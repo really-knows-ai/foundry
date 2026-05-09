@@ -1,4 +1,4 @@
-import { getCycleDefinition, getArtefactType, getLaws, getValidation, getAppraisers, getFlow } from '../../scripts/lib/config.js';
+import { getCycleDefinition, getArtefactType, getLaws, getAppraisers, getFlow } from '../../scripts/lib/config.js';
 import { makeIO } from './helpers.js';
 
 function makeConfigTool(tool, description, argSchema, invoke) {
@@ -28,11 +28,6 @@ export function createConfigTools({ tool }) {
       tool, 'Get laws, optionally filtered by artefact type',
       { typeId: tool.schema.string().optional().describe('Artefact type ID') },
       (args, io) => getLaws('foundry', io, { typeId: args.typeId }),
-    ),
-    foundry_config_validation: makeConfigTool(
-      tool, 'Get validation commands for an artefact type',
-      { typeId: tool.schema.string().describe('Artefact type ID') },
-      (args, io) => getValidation('foundry', args.typeId, io),
     ),
     foundry_config_appraisers: makeConfigTool(
       tool, 'List all appraisers',

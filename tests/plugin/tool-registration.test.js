@@ -33,7 +33,6 @@ const EXPECTED_TOOLS = [
   'foundry_config_validate_cycle',
   'foundry_config_validate_flow',
   'foundry_config_validate_law',
-  'foundry_config_validation',
   'foundry_extractor_create',
   'foundry_feedback_action',
   'foundry_feedback_add',
