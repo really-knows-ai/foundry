@@ -41,8 +41,9 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
    Then return control to the user and stop.
 3. `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate the artefacts produced by **this** cycle. Always pass the `cycle` filter; omitting it returns rows from prior sessions and validates stale files. Skip rows whose status is `done` or `blocked`.
 4. For each remaining row:
-    a. `foundry_validate_run({ typeId: '<type-id>' })` — executes all law-based validators for the artefact type.
-   b. For each failure: call `foundry_feedback_add` with `{ file, text, tag: 'law:<law-id>:<validator-id>' }`. The tag format includes both the law ID and validator ID so operators can identify exactly which validator produced each feedback item.
+    a. `foundry_validate_run({ typeId: '<type-id>' })` — executes all law-based validators for the artefact type. The tool returns `{ ok, validatorsRun, items, errors }`. `items` is the array of parsed feedback items; each entry carries `lawId`, `validatorId`, `file`, and `text` (plus optional `location` and `severity`). `errors` carries validator-level failures with `lawId`, `validatorId`, `type` (`parse` or `pattern-mismatch`), and `message`.
+   b. For each entry in `items`: call `foundry_feedback_add` with `{ file: item.file, text: item.text, tag: 'law:' + item.lawId + ':' + item.validatorId }`. The tag uses the law ID and validator ID returned by the tool so operators reading `WORK.feedback.yaml` can identify exactly which validator produced each item.
+   c. If `errors` is non-empty, the validators themselves misbehaved (malformed JSONL or files outside the artefact type's `file-patterns`). Report these to the user via `foundry_stage_end` summary; do not convert them to law-tagged feedback.
 5. Call `foundry_feedback_list`. For items whose `source` matches your stage id and whose state is `actioned` or `wont-fix`, use the validation results from step 4 to resolve them by id: approve when the relevant validation now passes or the deterministic issue is gone; reject with a reason when it still fails.
 6. If every command passes for every row, add no new feedback.
 7. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
@@ -52,9 +53,12 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
 
 As a quench stage, you have two feedback responsibilities:
 
-1. **Adding new validation feedback.** If a validator command surfaces
-   an issue, call `foundry_feedback_add` with `{ file, text, tag: 'law:<law-id>:<validator-id>' }`.
-   The `source` is automatically recorded as your stage id. Feedback tags must follow the `law:<law-id>:<validator-id>` format to identify which law and which validator on that law produced the feedback.
+1. **Adding new validation feedback.** For each entry returned in the `items`
+   array from `foundry_validate_run`, call `foundry_feedback_add` with
+   `{ file: item.file, text: item.text, tag: 'law:' + item.lawId + ':' + item.validatorId }`.
+   The `source` is automatically recorded as your stage id. Feedback tags must
+   follow the `law:<law-id>:<validator-id>` format to identify which law and
+   which validator on that law produced the feedback.
 
    The tool returns `{ ok: true, id, deduped }` on success. `deduped: true`
    means an existing non-resolved item with the same `(file, tag,

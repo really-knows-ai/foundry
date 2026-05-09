@@ -19,13 +19,6 @@ function shellQuote(value) {
 }
 
 /**
- * Extract error message from various error object properties.
- */
-function fallbackMessage(err) {
-  return (err.stderr || err.stdout || err.message || '').trim();
-}
-
-/**
  * Execute a validator command and parse its output.
  */
 async function executeValidator(expanded, worktree, patterns) {
@@ -49,9 +42,21 @@ async function executeValidator(expanded, worktree, patterns) {
 
 /**
  * Run all validators for laws and collect results.
+ *
+ * Aggregates per-validator parse results into a single structured payload:
+ * - `items`: each successfully parsed feedback item, annotated with the
+ *   `lawId` and `validatorId` it came from. The quench skill consumes this
+ *   to call `foundry_feedback_add` with tag `law:<lawId>:<validatorId>`.
+ * - `errors`: validator-level errors split by type. `parse` for malformed
+ *   JSON or missing required fields, `pattern-mismatch` for files that
+ *   didn't match the artefact type's `file-patterns`.
  */
 async function runValidators(laws, patterns, patternSubstitution, worktree) {
-  const results = { validatorsRun: 0, feedbackItems: 0, allErrors: [] };
+  const results = {
+    validatorsRun: 0,
+    items: [],
+    errors: [],
+  };
 
   for (const law of laws) {
     if (!law.validators || law.validators.length === 0) continue;
@@ -74,32 +79,39 @@ async function runLawValidators(law, patterns, patternSubstitution, worktree, re
     results.validatorsRun++;
     const expanded = expandValidatorCommand(validator.command, patternSubstitution);
     const parseResult = await executeValidator(expanded, worktree, patterns);
-    processValidatorResult(parseResult, law.id, validator.id, results);
+    collectValidatorResult(parseResult, law.id, validator.id, results);
   }
 }
 
 /**
- * Process validator execution result.
+ * Fold a single validator's parse result into the aggregate results.
+ *
+ * Items always flow through annotated with their `lawId` and `validatorId`,
+ * so the caller can construct `law:<lawId>:<validatorId>` feedback tags.
+ * Errors are surfaced with their type so the caller can distinguish parse
+ * failures from file-pattern mismatches.
  */
-function processValidatorResult(parseResult, lawId, validatorId, results) {
-  if (!parseResult.ok) {
-    for (const error of parseResult.errors) {
-      results.allErrors.push(`${lawId}/${validatorId}: ${error}`);
-    }
-  } else {
-    results.feedbackItems += parseResult.items.length;
+function collectValidatorResult(parseResult, lawId, validatorId, results) {
+  for (const item of parseResult.items) {
+    results.items.push({ lawId, validatorId, ...item });
+  }
+  for (const message of parseResult.parseErrors) {
+    results.errors.push({ lawId, validatorId, type: 'parse', message });
+  }
+  for (const message of parseResult.patternErrors) {
+    results.errors.push({ lawId, validatorId, type: 'pattern-mismatch', message });
   }
 }
 
 export function createValidateTools({ tool }) {
   return {
     foundry_validate_run: tool({
-      description: 'Run validation commands for an artefact type',
+      description: 'Run validation commands for an artefact type. Returns parsed feedback items per validator with their law and validator IDs so the caller can tag feedback as law:<law-id>:<validator-id>.',
       args: {
         typeId: tool.schema.string().describe('Artefact type ID'),
       },
-      execute: guarded('foundry_validate_run', [flowBranchGuard, gateNotFailed], 
-        executeValidateRun, 
+      execute: guarded('foundry_validate_run', [flowBranchGuard, gateNotFailed],
+        executeValidateRun,
         { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
@@ -131,12 +143,14 @@ async function performValidation(args, context) {
   } catch (err) {
     return JSON.stringify({ ok: false, error: err.message });
   }
-  
+
   const validationErr = validatePatterns(patterns, args.typeId);
   if (validationErr) return JSON.stringify(validationErr);
 
   const laws = await getLawsForQuench(foundryDir, io, { typeId: args.typeId });
-  if (!laws?.length) return JSON.stringify({ ok: true, validatorsRun: 0, feedbackItems: 0 });
+  if (!laws?.length) {
+    return JSON.stringify({ ok: true, validatorsRun: 0, items: [], errors: [] });
+  }
   return runValidatorsAndReport(laws, patterns, context.worktree);
 }
 
@@ -144,20 +158,16 @@ async function performValidation(args, context) {
  * Run validators and report results.
  */
 async function runValidatorsAndReport(laws, patterns, worktree) {
-  // Expand patterns and run validators
   const expandedFiles = await expandPatterns(patterns, worktree);
   const patternSubstitution = expandedFiles.map(shellQuote).join(' ');
   const results = await runValidators(laws, patterns, patternSubstitution, worktree);
 
-  // Check for errors
-  if (results.allErrors.length > 0) {
-    return JSON.stringify({
-      ok: false,
-      error: `Validator errors: ${results.allErrors.join('; ')}`,
-    });
-  }
-
-  return JSON.stringify({ ok: true, validatorsRun: results.validatorsRun, feedbackItems: results.feedbackItems });
+  return JSON.stringify({
+    ok: results.errors.length === 0,
+    validatorsRun: results.validatorsRun,
+    items: results.items,
+    errors: results.errors,
+  });
 }
 
 /**
@@ -176,7 +186,7 @@ function validatePatterns(patterns, typeId) {
 async function expandPatterns(patterns, worktree) {
   const files = new Set();
   const errors = [];
-  
+
   for (const pattern of patterns) {
     try {
       const matches = await glob(pattern, {
@@ -190,23 +200,23 @@ async function expandPatterns(patterns, worktree) {
       errors.push(`Invalid glob pattern '${pattern}': ${err.message}`);
     }
   }
-  
+
   if (errors.length > 0) {
     console.warn('Pattern expansion warnings:', errors.join('; '));
   }
-  
+
   return Array.from(files).sort();
 }
 
 /**
  * Expand validator command by replacing {pattern} placeholder.
- * 
+ *
  * Only replaces {pattern} when it appears as a standalone token bounded by
  * whitespace or string start/end. This allows self-resolving validators
  * (e.g., npm test, tsc --noEmit) to omit the placeholder without risk of
  * accidental substitution if they contain the literal text "{pattern}" as part
  * of another string.
- * 
+ *
  * @param {string} command - The validator command
  * @param {string} patternSubstitution - Shell-quoted file paths, space-separated
  * @returns {string} The expanded command
@@ -217,7 +227,7 @@ export function expandValidatorCommand(command, patternSubstitution) {
   const cmd = command
     .replace(/"\{pattern\}"/g, '{pattern}')
     .replace(/'\{pattern\}'/g, '{pattern}');
-  
+
   // Only substitute {pattern} when it appears as a standalone token
   // (bounded by whitespace or start/end of string)
   return cmd.replace(/(?:^|\s)\{pattern\}(?=\s|$)/g, (match) => {

@@ -3,25 +3,35 @@ import { minimatch } from 'minimatch';
 
 /**
  * Parse JSONL output from a validator, validating each line against patterns.
- * 
+ *
  * Processes one JSON object per line. Each line must have:
  * - file (REQUIRED): matches at least one pattern from patterns array
  * - text (REQUIRED): feedback text
  * - location (OPTIONAL): "line:col" format, prepended to text if present
  * - severity (OPTIONAL): "error", "warning", etc., prepended to text if present
- * 
+ *
  * If location and/or severity present, they are prepended to text as:
  *   [severity] file:location — <text>
  * If only severity: [severity] file — <text>
  * If only location: file:location — <text>
- * 
+ *
+ * Successfully parsed and pattern-matched lines flow into `items`.
+ * Errors are split into two categories so callers can distinguish them:
+ * - `parseErrors`: malformed JSON or missing required fields
+ * - `patternErrors`: file did not match any artefact-type file-pattern
+ *
+ * `ok` is true only when both error arrays are empty. Items are always
+ * returned regardless of `ok`, so a validator producing a mix of valid
+ * items and errors surfaces both.
+ *
  * @param {Stream} stream - readable stream of JSONL lines
  * @param {string[]} patterns - array of glob patterns for file matching
- * @returns {Promise<{ok: true, items: object[]} | {ok: false, errors: string[]}>}
+ * @returns {Promise<{ok: boolean, items: object[], parseErrors: string[], patternErrors: string[]}>}
  */
 export async function parseValidatorJsonl(stream, patterns) {
   const items = [];
-  const errors = [];
+  const parseErrors = [];
+  const patternErrors = [];
 
   return new Promise((resolve) => {
     const rl = readline.createInterface({
@@ -33,26 +43,34 @@ export async function parseValidatorJsonl(stream, patterns) {
 
     rl.on('line', (line) => {
       lineNum++;
-      processLine(line, lineNum, patterns, items, errors);
+      processLine(line, lineNum, patterns, items, parseErrors, patternErrors);
     });
 
     rl.on('close', () => {
-      finalizeParsing(errors, items, resolve);
+      resolve(buildResult(items, parseErrors, patternErrors));
     });
 
     rl.on('error', (err) => {
-      errors.push(`Stream error: ${err.message}`);
-      resolve({ ok: false, errors });
+      parseErrors.push(`Stream error: ${err.message}`);
+      resolve(buildResult(items, parseErrors, patternErrors));
     });
   });
 }
 
 /**
+ * Build the final parse result with `ok` reflecting whether any errors occurred.
+ */
+function buildResult(items, parseErrors, patternErrors) {
+  const ok = parseErrors.length === 0 && patternErrors.length === 0;
+  return { ok, items, parseErrors, patternErrors };
+}
+
+/**
  * Process a single JSONL line.
  */
-function processLine(line, lineNum, patterns, items, errors) {
+function processLine(line, lineNum, patterns, items, parseErrors, patternErrors) {
   const trimmed = line.trim();
-  
+
   // Skip empty lines
   if (!trimmed) return;
 
@@ -61,37 +79,26 @@ function processLine(line, lineNum, patterns, items, errors) {
   try {
     obj = JSON.parse(trimmed);
   } catch (err) {
-    errors.push(`Line ${lineNum}: Invalid JSON: ${err.message}`);
+    parseErrors.push(`Line ${lineNum}: Invalid JSON: ${err.message}`);
     return;
   }
 
   // Validate required fields
   const validation = validateRequired(obj, lineNum);
   if (validation.error) {
-    errors.push(validation.error);
+    parseErrors.push(validation.error);
     return;
   }
 
   // Validate file matches pattern
   if (!fileMatchesPattern(obj.file, patterns)) {
-    errors.push(`Line ${lineNum}: File '${obj.file}' does not match any pattern: ${patterns.join(', ')}`);
+    patternErrors.push(`Line ${lineNum}: File '${obj.file}' does not match any pattern: ${patterns.join(', ')}`);
     return;
   }
 
   // Build final item with location/severity prepended if present
   const finalItem = buildFinalItem(obj);
   items.push(finalItem);
-}
-
-/**
- * Finalize parsing and resolve promise.
- */
-function finalizeParsing(errors, items, resolve) {
-  if (errors.length > 0) {
-    resolve({ ok: false, errors });
-  } else {
-    resolve({ ok: true, items });
-  }
 }
 
 /**

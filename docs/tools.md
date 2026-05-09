@@ -531,17 +531,27 @@ global set.
 
 ### `foundry_validate_run`
 
-> Run validation commands for an artefact type against a file.
+> Run all law-based validators for an artefact type and return their parsed
+> feedback items.
 
 **Args:**
 - `typeId` (string, required).
-- `file` (string, required): Path substituted into `{file}` placeholders
-  in each command (POSIX shell-quoted to neutralise spaces and
-  metacharacters).
 
-**Returns:** array of `{ id, command, passed, output, failureMeans? }`.
-`{ error: "No validation defined for type: ..." }` if the type has no
-commands.
+**Returns:** `{ ok, validatorsRun, items, errors }`.
+
+- `items`: array of `{ lawId, validatorId, file, text, location?, severity? }`.
+  Each entry is one parsed JSONL feedback item produced by a validator.
+  The quench skill emits one `foundry_feedback_add` call per item, tagged
+  `law:<lawId>:<validatorId>`.
+- `errors`: array of `{ lawId, validatorId, type, message }`. `type` is
+  `parse` for malformed JSONL or missing required fields, and
+  `pattern-mismatch` for items whose `file` falls outside the artefact
+  type's `file-patterns`.
+- `ok` is `true` when `errors` is empty. Items themselves do not flip
+  `ok` to `false` — they are the expected output of a failing validator.
+
+`{ ok: false, error: "..." }` if the type is unknown or has no
+`file-patterns`.
 
 **Stage requirements:** none (callable outside any stage; intended to be
 invoked by quench, but not enforced). Refused on a failed flow.

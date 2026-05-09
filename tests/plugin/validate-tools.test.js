@@ -46,7 +46,7 @@ Type definition.
 }
 
 describe('foundry_validate_run — Phase 3 law-based validators', () => {
-  test('returns {ok: true, validatorsRun: 0, feedbackItems: 0} when no laws exist', async () => {
+  test('returns empty items and errors when no laws exist', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'foundry-nolaws-'));
     try {
       execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir, env: GIT_ENV });
@@ -75,13 +75,14 @@ Type definition.
 
       assert.equal(out.ok, true);
       assert.equal(out.validatorsRun, 0);
-      assert.equal(out.feedbackItems, 0);
+      assert.deepEqual(out.items, []);
+      assert.deepEqual(out.errors, []);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  test('runs validators and returns validatorsRun count', async () => {
+  test('runs validators and returns items annotated with lawId and validatorId', async () => {
     const dir = setupFoundryWithLaw(`## title-check
 Check for title.
 
@@ -101,9 +102,15 @@ validators:
         { typeId: 'doc' }, makeCtx(dir),
       ));
 
-      assert.ok(out.ok !== undefined);
-      assert.equal(typeof out.validatorsRun, 'number');
-      assert.ok(out.validatorsRun >= 1, 'should have run at least one validator');
+      assert.equal(out.ok, true);
+      assert.equal(out.validatorsRun, 1);
+      assert.equal(out.items.length, 1, 'should have one feedback item');
+      const item = out.items[0];
+      assert.equal(item.lawId, 'title-check');
+      assert.equal(item.validatorId, 'check-title');
+      assert.equal(item.file, 'README.md');
+      assert.equal(item.text, 'missing title');
+      assert.deepEqual(out.errors, []);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -157,6 +164,13 @@ validators:
 
       assert.ok(out.ok !== undefined);
       assert.equal(out.validatorsRun, 2, 'should have run both validators');
+      assert.equal(out.items.length, 2);
+      const ids = out.items.map(i => i.validatorId).sort();
+      assert.deepEqual(ids, ['check-length', 'check-title']);
+      // Each item carries the law id of its parent law
+      for (const item of out.items) {
+        assert.equal(item.lawId, 'multi-check');
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -273,6 +287,65 @@ validators:
 
       assert.equal(out.ok, false);
       assert.match(out.error, /not found|nonexistent/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('surfaces pattern-mismatch errors distinctly from parse errors', async () => {
+    const dir = setupFoundryWithLaw(`## file-check
+Check files.
+
+validators:
+  - id: emit-bad-file
+    command: printf '%s\\n' '{"file":"outside.txt","text":"oops"}'
+    failure-means: validator emitted a file outside the artefact patterns
+`);
+    try {
+      writeFileSync(join(dir, 'README.md'), '# README\n');
+
+      const plugin = await FoundryPlugin({ directory: dir });
+      const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+        { typeId: 'doc' }, makeCtx(dir),
+      ));
+
+      assert.equal(out.ok, false);
+      assert.equal(out.validatorsRun, 1);
+      assert.equal(out.items.length, 0);
+      assert.equal(out.errors.length, 1);
+      const err = out.errors[0];
+      assert.equal(err.lawId, 'file-check');
+      assert.equal(err.validatorId, 'emit-bad-file');
+      assert.equal(err.type, 'pattern-mismatch');
+      assert.match(err.message, /outside\.txt/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('surfaces parse errors distinctly with type "parse"', async () => {
+    const dir = setupFoundryWithLaw(`## json-check
+Check JSON.
+
+validators:
+  - id: emit-bad-json
+    command: printf '%s\\n' 'not valid json'
+    failure-means: validator did not emit JSONL
+`);
+    try {
+      writeFileSync(join(dir, 'README.md'), '# README\n');
+
+      const plugin = await FoundryPlugin({ directory: dir });
+      const out = JSON.parse(await plugin.tool.foundry_validate_run.execute(
+        { typeId: 'doc' }, makeCtx(dir),
+      ));
+
+      assert.equal(out.ok, false);
+      assert.equal(out.errors.length, 1);
+      const err = out.errors[0];
+      assert.equal(err.lawId, 'json-check');
+      assert.equal(err.validatorId, 'emit-bad-json');
+      assert.equal(err.type, 'parse');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
