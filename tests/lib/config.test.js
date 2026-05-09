@@ -4,6 +4,7 @@ import {
   getCycleDefinition,
   getArtefactType,
   getLaws,
+  getLawsForQuench,
   getValidation,
   getAppraisers,
   getFlow,
@@ -66,7 +67,7 @@ describe('getLaws', () => {
     assert.equal(laws.length, 2);
     assert.equal(laws[0].id, 'clarity');
     assert.equal(laws[0].text, 'Be clear.');
-    assert.equal(laws[0].source, 'laws/style.md');
+    assert.equal(laws[0].source, undefined);
     assert.equal(laws[1].id, 'brevity');
   });
 
@@ -78,7 +79,7 @@ describe('getLaws', () => {
     });
     const laws = await getLaws('foundry', io, { typeId: 'code' });
     assert.equal(laws.length, 2);
-    assert.equal(laws[1].source, 'artefacts/code/laws.md');
+    assert.equal(laws[1].source, undefined);
   });
 
   it('returns global laws when no typeId is provided', async () => {
@@ -88,6 +89,205 @@ describe('getLaws', () => {
     });
     const laws = await getLaws('foundry', io);
     assert.equal(laws.length, 1);
+  });
+
+  it('returns laws without source field', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': '## clarity\nBe clear.',
+    });
+    const laws = await getLaws('foundry', io);
+    assert.equal(laws[0].source, undefined);
+  });
+
+  it('strips validators block from prose', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - id: test-id
+    command: echo test`,
+    });
+    const laws = await getLaws('foundry', io);
+    assert.equal(laws[0].text, 'Be clear.');
+    assert(!laws[0].text.includes('validators:'));
+  });
+
+  it('parser extracts validators with lowercase keys', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - id: check-one
+    command: echo one
+    failure-means: Test failed`,
+    });
+    const laws = await getLawsForQuench('foundry', io);
+    assert.equal(laws.length, 1);
+    assert.equal(laws[0].id, 'clarity');
+    assert.equal(laws[0].text, 'Be clear.');
+    assert.equal(laws[0].validators.length, 1);
+    assert.equal(laws[0].validators[0].id, 'check-one');
+    assert.equal(laws[0].validators[0].command, 'echo one');
+    assert.equal(laws[0].validators[0]['failure-means'], 'Test failed');
+  });
+
+  it('getLawsForQuench returns only laws with validators', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## with-validators
+Has validators.
+
+validators:
+  - id: check-one
+    command: echo one
+
+## without-validators
+No validators here.`,
+    });
+    const laws = await getLawsForQuench('foundry', io);
+    assert.equal(laws.length, 1);
+    assert.equal(laws[0].id, 'with-validators');
+  });
+
+  it('parser rejects validator entry missing id', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - command: echo test`,
+    });
+    await assert.rejects(
+      () => getLaws('foundry', io),
+      /validator entry missing required 'id'/
+    );
+  });
+
+  it('parser rejects validator entry missing command', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - id: check-one
+    failure-means: failed`,
+    });
+    await assert.rejects(
+      () => getLaws('foundry', io),
+      /validator entry missing required 'command'/
+    );
+  });
+
+  it('parser rejects duplicate validator ids within a law', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - id: check-one
+    command: echo one
+  - id: check-one
+    command: echo two`,
+    });
+    await assert.rejects(
+      () => getLaws('foundry', io),
+      /duplicate validator id 'check-one' in law/
+    );
+  });
+
+  it('parser accepts multiple validators per law with unique ids', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - id: check-one
+    command: echo one
+  - id: check-two
+    command: echo two`,
+    });
+    const laws = await getLawsForQuench('foundry', io);
+    assert.equal(laws[0].validators.length, 2);
+    assert.equal(laws[0].validators[0].id, 'check-one');
+    assert.equal(laws[0].validators[1].id, 'check-two');
+  });
+
+  it('parser treats failure-means as optional', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - id: check-one
+    command: echo one`,
+    });
+    const laws = await getLawsForQuench('foundry', io);
+    assert.equal(laws[0].validators[0]['failure-means'], undefined);
+  });
+});
+
+describe('getLawsForQuench', () => {
+  it('returns laws with validators only', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## with-validators
+Has validators.
+
+validators:
+  - id: check
+    command: echo test
+
+## without-validators
+No validators.`,
+    });
+    const laws = await getLawsForQuench('foundry', io);
+    assert.equal(laws.length, 1);
+    assert.equal(laws[0].id, 'with-validators');
+  });
+
+  it('includes type-specific laws with validators', async () => {
+    const io = mockIO({
+      'foundry/laws': ['global.md'],
+      'foundry/laws/global.md': `## g-with-val
+Global with validators.
+
+validators:
+  - id: gv
+    command: echo g`,
+      'foundry/artefacts/code/laws.md': `## c-with-val
+Code with validators.
+
+validators:
+  - id: cv
+    command: echo c`,
+    });
+    const laws = await getLawsForQuench('foundry', io, { typeId: 'code' });
+    assert.equal(laws.length, 2);
+    const ids = laws.map(l => l.id);
+    assert.ok(ids.includes('g-with-val'));
+    assert.ok(ids.includes('c-with-val'));
+  });
+});
+
+describe('getLaws - new shape', () => {
+  it('returns prose-only without source field', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': '## clarity\nBe clear.',
+    });
+    const laws = await getLaws('foundry', io);
+    assert.deepEqual(laws[0], { id: 'clarity', text: 'Be clear.' });
+    assert.equal(laws[0].source, undefined);
   });
 });
 

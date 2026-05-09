@@ -59,9 +59,6 @@ Write the law following the standard format:
 ## <law-id>
 
 <What this law checks — one or two sentences.>
-
-Passing: <What a passing artefact looks like.>
-Failing: <What a failing artefact looks like.>
 ```
 
 The `law-id` (heading) should be:
@@ -124,7 +121,7 @@ Pick the target. The user has already chosen scope in step 1 — translate that 
 Then call:
 
 ```
-foundry_config_create_law({
+foundry_config_add_law({
   name: "<file-name-without-extension>",
   body: "<full markdown>",
   target: { kind: "global", file: "<file-name>.md" }   // OR
@@ -138,7 +135,7 @@ The tool:
 - writes the law file at the path determined by `target`;
 - produces one git commit on the current `config/*` branch.
 
-If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_law` does not support updates (including appending to an existing law file).
+If the tool returns `{ ok: false, errors }` because the target file already exists, use `foundry_config_edit_law({ id: "<law-id>", body: "<updated-body>" })` to modify the law.
 
 Show the user the resulting commit hash from the response.
 

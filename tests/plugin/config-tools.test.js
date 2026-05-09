@@ -108,7 +108,7 @@ test('foundry_config_laws returns global laws when present', async () => {
     assert.equal(out.length, 2);
     const ids = out.map(l => l.id);
     assert.deepEqual(ids.sort(), ['brevity', 'clarity']);
-    assert.ok(out.every(l => l.source === 'laws/general.md'));
+    assert.ok(out.every(l => !l.source));
   } finally { cleanup(dir); }
 });
 
@@ -135,7 +135,7 @@ test('foundry_config_laws includes type-specific laws when typeId provided', asy
     const ids = out.map(l => l.id).sort();
     assert.deepEqual(ids, ['five-seven-five', 'global-rule']);
     const typeLaw = out.find(l => l.id === 'five-seven-five');
-    assert.equal(typeLaw.source, 'artefacts/haiku/laws.md');
+    assert.equal(typeLaw.source, undefined);
   } finally { cleanup(dir); }
 });
 

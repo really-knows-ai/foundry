@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -60,87 +60,6 @@ name: The Critic
 
 A discerning reviewer.
 `;
-
-// ---------------------------------------------------------------------------
-// foundry_config_create_law
-// ---------------------------------------------------------------------------
-
-test('foundry_config_create_law refuses on main branch', async () => {
-  const dir = setupRepoWithFoundry();
-  try {
-    const plugin = await FoundryPlugin({ directory: dir });
-    const res = JSON.parse(await plugin.tool.foundry_config_create_law.execute(
-      { name: 'rules', body: VALID_LAW_BODY, target: { kind: 'global', file: 'rules.md' } },
-      makeCtx(dir),
-    ));
-    assert.ok(res.error, 'expected error response');
-    assert.match(res.error, /requires a config\//);
-  } finally { cleanup(dir); }
-});
-
-test('foundry_config_create_law happy path on config/* branch', async () => {
-  const dir = setupRepoWithFoundry();
-  try {
-    execSync('git checkout -q -b config/init-laws', { cwd: dir, env: GIT_ENV });
-    const plugin = await FoundryPlugin({ directory: dir });
-    const res = JSON.parse(await plugin.tool.foundry_config_create_law.execute(
-      { name: 'rules', body: VALID_LAW_BODY, target: { kind: 'global', file: 'rules.md' } },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, true, JSON.stringify(res));
-    assert.equal(res.path, 'foundry/laws/rules.md');
-    assert.equal(existsSync(join(dir, 'foundry/laws/rules.md')), true);
-    assert.equal(readFileSync(join(dir, 'foundry/laws/rules.md'), 'utf-8'), VALID_LAW_BODY);
-
-    const log = execSync('git log --oneline', { cwd: dir, env: GIT_ENV, encoding: 'utf8' }).trim().split('\n');
-    assert.equal(log.length, 2, `expected 2 commits, got ${log.length}: ${log.join(' | ')}`);
-    const commitMsg = execSync('git log -1 --format=%B', { cwd: dir, env: GIT_ENV, encoding: 'utf8' }).trim();
-    assert.match(commitMsg, /^config: add law rules\n\nvia foundry_config_create_law$/);
-  } finally { cleanup(dir); }
-});
-
-test('foundry_config_create_law preserves affected_files on UnexpectedFilesError', async () => {
-  const dir = setupRepoWithFoundry();
-  try {
-    execSync('git checkout -q -b config/init-laws', { cwd: dir, env: GIT_ENV });
-    // Stray untracked file outside the config-tier allow list. The
-    // commit-policy gate refuses, throws UnexpectedFilesError, and the
-    // tool envelope must surface the structured file list rather than
-    // collapsing to a plain message.
-    writeFileSync(join(dir, 'stray.txt'), 'stray\n');
-
-    const plugin = await FoundryPlugin({ directory: dir });
-    const res = JSON.parse(await plugin.tool.foundry_config_create_law.execute(
-      { name: 'rules', body: VALID_LAW_BODY, target: { kind: 'global', file: 'rules.md' } },
-      makeCtx(dir),
-    ));
-    assert.ok(res.error, `expected error envelope, got ${JSON.stringify(res)}`);
-    assert.match(res.error, /unexpected_files/);
-    assert.ok(Array.isArray(res.affected_files),
-      `expected affected_files array, got ${JSON.stringify(res)}`);
-    assert.ok(res.affected_files.includes('stray.txt'),
-      `expected stray.txt in affected_files, got ${JSON.stringify(res.affected_files)}`);
-  } finally { cleanup(dir); }
-});
-
-test('foundry_config_create_law refuses if target file already exists', async () => {
-  const dir = setupRepoWithFoundry();
-  try {
-    execSync('git checkout -q -b config/init-laws', { cwd: dir, env: GIT_ENV });
-    writeFileSync(join(dir, 'foundry/laws/rules.md'), 'pre-existing\n');
-    execSync('git add . && git commit -qm preexist', { cwd: dir, env: GIT_ENV });
-
-    const plugin = await FoundryPlugin({ directory: dir });
-    const res = JSON.parse(await plugin.tool.foundry_config_create_law.execute(
-      { name: 'rules', body: VALID_LAW_BODY, target: { kind: 'global', file: 'rules.md' } },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.ok(Array.isArray(res.errors));
-    assert.ok(res.errors.some((e) => /already exists/.test(e)),
-      `expected "already exists" error, got: ${JSON.stringify(res.errors)}`);
-  } finally { cleanup(dir); }
-});
 
 // ---------------------------------------------------------------------------
 // foundry_config_create_artefact_type

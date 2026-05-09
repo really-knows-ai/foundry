@@ -21,6 +21,7 @@ import { createFeedbackTools } from './tools/feedback-tools.js';
 import { createGitTools } from './tools/git-tools.js';
 import { createConfigTools } from './tools/config-tools.js';
 import { createConfigCreateTools } from './tools/config-create-tools.js';
+import { createConfigLawTools } from './tools/config-law-tools.js';
 import { createValidateTools } from './tools/validate-tools.js';
 import { createAssayTools } from './tools/assay-tools.js';
 import { createAppraiserTools } from './tools/appraiser-tools.js';
@@ -46,6 +47,7 @@ function buildTools(createTool, pending) {
     ...createGitTools({ tool: createTool }),
     ...createConfigTools({ tool: createTool }),
     ...createConfigCreateTools({ tool: createTool }),
+    ...createConfigLawTools({ tool: createTool }),
     ...createValidateTools({ tool: createTool }),
     ...createAssayTools({ tool: createTool }),
     ...createAppraiserTools({ tool: createTool }),

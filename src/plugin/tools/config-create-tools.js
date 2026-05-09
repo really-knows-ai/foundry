@@ -12,7 +12,6 @@
 
 import { execFileSync } from 'child_process';
 import { create as createArtefactType } from '../../scripts/lib/config-creators/artefact-type.js';
-import { create as createLaw } from '../../scripts/lib/config-creators/law.js';
 import { create as createAppraiser } from '../../scripts/lib/config-creators/appraiser.js';
 import { create as createFlow } from '../../scripts/lib/config-creators/flow.js';
 import { create as createCycle } from '../../scripts/lib/config-creators/cycle.js';
@@ -111,20 +110,11 @@ export function createConfigCreateTools({ tool }) {
     body: tool.schema.string(),
   };
 
-  const lawTargetSchema = tool.schema.object({
-    kind: tool.schema.string(),
-    file: tool.schema.string().optional(),
-    typeId: tool.schema.string().optional(),
-  });
-
   const makeCreate = createMakeCreate(tool, baseArgs);
   const makeValidate = createMakeValidate(tool, baseArgs);
 
   return {
     foundry_config_create_artefact_type: makeCreate('foundry_config_create_artefact_type', createArtefactType),
-    foundry_config_create_law: makeCreate('foundry_config_create_law', createLaw, {
-      target: lawTargetSchema,
-    }),
     foundry_config_create_appraiser: makeCreate('foundry_config_create_appraiser', createAppraiser),
     foundry_config_create_flow: makeCreate('foundry_config_create_flow', createFlow),
     foundry_config_create_cycle: makeCreate('foundry_config_create_cycle', createCycle),

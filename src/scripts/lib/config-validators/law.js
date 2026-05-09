@@ -24,7 +24,6 @@ export async function validate({ body }) {
       errors.push(`duplicate law id: ${block.id}`);
     }
     seen.add(block.id);
-    errors.push(...validateLawBlock(block));
   }
 
   return errors.length ? { ok: false, errors } : { ok: true };
@@ -62,20 +61,4 @@ function parseLawBlocks(body) {
   flushBlock();
 
   return blocks;
-}
-
-/**
- * Validate a single law block.
- * @param {{id: string, text: string}} block
- * @returns {string[]}
- */
-function validateLawBlock(block) {
-  const errors = [];
-  if (!/^Passing:/m.test(block.text)) {
-    errors.push(`law "${block.id}" must contain a "Passing:" line`);
-  }
-  if (!/^Failing:/m.test(block.text)) {
-    errors.push(`law "${block.id}" must contain a "Failing:" line`);
-  }
-  return errors;
 }

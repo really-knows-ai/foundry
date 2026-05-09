@@ -31,6 +31,9 @@ export async function getArtefactType(foundryDir, typeId, io) {
 
 /**
  * Parse law entries from a markdown file. Each `## heading` starts a new law.
+ * Each law may have an optional `validators:` block with entries containing id, command, and optional failure-means.
+ * Validators are extracted and returned separately from prose.
+ * Returns: [{id, text (prose only), validators (if present)}]
  */
 function parseLaws(text, source) {
   const laws = [];
@@ -40,7 +43,13 @@ function parseLaws(text, source) {
 
   function flush() {
     if (currentId) {
-      laws.push({ id: currentId, text: currentLines.join('\n').trim(), source });
+      const lawText = currentLines.join('\n').trim();
+      const { prose, validators } = extractValidators(lawText, currentId);
+      const lawObj = { id: currentId, text: prose };
+      if (validators && validators.length > 0) {
+        lawObj.validators = validators;
+      }
+      laws.push(lawObj);
     }
   }
 
@@ -57,6 +66,167 @@ function parseLaws(text, source) {
   flush();
   return laws;
 }
+
+/**
+ * Extract validators block from law text and return prose-only text plus parsed validators.
+ * @param {string} lawText - Full law text including optional validators block
+ * @param {string} lawId - Law ID for error messages
+ * @returns {{prose: string, validators: Array}} - Prose text and validators array
+ * @throws {Error} if validators block is malformed
+ */
+function extractValidators(lawText, lawId) {
+  // Find validators: block (must start at beginning of line, followed by indented lines)
+  // The pattern captures lines starting with spaces/tabs (indented content)
+  // Using possessive quantifier to avoid backtracking: (?:...)+ instead of (...)*.
+  const validatorBlockMatch = lawText.match(/^validators:\n((?:[ \t]+\S.*(?:\n|$))*)/m);
+  
+  if (!validatorBlockMatch || !validatorBlockMatch[1].trim()) {
+    return { prose: lawText, validators: null };
+  }
+
+  // Extract prose (everything before validators:)
+  const prose = lawText.substring(0, validatorBlockMatch.index).trim();
+  
+  // Extract and parse validators block
+  const validatorBlockText = validatorBlockMatch[1];
+  const validators = parseValidatorBlock(validatorBlockText, lawId);
+  
+  return { prose, validators };
+}
+
+/**
+ * Parse a validator entry from lines.
+ * @param {string} lawId - Law ID for error messages
+ * @param {Set} seenIds - Set of seen validator IDs to detect duplicates
+ * @param {object} validator - Validator object being built
+ * @throws {Error} if validator is invalid
+ */
+function saveValidator(validator, seenIds, lawId) {
+  validateValidator(validator, seenIds, lawId);
+  return validator;
+}
+
+/**
+ * Parse field from a line: key: value
+ * @param {string} line - Line to parse
+ * @param {string} key - Field key to match
+ * @returns {string|null} - Field value or null
+ */
+function parseField(line, key) {
+  const match = line.match(new RegExp(`^\\s*${key}:\\s*(.+)`));
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Handle a new validator entry line.
+ * @param {object} currentValidator - Current validator object or null
+ * @param {Array} validators - List to add saved validators to
+ * @param {string} line - Line to process
+ * @param {Set} seenIds - Set of seen IDs
+ * @param {string} lawId - Law ID for error messages
+ * @returns {object} - New validator object or null
+ */
+function handleValidatorEntry(currentValidator, validators, line, seenIds, lawId) {
+  const entryMatch = line.match(/^\s*-\s*id:\s*(.+)/);
+  if (entryMatch) {
+    // Save previous validator if exists
+    if (currentValidator) {
+      validators.push(saveValidator(currentValidator, seenIds, lawId));
+    }
+    return { id: entryMatch[1].trim() };
+  }
+  return null;
+}
+
+/**
+ * Process a field line in a validator entry.
+ * @param {object} validator - Current validator object
+ * @param {string} line - Line to process
+ */
+function processValidatorField(validator, line) {
+  const command = parseField(line, 'command');
+  if (command !== null) {
+    validator.command = command;
+    return;
+  }
+
+  const failureMeans = parseField(line, 'failure-means');
+  if (failureMeans !== null) {
+    validator['failure-means'] = failureMeans;
+  }
+}
+
+/**
+ * Process a single line in the validators block.
+ * @param {object} currentValidator - Current validator or null
+ * @param {string} line - Line to process
+ * @param {string} lawId - Law ID for error messages
+ * @throws {Error} if validator entry not started
+ */
+function processValidatorLine(currentValidator, line, lawId) {
+  if (!currentValidator) {
+    throw new Error(`law "${lawId}": validator entry missing required 'id'`);
+  }
+  processValidatorField(currentValidator, line);
+}
+
+/**
+ * Parse the validators block content (YAML-like format)
+ * @param {string} blockText - Text content of validators block
+ * @param {string} lawId - Law ID for error messages
+ * @returns {Array} - Array of parsed validators
+ * @throws {Error} if validators are malformed
+ */
+function parseValidatorBlock(blockText, lawId) {
+  const validators = [];
+  const lines = blockText.split('\n');
+  let currentValidator = null;
+  const seenIds = new Set();
+
+  for (const line of lines) {
+    // Skip empty lines
+    if (!line.trim()) continue;
+    
+    // Check for new validator entry (starts with -)
+    const newValidator = handleValidatorEntry(currentValidator, validators, line, seenIds, lawId);
+    if (newValidator) {
+      currentValidator = newValidator;
+      continue;
+    }
+
+    processValidatorLine(currentValidator, line, lawId);
+  }
+
+  // Save last validator
+  if (currentValidator) {
+    validators.push(saveValidator(currentValidator, seenIds, lawId));
+  }
+
+  return validators;
+}
+
+/**
+ * Validate a single validator entry.
+ * @param {object} validator - Validator object with id, command, and optional failure-means
+ * @param {Set} seenIds - Set of seen validator IDs to detect duplicates
+ * @param {string} lawId - Law ID for error messages
+ * @throws {Error} if validator is invalid
+ */
+function validateValidator(validator, seenIds, lawId) {
+  if (!validator.id) {
+    throw new Error(`law "${lawId}": validator entry missing required 'id'`);
+  }
+  if (!validator.command) {
+    throw new Error(`law "${lawId}": validator entry missing required 'command'`);
+  }
+  if (seenIds.has(validator.id)) {
+    throw new Error(`law "${lawId}": duplicate validator id '${validator.id}' in law`);
+  }
+  seenIds.add(validator.id);
+}
+
+// This line references 'validators' which should be a local in the loop above
+// Let me rewrite this function
 
 async function collectLawsFromDir(dir, io, sourcePrefix) {
   if (!(await io.exists(dir))) return [];
@@ -81,7 +251,23 @@ export async function getLaws(foundryDir, io, { typeId } = {}) {
     }
   }
 
-  return laws;
+  // Return prose-only without source or validators
+  return laws.map(law => ({ id: law.id, text: law.text }));
+}
+
+export async function getLawsForQuench(foundryDir, io, { typeId } = {}) {
+  const laws = await collectLawsFromDir(join(foundryDir, 'laws'), io, 'laws');
+
+  if (typeId) {
+    const typeLawsPath = join(foundryDir, 'artefacts', typeId, 'laws.md');
+    if (await io.exists(typeLawsPath)) {
+      const text = await io.readFile(typeLawsPath);
+      laws.push(...parseLaws(text, `artefacts/${typeId}/laws.md`));
+    }
+  }
+
+  // Return only laws that have validators
+  return laws.filter(law => law.validators && law.validators.length > 0);
 }
 
 function parseValidationEntry(line) {
@@ -123,7 +309,7 @@ function handleValidationLine(line, state) {
   }
 }
 
-function parseValidationLines(lines) {
+function internalParseValidationLines(lines) {
   const state = { entries: [], id: null, command: null, failure: null };
   for (const line of lines) {
     handleValidationLine(line, state);
@@ -132,11 +318,21 @@ function parseValidationLines(lines) {
   return state.entries;
 }
 
+/**
+ * @deprecated Use getLawsForQuench instead. Phase 2 migration of validation.md files will remove this.
+ */
 export async function getValidation(foundryDir, typeId, io) {
   const path = join(foundryDir, 'artefacts', typeId, 'validation.md');
   if (!(await io.exists(path))) return null;
   const text = await io.readFile(path);
-  return parseValidationLines(text.split('\n'));
+  return internalParseValidationLines(text.split('\n'));
+}
+
+/**
+ * @deprecated Use getLawsForQuench instead. Phase 2 migration of validation.md files will remove this.
+ */
+export async function parseValidationLines(lines) {
+  return internalParseValidationLines(lines);
 }
 
 export async function getAppraisers(foundryDir, io) {

@@ -4,7 +4,7 @@
 import {
   getCycleDefinition,
   getArtefactType,
-  getValidation,
+  getLawsForQuench,
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
 import { clearActiveStage, clearLastStage } from './lib/state.js';
@@ -208,14 +208,14 @@ async function runSetupPipeline(ctx) {
   if (typeResult.error) return typeResult.error;
   const artefactResult = await checkArtefactType(ctx.foundryDir, typeResult.outputType, ctx.io);
   if (artefactResult.error) return artefactResult.error;
-  const validation = await getValidation(ctx.foundryDir, typeResult.outputType, ctx.io);
+  const lawsWithValidators = await getLawsForQuench(ctx.foundryDir, ctx.io, { typeId: typeResult.outputType });
   const assayResult = await runAssayValidation(ctx.cfm, ctx.cycleId, ctx.io, ctx.foundryDir);
   if (assayResult.error) return assayResult.error;
-  return completeSetup({ ...ctx, validation, assayResult });
+  return completeSetup({ ...ctx, lawsWithValidators, assayResult });
 }
 
 async function completeSetup(ctx) {
-  const hasValidation = ctx.validation && ctx.validation.length > 0;
+  const hasValidation = ctx.lawsWithValidators && ctx.lawsWithValidators.length > 0;
   const stagesResult = resolveStages(ctx.cfm, ctx.cycleId, hasValidation, ctx.assayResult.extractors);
   if (stagesResult.error) return stagesResult.error;
   const newWork = buildNewFrontmatter(ctx.workContent, stagesResult, ctx.cfm, ctx.assayResult.extractors);

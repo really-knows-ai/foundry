@@ -10,10 +10,10 @@ test('law validator: multi-block valid', async () => {
   assert.deepEqual(out, { ok: true });
 });
 
-test('law validator: missing Passing line', async () => {
-  const out = await validate({ name: 'rules', body: fx('invalid-no-passing') });
-  assert.equal(out.ok, false);
-  assert.ok(out.errors.some((e) => /Passing:/.test(e)));
+test('law validator: prose-only law without Passing/Failing is valid', async () => {
+  const body = '## clarity\nBe clear and concise.';
+  const out = await validate({ name: 'rules', body });
+  assert.equal(out.ok, true);
 });
 
 test('law validator: duplicate ids', async () => {
