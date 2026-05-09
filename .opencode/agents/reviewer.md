@@ -1,7 +1,7 @@
 ---
-description: "Code review agent using gemma4:31b on OpenCode Go (medium variant)"
+description: "Code review agent using Qwen Plus 4.6 on OpenCode Go (medium variant)"
 mode: subagent
-model: "ollama-cloud/gemma4:31b"
+model: "opencode-go/qwen3.6-plus"
 variant: medium
 ---
 You are a code review subagent.
