@@ -3,8 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const ADD_LAW_SKILL_PATH = join(REPO_ROOT, 'src', 'skills', 'add-law', 'SKILL.md');
+const QUENCH_SKILL_PATH = join(REPO_ROOT, 'src', 'skills', 'quench', 'SKILL.md');
 
 const GIT_ENV = {
   ...process.env,
@@ -306,7 +311,7 @@ test('foundry_config_edit_law returns error for non-existent law', async () => {
 });
 
 test('add-law skill has no Passing:/Failing: template', async () => {
-  const skillPath = '/Users/jledrew/foundry/src/skills/add-law/SKILL.md';
+  const skillPath = ADD_LAW_SKILL_PATH;
   const skillContent = readFileSync(skillPath, 'utf-8');
   assert.ok(!skillContent.includes('foundry_config_create_law'),
     'Skill should reference foundry_config_add_law, not foundry_config_create_law');
@@ -315,7 +320,7 @@ test('add-law skill has no Passing:/Failing: template', async () => {
 });
 
 test('add-law skill contains drift-mitigation prompts for prose changes', async () => {
-  const skillPath = '/Users/jledrew/foundry/src/skills/add-law/SKILL.md';
+  const skillPath = ADD_LAW_SKILL_PATH;
   const skillContent = readFileSync(skillPath, 'utf-8');
   assert.ok(skillContent.includes('Verify that all existing validators on this law still accurately enforce the updated intent'),
     'Skill should contain prose-change drift-mitigation prompt');
@@ -324,7 +329,7 @@ test('add-law skill contains drift-mitigation prompts for prose changes', async 
 });
 
 test('add-law skill contains drift-mitigation prompts for validator changes', async () => {
-  const skillPath = '/Users/jledrew/foundry/src/skills/add-law/SKILL.md';
+  const skillPath = ADD_LAW_SKILL_PATH;
   const skillContent = readFileSync(skillPath, 'utf-8');
   assert.ok(skillContent.includes('Verify that the changed validator still aligns with the law\'s prose'),
     'Skill should contain validator-change drift-mitigation prompt');
@@ -333,7 +338,7 @@ test('add-law skill contains drift-mitigation prompts for validator changes', as
 });
 
 test('add-law skill references law editing tools', async () => {
-  const skillPath = '/Users/jledrew/foundry/src/skills/add-law/SKILL.md';
+  const skillPath = ADD_LAW_SKILL_PATH;
   const skillContent = readFileSync(skillPath, 'utf-8');
   assert.ok(skillContent.includes('foundry_config_add_law'),
     'Skill should reference foundry_config_add_law tool');
@@ -344,7 +349,7 @@ test('add-law skill references law editing tools', async () => {
 });
 
 test('quench skill does not reference validation tag or validation.md', async () => {
-  const skillPath = '/Users/jledrew/foundry/src/skills/quench/SKILL.md';
+  const skillPath = QUENCH_SKILL_PATH;
   const skillContent = readFileSync(skillPath, 'utf-8');
   assert.ok(!skillContent.includes("tag: 'validation'"),
     'Quench skill should not reference validation tag');
