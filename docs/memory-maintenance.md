@@ -94,7 +94,7 @@ handler is fine; *reading through a possibly-uninitialised singleton* is not.
 
 Beyond hand-authored `foundry-memory/relations/<type>.ndjson` seed data, flow memory can be populated at runtime by **extractors** — project-authored CLI scripts that emit JSONL describing entities and edges. An extractor runs inside the `assay` stage of a cycle that opts in via its frontmatter.
 
-Extractors are defined at `foundry/memory/extractors/<name>.md` with a `command`, a `memory.write` scope, and a prose brief. Create them with the `add-extractor` skill; reference them from a cycle via `assay: { extractors: [name, ...] }`. See [docs/concepts.md](concepts.md#extractor) for the full spec.
+Extractors are defined at `foundry/memory/extractors/<name>.md` with a `command`, a `memory.write` scope, and a prose brief. Create them with the `add-extractor` skill; reference them from a cycle via `assay: { extractors: [name, ...] }`. This path is runtime population: extractor definitions live in config, while successful rows are flushed to the top-level `foundry-memory/relations/` data tree. See [docs/concepts.md](concepts.md#extractor) for the full spec.
 
 ## Memory layout: two trees
 
@@ -145,5 +145,4 @@ The supported recovery paths: read the failure reason via
 `foundry_workfile_get`, fix the root cause, then either call
 `foundry_stage_retry()` to clear the failed state and re-run the blocked
 stage, or abandon the cycle with `foundry_workfile_delete({ confirm: true })`.
-See `src/scripts/lib/failed-flow.js` and the README "Failed flow state"
-section for the full contract.
+See `src/scripts/lib/failed-flow.js` and [architecture.md](architecture.md#failed-flow-state) for the full contract.

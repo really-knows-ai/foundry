@@ -50,7 +50,7 @@ Two artefact types cannot have file patterns that match the same files. Hard-blo
 
 ### Flow memory is strictly opt-in and per-cycle
 
-Memory is a separate, optional subsystem. Without `foundry/memory/`, the system runs with memory features disabled; prompt injection, tools, and vocabulary stay out. With memory initialised, a cycle accesses it by declaring a `memory: { read, write }` block in its frontmatter. The live Cozo database is gitignored and rebuildable from committed NDJSON; vocabulary (`entities/<type>.md`, `edges/<name>.md`) and row data (`relations/*.ndjson`) are the durable source of truth. Destructive operations preview before they mutate.
+Memory is a separate, optional subsystem. Without `foundry/memory/`, the system runs with memory features disabled; prompt injection, tools, and vocabulary stay out. With memory initialised, a cycle accesses it by declaring a `memory: { read, write }` block in its frontmatter. A cycle can also declare `assay.extractors` to populate that scoped memory before forge starts. Extractor output is parsed and validated by plugin code before it becomes rows. The live Cozo database is gitignored and rebuildable from committed NDJSON; vocabulary (`entities/<type>.md`, `edges/<name>.md`) and row data (`foundry-memory/relations/*.ndjson`) are the durable source of truth. Destructive operations preview before they mutate.
 
 ---
 
@@ -68,6 +68,7 @@ The following guarantees live in plugin code and are outside LLM control:
 - **Write invariants.** The orchestrator's internal finalize step scans the git diff after `foundry_stage_end`. Files outside the stage's allowed patterns (artefact file-patterns for forge, tool-managed WORK files for evaluation stages) cause a hard stop with `{error: 'unexpected_files'}`.
 - **Feedback state machine.** Transitions are source-based. Only legal state changes are accepted: `resolved` is terminal; quench cannot approve/reject a `wont-fix`; validation cannot be wont-fixed. See [work-spec.md](work-spec.md) for the full state machine.
 - **Artefact-type glob uniqueness.** `add-artefact-type` refuses to create a type whose file patterns overlap with an existing type. The write-invariant enforcer relies on unambiguous file ownership.
+- **Extractor validation.** Assay runs project-authored extractor commands, but plugin code owns JSONL parsing, vocabulary checks, per-extractor write scopes, per-cycle write scopes, and memory upserts. Invalid output or permission violations mark the workfile failed; they do not become artefact feedback.
 
 ### Deterministic orchestration
 
@@ -156,7 +157,7 @@ Implementation: `src/scripts/lib/branch-guard.js`.
 
 ## Memory layout
 
-Foundry's optional flow memory subsystem uses a two-tree split: configuration lives under `foundry/memory/` (committed alongside the rest of the foundry config), and row data lives under `foundry-memory/relations/` (a top-level sibling of `foundry/`) so it can be tracked or replaced independently.
+Foundry's optional flow memory subsystem uses a two-tree split: configuration lives under `foundry/memory/` (committed alongside the rest of the foundry config), and row data lives under `foundry-memory/relations/` (a top-level sibling of `foundry/`) so it can be tracked or replaced independently. Assay extractors populate this row-data tree during an active assay stage; ordinary memory writes also end up in the same committed relations files.
 
 ### Directory structure
 
@@ -234,7 +235,7 @@ Input artefacts (files matching an input type's `file-patterns`) are read-only. 
 
 ### Failed flow state
 
-When an unrecoverable error occurs (e.g. assay extractor abort, memory-sync failure), the orchestrator marks `WORK.md` frontmatter with `status: failed` and a `reason`. The flow is then locked:
+When an unrecoverable error occurs (e.g. assay extractor abort, invalid JSONL, or memory-sync failure), the orchestrator marks `WORK.md` frontmatter with `status: failed` and a `reason`. The flow is then locked:
 
 - **Blocked tools.** All mutation tools refuse to run and return an error referencing the failure reason:
   - **Lifecycle:** `foundry_stage_begin`, `foundry_orchestrate`, `foundry_workfile_create`, `foundry_artefacts_set_status`

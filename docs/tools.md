@@ -594,10 +594,7 @@ branch and failed-flow guards.
 - `cycle` (string, required).
 - `extractors` (string[], required): Extractor names, executed in order.
 
-**Returns:** the `runAssay` result object — on success it includes the
-list of writes; on failure it includes `failedExtractor`, `reason`, and
-optional `stderr`. On post-run memory sync failure: `{ error,
-flow_failed: true }`.
+**Returns:** the `runAssay` result object. On success: `{ ok: true, perExtractor: [{ name, rowsUpserted, durationMs }, ...] }`. On extractor failure: `{ error, flow_failed: true, aborted: true, failedExtractor, reason, stderr?, perExtractor }`. On post-run memory sync failure: `{ error, flow_failed: true }`.
 
 **Stage requirements:** requires active **assay** stage matching
 `cycle`. Refuses on failed flow.
@@ -1355,8 +1352,7 @@ its rows. **Destructive.**
 **Args:**
 - `name` (string, required).
 - `command` (string, required): The CLI to execute.
-- `memoryWrite` (string[], required): List of entity/edge types the
-  extractor is allowed to write.
+- `memoryWrite` (string[], required): Entity types the extractor is allowed to write. Edge rows are permitted when either endpoint entity type is in this list.
 - `body` (string, required): Prose brief for the LLM.
 - `timeout` (string, optional).
 
