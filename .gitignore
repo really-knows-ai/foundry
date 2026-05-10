@@ -7,3 +7,4 @@ __pycache__/
 .snapshots/
 dist/
 plans/
+package-lock.json
