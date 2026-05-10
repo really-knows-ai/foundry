@@ -73,11 +73,42 @@ machine; Foundry runs it. Confidence is the difference.
 
 ---
 
+## Compatibility
+
+Foundry works primarily with OpenCode. The skills and tools are portable to other
+skill-aware AI systems. Multi-model stage routing is OpenCode-specific today.
+
+- **OpenCode** — full support. Multi-model routing via file-based `foundry-*` agents.
+  This is the primary target platform.
+
+- **Other skill-aware AI tools** — the skills and tools are portable to any
+  skill-aware AI system. Multi-model stage routing is OpenCode-specific today
+  because it relies on `.opencode/agents/` files.
+
+---
+
+## Install
+
+Add the plugin to `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@really-knows-ai/foundry"]
+}
+```
+
+Restart OpenCode so the plugin registers its tools and skills. You will see new
+tools and skills become available in OpenCode's command palette once the restart
+completes. The `init-foundry` skill and flow-management tools are now ready to use.
+
+---
+
 ## Quick start
 
 ### Phase 1 — Install
 
-Add the plugin to `opencode.json` (above):
+Add the plugin to `opencode.json` (see Install section above):
 
 ```json
 {
@@ -147,20 +178,6 @@ contributed, and when each appraiser signed off.
 This trace is the proof. You can play it back, audit it, replay it under a different
 model, or use it to argue that the AI output is trustworthy. Every step is visible.
 Nothing is hidden.
-
----
-
-## Compatibility
-
-Foundry works primarily with OpenCode. The skills and tools are portable to other
-skill-aware AI systems. Multi-model stage routing is OpenCode-specific today.
-
-- **OpenCode** — full support. Multi-model routing via file-based `foundry-*` agents.
-  This is the primary target platform.
-
-- **Other skill-aware AI tools** — the skills and tools are portable to any
-  skill-aware AI system. Multi-model stage routing is OpenCode-specific today
-  because it relies on `.opencode/agents/` files.
 
 ---
 
