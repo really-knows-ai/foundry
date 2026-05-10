@@ -56,7 +56,7 @@ Memory is a separate, optional subsystem. Without `foundry/memory/`, the system 
 
 ## Enforcement model
 
-Foundry enforces correctness through deterministic plugin tools that own state transitions, routing, and write boundaries. Skills perform creative and evaluative work; tools handle everything that must be reliable.
+Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code. Skills perform creative and subjective work; tools handle everything deterministic.
 
 ### Tool-enforced guarantees
 
