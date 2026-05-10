@@ -197,6 +197,13 @@ declare the entity and edge vocabulary, add extractors, and opt a cycle into
 `assay.extractors`. See [Optional: flow memory](docs/getting-started.md#optional-flow-memory)
 and [Assay](docs/concepts.md#assay) for the configuration path.
 
+> **Note (3.0.0):** flow memory currently persists to `cozo-node`, which is
+> unmaintained upstream. Installation produces six cosmetic deprecation warnings
+> from transitive dependencies (`pnpm audit` is clean). Foundry will migrate to
+> a maintained backend in a future release; the public `foundry_memory_*` tools
+> and on-disk vocabulary/NDJSON format are designed to survive that migration.
+> See `CHANGELOG.md` and [docs/memory-maintenance.md](docs/memory-maintenance.md#backend-status-as-of-300).
+
 ---
 
 ## What you can show your team

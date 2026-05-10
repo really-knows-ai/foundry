@@ -219,7 +219,7 @@ async function validateAddLawPrerequisites(io, args) {
   if (await io.exists(path)) {
     return {
       ok: false,
-      errors: [`${path} already exists; updates are not supported in 3.0.0 — edit by hand on this config/* branch`],
+      errors: [`${path} already exists; use foundry_config_edit_law to update an existing law in place`],
     };
   }
 

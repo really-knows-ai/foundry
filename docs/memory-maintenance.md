@@ -4,6 +4,34 @@ Contributor-facing notes. This file records the derived details from the
 Cozo docs / plugin surface that cost us time to establish. Add entries when a
 fix required non-trivial spelunking, so the next maintainer can reuse the result.
 
+## Backend status (as of 3.0.0)
+
+The memory subsystem persists to `cozo-node@0.7.6`, which wraps the Rust
+`cozodb` engine. Both are effectively unmaintained:
+
+- `cozo-node` has not been published since December 2023.
+- `cozodb/cozo` has not received a commit since December 2024.
+
+There are no known correctness or security issues in our usage — `pnpm
+audit` reports clean. The only visible symptom is six `deprecated
+subdependency` install warnings (all from `cozo-node →
+@mapbox/node-pre-gyp@1`).
+
+Foundry will migrate to a maintained graph + vector backend in a future
+release. Candidates under evaluation include **Kùzu** (embedded
+property-graph with HNSW, Cypher dialect), **SurrealDB embedded**,
+**DuckDB + vss + PGQ**, and **SQLite + `sqlite-vec`** with hand-rolled
+graph traversal. The migration is structured so the public memory tool
+surface (`foundry_memory_*`) and the on-disk durable artefacts
+(`foundry-memory/entities/*.md`, `foundry-memory/edges/*.md`,
+`foundry-memory/relations/*.ndjson`) remain stable; only the live
+in-process store changes.
+
+When contributing to the memory module in the meantime, keep the cozo
+coupling routed through `src/scripts/lib/memory/cozo.js` and
+`src/scripts/lib/memory/store.js`. New consumers should depend on the
+`store` interface, not on `cozo-node` directly.
+
 ## Cozo 0.7 adaptations
 
 ### `::compact` instead of `::checkpoint`

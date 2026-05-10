@@ -11,7 +11,7 @@ async function checkFileExists(io, path) {
   if (await io.exists(path)) {
     return {
       ok: false,
-      errors: [`${path} already exists; updates are not supported in 3.0.0 — edit by hand on this config/* branch`],
+      errors: [`${path} already exists; this tool only creates new files — to update, edit by hand on this config/* branch`],
     };
   }
   return null;

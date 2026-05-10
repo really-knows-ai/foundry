@@ -1,10 +1,20 @@
 # Changelog
 
-## [Unreleased]
+## [3.0.0] - 2026-05-10
 
-## [3.0.0] - 2026-04-30
+A consolidation release covering every change since v2.4.2. Foundry 3.0.0
+restructures the branch model into three explicit kinds (`config/*`,
+`work/*`, `dry-run/*/*`), introduces deterministic attestation, replaces
+the markdown-parsed feedback section with a typed YAML store, adds the
+assay pre-forge stage and the flow-memory subsystem, unifies law
+authoring around a JSONL-validator model, and adds a verbose tracing /
+forensic-snapshot loop for dry-runs. The work was developed across what
+were originally numbered as 2.5.0, 2.6.0, 2.7.0, and 3.0.0 internal
+milestones; only 3.0.0 is being released. Where an intermediate
+milestone introduced a feature and a later milestone modified it, this
+entry documents the 3.0.0 end-state only.
 
-### Breaking changes
+### Branch-model breaking changes
 
 - **`foundry_git_branch` requires explicit `kind`.** The previous
   `{ flowId, description }` signature is removed. Callers must now pass
@@ -28,238 +38,328 @@
   nested under `config/<parent>`.** Originally specified as
   `config/<x>/dry-run/<y>`; git refuses to coexist a parent ref with
   a child-prefixed ref, so the namespace is a flat sibling instead.
-  No code outside this release ever shipped the nested form.
 - **Schema/config mutation now requires a `config/*` branch.**
-  Affected tools: `foundry_config_create_artefact_type`/`_law`/
-  `_appraiser`/`_flow`/`_cycle` (new),
-  `foundry_memory_create_entity_type`/`_create_edge_type`/
-  `_rename_entity_type`/`_rename_edge_type`/`_drop_entity_type`/
+  Affected tools: `foundry_config_create_artefact_type`,
+  `_create_appraiser`, `_create_flow`, `_create_cycle`,
+  `foundry_config_add_law`, `foundry_config_edit_law`,
+  `foundry_memory_create_entity_type` / `_create_edge_type` /
+  `_rename_entity_type` / `_rename_edge_type` / `_drop_entity_type` /
   `_drop_edge_type`, `foundry_extractor_create`, `foundry_memory_init`,
   `foundry_memory_reset`, `foundry_memory_change_embedding_model`. All
   refuse on any branch other than `config/<description>`.
 - **Flow-data mutation now requires a `work/*` or `dry-run/*/*`
   branch.** Affected tools: `foundry_orchestrate`,
-  `foundry_workfile_create`/`_delete`, `foundry_artefacts_set_status`,
+  `foundry_workfile_create` / `_delete`, `foundry_artefacts_set_status`,
   `foundry_feedback_*` (mutating variants), `foundry_assay_run`,
   `foundry_validate_run`, `foundry_appraisers_select`,
-  `foundry_stage_begin`/`_end`/`_retry`, `foundry_memory_put`/`_relate`/
-  `_unrelate`.
+  `foundry_stage_begin` / `_end` / `_retry`, `foundry_memory_put` /
+  `_relate` / `_unrelate`.
+
+### Attestation, dry-run, and snapshot breaking changes
+
+- **`foundry_git_finish` on `work/*` refuses without ATTEST.md at HEAD.**
+  Work-branch merges are gated on a deterministic attestation commit
+  produced by `foundry_attest`. Operators must run `foundry_attest`
+  with `confirm: true` before finishing a work branch.
 - **Dry-run finish writes a forensic snapshot.** `foundry_git_finish`
-  on a `dry-run/<x>/<y>` branch now writes
-  `.snapshots/<run-id>/` on the parent `config/<x>` working tree
-  (containing `README.md`, `work/WORK*`, `diff.patch`, `trace.jsonl`)
-  and force-deletes the dry-run branch. No merge, no commit.
-  `baseBranch` remains invalid for this case.
+  on a `dry-run/<x>/<y>` branch writes `.snapshots/<run-id>/` on the
+  parent `config/<x>` working tree (containing `README.md`,
+  `work/WORK*`, `diff.patch`, `trace.jsonl`) and force-deletes the
+  dry-run branch. No merge, no commit.
 - **`.snapshots/` is a new gitignored top-level directory.** It
   appears in projects only after the first dry-run finish. Snapshots
   are local operator artefacts and never committed by foundry.
-- **Four new `foundry_snapshot_*` tools.** `foundry_snapshot_list`,
-  `_show`, `_delete`, `_prune` — for programmatic snapshot inspection
-  and cleanup. Allowed on every branch (foundational guards only).
-- **Verbose tool-call tracing on dry-run branches.** Every
-  `foundry_*` tool call (except `foundry_orchestrate` which uses
-  inline guards) appends a JSONL record to
-  `.foundry/trace/<branch-slug>.jsonl` while on a dry-run branch.
-  The trace is truncated when the dry-run branch is created and
-  copied into the snapshot at finish.
-- **New `dry-run` skill.** Documents the
-  config-edit → dry-run → finish → inspect-snapshot loop.
+- **Verbose tool-call tracing on dry-run branches.** Every `foundry_*`
+  tool call (except `foundry_orchestrate`, which uses inline guards)
+  appends a JSONL record to `.foundry/trace/<branch-slug>.jsonl` while
+  on a dry-run branch. The trace is truncated when the dry-run branch
+  is created and copied into the snapshot at finish.
 
-- **Cycle frontmatter key renamed: `output:` → `output-type:`.** The cycle
-  frontmatter key that names the produced artefact type is now
-  `output-type:`. The orchestrator emits a typed migration diagnostic when
-  it sees the old key. Migration: rename `output:` to `output-type:` in
-  every `foundry/flows/*/cycles/*.md` file. (`b92f866`)
-- **Artefact-type frontmatter `output:` is removed.** The field had zero
-  runtime consumers — forge's write scope is governed by `file-patterns`,
-  and `file-patterns` legitimately spans multiple directories so a single
-  `output:` (or earlier-proposed `output-dir:`) cannot honestly describe
-  artefact location. Migration: delete the `output:` line from every
-  `foundry/artefact-types/*.md` definition. (`b92f866`, `88aad11`)
-- **Assay extractor failure now marks the workfile failed.** When an
-  extractor exits non-zero, parses incorrectly, violates permissions, or
-  times out, `foundry_assay_run` calls `markWorkfileFailed` and returns
-  `{flow_failed: true, error, …}`. It no longer files a `#validation`
-  feedback item. Rationale: the failure cause (a project-authored script
-  under `foundry/memory/extractors/`) lives outside any artefact's
-  `file-patterns`, so forge has no way to act on assay-sourced feedback;
-  the prior behaviour produced unsatisfiable state-machine items. Assay
-  is also rejected as a `source` base in `foundry_feedback_add` and in
-  `WORK.feedback.yaml`. Migration: any tooling that pattern-matched
-  assay-sourced feedback items must instead detect `flow_failed: true`
-  on the assay-run response. (`0e8b248`, `5dd69e8`, `08934a8`)
-- **Memory NDJSON relations moved to `foundry-memory/relations/`.** The
-  per-type row data (`<entity-type>.ndjson`, `<edge-type>.ndjson`) now
-  lives at the top-level `foundry-memory/relations/` directory, sibling
-  to `foundry/`. The rest of the memory tree (`config.md`,
+### Feedback and state-machine breaking changes
+
+- **Feedback storage moved from markdown to YAML.** The `## Feedback`
+  section in `WORK.md` is removed. Feedback items now live in
+  `WORK.feedback.yaml` with full transition history per item. Any
+  legacy `## Feedback` content in an old `WORK.md` is inert text:
+  not parsed, not deleted, not written to.
+- **Feedback tools switch from `{ file, index }` to `{ id }`
+  addressing.** `foundry_feedback_add` drops the `stageBase?`
+  argument (source is read from the active stage).
+  `foundry_feedback_list` response shape is now
+  `{ id, file, tag, text, source, state, depth, reason? }`. Item ids
+  are ULIDs.
+- **Feedback state machine expands from 4 states to 6:** `open |
+  actioned | wont-fix | rejected | deadlocked | resolved`. `approved`
+  is renamed to `resolved` internally; the public resolve tool still
+  accepts `resolution: 'approved' | 'rejected'` as input.
+- **Deadlock detection is per-item.** Each item's depth in its own
+  transition history is checked against `deadlock-iterations`. Items
+  freshly added in the threshold-th iteration are never auto-deadlocked.
+- **Source-authorship rule.** Only the stage that created a feedback
+  item can resolve or reject it. `human-appraise` has universal
+  override authority — it may transition any non-resolved item to any
+  legal target state regardless of source.
+- **Assay rejected as a feedback source.** `foundry_feedback_add`
+  and `WORK.feedback.yaml` refuse `source: 'assay'`. Assay failures
+  surface as a hard flow failure (see Assay breaking changes below).
+
+### Cycle and artefact-type breaking changes
+
+- **Cycle frontmatter key renamed: `output:` → `output-type:`.** The
+  orchestrator no longer reads `output:`. Cycle definitions in
+  `foundry/flows/*/cycles/*.md` must use `output-type:` to declare
+  the artefact-type id the cycle produces. Unmigrated cycles yield a
+  hard violation pointing to the upgrade skill.
+- **Artefact-type frontmatter `output:` is removed.** The field had
+  zero runtime consumers — forge's write scope is governed by
+  `file-patterns`, and `file-patterns` legitimately spans multiple
+  directories, so a single `output:` (or earlier-proposed
+  `output-dir:`) could not honestly describe artefact location.
+  Stale `output:` entries are harmless but should be deleted.
+
+### Assay and memory breaking changes
+
+- **Assay extractor failure marks the workfile failed.** When an
+  extractor exits non-zero, parses incorrectly, violates permissions,
+  or times out, `foundry_assay_run` calls `markWorkfileFailed` and
+  returns `{flow_failed: true, error, …}`. It does not file a
+  `#validation` feedback item. Rationale: the failure cause (a
+  project-authored script under `foundry/memory/extractors/`) lives
+  outside any artefact's `file-patterns`, so forge has no way to act
+  on assay-sourced feedback; the prior behaviour produced
+  unsatisfiable state-machine items. Tooling that pattern-matched
+  assay-sourced feedback must instead detect `flow_failed: true` on
+  the assay-run response.
+- **Memory NDJSON relations moved to `foundry-memory/relations/`.**
+  Per-type row data (`<entity-type>.ndjson`, `<edge-type>.ndjson`)
+  lives at the top-level `foundry-memory/relations/` directory,
+  sibling to `foundry/`. The rest of the memory tree (`config.md`,
   `schema.json`, `entities/`, `edges/`, `extractors/`, the gitignored
-  `memory.db*` runtime files) stays under `foundry/memory/`. Rationale:
-  the relations directory is large, frequently rewritten, and benefits
-  from being separable from the human-authored config. Migration for
-  projects with an existing populated memory store:
-  `git mv foundry/memory/relations foundry-memory/relations` followed
-  by `git commit`. Projects that have not yet populated memory can
-  simply re-run `foundry_memory_init` on a fresh `config/*` branch.
-  (`db5bfa3`)
+  `memory.db*` runtime files) stays under `foundry/memory/`.
+  Rationale: the relations directory is large, frequently rewritten,
+  and benefits from being separable from the human-authored config.
+
+### Law model breaking changes
+
+- **Quench executes law-defined JSONL validators.** Each law in
+  `foundry/laws/*.md` or `foundry/artefacts/<typeId>/laws.md` declares
+  one or more validator commands in a fenced code block.
+  `foundry_validate_run` executes them, parses their JSONL output, and
+  returns per-item feedback (`{ lawId, validatorId, file, text,
+  location?, severity? }`). The quench skill emits one
+  `foundry_feedback_add` call per item tagged
+  `law:<lawId>:<validatorId>`. Items whose `file` falls outside the
+  artefact type's `file-patterns` are surfaced as `pattern-mismatch`
+  errors rather than silently swallowed.
+- **Law authoring split into `add` and `edit`.** There is no
+  `foundry_config_create_law`; use `foundry_config_add_law` for new
+  laws and `foundry_config_edit_law` to replace an existing law in
+  place. `foundry_config_read_law` returns the full markdown for a
+  single law by id, and `foundry_config_validate_law` runs schema
+  validation against a candidate body without writing.
 
 ### Added
 
-- **Five `foundry_config_validate_*` and five `foundry_config_create_*`
-  tools** for the artefact-type, law, appraiser, flow, and cycle config
-  kinds. The five `add-*` config skills (`add-artefact-type`, `add-law`,
-  `add-appraiser`, `add-flow`, `add-cycle`) now use these tools to
-  create config entries. Each create produces one git commit per
-  invocation. Updates (editing existing config files) are not yet
-  exposed as MCP tools; operators edit by hand on the current
-  `config/*` branch.
-- **Failed-flow guard on `foundry_validate_run`.** Treats validation as
-  state-changing for the purposes of the failed-flow guard; the tool now
-  refuses on a failed workfile. (`1e58f8f`)
-- **Failed-flow guard on 11 mutating memory admin tools.** `foundry_memory_init`,
-  `_reset`, `_vacuum`, `_change_embedding_model`, `_create_entity_type`,
-  `_create_edge_type`, `_rename_entity_type`, `_rename_edge_type`,
-  `_drop_entity_type`, `_drop_edge_type`, and `foundry_extractor_create`
-  now refuse on a failed workfile, matching the existing gating on
-  `foundry_memory_put` / `_relate` / `_unrelate`. Read-only memory tools
-  (`_dump`, `_validate`) remain callable. (`5a8f150`)
-- **`foundry_attest` tool.** Verifies the current work cycle is complete (all required stages ran, no unresolved feedback, no blocked artefacts) and commits a signed ATTEST.md to the work branch. `foundry_git_finish` will not merge without this commit at HEAD. Takes `baseBranch` (optional, default `main`), `message` (required goal text), and `confirm` (optional, must be `true` to write). Returns `{ ok: true, diffSha, commitSha }` on success.
+- **`foundry_attest`, `foundry_attestation_show`,
+  `foundry_attestation_verify`.** Deterministic attestation
+  primitives. `foundry_attest` verifies the current work cycle is
+  complete (all required stages ran, no unresolved feedback, no
+  blocked artefacts), writes a canonical-JSON ATTEST.md payload
+  (cycle id, diff sha, stages, attestation tools, models), and
+  commits it to the work branch. `foundry_attestation_show` and
+  `_verify` read and re-verify an attestation after the fact. Takes
+  `baseBranch` (optional, default `main`), `message` (required goal
+  text), and `confirm` (must be `true` to write).
+- **`foundry_stage_retry` tool.** Re-runs the last failed stage on a
+  failed workfile without abandoning the cycle. Requires the
+  workfile to be in `status: failed` and the cause to be transient
+  (network, model error). Restores the active-stage token and clears
+  the failed marker.
+- **`foundry_config_create_*` tools** for the four kinds with a
+  single-file canonical layout (artefact-type, appraiser, flow,
+  cycle). Each produces one git commit per invocation on the current
+  `config/*` branch. Updates (replacing an existing file) are not
+  exposed as MCP tools for these kinds; operators edit by hand on
+  the current `config/*` branch.
+- **`foundry_config_validate_*` tools** for all five config kinds
+  (artefact-type, law, appraiser, flow, cycle). Schema-only, no
+  branch guard, callable from any branch. Authors iterate on a draft
+  body, then call the corresponding `_create_*` or `_add_law` /
+  `_edit_law` to commit.
+- **`foundry_config_read_law` tool.** Reads a single law by id,
+  returning its full markdown including the validators block. No
+  branch guard.
+- **`foundry_snapshot_*` tools.** `foundry_snapshot_list`, `_show`,
+  `_delete`, `_prune` — programmatic inspection and cleanup of
+  dry-run forensic snapshots. Allowed on every branch.
+- **Assay stage.** A deterministic pre-forge stage that runs
+  project-authored extractor scripts to populate flow memory before
+  forge starts. Opt-in per cycle via `assay: { extractors: [...] }`
+  in cycle frontmatter. Iteration-0-only. See
+  [docs/concepts.md](docs/concepts.md#assay).
+- **`foundry_assay_run` and `foundry_extractor_create` plugin tools.**
+  `foundry_assay_run` executes the extractors declared by the active
+  assay stage. `foundry_extractor_create` registers a new extractor
+  definition at `foundry/memory/extractors/<name>.md`.
+- **`add-extractor` skill.** Authoring loop for extractor definitions.
+- **Flow memory subsystem.** A typed, graph-shaped knowledge store
+  that persists across cycles. Entity types, edge types, and their
+  prose briefs live in `foundry/memory/`; row data is committed as
+  NDJSON under `foundry-memory/relations/`; the live database
+  (`foundry/memory/memory.db*`) is gitignored and rebuilt on demand
+  from the NDJSON files. Each cycle declares read/write permissions
+  in its frontmatter (`memory: { read: [...], write: [...] }`). The
+  dispatched stage prompt is augmented with a vocabulary block
+  listing the entity/edge types and memory tools visible to that
+  cycle.
+- **20 memory tools.** `foundry_memory_{put,relate,unrelate,get,list,
+  neighbours,query,search}` for read/write,
+  `foundry_memory_{create,rename,drop}_{entity,edge}_type` for
+  vocabulary management, `foundry_memory_{init,validate,reset,dump,
+  vacuum,change_embedding_model}` for admin. Destructive operations
+  (`_drop_*`) take an optional `confirm` — without it they return a
+  preview of affected rows.
+- **9 memory authoring skills.** `init-memory`,
+  `add-memory-entity-type`, `add-memory-edge-type`,
+  `rename-memory-entity-type`, `rename-memory-edge-type`,
+  `drop-memory-entity-type`, `drop-memory-edge-type`, `reset-memory`,
+  `change-embedding-model`.
+- **Optional semantic search.** When `embeddings.enabled` is true in
+  `foundry/memory/config.md`, entities are embedded on write against
+  an OpenAI-compatible endpoint (default: local Ollama
+  `nomic-embed-text`, 768 dims) and exposed via
+  `foundry_memory_search`. Embeddings can be disabled; the graph
+  still works without them.
+- **`dry-run` skill.** Documents the
+  config-edit → dry-run → finish → inspect-snapshot loop.
+- **`WORK.feedback.yaml`.** First-class persistent record of every
+  feedback item and its full transition history. Atomic writes via
+  write-temp-then-rename.
+- **`open_feedback` and `seq` on every `WORK.history.yaml` entry.**
+  `open_feedback` records the count of open items at each tick; `seq`
+  acts as a tiebreaker for same-millisecond timestamps.
+- **Failed-flow guards on mutating tools.** `foundry_validate_run`
+  and 11 mutating memory admin tools (`foundry_memory_init`,
+  `_reset`, `_vacuum`, `_change_embedding_model`,
+  `_create_entity_type`, `_create_edge_type`, `_rename_entity_type`,
+  `_rename_edge_type`, `_drop_entity_type`, `_drop_edge_type`, and
+  `foundry_extractor_create`) refuse on a failed workfile. Read-only
+  memory tools (`_dump`, `_validate`) remain callable.
+- **Deterministic orchestration.** `foundry_orchestrate` owns the
+  sort → history → dispatch → finalize → history → commit loop in
+  plugin code. Orphaned-stage detection: if `orchestrate` is called
+  without `lastResult` while an active stage exists, returns
+  `violation`.
+- **Atomic stage tokens.** `foundry_stage_begin(stage, cycle, token)`
+  consumes a single-use HMAC-signed token issued by `foundry_sort`;
+  `foundry_stage_end(summary)` closes a stage preserving `baseSha`
+  for finalize; `foundry_stage_finalize` verifies stage output
+  against allowed file patterns and registers matching files as
+  draft artefacts, rejecting stray writes with
+  `{error: "unexpected_files", files: [...]}`.
+- **`.foundry/` state directory** (gitignored) — holds `.secret`
+  (per-worktree HMAC key, mode 0600), `active-stage.json` (present
+  only during an active stage), `last-stage.json` (for finalize
+  lookup), and `trace/` (dry-run JSONL traces).
 
 ### Changed
 
-- **`foundry_memory_dump` response wrapped in a JSON envelope.** The tool
-  now returns `{ dump: "<text>" }`, matching the
-  contract of every other plugin tool. Callers that previously consumed
-  the raw string must read `.dump`. (`b9b4be1`)
-- **`foundry_git_branch` errors now return a JSON envelope.**
-  Failures are returned as `{ error: "<message>" }`, giving callers a
-  structured alternative to raw `execFileSync` errors. (`4a01a9d`)
+- **`foundry_memory_dump` response wrapped in a JSON envelope.** Now
+  returns `{ dump: "<text>" }`, matching every other plugin tool's
+  contract. Callers that previously consumed the raw string must
+  read `.dump`.
+- **`foundry_git_branch` errors return a JSON envelope.** Failures
+  are returned as `{ error: "<message>" }`, giving callers a
+  structured alternative to raw `execFileSync` errors.
+- **`cozo-node` is now an optional dependency.** Foundry installs
+  without it; the memory subsystem reports
+  `"cozo-node is not installed on this platform"` if a memory tool
+  is invoked. This unblocks installation on platforms without
+  prebuilt cozo binaries.
+- **Test suite split into unit, integration, and e2e tiers.** Run
+  individually with `pnpm run test`, `pnpm run test:integration`,
+  `pnpm run test:e2e`, or all together with `pnpm run test:all`.
+  `pnpm run build:all` chains lint → test:all → build.
+- **`prepublishOnly` runs `build:all`.** Publish is now gated on the
+  full quality pipeline, not just `build`.
 
 ### Fixed
 
-- **Stage-end memory sync failure is now a hard flow failure.** When
-  `foundry_stage_end` cannot flush the in-memory memory DB to the NDJSON
-  source of truth, WORK.md is marked `status: failed` with the sync error
-  as `reason`, and every mutating tool (`stage_begin`, `orchestrate`,
-  `assay_run`, `forge`/`quench`/`appraise`/`human-appraise` helpers,
-  `memory_put` / `_relate` / `_unrelate`, `feedback_*`,
-  `artefacts_set_status`, `workfile_create`) refuses until the cycle is
-  abandoned via `foundry_workfile_delete`. Read-only tools and the
-  escape hatches (`workfile_delete`, `git_finish`) remain callable.
-  Skills driving each stage (`forge`, `quench`, `appraise`,
-  `human-appraise`, `orchestrate`, `assay`, `flow`) were updated to check
-  for the failed state at the top of their procedure and hand control
-  back to the user. Previously, sync failures were silently swallowed
-  (`console.error` + `{ok:true}`) and the Cozo DB was allowed to drift
-  ahead of on-disk NDJSON.
-- **`foundry_orchestrate` catches `requireNotFailed` violations.** Moved
-  the failed-flow check inside the wrapper try/catch so a malformed
-  frontmatter `YAMLException` collapses to `{action: 'violation'}` instead
-  of bubbling out as an uncaught throw. (`fc3340e`)
+- **Stage-end memory sync failure is a hard flow failure.** When
+  `foundry_stage_end` cannot flush the in-memory DB to the NDJSON
+  source of truth, WORK.md is marked `status: failed` with the sync
+  error as `reason`, and every mutating tool refuses until the cycle
+  is abandoned via `foundry_workfile_delete`. Read-only tools and
+  the escape hatches (`workfile_delete`, `git_finish`) remain
+  callable. Skills driving each stage (`forge`, `quench`, `appraise`,
+  `human-appraise`, `orchestrate`, `assay`, `flow`) were updated to
+  check for the failed state at the top of their procedure and hand
+  control back to the user. Previously, sync failures were silently
+  swallowed and the live DB was allowed to drift ahead of on-disk
+  NDJSON.
+- **`foundry_orchestrate` catches `requireNotFailed` violations.**
+  Moved the failed-flow check inside the wrapper try/catch so a
+  malformed-frontmatter `YAMLException` collapses to
+  `{action: 'violation'}` instead of an uncaught throw.
 - **Missing artefact-type definitions surface a typed finalize error.**
   The orchestrator's finalize bridge now returns
-  `{ok: false, error: "missing_artefact_type: <type> (<reason>)"}` when
-  `getArtefactType` fails, preserving the real error and avoiding a false
-  `unexpected_files` violation. (`cd028eb`)
+  `{ok: false, error: "missing_artefact_type: <type> (<reason>)"}`
+  when `getArtefactType` fails, preserving the real error and
+  avoiding a false `unexpected_files` violation.
+- **Atomic history writes.** `WORK.history.yaml` writes use
+  write-temp-then-rename, closing observed incompleteness in the
+  wild. Malformed history on read now marks the flow failed via
+  `markWorkfileFailed`, allowing graceful recovery rather than
+  silent corruption.
+- **Validation results structured per item.** `foundry_validate_run`
+  returns `{ ok, validatorsRun, items, errors }` with `items` as
+  parsed JSONL entries and `errors` separating parse failures from
+  pattern mismatches. Replaces the prior unstructured aggregate.
 
 ### Migration
 
-Run the `upgrade-foundry` skill from a clean project state. Foundry upgrades use a rebuild-style workflow: the skill preserves the existing `foundry/` directory, initialises a clean current-version configuration, analyses the preserved directory as source material, and recreates supported concepts through current tools.
+Run the `upgrade-foundry` skill from a clean project state. Foundry
+upgrades use a rebuild-style workflow: the skill preserves the
+existing `foundry/` directory, initialises a clean current-version
+configuration, analyses the preserved directory as source material,
+and recreates supported concepts through current tools.
 
-The skill asks clarifying questions for ambiguous flow routing, input contracts, validation behaviour, memory settings, and deprecated concepts. It does not migrate in-flight `WORK.md` state, feedback state, branch state, or active flow execution. Complete or discard active flows before upgrading.
+The skill asks clarifying questions for ambiguous flow routing, input
+contracts, validation behaviour, memory settings, and deprecated
+concepts. It does not migrate in-flight `WORK.md` state, feedback
+state, branch state, or active flow execution. Complete or discard
+active flows before upgrading.
 
-Projects with populated memory should validate memory before upgrading so the preserved source material reflects committed state. The recreated current-version config should be validated with the current config and memory validation tools before merging the config branch.
+Cycle definitions must rename `output:` to `output-type:`. Artefact-type
+definitions should delete the `output:` line. Projects with a populated
+memory store should `git mv foundry/memory/relations
+foundry-memory/relations` before re-initialising; projects that have
+not yet populated memory can simply re-run `foundry_memory_init` on a
+fresh `config/*` branch. Pre-3.0.0 in-flight feedback in the markdown
+`## Feedback` section is not auto-migrated: finish or discard
+in-flight cycles before upgrading.
 
-## 2.7.0 — 2026-04-27
+Projects with populated memory should validate memory before upgrading
+so the preserved source material reflects committed state. The
+recreated current-version config should be validated with the current
+config and memory validation tools before merging the config branch.
 
-### Breaking changes
+### Known issues
 
-- **Cycle frontmatter key `output:` renamed to `output-type:`.** The
-  orchestrator no longer reads `output:` on cycles. All cycle definitions
-  in `foundry/cycles/<id>.md` must use `output-type:` to declare the
-  artefact-type ID the cycle produces. Unmigrated cycles yield a hard
-  violation pointing to the upgrade skill.
-
-### Removed
-
-- **Artefact-type `output:` field.** The `output:` directory path in
-  artefact-type frontmatter (`foundry/artefacts/<id>/definition.md`) had
-  no runtime consumer — forge's write scope is governed by `file-patterns`,
-  not a directory hint. Stale `output:` entries are harmless (parsers
-  ignore unknown keys) but should be deleted for hygiene.
-
-### Migration
-
-1. For every `foundry/cycles/<id>.md` whose frontmatter has `output: <type-id>`,
-   rename the key to `output-type:`. The value is unchanged.
-2. (Optional but recommended) For every `foundry/artefacts/<id>/definition.md`
-   whose frontmatter has `output: <dir-path>`, delete the line.
-
-## 2.6.0 — 2026-04-24
-
-### Breaking changes
-
-- `foundry_feedback_*` plugin tools switch from `{ file, index }` to `{ id }`
-  addressing. `foundry_feedback_add` drops the `stageBase?` argument (source
-  is read from the active stage). `foundry_feedback_list` response shape
-  changes to `{ id, file, tag, text, source, state, depth, reason? }`.
-- Feedback state machine expands from 4 states to 6 (`open | actioned |
-  wont-fix | rejected | deadlocked | resolved`). `approved` is renamed to
-  `resolved` internally; the public resolve tool still accepts
-  `resolution: 'approved' | 'rejected'` as input.
-- Deadlock detection becomes per-item, based on each item's own history depth.
-  Items freshly added in the threshold-th iteration are never auto-deadlocked.
-
-### Added
-
-- `WORK.feedback.yaml` — first-class persistent record of every feedback
-  item and its full transition history. Replaces the markdown `## Feedback`
-  section in `WORK.md`.
-- `open_feedback` field on every `WORK.history.yaml` entry.
-- `seq` field on every `WORK.history.yaml` entry (tiebreaker for same-ms
-  timestamps).
-- Atomic writes via write-temp-then-rename for both `WORK.feedback.yaml`
-  and `WORK.history.yaml`.
-- Source-authorship rule: only the stage that created a feedback item can
-  resolve/reject it. Human-appraise has universal override authority —
-  it may transition any non-resolved item to any legal target state
-  regardless of source (per spec §5.1 rule 5). In practice default sort
-  routing only surfaces deadlocked items to human-appraise; a cycle-level
-  mode flag to surface non-deadlocked items pre-sort is future work
-  (spec §17).
-
-### Removed
-
-- `scripts/lib/feedback.js` (markdown parser + walker).
-- `readLastSortRoute` from `scripts/lib/history.js` (dead code).
-- `## Feedback` section from `createWorkfile` output.
-
-### Fixed
-
-- Deadlock detection no longer flags freshly-added open items (P1 [feedback M1]).
-- `WORK.history.yaml` writes are now atomic (closes observed incompleteness
-  in the wild).
-- Malformed `WORK.history.yaml` on read now marks the flow failed via
-  `markWorkfileFailed`, allowing graceful recovery.
-- `appendEntry` enforces `route => stage === 'sort'`; violating calls throw.
-
-### Migration
-
-2.6.0 no longer reads or writes the `## Feedback` section. Pre-2.6.0
-workfiles with in-flight feedback are not auto-migrated — finish or
-discard in-flight cycles before upgrading. `foundry_workfile_delete`
-+ re-flow is the supported path. Any `## Feedback` content left over
-in a `WORK.md` on disk after the upgrade is inert text: neither parsed
-nor deleted by 2.6.0 tools, and new writes go to `WORK.feedback.yaml`.
-Users running `foundry_git_finish` post-upgrade on a stale cycle will
-squash-merge the inert markdown unless they delete the workfile first.
-
-## 2.5.0 — 2026-04-23
-
-### Added
-
-- **Assay stage** (`assay`) — deterministic pre-forge stage that runs project-authored extractor scripts to populate flow memory. Opt-in per cycle via `assay: { extractors: [...] }`. Iteration-0-only. Strict failure semantics: any non-zero exit, parse error, permission violation, or timeout aborts the cycle with `#validation` feedback. See [docs/concepts.md](docs/concepts.md#assay).
-- **Extractor** authoring skill (`add-extractor`) and plugin tool (`foundry_extractor_create`). Extractors live at `foundry/memory/extractors/<name>.md` and emit JSONL rows typed by a `kind` discriminator.
-- **`foundry_assay_run`** plugin tool for running extractors inside an active assay stage.
+- **Flow memory backend (`cozo-node`) is unmaintained.** The optional
+  flow-memory subsystem persists to `cozo-node`, whose upstream
+  packages have not seen a release since December 2023
+  (`cozo-node@0.7.6`) and whose Rust core (`cozodb/cozo`) has not
+  been pushed to since December 2024. The memory tools continue to
+  work and there are no known runtime issues, but `cozo-node@0.7.6`
+  transitively depends on `@mapbox/node-pre-gyp@^1`, which surfaces
+  six `deprecated subdependency` warnings at install time
+  (`are-we-there-yet`, `gauge`, `glob@7`, `inflight`, `npmlog`,
+  `rimraf@3`). These warnings are cosmetic: `pnpm audit` reports
+  zero vulnerabilities. Foundry will migrate to a maintained graph +
+  vector backend in a future release; the memory tool surface
+  (`foundry_memory_*`) and the on-disk vocabulary / NDJSON format
+  are designed to remain stable across that migration.
 
 ## 2.4.2 — 2026-04-23
 

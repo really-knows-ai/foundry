@@ -2,7 +2,7 @@
 
 Generated from the v3.0.x public plugin API. The authoritative tool set is
 enforced by `tests/plugin/tool-registration.test.js` — if that snapshot
-drifts, this doc must be updated. Total: **64 tools**.
+drifts, this doc must be updated. Total: **65 tools**.
 
 All tools accept arguments as a JSON object and return JSON-stringified
 results. Errors are returned as a stringified `{error: "..."}` object (not
@@ -24,7 +24,7 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
   `forge:create-haiku`). Some tools restrict to a particular base
   (`forge`, `quench`, `appraise`, `human-appraise`, `assay`).
 - **Failed flow**: when `WORK.md` frontmatter has `status: failed`:
-  - Mutating families refuse to run and return an error prefixed with the tool name. This covers work-branch FS writers, memory writers and mutating memory admin tools (`memory_put`, `memory_reset`, `memory_drop_*`, `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`, `memory_change_embedding_model`), and the config-creator family (`foundry_config_create_artefact_type`, `foundry_config_create_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle`).
+  - Mutating families refuse to run and return an error prefixed with the tool name. This covers work-branch FS writers, memory writers and mutating memory admin tools (`memory_put`, `memory_reset`, `memory_drop_*`, `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`, `memory_change_embedding_model`), the config-creator family (`foundry_config_create_artefact_type`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle`), and the law mutators (`foundry_config_add_law`, `foundry_config_edit_law`).
   - Read-only diagnostics remain callable: `foundry_workfile_get`; list tools such as `foundry_artefacts_list`, `foundry_feedback_list`, `foundry_history_list`, and `foundry_memory_list`; every `foundry_config_*` read tool; every `foundry_config_validate_*` schema validator; every memory read tool (`_get`, `_neighbours`, `_query`, `_search`, `_dump`, `_validate`); and every `foundry_snapshot_*` tool.
   - `foundry_git_branch` and `foundry_git_finish` sit outside this guard so the caller can leave the failed branch. The escape hatch is `foundry_workfile_delete`.
 - **Worktree context**: every tool reads `context.worktree` (the project
@@ -75,7 +75,7 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - [`foundry_config_cycle`](#foundry_config_cycle)
 - [`foundry_config_artefact_type`](#foundry_config_artefact_type)
 - [`foundry_config_laws`](#foundry_config_laws)
-- [`foundry_config_validation`](#foundry_config_validation)
+- [`foundry_config_read_law`](#foundry_config_read_law)
 - [`foundry_config_appraisers`](#foundry_config_appraisers)
 - [`foundry_config_flow`](#foundry_config_flow)
 
@@ -88,7 +88,8 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 
 **Config — Schema mutation**
 - [`foundry_config_create_artefact_type`](#foundry_config_create_artefact_type)
-- [`foundry_config_create_law`](#foundry_config_create_law)
+- [`foundry_config_add_law`](#foundry_config_add_law)
+- [`foundry_config_edit_law`](#foundry_config_edit_law)
 - [`foundry_config_create_appraiser`](#foundry_config_create_appraiser)
 - [`foundry_config_create_flow`](#foundry_config_create_flow)
 - [`foundry_config_create_cycle`](#foundry_config_create_cycle)
@@ -501,13 +502,20 @@ laws under `foundry/laws/` are returned. With `typeId`, type-specific
 laws from `foundry/artefacts/<typeId>/laws.md` are appended after the
 global set.
 
-### `foundry_config_validation`
+### `foundry_config_read_law`
 
-> Get validation commands for an artefact type.
+> Read a single law by id, returning its full markdown including the
+> validators block.
 
-**Args:** `typeId` (string, required).
+**Args:** `id` (string, required).
 
-**Returns:** array of `{ id, command, failureMeans, ... }`.
+**Returns:** `{ ok: true, id, markdown, source }` where `source` is
+`"global"` for laws under `foundry/laws/` or `"type:<typeId>"` for
+laws under `foundry/artefacts/<typeId>/laws.md`. Returns
+`{ ok: false, errors: ["Law \"<id>\" not found"] }` when no law of
+that id is registered.
+
+**Stage requirements:** none. Read-only; callable on any branch.
 
 ### `foundry_config_appraisers`
 
@@ -776,20 +784,23 @@ success. `{ error: ... }` when verification fails.
 
 ## Config — Schema mutation
 
-These five tools each create one named config artefact and produce a
-single git commit on the current `config/*` branch. All five refuse
-off `config/*` and refuse on failed flow. Each is paired with a
-read-only `_validate_*` form (next section) that runs the same schema
-checks without writing.
+These tools each write one named config artefact and produce a single
+git commit on the current `config/*` branch. All of them refuse off
+`config/*` and refuse on failed flow. The `_create_*` tools are paired
+with read-only `_validate_*` forms (next section) that run the same
+schema checks without writing. Laws use a different shape: `add_law`
+creates a new entry, `edit_law` updates an existing one, and
+`foundry_config_validate_law` covers schema validation for either.
 
-Common args across all five: `name` (string), `body` (string,
-markdown). `foundry_config_create_law` also takes a `target` argument
-described below. Common returns: `{ ok: true, path, sha }` on success;
-`{ ok: false, errors: [...] }` on validation failure;
-`{ error, affected_files: [...] }` on commit-policy refusal (the
-worktree was dirty with files outside `foundry/**`). Updates to
-existing files are not exposed as MCP tools — operators edit by hand on
-the current `config/*` branch.
+Common args across the `_create_*` tools: `name` (string), `body`
+(string, markdown). Common returns across the whole family:
+`{ ok: true, path, sha }` on success; `{ ok: false, errors: [...] }`
+on validation failure; `{ error, affected_files: [...] }` on
+commit-policy refusal (the worktree was dirty with files outside
+`foundry/**`). For the `_create_*` tools, updating an existing file is
+not exposed as an MCP tool — operators edit by hand on the current
+`config/*` branch. Laws are the exception: use `foundry_config_edit_law`
+to update an existing law in place.
 
 ### `foundry_config_create_artefact_type`
 
@@ -814,24 +825,27 @@ the current `config/*` branch.
 - Body fails artefact-type schema (missing `file-patterns`, glob
   overlap with an existing type, …) → `{ ok: false, errors: [...] }`.
 - Target file already exists → `{ ok: false, errors: ["… already
-  exists; updates are not supported in 3.0.0 — edit by hand on this
-  config/* branch"] }`.
+  exists; this tool only creates new files — to update, edit by hand
+  on this config/* branch"] }`.
 - Worktree has changes outside `foundry/**` →
   `{ error, affected_files }`.
 
 **Side effects:** writes the artefact-type file and commits it on the
 current `config/*` branch.
 
-### `foundry_config_create_law`
+### `foundry_config_add_law`
 
-> Create a new law markdown file. Locator depends on `target.kind`.
+> Add a new law markdown entry. Locator depends on `target.kind`.
 
 **Args:**
-- `name` (string, required): law id (kebab-case slug).
-- `body` (string, required): markdown body.
+- `name` (string, required): law id (kebab-case slug). Used in the
+  commit message.
+- `body` (string, required): markdown body for the law, starting with
+  a `## <law-id>` heading.
 - `target` (object, required):
-  - `{ kind: "global", file }` — writes `foundry/laws/<file>`.
-  - `{ kind: "type-specific", typeId }` — writes
+  - `{ kind: "global", file: "<name>.md" }` — appends or writes
+    `foundry/laws/<file>`.
+  - `{ kind: "type-specific", typeId: "<id>" }` — appends or writes
     `foundry/artefacts/<typeId>/laws.md`.
 
 **Returns / Stage requirements / Side effects:** as for
@@ -845,6 +859,32 @@ current `config/*` branch.
   target.kind: <kind>"] }`.
 - Missing `target.file` for `global` / missing `target.typeId` for
   `type-specific` → `{ ok: false, errors: [...] }`.
+- Target file already exists →
+  `{ ok: false, errors: ["… already exists; use foundry_config_edit_law
+  to update an existing law in place"] }`.
+
+### `foundry_config_edit_law`
+
+> Replace the body of an existing law in place, preserving sibling
+> laws in the same file. Locates the law by id across both global laws
+> and per-type `laws.md` files.
+
+**Args:**
+- `id` (string, required): law id to edit.
+- `body` (string, required): full new markdown body for the law,
+  starting with a `## <law-id>` heading.
+
+**Returns:** `{ ok: true, id, path, source }` on success, where
+`source` is `"global"` or `"type:<typeId>"`. Returns
+`{ ok: false, errors: ["Law \"<id>\" not found"] }` when no law of
+that id exists, or `{ ok: false, errors: [...] }` when the new body
+fails law schema validation.
+
+**Stage requirements:** none (no active stage); requires a `config/*`
+branch and a non-failed flow.
+
+**Side effects:** rewrites the containing laws file and commits it on
+the current `config/*` branch with message `config: edit law <id>`.
 
 ### `foundry_config_create_appraiser`
 

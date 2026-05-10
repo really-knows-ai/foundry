@@ -244,7 +244,7 @@ When an unrecoverable error occurs (e.g. assay extractor abort, invalid JSONL, o
   - **Appraiser selection:** `foundry_appraisers_select`
   - **Memory writes:** `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`
   - **Memory admin:** `foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type`, `foundry_extractor_create` (read-only `foundry_memory_validate` and `foundry_memory_dump` remain callable)
-  - **Config schema mutation:** `foundry_config_create_artefact_type`, `foundry_config_create_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle` (read-only `foundry_config_validate_*` remain callable)
+  - **Config schema mutation:** `foundry_config_create_artefact_type`, `foundry_config_add_law`, `foundry_config_edit_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle` (read-only `foundry_config_validate_*` and `foundry_config_read_law` remain callable)
 - **Escape hatches.** `foundry_workfile_get` (to read the reason) and `foundry_workfile_delete({confirm: true})` (to abandon the cycle) remain callable. `foundry_git_finish` sits outside the failed-flow guard, allowing the user to exit the failed branch.
 - **Recovery.** Read the reason via `foundry_workfile_get`, fix the root cause, then either call `foundry_stage_retry()` to clear the failed state and re-run the blocked stage, or abandon the cycle with `foundry_workfile_delete({confirm: true})` and start again.
 

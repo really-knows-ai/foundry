@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "node scripts/build.js",
-    "prepublishOnly": "pnpm run build",
+    "prepublishOnly": "pnpm run build:all",
     "test": "find tests -name '*.test.js' ! -name '*.integration.test.js' ! -name '*.e2e.test.js' -print0 | xargs -0 node --test --test-reporter=dot",
     "test:unit": "pnpm run test",
     "test:integration": "find tests -name '*.integration.test.js' -print0 | xargs -0 node --test --test-reporter=dot",
@@ -59,7 +59,15 @@
     "onlyBuiltDependencies": [
       "cozo-node",
       "msgpackr-extract"
-    ]
+    ],
+    "overrides": {
+      "tar@<7.5.7": ">=7.5.7",
+      "tar@<=7.5.2": ">=7.5.3",
+      "tar@<7.5.8": ">=7.5.8",
+      "tar@<=7.5.9": ">=7.5.10",
+      "tar@<=7.5.10": ">=7.5.11",
+      "tar@<=7.5.3": ">=7.5.4"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
