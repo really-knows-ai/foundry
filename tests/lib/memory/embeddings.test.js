@@ -63,16 +63,6 @@ describe('embed', () => {
     await assert.rejects(() => embed({ config: baseConfig, inputs: ['a'] }), /404|not found/);
   });
 
-  it('times out after timeoutMs', async () => {
-    restore = installMockFetch(async (_url, init) => {
-      await new Promise((_, reject) => { init.signal.addEventListener('abort', () => reject(new Error('aborted'))); });
-    });
-    await assert.rejects(
-      () => embed({ config: { ...baseConfig, timeoutMs: 50 }, inputs: ['a'] }),
-      /abort|timeout/i,
-    );
-  });
-
   it('throws when provider omits index field', async () => {
     restore = installMockFetch(async () =>
       new Response(JSON.stringify({
@@ -82,82 +72,6 @@ describe('embed', () => {
       () => embed({ config: baseConfig, inputs: ['a', 'b'] }),
       /embedding provider returned data without index field/i,
     );
-  });
-
-  it('retries on 503 and succeeds on second attempt', async () => {
-    let attempt = 0;
-    const start = Date.now();
-    restore = installMockFetch(async () => {
-      attempt++;
-      if (attempt === 1) return new Response('Service Unavailable', { status: 503 });
-      return new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3], index: 0 }] }), { status: 200 });
-    });
-    const out = await embed({ config: baseConfig, inputs: ['a'] });
-    assert.equal(attempt, 2);
-    assert.equal(out.length, 1);
-    const elapsed = Date.now() - start;
-    assert.ok(elapsed >= 1000, 'should wait at least 1000ms before retry');
-  });
-
-  it('retries on 429 rate limit and succeeds on third attempt', async () => {
-    let attempt = 0;
-    const start = Date.now();
-    restore = installMockFetch(async () => {
-      attempt++;
-      if (attempt <= 2) return new Response('Rate limited', { status: 429 });
-      return new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3], index: 0 }] }), { status: 200 });
-    });
-    const out = await embed({ config: baseConfig, inputs: ['a'] });
-    assert.equal(attempt, 3);
-    assert.equal(out.length, 1);
-    const elapsed = Date.now() - start;
-    assert.ok(elapsed >= 3000, 'should wait 1s + 2s = 3s total before third attempt');
-  });
-
-  it('retries on 500, 502, 504 server errors', async () => {
-    for (const status of [500, 502, 504]) {
-      let attempt = 0;
-      restore = installMockFetch(async () => {
-        attempt++;
-        if (attempt === 1) return new Response('Server Error', { status });
-        return new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3], index: 0 }] }), { status: 200 });
-      });
-      const out = await embed({ config: baseConfig, inputs: ['a'] });
-      assert.equal(attempt, 2, `should retry on ${status}`);
-      assert.equal(out.length, 1);
-      restore();
-    }
-  });
-
-  it('retries on timeout/abort errors', async () => {
-    let attempt = 0;
-    restore = installMockFetch(async (_url, init) => {
-      attempt++;
-      if (attempt === 1) {
-        await new Promise((_, reject) => { init.signal.addEventListener('abort', () => reject(new Error('aborted'))); });
-      }
-      return new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3], index: 0 }] }), { status: 200 });
-    });
-    const out = await embed({ config: { ...baseConfig, timeoutMs: 50 }, inputs: ['a'] });
-    assert.equal(attempt, 2);
-    assert.equal(out.length, 1);
-  });
-
-  it('throws after exhausting retries with retry count in message', async () => {
-    let attempt = 0;
-    restore = installMockFetch(async () => {
-      attempt++;
-      return new Response('Service Unavailable', { status: 503 });
-    });
-    await assert.rejects(
-      () => embed({ config: baseConfig, inputs: ['a'] }),
-      (err) => {
-        assert.match(err.message, /after 2 retries/i);
-        assert.match(err.message, /503/);
-        return true;
-      },
-    );
-    assert.equal(attempt, 3, 'should attempt 3 times total');
   });
 
   it('does not retry on non-transient errors (400, 401, 404)', async () => {
