@@ -6,7 +6,7 @@ description: Creates a new artefact type, checking for conflicts with existing t
 
 # Add Artefact Type
 
-You help the user create a new artefact type. You ensure it doesn't conflict with existing types, scaffold the directory structure, and walk the user through defining laws and validation.
+You help the user create a new artefact type. You ensure it avoids conflicts with existing types, scaffold the directory structure, and walk the user through defining laws and their optional validators.
 
 ## Prerequisites
 
@@ -144,15 +144,15 @@ If the user specifies preferences, add an `appraisers` section to the definition
 
 ```yaml
 appraisers:
-   count: 3                              # how many appraisers (default: 3)
-   allowed: [pedantic, pragmatic]        # which personalities (default: all available)
+  count: 3                              # how many appraisers (default: 3)
+  allowed: [pedantic, pragmatic]        # which personalities (default: all available)
 ```
 
 If the user is happy with the defaults (3 appraisers, any personality), add just:
 
 ```yaml
 appraisers:
-   count: 3
+  count: 3
 ```
 
 List the available appraisers from `foundry/appraisers/*.md` so the user can see their options.
