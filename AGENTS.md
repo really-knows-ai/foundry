@@ -58,3 +58,29 @@ Common forms:
 Code identifiers, package names, and external API names keep their
 upstream spelling (`color: '#fff'` in CSS, `initialize()` from a
 third-party library, etc.).
+
+## Package manager: pnpm
+
+This project uses **pnpm** (`packageManager: pnpm@10.15.1`). Always use
+`pnpm` commands — never `npm` or `yarn`.
+
+```sh
+pnpm install          # install dependencies
+pnpm add <pkg>        # add a runtime dependency
+pnpm add -D <pkg>     # add a dev dependency
+```
+
+## Available scripts
+
+Run scripts via `pnpm run <script>`.
+
+| Script | Purpose |
+|--------|---------|
+| `build` | Compiles the plugin via `scripts/build.js` |
+| `test` | Runs the test suite with Node's built-in test runner |
+| `test:coverage` | Runs tests with experimental coverage reporting |
+| `lint` | Lints `src/`, `tests/`, and `scripts/` with ESLint |
+| `build:all` | Lints, tests, then builds — the full quality gate |
+
+Use `build:all` before publishing or opening a pull request to confirm
+the entire pipeline passes.
