@@ -32,10 +32,16 @@ the loop and records every step in git, so the path from draft to approved artef
 is auditable, repeatable, and defensible to auditors and stakeholders. You can show
 exactly how the output was made. Confidence is engineered; it is not hoped for.
 
-### The operating model: forge → quench → appraise
+### The operating model: assay, then forge → quench → appraise
 
-One draft enters a short loop and leaves only when it passes quality gates. Each
-loop has four distinct roles that turn a candidate into a verified output:
+A codebase-aware cycle can begin with **assay**: a deterministic pre-forge stage
+that runs project-authored extractors, parses strict JSONL, and writes typed facts
+into flow memory. In the foundry metaphor, an assay establishes composition before
+work begins. In Foundry, assay gives forge a measured map of the project before it
+creates an artefact. Cycles without memory configuration skip this stage.
+
+After assay, one draft enters a short loop and leaves only when it passes quality
+gates. Each loop has four distinct roles that turn a candidate into a verified output:
 
 - **Forge** produces or revises the artefact. The stage that creates and reshapes
   work, responding to feedback from appraisers or building on prior drafts.
@@ -52,9 +58,7 @@ loop has four distinct roles that turn a candidate into a verified output:
 Every stage commits separately, so every step leaves a record. Every decision is
 timestamped. A single loop produces an **output** — a verified draft. A flow
 composes one or more such loops to produce an **outcome** — the final artefact that
-reaches your codebase or customers. The loop repeats until there is nothing left to
-fix or an iteration limit is reached. This is the operating model at the centre of
-Foundry.
+reaches your codebase or customers.
 
 ### What you describe, what Foundry enforces
 
@@ -179,6 +183,11 @@ This trace is the proof. You can play it back, audit it, replay it under a diffe
 model, or use it to argue that the AI output is trustworthy. Every step is visible.
 Nothing is hidden.
 
+For codebase-aware flows, add flow memory after the first run: initialise memory,
+declare the entity and edge vocabulary, add extractors, and opt a cycle into
+`assay.extractors`. See [Optional: flow memory](docs/getting-started.md#optional-flow-memory)
+and [Assay](docs/concepts.md#assay) for the configuration path.
+
 ---
 
 ## What you can show your team
@@ -233,8 +242,11 @@ reproducible.
   for code, specs, docs, data, and anything else you can describe as files with
   pass/fail criteria.
 
-- **Optional shared flow memory** — typed graph store with semantic search, scoped
-  per-cycle. Later cycles can learn from earlier ones.
+- **Assay preflight** — deterministic extractor stage that measures the project
+  before forge starts, so codebase-aware flows can begin from structured facts.
+
+- **Flow memory** — typed graph store with scoped tools, semantic search when
+  enabled, and committed NDJSON rows for cross-cycle reuse.
 
 ---
 
