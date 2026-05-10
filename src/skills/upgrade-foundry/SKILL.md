@@ -64,8 +64,7 @@ Read source material from the preserved directory:
 - Flow definitions.
 - Cycle definitions.
 - Artefact type definitions.
-- Type-specific laws.
-- Type-specific validation commands.
+- Type-specific laws (with validators where applicable).
 - Global laws.
 - Appraisers.
 - Memory schema, relations, and extractors when present.
@@ -93,7 +92,7 @@ Common clarification points:
 - Starting cycles when the old flow has no explicit current-version equivalent.
 - Input contracts when old inputs do not state `any-of` or `all-of` intent.
 - Artefact ownership when file patterns overlap or are missing.
-- Validation commands whose purpose or failure meaning is unclear.
+- Validators whose purpose or failure meaning is unclear.
 - Appraiser selection when old config lacks counts, allowed appraisers, or personality detail.
 - Human appraisal and deadlock settings that map to current fields with changed semantics.
 - Memory permissions, extractor outputs, relation files, or schema details whose current contract is ambiguous.
@@ -107,7 +106,7 @@ Recreate concepts in dependency order:
 
 1. Global laws.
 2. Appraisers.
-3. Artefact types, including type laws and validation commands.
+3. Artefact types, including type laws and validators.
 4. Memory schema and extractors when safely inferable.
 5. Cycles.
 6. Flows.

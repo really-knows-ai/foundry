@@ -6,7 +6,7 @@ description: Creates a new artefact type, checking for conflicts with existing t
 
 # Add Artefact Type
 
-You help the user create a new artefact type. You ensure it doesn't conflict with existing types, scaffold the directory structure, and walk the user through defining laws and validation.
+You help the user create a new artefact type. You ensure it avoids conflicts with existing types, scaffold the directory structure, and walk the user through defining laws and their optional validators.
 
 ## Prerequisites
 
@@ -106,9 +106,31 @@ Ask:
 > Do you want to define any type-specific laws for this artefact type? (Global laws in `foundry/laws/` will apply automatically.)
 
 If yes, walk through each law using the same format as `add-law`:
-- Draft each law
+- Draft each law, adding validators where a deterministic check applies
 - Check for conflicts with global laws and any existing type-specific laws
 - Confirm with the user
+
+Each law may declare an optional `validators:` block. Include validators only when a deterministic check is needed. The format matches `add-law`:
+
+```markdown
+## <law-id>
+
+<What this law checks — one or two sentences.>
+
+validators:
+  - id: validator-id
+    command: ./script.sh
+    failure-means: (optional description)
+```
+
+The `validators` block is optional. When present, `quench` runs each validator for this law. Validator scripts live within the artefact type directory (e.g., `foundry/artefacts/<type>/check-foo.mjs`).
+
+**Use existing libraries:** Before writing custom validation logic, search npm for well-tested libraries that solve the problem (e.g., `syllable` for syllable counting, `natural` for NLP tasks). Hand-rolled heuristics are fragile — prefer battle-tested packages. Install them as project dependencies.
+
+Check the project's `package.json` for `"type": "module"`:
+- If ESM (`"type": "module"`): use `import` syntax, or name scripts with `.mjs` extension
+- If CommonJS (no `"type"` field or `"type": "commonjs"`): `require()` is fine, or use `.cjs` extension
+- When in doubt, use `.mjs` or `.cjs` extensions to be explicit regardless of project settings
 
 ### 6. Appraisers (optional)
 
@@ -135,33 +157,13 @@ appraisers:
 
 List the available appraisers from `foundry/appraisers/*.md` so the user can see their options.
 
-### 7. Validation (optional)
-
-Ask:
-
-> Do you want to define any deterministic validation commands for this artefact type?
-
-If yes, walk through each validation entry:
-- A `## heading` (identifier)
-- A `Command:` line with `{file}` placeholder
-- A `Failure means:` line explaining what a non-zero exit indicates
-
-If the user wants validation scripts (not just inline commands), create them as separate files in the artefact type directory.
-
-**Use existing libraries:** Before writing custom validation logic, search npm for well-tested libraries that solve the problem (e.g., `syllable` for syllable counting, `natural` for NLP tasks). Hand-rolled heuristics are fragile — prefer battle-tested packages. Install them as project dependencies.
-
-Check the project's `package.json` for `"type": "module"`:
-- If ESM (`"type": "module"`): use `import` syntax, or name scripts with `.mjs` extension
-- If CommonJS (no `"type"` field or `"type": "commonjs"`): `require()` is fine, or use `.cjs` extension
-- When in doubt, use `.mjs` or `.cjs` extensions to be explicit regardless of project settings
-
-### 8. Validate the draft
+### 7. Validate the draft
 
 Call `foundry_config_validate_artefact_type({ name: "<id>", body: "<full markdown>" })`.
 
 If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
 
-### 9. Create the file
+### 8. Create the file
 
 Call `foundry_config_create_artefact_type({ name: "<id>", body: "<full markdown>" })`. The tool:
 
@@ -173,13 +175,11 @@ If the tool returns `{ ok: false, errors }` because the target file already exis
 
 Show the user the resulting commit hash from the response.
 
-### 10. Add laws and validation files (if defined)
+### 9. Add laws file (if defined)
 
 The create tool writes only `definition.md`. If you drafted any type-specific laws in step 5, append them to `foundry/artefacts/<id>/laws.md` by hand on this same `config/*` branch (use the `Edit` tool to create the file) and commit that as a separate microcommit.
 
-If you drafted validation commands in step 7, write `foundry/artefacts/<id>/validation.md` (and any companion validation script files) by hand and commit as a separate microcommit.
-
-### 11. Confirm
+### 10. Confirm
 
 Show the user the complete file listing and the commit hashes.
 

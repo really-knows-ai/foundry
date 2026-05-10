@@ -46,7 +46,7 @@ assay:
 Fields:
 - `flow` — the foundry flow being executed.
 - `cycle` — the current cycle id.
-- `stages` — the ordered route for this cycle. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, `human-appraise`, or `assay`) and `alias` is a human-readable name for what that stage does in this cycle. The list is derived from the cycle and artefact type: `forge` and `appraise` are always included; `quench` is included iff the artefact type has `validation.md`; `human-appraise` is included iff the cycle sets `human-appraise: true`; and `assay` is included iff the cycle declares an `assay.extractors` block.
+- `stages` — the ordered route for this cycle. Each entry uses `base:alias` format where `base` is the stage type (`forge`, `quench`, `appraise`, `human-appraise`, or `assay`) and `alias` is a human-readable name for what that stage does in this cycle. The list is derived from the cycle and artefact type: `forge` and `appraise` are always included; `quench` is included iff any applicable law declares validators; `human-appraise` is included iff the cycle sets `human-appraise: true`; and `assay` is included iff the cycle declares an `assay.extractors` block.
 - `max-iterations` — how many forge passes before the cycle is blocked (default: 3).
 - `human-appraise` — run human-appraise every iteration (default: `false`).
 - `deadlock-appraise` — route to human-appraise when LLM appraisers deadlock (default: `true`).

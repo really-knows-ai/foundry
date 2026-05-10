@@ -35,7 +35,7 @@ The stage names come from the foundry metaphor because the system treats AI outp
 
 - **assay** — opt-in pre-forge stage that populates flow memory by running project-authored extractor scripts (iteration 0 only). No artefact, no feedback, no output beyond memory writes. See the [Assay](#assay) and [Extractor](#extractor) entries below.
 - **forge** — produce or revise the artefact.
-- **quench** — run deterministic CLI checks (skipped if the artefact type has no `validation.md`).
+- **quench** — run deterministic CLI checks declared in laws (via their optional `validators:` blocks).
 - **appraise** — subjective evaluation by multiple appraiser sub-agents.
 - **human-appraise** — human quality gate. Can run every iteration, only on deadlock, or both.
 
@@ -63,8 +63,7 @@ See also: [Extractor](#extractor).
 A definition of what is being produced. Lives in `foundry/artefacts/<type>/`:
 
 - `definition.md` — identity, file patterns, output directory, appraiser config, prose description.
-- `laws.md` *(optional)* — type-specific subjective criteria.
-- `validation.md` *(optional)* — CLI commands for deterministic quench checks.
+- `laws.md` *(optional)* — type-specific subjective criteria, with optional validators for deterministic checks.
 
 File patterns must not overlap with any other artefact type's patterns — the write-invariant enforcer needs to know which type owns a given file.
 

@@ -65,9 +65,6 @@ appraisers:
   count: 3
 ---
 `,
-    'foundry/artefacts/haiku/validation.md': `## compile
-Command: \`echo ok\`
-`,
     '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
   });
 
