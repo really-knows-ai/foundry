@@ -64,8 +64,7 @@ Read source material from the preserved directory:
 - Flow definitions.
 - Cycle definitions.
 - Artefact type definitions.
-- Type-specific laws.
-- Type-specific validation commands.
+- Type-specific laws (with validators where applicable).
 - Global laws.
 - Appraisers.
 - Memory schema, relations, and extractors when present.
@@ -107,7 +106,7 @@ Recreate concepts in dependency order:
 
 1. Global laws.
 2. Appraisers.
-3. Artefact types, including type laws and validation commands.
+3. Artefact types, including type laws and validators.
 4. Memory schema and extractors when safely inferable.
 5. Cycles.
 6. Flows.
