@@ -94,7 +94,7 @@ OpenCode resolves plugins listed in `opencode.json` automatically — you typica
 }
 ```
 
-Then **restart OpenCode** (or reload plugins) so the new plugin registers its 64 tools and bundled skills.
+Then **restart OpenCode** (or reload plugins) so the new plugin registers its tools and bundled skills.
 
 If you want the package locally for editor tooling, scripts, or to run `npm test` against the source, install it explicitly:
 
@@ -427,6 +427,8 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 
 ### Authoring
 
+All remaining skills are atomic.
+
 | Skill | Purpose |
 |-------|---------|
 | `init-foundry` | Scaffold the `foundry/` directory and generate agent files. |
@@ -438,6 +440,8 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 
 ### Utility
 
+All remaining skills are atomic.
+
 | Skill | Purpose |
 |-------|---------|
 | `list-agents` | List available `foundry-*` sub-agents (for multi-model routing). |
@@ -445,6 +449,8 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 | `upgrade-foundry` | Analyse and migrate `foundry/` config to the current version. |
 
 ### Memory
+
+All remaining skills are atomic.
 
 | Skill | Purpose |
 |-------|---------|
@@ -465,7 +471,7 @@ All authoring skills are interactive and conflict-aware — they explain what th
 
 ## Custom tools
 
-The plugin registers **64 custom tools**. Skills call these tools, which keeps format-parsing and state transitions out of LLM hands.
+The plugin registers custom tools. Skills call these tools, which keeps format-parsing and state transitions out of LLM hands.
 
 For per-tool args, return shapes, stage requirements, failure modes, and side effects, see the full reference at [`docs/tools.md`](./docs/tools.md). The category tables below are an index.
 
@@ -513,7 +519,7 @@ Tools are backed by shared modules in `src/scripts/lib/` (pipeline) and `src/scr
 @really-knows-ai/foundry
 ├── src/
 │   ├── plugin/
-│   │   ├── foundry.js          # plugin entrypoint: skills + 64 custom tools
+│   │   ├── foundry.js          # plugin entrypoint: skills and custom tools
 │   │   └── tools/              # tool registration + plugin helpers
 │   ├── skills/                 # shipped skill definitions
 │   │   ├── flow/               # pipeline
@@ -621,7 +627,7 @@ During a flow, a work branch also contains `WORK.md`, `WORK.feedback.yaml`, and 
 
 ## Design principles
 
-Foundry's guiding rule is **if it can be deterministic, it will be**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code rather than an LLM. This is how that rule plays out in practice.
+Foundry's guiding rule is **if it can be deterministic, it will be**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code. This is how that rule plays out in practice.
 
 ### Everything is markdown
 
@@ -629,7 +635,7 @@ Flows, cycles, artefact types, laws, appraiser personalities, skills — all mar
 
 ### Skills are the pipeline, tools are the machinery
 
-Composition happens at the skill layer. `flow` reads a definition and invokes `orchestrate`. `orchestrate` calls `foundry_orchestrate` in a loop. The hard guarantees — routing, commits, state transitions, enforcement — live inside the plugin's custom tools and the libraries under `src/scripts/lib/`. Skills handle creative and subjective work; tools handle everything else.
+Composition happens at the skill layer. `flow` reads a definition and invokes `orchestrate`. `orchestrate` calls `foundry_orchestrate` in a loop. The hard guarantees — routing, commits, state transitions, enforcement — live inside the plugin's custom tools and the libraries under `src/scripts/lib/`. Skills handle creative and subjective work; tools handle everything deterministic.
 
 ### WORK.md as shared state
 
@@ -641,7 +647,7 @@ A flow declares starting points; individual cycles declare `targets` and input c
 
 ### Feedback as structured state
 
-Feedback lives in `WORK.feedback.yaml` with `validation`, `law:<id>`, or `human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions as structured state. Feedback is append-only; history is part of the artefact's story. Every issue is raised, every decision is recorded, and every resolution is auditable.
+Feedback lives in `WORK.feedback.yaml` with `validation`, `law:<id>`, or `human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions as structured state. Feedback is append-only; the full transition history is preserved alongside each item. Every issue is raised, every decision is recorded, and every resolution is auditable.
 
 ### Wont-fix requires approval
 

@@ -6,7 +6,7 @@ This document provides a high-level overview of how Foundry works. For concept d
 
 ## Design principles
 
-Foundry's guiding rule is **if it can be deterministic, it will be**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code rather than an LLM. This embodies several architectural commitments:
+Foundry's guiding rule is **if it can be deterministic, it will be**. Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code. This embodies several architectural commitments:
 
 ### Everything is markdown
 
@@ -26,7 +26,7 @@ A flow declares starting points; individual cycles declare `targets` and input c
 
 ### Feedback as structured state
 
-Feedback lives in `WORK.feedback.yaml` with source tracking and tags. It remains human-readable and diff-able, whilst the plugin enforces lifecycle transitions as structured state. Feedback is append-only; history is part of the artefact's story. Every issue is raised, every decision is recorded, and every resolution is auditable.
+Feedback lives in `WORK.feedback.yaml` with source tracking and tags. It remains human-readable and diff-able, whilst the plugin enforces lifecycle transitions as structured state. Feedback is append-only; the full transition history is preserved alongside each item. Every issue is raised, every decision is recorded, and every resolution is auditable.
 
 ### Wont-fix requires approval
 
