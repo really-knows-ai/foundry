@@ -4,18 +4,18 @@ This directory contains the reference set behind the project README. Every docum
 
 ## Start here
 
-- **getting-started.md** — A complete end-to-end walkthrough of Foundry's core workflows. Start here if you're new to the project or need to see how the pieces fit together in practice. Read this first.
+- **getting-started.md** — Complete end-to-end installation, bootstrap (`init-foundry`), and first flow walkthrough. Read this after installing the plugin but before authoring any of your own configuration; it establishes the operating model, directory structure, and hands-on confidence in one pass. Includes practical guidance on authoring the five foundational concepts (artefact types, laws, appraisers, cycles, flows).
 
-- **concepts.md** — The glossary and conceptual foundation for Foundry's key terms and ideas. Reach for this when you encounter terminology you need to understand, or before diving into deeper reference material.
+- **concepts.md** — The glossary and conceptual foundation for Foundry's key terms and ideas, arranged top-down from flows through cycles, stages, artefacts, and feedback. Reach for this when you encounter terminology you need to understand, or as a reference map before diving into work-spec or architecture; it defines each concept affirmatively and links outward to the spec documents that elaborate them.
 
 ## Reference
 
-- **work-spec.md** — Complete specification of the `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` file formats, including the feedback state machine and all valid transitions. Use this when you need to understand the work file structure or implement tooling around it.
+- **work-spec.md** — Complete specification of the `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` file formats, including frontmatter fields, the artefact registry, and the full feedback state machine with all valid transitions. Use this when implementing tooling around work files, validating state transitions, or understanding what metadata flows carry through an execution. It is the source of truth for all transient work-branch structures.
 
-- **tools.md** — Categorical index and reference documentation for all 64 custom tools. Consult this when you need to understand what a specific tool does, how it integrates, or where it fits in the system.
+- **tools.md** — Categorical index and reference documentation for all 64 custom tools, organised by family (lifecycle, artefacts, feedback, config, memory, etc.). Consult this when you need to understand what a specific tool does, its branch requirements, what stage lock guards apply, and how it integrates with the overall system. It covers calling conventions, enforcement invariants, and the permission model for memory access.
 
-- **architecture.md** — The design and enforcement model covering token lifecycle, write invariants, multi-model routing, project layout, and core design principles. Read this when you need to understand how Foundry works internally or why it's structured the way it is.
+- **architecture.md** — The design and enforcement model covering token lifecycle, stage-locked mutations, write invariants, branch namespaces, multi-model routing, and core design principles. Read this when you need to understand how Foundry maintains safety (how tokens prevent replay, why stages lock mutations, how writes are validated), its guarantees and where they live, or why it is structured the way it is.
 
 ## Contributors
 
-- **memory-maintenance.md** — Cozo 0.7 adaptations and memory session lifecycle notes for contributors working on the memory subsystem. This is contributor-facing documentation; start here if you're maintaining or extending memory-related functionality.
+- **memory-maintenance.md** — Cozo 0.7 adaptations, memory session lifecycle notes, and derived implementation wisdom for contributors working on the memory subsystem. Start here if you are maintaining or extending memory-related functionality; it documents footguns (string literal syntax, HNSW index pseudo-relations), session-lifecycle edge cases, and the runtime extractor system. Captures learning from actual bugs so the next maintainer does not have to discover them again.
