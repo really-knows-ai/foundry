@@ -399,8 +399,7 @@ your-project/
 │   ├── artefacts/              # artefact type definitions
 │   │   └── <type>/
 │   │       ├── definition.md
-│   │       ├── laws.md         # optional
-│   │       └── validation.md   # optional
+│   │       └── laws.md         # optional
 │   ├── laws/                   # global laws
 │   ├── appraisers/             # appraiser personalities
 │   └── memory/                 # optional flow memory config (init-memory)
