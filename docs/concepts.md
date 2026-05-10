@@ -361,11 +361,13 @@ Per-cycle opt-in, specified in cycle frontmatter:
 
 ```yaml
 memory:
-  read:  [class, method]      # types this cycle can read
-  write: [method]             # types this cycle can upsert into
+   read:  [class, method]      # types this cycle can read
+   write: [method]             # types this cycle can upsert into
 ```
 
-A cycle with no `memory:` block gets no memory tools in its prompt. Entity reads check the `read` set only — a type listed in `write` only is writable but not readable, so list a type in both lists to get both. Edge permissions are derived: an edge is readable if either endpoint type is in `read` or `write`, writable if either endpoint type is in `write`. `foundry_memory_query` restricts `ent_*` relations to readable entity types, and `edge_*` relations follow edge-read permissions.
+A cycle with no `memory:` block gets no memory tools in its prompt. Entity reads check the `read` set only — a type listed in `write` only is writable but not readable. List a type in both lists for full access.
+
+Edge permissions are derived: an edge is readable if either endpoint type is in `read` or `write`, writable if either endpoint type is in `write`. `foundry_memory_query` restricts `ent_*` and `edge_*` relations to the read set.
 
 ## Memory layout
 

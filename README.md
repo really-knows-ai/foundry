@@ -427,6 +427,8 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 
 ### Authoring
 
+All remaining skills are atomic.
+
 | Skill | Purpose |
 |-------|---------|
 | `init-foundry` | Scaffold the `foundry/` directory and generate agent files. |
@@ -513,7 +515,7 @@ Tools are backed by shared modules in `src/scripts/lib/` (pipeline) and `src/scr
 @really-knows-ai/foundry
 ├── src/
 │   ├── plugin/
-│   │   ├── foundry.js          # plugin entrypoint: skills + 64 custom tools
+│   │   ├── foundry.js          # plugin entrypoint: skills and custom tools
 │   │   └── tools/              # tool registration + plugin helpers
 │   ├── skills/                 # shipped skill definitions
 │   │   ├── flow/               # pipeline
@@ -641,7 +643,7 @@ A flow declares starting points; individual cycles declare `targets` and input c
 
 ### Feedback as structured state
 
-Feedback lives in `WORK.feedback.yaml` with `validation`, `law:<id>`, or `human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions as structured state. Feedback is append-only; history is part of the artefact's story. Every issue is raised, every decision is recorded, and every resolution is auditable.
+Feedback lives in `WORK.feedback.yaml` with `validation`, `law:<id>`, or `human` tags. It remains human-readable and diff-able, while the plugin enforces lifecycle transitions as structured state. Feedback is append-only; the full transition history is preserved alongside each item. Every issue is raised, every decision is recorded, and every resolution is auditable.
 
 ### Wont-fix requires approval
 

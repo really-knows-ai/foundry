@@ -6,7 +6,7 @@ This document provides a high-level overview of how Foundry works. For concept d
 
 ## Enforcement model
 
-Foundry enforces correctness through deterministic plugin tools that own state transitions, routing, and write boundaries. Skills perform creative and evaluative work; tools handle everything that must be reliable.
+Where a guarantee matters — routing, commits, state transitions, write invariants, feedback lifecycle — the logic lives in tested plugin code. Skills perform creative and subjective work; tools handle everything deterministic.
 
 ### Tool-enforced guarantees
 
@@ -257,5 +257,5 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 - [concepts.md](concepts.md) — every concept defined concisely.
 - [work-spec.md](work-spec.md) — the full WORK.md + WORK.feedback.yaml + WORK.history.yaml spec.
 - [memory-maintenance.md](memory-maintenance.md) — contributor notes on Cozo 0.7 and memory session lifecycle.
-- [tools.md](tools.md) — full reference for all 64 custom tools.
+- [tools.md](tools.md) — complete reference for custom tools.
 - [getting-started.md](getting-started.md) — end-to-end walkthrough.
