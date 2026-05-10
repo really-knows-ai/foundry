@@ -1,5 +1,48 @@
 # Changelog
 
+## [3.0.1] - 2026-05-11
+
+A documentation and cleanup patch. No runtime behaviour change. `quench`
+already read deterministic checks via `getLawsForQuench`; this release
+aligns the authoring skills, end-user docs, and source tree with that
+reality and removes the deprecated `validation.md` reader path.
+
+### Authoring skills now teach laws-with-validators
+
+- `add-artefact-type` folds deterministic checks into laws via the
+  optional `validators:` block. The skill walks the user through laws
+  and their validators in a single step; the previously separate
+  "Validation" step is gone.
+- `upgrade-foundry` describes type-specific laws (with validators where
+  applicable) instead of standalone "validation commands".
+- The `validators:` YAML shape in `add-artefact-type` is now identical
+  to the canonical shape in `add-law`.
+
+### Documentation
+
+- `docs/architecture.md`, `docs/concepts.md`, `docs/getting-started.md`,
+  and `docs/work-spec.md` drop every reference to `validation.md` and
+  describe `quench` as running validators declared inside laws.
+- The `quench` stage is now correctly documented as included iff any
+  applicable law declares validators.
+
+### Internal cleanup
+
+- Remove the deprecated `getValidation` and `parseValidationLines`
+  exports from `src/scripts/lib/config.js`, plus their six private
+  helpers. Nothing in production called them; `quench` reads via
+  `getLawsForQuench`.
+- Remove the `describe('getValidation', …)` test block and three inert
+  `validation.md` fixtures from the orchestrate integration tests.
+
+### Migration
+
+No action required for projects that already use laws-with-validators.
+Projects still carrying a `foundry/artefacts/<type>/validation.md` file
+have been carrying dead weight since the move to `getLawsForQuench`;
+the file is now safe to delete by hand, or `upgrade-foundry` will
+rebuild the configuration through the current tools.
+
 ## [3.0.0] - 2026-05-10
 
 A consolidation release covering every change since v2.4.2. Foundry 3.0.0
