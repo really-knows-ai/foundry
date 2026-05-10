@@ -1,8 +1,24 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { CozoDb } = require('cozo-node');
+
+let CozoDb = null;
+try {
+  ({ CozoDb } = require('cozo-node'));
+} catch {
+  // cozo-node is optional; memory features are unavailable on this platform
+}
+
+function assertCozo() {
+  if (!CozoDb) {
+    throw new Error(
+      'cozo-node is not installed on this platform. ' +
+      'Install it to enable the memory subsystem: pnpm add cozo-node'
+    );
+  }
+}
 
 export function openMemoryDb(dbPath) {
+  assertCozo();
   return new CozoDb('sqlite', dbPath);
 }
 
