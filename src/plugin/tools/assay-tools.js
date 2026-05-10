@@ -5,7 +5,7 @@ import { runAssay } from '../../scripts/lib/assay/run.js';
 import { syncStore } from '../../scripts/lib/memory/store.js';
 import { putEntity, relate as memRelate } from '../../scripts/lib/memory/writes.js';
 import { withStore } from './memory-helpers.js';
-import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
+import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard, errorJson } from './helpers.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
@@ -54,26 +54,28 @@ async function handleAssayRun(args, context) {
   const guard = requireActiveStage(io, { stageBase: 'assay', cycle: args.cycle });
   if (!guard.ok) return JSON.stringify({ error: `foundry_assay_run requires active assay stage for cycle '${args.cycle}'; ${guard.error}` });
 
-  const { store, vocabulary, writeEmbedder, io: memIo } = await withStore(context);
-  const res = await runAssay({
-    foundryDir: 'foundry',
-    cwd: context.worktree,
-    io: memIo,
-    extractors: args.extractors,
-    store,
-    vocabulary,
-    putEntity,
-    relate: memRelate,
-    writeEmbedder,
-    syncStore, // G29: Pass syncStore so it's called after each extractor
-  });
+  try {
+    const { store, vocabulary, writeEmbedder, io: memIo } = await withStore(context);
+    const res = await runAssay({
+      foundryDir: 'foundry',
+      cwd: context.worktree,
+      io: memIo,
+      extractors: args.extractors,
+      store,
+      vocabulary,
+      putEntity,
+      relate: memRelate,
+      writeEmbedder,
+      syncStore, // G29: Pass syncStore so it's called after each extractor
+    });
 
-  if (!res.ok) return handleExtractorFailure(io, res);
+    if (!res.ok) return handleExtractorFailure(io, res);
 
-  const syncResult = await syncAfterAssay(store, memIo);
-  if (!syncResult.ok) return handleSyncFailure(io, syncResult.err);
+    const syncResult = await syncAfterAssay(store, memIo);
+    if (!syncResult.ok) return handleSyncFailure(io, syncResult.err);
 
-  return JSON.stringify(res);
+    return JSON.stringify(res);
+  } catch (err) { return errorJson(err); }
 }
 
 export function createAssayTools({ tool }) {
