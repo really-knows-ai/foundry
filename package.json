@@ -28,11 +28,14 @@
   "scripts": {
     "build": "node scripts/build.js",
     "prepublishOnly": "pnpm run build",
-    "test": "node --test",
+    "test": "find tests -name '*.test.js' ! -name '*.integration.test.js' ! -name '*.e2e.test.js' -print0 | xargs -0 node --test",
+    "test:integration": "find tests -name '*.integration.test.js' -print0 | xargs -0 node --test",
+    "test:e2e": "find tests -name '*.e2e.test.js' -print0 | xargs -0 node --test",
+    "test:all": "node --test",
     "test:coverage": "node --test --experimental-test-coverage",
     "lint": "eslint src/ tests/ scripts/",
-    "build:full": "pnpm run lint --fix && pnpm run test && pnpm run build",
-    "build:all": "pnpm run lint && pnpm run test && pnpm run build"
+    "build:full": "pnpm run lint --fix && pnpm run test:all && pnpm run build",
+    "build:all": "pnpm run lint && pnpm run test:all && pnpm run build"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.4.0",
