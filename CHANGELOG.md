@@ -163,11 +163,11 @@
 
 ### Migration
 
-In addition to the per-entry migration notes above, finish or discard any
-in-flight cycle started under v2.6.x before upgrading: assay-sourced
-feedback items in an existing `WORK.feedback.yaml` are no longer reachable
-by the state machine. `foundry_workfile_delete` + re-flow is the supported
-path.
+Run the `upgrade-foundry` skill from a clean project state. Foundry upgrades use a rebuild-style workflow: the skill preserves the existing `foundry/` directory, initialises a clean current-version configuration, analyses the preserved directory as source material, and recreates supported concepts through current tools.
+
+The skill asks clarifying questions for ambiguous flow routing, input contracts, validation behaviour, memory settings, and deprecated concepts. It does not migrate in-flight `WORK.md` state, feedback state, branch state, or active flow execution. Complete or discard active flows before upgrading.
+
+Projects with populated memory should validate memory before upgrading so the preserved source material reflects committed state. The recreated current-version config should be validated with the current config and memory validation tools before merging the config branch.
 
 ## 2.7.0 — 2026-04-27
 
