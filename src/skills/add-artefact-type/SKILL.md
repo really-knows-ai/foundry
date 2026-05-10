@@ -87,15 +87,12 @@ Present the definition to the user:
 
 ```markdown
 ---
-id: <id>
 name: <name>
 file-patterns:
   - "<pattern>"
-appraisers:
-  count: 3
 ---
 
-# <Name>
+## Definition
 
 <description>
 ```
