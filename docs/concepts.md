@@ -272,6 +272,8 @@ A self-contained workflow written as markdown with YAML frontmatter. Foundry shi
 
 #### Pipeline
 
+> Type: `atomic` = single responsibility; `composite` = delegates to other skills.
+
 | Skill | Type | Purpose |
 |-------|------|---------|
 | `flow` | composite | Entry point. Picks a starting cycle, creates the work branch, invokes `orchestrate`, follows `targets` between cycles. |
@@ -412,7 +414,9 @@ memory:
   write: [method]             # types this cycle can upsert into
 ```
 
-A cycle with no `memory:` block gets no memory tools in its prompt. Entity reads check the `read` set only — a type listed in `write` only is writable but not readable, so list a type in both lists to get both. Edge permissions are derived: an edge is readable if either endpoint type is in `read` or `write`, writable if either endpoint type is in `write`. `foundry_memory_query` restricts `ent_*` relations to readable entity types, and `edge_*` relations follow edge-read permissions.
+To read a type, include it in `memory.read`; to write a type, include it in `memory.write`. Entity reads check the `read` set only — a type listed in `write` only is writable but not readable. List a type in both sets for full access.
+
+An edge is readable if either endpoint type is in `read` or `write`; it is writable if either endpoint type is in `write`. `foundry_memory_query` restricts `ent_*` relations to readable entity types, and `edge_*` relations follow edge-read permissions.
 
 ## Memory layout
 

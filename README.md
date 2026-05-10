@@ -416,6 +416,8 @@ Foundry is a collection of skills. Skills are either **atomic** (do one thing) o
 
 ### Pipeline
 
+> Type: `atomic` = single responsibility; `composite` = delegates to other skills.
+
 | Skill | Type | Purpose |
 |-------|------|---------|
 | `flow` | composite | Entry point. Picks a starting cycle, creates the work branch, invokes `orchestrate`, follows `targets` between cycles. |

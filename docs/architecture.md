@@ -318,7 +318,7 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 @really-knows-ai/foundry
 ├── src/
 │   ├── plugin/
-│   │   ├── foundry.js          # plugin entrypoint: skills + 64 custom tools
+│   │   ├── foundry.js          # plugin entrypoint: skills and custom tools
 │   │   └── tools/              # tool registration + plugin helpers
 │   ├── skills/                 # shipped skill definitions
 │   │   ├── flow/               # pipeline
@@ -429,5 +429,5 @@ During a flow, a work branch also contains `WORK.md`, `WORK.feedback.yaml`, and 
 - [concepts.md](concepts.md) — every concept defined concisely.
 - [work-spec.md](work-spec.md) — the full WORK.md + WORK.feedback.yaml + WORK.history.yaml spec.
 - [memory-maintenance.md](memory-maintenance.md) — contributor notes on Cozo 0.7 and memory session lifecycle.
-- [tools.md](tools.md) — full reference for all 64 custom tools.
+- [tools.md](tools.md) — complete reference for custom tools.
 - [getting-started.md](getting-started.md) — end-to-end walkthrough.
