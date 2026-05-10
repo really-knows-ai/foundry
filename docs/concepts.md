@@ -268,6 +268,53 @@ All deterministic pipeline operations are exposed as custom tools by the Foundry
 
 A self-contained workflow written as markdown with YAML frontmatter. Foundry ships pipeline skills (`flow`, `orchestrate`, `forge`, `quench`, `appraise`, `human-appraise`), authoring skills (`add-*`, `init-foundry`), utility skills (`list-agents`, `refresh-agents`, `upgrade-foundry`), and memory skills (`init-memory`, `add-memory-*`, `rename-memory-*`, `drop-memory-*`, `reset-memory`, `change-embedding-model`). Skills are either **atomic** (do one thing) or **composite** (orchestrate other skills).
 
+### Skills index
+
+#### Pipeline
+
+| Skill | Type | Purpose |
+|-------|------|---------|
+| `flow` | composite | Entry point. Picks a starting cycle, creates the work branch, invokes `orchestrate`, follows `targets` between cycles. |
+| `orchestrate` | atomic | Thin driver around `foundry_orchestrate`. Dispatches sub-agents, runs human-appraise inline, reports terminal states. |
+| `forge` | atomic | Produce or revise the artefact. Discovers inputs by filesystem scan. |
+| `quench` | atomic | Run the artefact type's CLI validation commands; write `validation` feedback. |
+| `appraise` | atomic | Dispatch the selected appraiser personalities as parallel sub-agents; consolidate `law:<id>` feedback (union + dedup). |
+| `human-appraise` | atomic | Human quality gate. Presents the artefact, collects `human` feedback. |
+
+#### Authoring
+
+| Skill | Purpose |
+|-------|---------|
+| `init-foundry` | Scaffold the `foundry/` directory and generate agent files. |
+| `add-artefact-type` | Create a new artefact type, with conflict and glob-overlap checks. |
+| `add-law` | Create a new law with conflict detection. |
+| `add-appraiser` | Create an appraiser personality with semantic-overlap checks. |
+| `add-cycle` | Create a cycle, validate its targets and input contract against the flow. |
+| `add-flow` | Create a flow definition with cycle-graph reachability checks. |
+
+#### Utility
+
+| Skill | Purpose |
+|-------|---------|
+| `list-agents` | List available `foundry-*` sub-agents (for multi-model routing). |
+| `refresh-agents` | Regenerate `foundry-*` agent files from the currently available models. |
+| `upgrade-foundry` | Analyse and migrate `foundry/` config to the current version. |
+
+#### Memory
+
+| Skill | Purpose |
+|-------|---------|
+| `init-memory` | Scaffold `foundry/memory/`; ask about embeddings; probe the provider. |
+| `add-extractor` | Create a memory extractor definition with command, permissions, and prose brief. |
+| `add-memory-entity-type` | Declare a new entity type with a prose brief for the LLM. |
+| `add-memory-edge-type` | Declare a new edge type with allowed sources/targets. |
+| `rename-memory-entity-type` | Rename an entity type; cascade through edges, relations, schema. |
+| `rename-memory-edge-type` | Rename an edge type. |
+| `drop-memory-entity-type` | Preview-then-confirm delete of an entity type; cascades to affected edges. |
+| `drop-memory-edge-type` | Preview-then-confirm delete of an edge type. |
+| `reset-memory` | Purge all row data whilst keeping type definitions. |
+| `change-embedding-model` | Probe, re-embed, then swap embedding provider/model atomically. |
+
 ---
 
 ## Flow memory

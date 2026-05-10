@@ -124,6 +124,8 @@ Each history snapshot:
 
 ### State machine
 
+Feedback items flow through a six-state lifecycle: `open` (newly raised), `actioned` (forge has addressed it), `wont-fix` (forge declined subjective feedback with justification), `rejected` (appraiser or human overruled the wont-fix), `deadlocked` (sort detected repeated forge/appraise iterations on the same item), and `resolved` (approved by the item's originating stage or human override). Transitions are source-based: the legal moves depend on what stage created the item and who is trying to transition it. The feedback state machine is the engine that routes work between cycles.
+
 The six states and the legal transitions are:
 
 | From \ Caller | forge (any source) | source-stage (quench / appraise / human-appraise where stageId === item.source) | sort | human-appraise (override authority, any source) |
