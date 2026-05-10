@@ -109,6 +109,14 @@ completes. The `init-foundry` skill and flow-management tools are now ready to u
 
 ---
 
+## Upgrade
+
+Run the `upgrade-foundry` skill from a clean project state when moving an existing project to the installed Foundry version. The skill preserves the existing `foundry/` directory, initialises a fresh current-version configuration, analyses the preserved configuration as source material, and recreates supported concepts through current tools.
+
+The upgrade process asks clarifying questions for ambiguous routing, input contracts, validation behaviour, memory settings, and deprecated concepts. It leaves the preserved source directory in place until you explicitly approve cleanup.
+
+---
+
 ## Quick start
 
 ### Phase 1 — Install
