@@ -14,9 +14,9 @@ Foundry is a governed production system for AI-generated artefacts. You define w
 
 ### Why Foundry exists
 
-AI tools are good at producing output and weak at proving that the right work happened. An agent can say it is done, skip validation, or lose feedback between iterations. The work arrives quickly; the evidence is patchy.
+Foundry exists because AI agents can produce artefacts rapidly but lack structural proof that the right work happened. Agents may claim completion without validation, skip stages, or drop feedback between iterations. Evidence trails are often incomplete or absent.
 
-Foundry exists to make AI work governable. It turns "ask an agent and hope" into a staged system where the checks are structural. If an artefact should be validated, it is validated. If feedback must be resolved, that state is recorded. If a stage writes outside its lane, the cycle stops.
+Foundry makes AI work governable. It turns "ask an agent and hope" into a staged system where the checks are structural. If an artefact should be validated, it is validated. If feedback must be resolved, that state is recorded. If a stage writes outside its lane, the cycle stops.
 
 ### Why it is called Foundry
 
@@ -30,7 +30,7 @@ Foundry applies the foundry metaphor to AI work: rough output enters a controlle
 - **appraise** judges quality against written laws. This is where independent evaluators inspect whether the work is actually good.
 - **human-appraise** is the human quality gate. It provides direct judgement when the stakes require it, or when the loop deadlocks.
 
-The names are relevant because the workflow is relevant. Foundry treats AI output as work that must be processed, not just generated.
+The names are relevant because the workflow is relevant. Foundry treats AI output as work: artefacts must be validated, refined, and approved before delivery.
 
 ### What you get
 

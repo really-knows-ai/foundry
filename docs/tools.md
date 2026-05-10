@@ -233,7 +233,7 @@ frontmatter.
 > caller should do next.
 
 **Args:**
-- `lastResult` (object, optional): `{ ok: boolean, error?: string }` — outcome of the
+- `lastResult` (object, optional): `{ ok: boolean, error?: string }` — output of the
   prior action.
 - `cycleDef` (string, optional): Test-mode override path to a cycle file.
 
