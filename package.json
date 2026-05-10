@@ -27,11 +27,11 @@
   },
   "scripts": {
     "build": "node scripts/build.js",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "pnpm run build",
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage",
     "lint": "eslint src/ tests/ scripts/",
-    "build:full": "npm run lint -- --fix && npm run test && npm run build",
+    "build:full": "pnpm run lint -- --fix && pnpm run test && pnpm run build",
     "build:all": "pnpm run lint && pnpm run test && pnpm run build"
   },
   "dependencies": {
