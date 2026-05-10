@@ -332,7 +332,6 @@ id: haiku
 file-patterns: ["haikus/*.md"]
 ---
 `,
-    'foundry/artefacts/haiku/validation.md': `## c\nCommand: \`echo ok\`\n`,
     '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
   });
   const observed = [];
@@ -559,9 +558,6 @@ models:
 id: haiku
 file-patterns: ["haikus/*.md"]
 ---
-`,
-    'foundry/artefacts/haiku/validation.md': `## compile
-Command: \`echo ok\`
 `,
     '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
   });
