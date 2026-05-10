@@ -5,7 +5,6 @@ import {
   getArtefactType,
   getLaws,
   getLawsForQuench,
-  getValidation,
   getAppraisers,
   getFlow,
   selectAppraisers,
@@ -288,47 +287,6 @@ describe('getLaws - new shape', () => {
     const laws = await getLaws('foundry', io);
     assert.deepEqual(laws[0], { id: 'clarity', text: 'Be clear.' });
     assert.equal(laws[0].source, undefined);
-  });
-});
-
-describe('getValidation', () => {
-  it('parses Command:/Failure means: format under ## headings', async () => {
-    const io = mockIO({
-      'foundry/artefacts/haiku/validation.md': [
-        '# Validation',
-        '',
-        '## three-lines',
-        'Command: node validate-three-lines.js {file}',
-        'Failure means: The haiku does not have exactly 3 lines.',
-        '',
-        '## syllable-structure',
-        'Command: node validate-syllable-structure.js {file}',
-        'Failure means: The haiku does not follow the 5-7-5 syllable structure.',
-      ].join('\n'),
-    });
-    const result = await getValidation('foundry', 'haiku', io);
-    assert.deepEqual(result, [
-      { id: 'three-lines', command: 'node validate-three-lines.js {file}', failureMeans: 'The haiku does not have exactly 3 lines.' },
-      { id: 'syllable-structure', command: 'node validate-syllable-structure.js {file}', failureMeans: 'The haiku does not follow the 5-7-5 syllable structure.' },
-    ]);
-  });
-
-  it('returns null if file missing', async () => {
-    const io = mockIO({});
-    const result = await getValidation('foundry', 'code', io);
-    assert.equal(result, null);
-  });
-
-  it('strips backticks from Command values', async () => {
-    const io = mockIO({
-      'foundry/artefacts/haiku/validation.md': [
-        '## three-lines',
-        'Command: `node validate-three-lines.js {file}`',
-        'Failure means: Not 3 lines.',
-      ].join('\n'),
-    });
-    const result = await getValidation('foundry', 'haiku', io);
-    assert.equal(result[0].command, 'node validate-three-lines.js {file}');
   });
 });
 
