@@ -33,11 +33,11 @@ A single step within a cycle. Every stage is referenced as `base:alias` (e.g. `f
 
 The stage names come from the foundry metaphor because the system treats AI output as work that must be processed into a trusted artefact, not merely generated. Each base names a distinct part of that process.
 
+- **assay** — opt-in pre-forge stage that populates flow memory by running project-authored extractor scripts (iteration 0 only). No artefact, no feedback, no output beyond memory writes. See the [Assay](#assay) and [Extractor](#extractor) entries below.
 - **forge** — produce or revise the artefact.
 - **quench** — run deterministic CLI checks (skipped if the artefact type has no `validation.md`).
 - **appraise** — subjective evaluation by multiple appraiser sub-agents.
 - **human-appraise** — human quality gate. Can run every iteration, only on deadlock, or both.
-- **assay** — deterministic population of flow memory by running project-authored extractor scripts (iteration 0 only, opt-in per cycle). No artefact, no feedback. Failure marks the workfile failed. See the [Assay](#assay) and [Extractor](#extractor) entries below.
 
 Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the artefact-feedback loop because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
 
@@ -47,7 +47,7 @@ Every stage runs inside a token-gated lifecycle bracketed by `foundry_stage_begi
 
 A deterministic stage that runs before the first `forge` of a cycle. For each extractor listed in the cycle's `assay.extractors` frontmatter, it runs the extractor's `command`, parses the JSONL output, and upserts rows into flow memory via the existing memory write tools.
 
-In metallurgy, to *assay* an ore or alloy is to determine its composition before working it. The stage plays the same role for a codebase: it determines what material is actually present so forge can plan against reality rather than assumption.
+In metallurgy, to *assay* an ore or alloy is to determine its composition before working it. The stage plays the same role for a codebase: it determines what material is actually present so forge can plan from measured project facts.
 
 Properties:
 
@@ -274,9 +274,7 @@ A self-contained workflow written as markdown with YAML frontmatter. Foundry shi
 
 A typed, graph-shaped knowledge store shared across cycles in a project. Strictly opt-in: a project without `foundry/memory/` has no memory and behaves exactly as previous Foundry versions.
 
-When present, memory is populated and consulted by cycles that declare read/write permissions in their frontmatter. Its vocabulary is injected into the dispatched stage's prompt, and its contents survive across flows as long as the NDJSON relations stay committed.
-
-Memory can be populated at runtime by the [Assay](#assay) stage via [Extractors](#extractor), which run project-authored CLI scripts before the first forge of an opted-in cycle.
+When present, memory is populated and consulted by cycles that declare read/write permissions in their frontmatter. It can be hand-seeded through committed NDJSON rows, written by memory-enabled stages through the memory tools, or populated at runtime by assay extractors before the first forge. Its vocabulary is injected into the dispatched stage's prompt, and its contents survive across flows as long as the NDJSON relations stay committed.
 
 See also: [docs/memory-maintenance.md](memory-maintenance.md) for contributor-facing notes on Cozo 0.7 and session lifecycle.
 
@@ -300,7 +298,7 @@ A project-authored CLI that emits JSONL describing entities and edges to upsert 
 - `memory.write` — entity types the extractor is permitted to populate. Edge permissions are derived: an edge is permitted if either endpoint's entity type is in this list (mirroring the cycle-level rule).
 - `timeout` (optional, default 60s) — hard kill if the script exceeds it.
 
-The markdown body is a prose brief injected into the `forge` prompt of any cycle that uses this extractor, so the LLM knows what is in memory and where it came from. Extractors are run by the [Assay](#assay) stage.
+The markdown body is a prose brief injected into the `forge` prompt of any cycle that uses this extractor, telling the agent what is in memory and where it came from. Extractors are run by the [Assay](#assay) stage.
 
 Create with `add-extractor`.
 

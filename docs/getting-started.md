@@ -260,9 +260,9 @@ When a flow completes, `foundry_git_finish` handles integration with audit guara
 
 ## Optional: flow memory
 
-Foundry ships a typed, graph-shaped memory store that persists across cycles. It's strictly opt-in — skip this section if your project doesn't need shared state across flows.
+Foundry ships a typed, graph-shaped memory store that persists across cycles. Use it when your flows are codebase-aware, require multi-cycle discovery, reuse project facts across runs, or perform semantic search when embeddings are enabled. Memory is strictly opt-in — skip this section if your project doesn't need shared state across flows.
 
-### Initialize
+### Initialise
 
 Memory init and vocabulary edits are schema mutations, so they run
 on a config branch — open one first if you are not already on it
@@ -305,6 +305,22 @@ memory:
 - A cycle with no `memory:` block sees no memory tools — same as before.
 
 During a flow, forge stages write into memory and later cycles can read what earlier cycles learned. Out-of-stage memory writes flush to `relations/*.ndjson` immediately, assay flushes during the assay stage, and ordinary in-stage writes become durable at `foundry_stage_end`.
+
+### Runtime population with assay
+
+Use assay when memory should reflect what is actually present in the codebase before forge starts. An assay-enabled cycle declares memory permissions and the extractor names to run at iteration 0:
+
+```yaml
+memory:
+  read:  [class, method]
+  write: [class, method]
+assay:
+  extractors: [java-symbols]
+```
+
+Create the extractor definition with `add-extractor`. The definition lives at `foundry/memory/extractors/<name>.md`; its `command` runs from the project root and emits one JSON object per line. `foundry_assay_run` parses that JSONL, validates the rows against the extractor and cycle write scopes, and upserts the accepted entities and edges into flow memory.
+
+Assay runs once before the first forge of the cycle. Successful extractor rows are flushed to `foundry-memory/relations/*.ndjson`, so later forge stages and downstream cycles can query the same committed facts. Extractor failures mark `WORK.md` failed because forge cannot fix instrumentation scripts inside an artefact revision. See [Extractor](concepts.md#extractor) for the JSONL contract and failure semantics.
 
 ### Maintenance
 

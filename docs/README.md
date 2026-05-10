@@ -12,13 +12,13 @@ Getting oriented with Foundry means understanding both the concepts it uses and 
 
 - **getting-started.md** — Complete end-to-end installation, bootstrap (`init-foundry`), and first flow walkthrough. Read this immediately after installing the plugin and before authoring any of your own configuration. 
 
-  It establishes the operating model, directory structure, and practical confidence in one pass. Includes hands-on guidance on authoring the five foundational concepts (artefact types, laws, appraisers, cycles, flows) with worked examples you can run against real code. 
+  It establishes the operating model, directory structure, and practical confidence in one pass. Includes hands-on guidance on authoring the five foundational concepts (artefact types, laws, appraisers, cycles, flows) with worked examples you can run against real code. Also covers the optional flow-memory path: initialise memory, declare vocabulary, add extractors, and opt a cycle into assay for codebase-aware flows.
 
   Implementers must follow every step and complete the bootstrap; architects typically skim for structure before moving to [concepts.md](concepts.md) and [architecture.md](architecture.md) to reason about their designs.
 
 - **concepts.md** — The glossary and conceptual foundation for Foundry's key terms and ideas, arranged top-down from flows through cycles, stages, artefacts, and feedback loops. 
 
-  Reach for this when you encounter terminology you need to understand, or as a reference map before diving into [work-spec.md](work-spec.md) or [architecture.md](architecture.md). Defines each concept affirmatively with concrete examples and links outward to spec documents that elaborate them in detail. 
+  Reach for this when you encounter terminology you need to understand, or as a reference map before diving into [work-spec.md](work-spec.md) or [architecture.md](architecture.md). Defines each concept affirmatively with concrete examples and links outward to spec documents that elaborate them in detail. Defines `Assay`, `Flow memory`, `Extractor`, and the read/write permission model that scopes memory tools per cycle.
 
   Architects especially need this to reason about system boundaries, design decisions, and invariants; implementers reference it iteratively as they build configuration, debug unexpected behaviour, and reason about state transitions.
 
@@ -36,13 +36,13 @@ These documents specify formats, tools, and design principles. Use them when imp
 
 - **tools.md** — Categorical index and reference documentation for all custom tools, organised by family (lifecycle, artefacts, feedback, config, memory, etc.) with complete signatures and permissions. 
 
-  Consult this when you need to understand what a specific tool does, its branch requirements, what stage locks apply, what arguments it accepts, and how it integrates with the overall system. Covers calling conventions, enforcement invariants, and the permission model for memory access. 
+  Consult this when you need to understand what a specific tool does, its branch requirements, what stage locks apply, what arguments it accepts, and how it integrates with the overall system. Covers calling conventions, enforcement invariants, and the permission model for memory access. References `foundry_assay_run`, `foundry_extractor_create`, and memory data and admin tools.
 
   Tool authors and system integrators use this constantly; it is the comprehensive reference for all custom tools in the Foundry ecosystem.
 
 - **architecture.md** — The design and enforcement model covering token lifecycle, stage-locked mutations, write invariants, branch namespaces, multi-model routing, and core design principles. 
 
-  Read this when you need to understand how Foundry maintains safety (how tokens prevent replay, why stages lock mutations, how writes are validated), what guarantees it makes and where they live in the code, or why it is structured the way it is. 
+  Read this when you need to understand how Foundry maintains safety (how tokens prevent replay, why stages lock mutations, how writes are validated), what guarantees it makes and where they live in the code, or why it is structured the way it is. Explains the memory layout, assay write boundary, and failed-flow behaviour that keep extractor-populated memory auditable.
 
   Architects and contributors working on core systems need this to reason about changes and implications; see also concepts.md for the high-level flow model context and work-spec.md for specifics on format validation and state machines.
 
@@ -54,6 +54,6 @@ Documentation for those extending Foundry's internals or maintaining subsystems.
 
 - **memory-maintenance.md** — Cozo 0.7 adaptations, memory session lifecycle notes, and derived implementation wisdom for contributors working on the memory subsystem. 
 
-  Start here if you are maintaining or extending memory-related functionality; it documents known footguns (string literal syntax, HNSW index pseudo-relations), session-lifecycle edge cases, tracing techniques, and the runtime extractor system in precise detail. 
+  Start here if you are maintaining or extending memory-related functionality; it documents known footguns (string literal syntax, HNSW index pseudo-relations), session-lifecycle edge cases, tracing techniques, and runtime extractor population in precise detail.
 
   Captures learning from actual bugs and debugging sessions so the next maintainer does not have to discover them again through repeated debugging. Core contributors should read this before touching memory code; it explains why certain patterns are necessary, which changes cascade across the system, and common pitfalls to avoid.
