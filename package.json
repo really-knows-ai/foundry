@@ -31,7 +31,7 @@
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage",
     "lint": "eslint src/ tests/ scripts/",
-    "build:full": "pnpm run lint -- --fix && pnpm run test && pnpm run build",
+    "build:full": "pnpm run lint --fix && pnpm run test && pnpm run build",
     "build:all": "pnpm run lint && pnpm run test && pnpm run build"
   },
   "dependencies": {
