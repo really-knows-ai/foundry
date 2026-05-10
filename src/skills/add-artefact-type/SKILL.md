@@ -106,7 +106,7 @@ Ask:
 > Do you want to define any type-specific laws for this artefact type? (Global laws in `foundry/laws/` will apply automatically.)
 
 If yes, walk through each law using the same format as `add-law`:
-- Draft each law (including optional validators)
+- Draft each law, adding validators where a deterministic check applies
 - Check for conflicts with global laws and any existing type-specific laws
 - Confirm with the user
 
@@ -123,7 +123,7 @@ validators:
     failure-means: (optional description)
 ```
 
-The `validators` block is optional. When present, `quench` runs each validator for this law. Validator scripts live alongside the artefact type directory (e.g., `foundry/artefacts/<type>/check-foo.mjs`).
+The `validators` block is optional. When present, `quench` runs each validator for this law. Validator scripts live within the artefact type directory (e.g., `foundry/artefacts/<type>/check-foo.mjs`).
 
 **Use existing libraries:** Before writing custom validation logic, search npm for well-tested libraries that solve the problem (e.g., `syllable` for syllable counting, `natural` for NLP tasks). Hand-rolled heuristics are fragile — prefer battle-tested packages. Install them as project dependencies.
 
