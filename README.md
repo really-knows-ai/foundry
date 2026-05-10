@@ -35,10 +35,11 @@ exactly how the output was made. Confidence is engineered; it is not hoped for.
 ### The operating model: assay, then forge → quench → appraise
 
 A codebase-aware cycle can begin with **assay**: a deterministic pre-forge stage
-that runs project-authored extractors, parses strict JSONL, and writes typed facts
-into flow memory. In the foundry metaphor, an assay establishes composition before
-work begins. In Foundry, assay gives forge a measured map of the project before it
-creates an artefact. Cycles without memory configuration skip this stage.
+that runs project-authored extractor scripts, parses the strict JSONL facts they
+emit, and writes typed facts into flow memory. In the foundry metaphor, an assay
+establishes composition before work begins. In Foundry, assay gives forge a
+measured map of the project before it creates an artefact. Cycles without memory
+configuration skip this stage.
 
 After assay, one draft enters a short loop and leaves only when it passes quality
 gates. Each loop has four distinct roles that turn a candidate into a verified output:

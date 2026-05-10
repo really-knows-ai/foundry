@@ -29,7 +29,7 @@ Optionally, if you want the package available to your project's local node_modul
 npm install --save-dev @really-knows-ai/foundry
 ```
 
-## Initialize
+## Initialise
 
 In your project, invoke the `init-foundry` skill. It:
 

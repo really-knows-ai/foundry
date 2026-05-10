@@ -270,26 +270,6 @@ A self-contained workflow written as markdown with YAML frontmatter. Foundry shi
 
 ---
 
-## Flow memory
-
-A typed, graph-shaped knowledge store shared across cycles in a project. Strictly opt-in: a project without `foundry/memory/` has no memory and behaves exactly as previous Foundry versions.
-
-When present, memory is populated and consulted by cycles that declare read/write permissions in their frontmatter. It can be hand-seeded through committed NDJSON rows, written by memory-enabled stages through the memory tools, or populated at runtime by assay extractors before the first forge. Its vocabulary is injected into the dispatched stage's prompt, and its contents survive across flows as long as the NDJSON relations stay committed.
-
-See also: [docs/memory-maintenance.md](memory-maintenance.md) for contributor-facing notes on Cozo 0.7 and session lifecycle.
-
-## Entity / entity type
-
-An **entity** is one row in memory: `{ type, name, value }`, where `value` is free text describing the entity's intrinsic characteristics (≤ 4 KB). Relationships belong in edges, not in the value.
-
-An **entity type** is declared once per project in `foundry/memory/entities/<type>.md`. Its markdown body is a prose brief — naming convention, what `value` should contain, likely related edges — that becomes part of every cycle's prompt that reads or writes this type. Create types with `add-memory-entity-type`.
-
-## Edge / edge type
-
-An **edge** is one row relating two entities: `{ from_type, from_name, edge_type, to_type, to_name }`. Edges are directed.
-
-An **edge type** declares allowed endpoints — `sources` and `targets` are either a list of entity types or the literal `any` — and a prose body describing when the edge holds. Declared in `foundry/memory/edges/<name>.md`. Create with `add-memory-edge-type`.
-
 ## Extractor
 
 A project-authored CLI that emits JSONL describing entities and edges to upsert into flow memory. Defined in `foundry/memory/extractors/<name>.md`:
@@ -352,6 +332,26 @@ Any of the following mark the workfile failed (`status: failed` with a `reason`)
 - An entity row references a `type` not in the extractor's `memory.write` set, or an edge row's endpoint types are both outside that set (permission violation).
 
 The complete reference parser is `src/scripts/lib/assay/parse-jsonl.js`.
+
+## Flow memory
+
+A typed, graph-shaped knowledge store shared across cycles in a project. Strictly opt-in: a project without `foundry/memory/` has no memory and behaves exactly as previous Foundry versions.
+
+When present, memory is populated and consulted by cycles that declare read/write permissions in their frontmatter. It can be hand-seeded through committed NDJSON rows, written by memory-enabled stages through the memory tools, or populated at runtime by assay extractors before the first forge. Its vocabulary is injected into the dispatched stage's prompt, and its contents survive across flows as long as the NDJSON relations stay committed.
+
+See also: [docs/memory-maintenance.md](memory-maintenance.md) for contributor-facing notes on Cozo 0.7 and session lifecycle.
+
+## Entity / entity type
+
+An **entity** is one row in memory: `{ type, name, value }`, where `value` is free text describing the entity's intrinsic characteristics (≤ 4 KB). Relationships belong in edges, not in the value.
+
+An **entity type** is declared once per project in `foundry/memory/entities/<type>.md`. Its markdown body is a prose brief — naming convention, what `value` should contain, likely related edges — that becomes part of every cycle's prompt that reads or writes this type. Create types with `add-memory-entity-type`.
+
+## Edge / edge type
+
+An **edge** is one row relating two entities: `{ from_type, from_name, edge_type, to_type, to_name }`. Edges are directed.
+
+An **edge type** declares allowed endpoints — `sources` and `targets` are either a list of entity types or the literal `any` — and a prose body describing when the edge holds. Declared in `foundry/memory/edges/<name>.md`. Create with `add-memory-edge-type`.
 
 ## Memory permissions
 
