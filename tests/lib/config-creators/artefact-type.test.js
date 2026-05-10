@@ -5,7 +5,6 @@ import { makeAsyncMockIO } from '../../helpers/async-mock-io.js';
 
 const VALID_BODY = `---
 name: short-story
-output-type: short-story
 file-patterns:
   - artefacts/short-story/*.md
 ---

@@ -17,14 +17,13 @@ test('artefact-type validator: minimal valid', async () => {
   assert.deepEqual(out, { ok: true });
 });
 
-test('artefact-type validator: missing output-type', async () => {
+test('artefact-type validator: output-type is not required', async () => {
   const out = await validate({
     name: 'short-story',
-    body: fixture('invalid-missing-output-type'),
+    body: fixture('valid-basic'),
     io: passIO,
   });
-  assert.equal(out.ok, false);
-  assert.ok(out.errors.some((e) => /output-type/.test(e)));
+  assert.deepEqual(out, { ok: true });
 });
 
 test('artefact-type validator: name mismatch', async () => {
@@ -40,7 +39,6 @@ test('artefact-type validator: name mismatch', async () => {
 test('artefact-type validator: missing Definition section', async () => {
   const body = `---
 name: x
-output-type: x
 file-patterns:
   - artefacts/x/*.md
 ---
@@ -55,7 +53,6 @@ no heading here.
 test('artefact-type validator: empty file-patterns', async () => {
   const body = `---
 name: x
-output-type: x
 file-patterns: []
 ---
 

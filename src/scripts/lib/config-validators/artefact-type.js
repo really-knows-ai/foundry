@@ -22,7 +22,6 @@ export async function validate({ name, body }) {
   const errors = [
     requireNonEmptyString(fm.name, 'frontmatter.name'),
     validateNameMatch(fm, name),
-    requireNonEmptyString(fm['output-type'], 'frontmatter.output-type'),
     checkFilePatterns(fm),
     requireHeading(body, 'Definition'),
   ].filter(Boolean);
