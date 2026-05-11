@@ -71,7 +71,9 @@ The `law-id` (heading) should be:
 - Short but descriptive
 - Unique across all laws (global and type-specific)
 
-The `validators:` block is optional. Include it only if you want to add validation commands for this law.
+The `validators:` block is optional. Include it only when a
+deterministic check can decide pass/fail. See **Validator contract**
+below for the exact shape a validator command must satisfy.
 
 ### 3. Check for conflicts
 
@@ -142,13 +144,122 @@ The tool:
 - writes the law file at the path determined by `target`;
 - produces one git commit on the current `config/*` branch.
 
-If the tool returns `{ ok: false, errors }` because the target file already exists, use `foundry_config_edit_law({ id: "<law-id>", body: "<updated-body>" })` to modify the law.
+The tool appends to an existing `laws.md` automatically when the
+new `## <law-id>` heading is not already present. It only errors when
+a law with the same id is already in the file — in that case use
+`foundry_config_edit_law({ id: "<law-id>", body: "<updated-body>" })`
+to modify the existing law in place.
 
 Show the user the resulting commit hash from the response.
 
 ### 7. Verify uniqueness
 
 After the file is created, confirm the law id is unique across all law files. If a collision exists, ask the user to rename and edit by hand on this branch.
+
+### 7a. Validator contract
+
+A law's `validators:` entries declare CLI commands that `quench` runs
+during a cycle. The plugin parses each command's stdout as **JSONL**
+(one JSON object per line). Authors must follow this contract exactly;
+nothing in plugin source needs to be read.
+
+#### Output format (stdout, parsed as JSONL)
+
+One JSON object per line. Empty lines are ignored. Required fields:
+
+- `file` *(string)* — path of the offending file, relative to the
+  worktree root. Must match at least one of the artefact type's
+  `file-patterns:`; otherwise the line becomes a validator-level
+  error, not feedback.
+- `text` *(string)* — the feedback message.
+
+Optional fields:
+
+- `location` *(string, e.g. `"3:1"`)* — line:column reference,
+  prepended to `text` as `file:location — text`.
+- `severity` *(string, e.g. `"error"` or `"warning"`)* — prepended to
+  `text` as `[severity] file:location — text` (or `[severity] file —
+  text` when no `location`).
+
+Anything else on the line is preserved verbatim on the parsed item.
+The validator's exit code is **ignored** — the parser reads stdout
+either way, and falls back to stderr when stdout is empty (so tools
+like `rg` that exit non-zero on hits still work).
+
+#### Command placeholders
+
+Inside `command:`, two placeholders may appear, alone, together, or
+not at all. They are recognised only as standalone tokens (bounded by
+whitespace or string start/end). Authors may wrap a placeholder in
+single or double quotes for readability — surrounding quotes are
+stripped before substitution.
+
+- `{pattern}` → the artefact type's `file-patterns:` rendered as
+  space-separated, shell-quoted globs (e.g.
+  `'haikus/*.md' 'drafts/*.md'`). Use this when the validator does
+  its own globbing or accepts globs directly (e.g. `rg --glob`).
+- `{files}` → the matching files in the worktree, rendered as
+  space-separated, shell-quoted paths (e.g.
+  `'haikus/one.md' 'haikus/two.md'`). Use this when the validator
+  takes an explicit list of file paths.
+
+A command with neither placeholder runs verbatim — useful for
+self-resolving validators such as `npm test`, `tsc --noEmit`, or
+`pnpm run lint`.
+
+#### Skip rule
+
+A validator is skipped iff its command contains `{files}` and there
+are no matching files in the worktree. Commands using `{pattern}` only,
+or no placeholders at all, always run.
+
+#### Working directory
+
+Validators run with `cwd` set to the worktree root, so root-level
+`node_modules/`, `package.json`, and project tooling all resolve
+normally. Do not assume the validator runs from inside the artefact
+type's directory.
+
+#### Worked example
+
+A validator that checks each `.md` file in `haikus/` has exactly three
+non-empty lines, attached to a haiku artefact type
+(`file-patterns: ["haikus/*.md"]`):
+
+`foundry/artefacts/haiku/check-line-count.mjs`:
+
+~~~js
+#!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
+
+for (const file of process.argv.slice(2)) {
+  const content = await readFile(file, 'utf8');
+  const lines = content
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lines.length !== 3) {
+    process.stdout.write(JSON.stringify({
+      file,
+      text: `Expected 3 non-empty lines, got ${lines.length}.`,
+      severity: 'error',
+    }) + '\n');
+  }
+}
+~~~
+
+Declared in the law:
+
+~~~markdown
+## three-lines
+
+A haiku must consist of exactly three non-empty lines.
+
+validators:
+  - id: line-count
+    command: node foundry/artefacts/haiku/check-line-count.mjs {files}
+    failure-means: The artefact file does not contain exactly three non-empty lines.
+~~~
 
 ### 8. Editing existing laws (prose or validators)
 
