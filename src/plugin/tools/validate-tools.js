@@ -235,29 +235,34 @@ async function expandPatterns(patterns, worktree) {
 }
 
 /**
- * Expand validator command by replacing {pattern} placeholder.
+ * Expand validator command by replacing {pattern} and {files} placeholders.
  *
- * Only replaces {pattern} when it appears as a standalone token bounded by
- * whitespace or string start/end. This allows self-resolving validators
- * (e.g., npm test, tsc --noEmit) to omit the placeholder without risk of
- * accidental substitution if they contain the literal text "{pattern}" as part
- * of another string.
+ * - {pattern} → space-separated, shell-quoted globs from the artefact
+ *   type's `file-patterns:` array (e.g. "'haikus/*.md' 'drafts/*.md'").
+ * - {files}   → space-separated, shell-quoted matching file paths in the
+ *   worktree (e.g. "'haikus/one.md' 'haikus/two.md'").
  *
- * @param {string} command - The validator command
- * @param {string} patternSubstitution - Shell-quoted file paths, space-separated
- * @returns {string} The expanded command
+ * Both placeholders are recognised only as standalone tokens, bounded
+ * by whitespace or start/end of string. Surrounding single or double
+ * quotes around the placeholder are stripped first so authors can
+ * write `rg "{pattern}"` for readability.
+ *
+ * @param {string} command
+ * @param {{ pattern: string, files: string }} substitutions
+ * @returns {string}
  */
-export function expandValidatorCommand(command, patternSubstitution) {
-  // First strip surrounding quotes around {pattern} to handle cases like
-  // rg "{pattern}" where authors add quotes for readability
-  const cmd = command
+export function expandValidatorCommand(command, { pattern, files }) {
+  let cmd = command
     .replace(/"\{pattern\}"/g, '{pattern}')
-    .replace(/'\{pattern\}'/g, '{pattern}');
+    .replace(/'\{pattern\}'/g, '{pattern}')
+    .replace(/"\{files\}"/g, '{files}')
+    .replace(/'\{files\}'/g, '{files}');
 
-  // Only substitute {pattern} when it appears as a standalone token
-  // (bounded by whitespace or start/end of string)
-  return cmd.replace(/(?:^|\s)\{pattern\}(?=\s|$)/g, (match) => {
-    const leadingSpace = match.startsWith('{') ? '' : ' ';
-    return leadingSpace + patternSubstitution;
-  });
+  cmd = cmd.replace(/(?:^|\s)\{pattern\}(?=\s|$)/g, (match) =>
+    match.startsWith('{') ? pattern : ' ' + pattern);
+
+  cmd = cmd.replace(/(?:^|\s)\{files\}(?=\s|$)/g, (match) =>
+    match.startsWith('{') ? files : ' ' + files);
+
+  return cmd;
 }
