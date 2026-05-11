@@ -7,8 +7,8 @@
 - `init-foundry` now installs a user-facing `Foundry` agent at
   `.opencode/agents/foundry.md` and instructs users to restart OpenCode and
   switch to that agent before authoring flows.
-- `foundry_refresh_agents` now refreshes generated stage agents while leaving
-  the user-facing guide agent untouched.
+- `foundry_refresh_agents` now regenerates model-routing stage agents and
+  preserves the user-facing guide agent.
 - Authoring skills now frame user requests as Foundry outcomes, compose missing
   dependencies, and keep internal tool calls out of normal user guidance.
 
