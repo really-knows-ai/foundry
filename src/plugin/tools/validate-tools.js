@@ -52,7 +52,7 @@ async function executeValidator(expanded, worktree, patterns) {
  *   JSON or missing required fields, `pattern-mismatch` for files that
  *   didn't match the artefact type's `file-patterns`.
  */
-async function runValidators(laws, patterns, patternSubstitution, worktree) {
+async function runValidators(laws, patterns, substitutions, worktree) {
   const results = {
     validatorsRun: 0,
     items: [],
@@ -61,7 +61,7 @@ async function runValidators(laws, patterns, patternSubstitution, worktree) {
 
   for (const law of laws) {
     if (!law.validators || law.validators.length === 0) continue;
-    await runLawValidators(law, patterns, patternSubstitution, worktree, results);
+    await runLawValidators(law, patterns, substitutions, worktree, results);
   }
 
   return results;
@@ -70,15 +70,15 @@ async function runValidators(laws, patterns, patternSubstitution, worktree) {
 /**
  * Run validators for a single law.
  */
-async function runLawValidators(law, patterns, patternSubstitution, worktree, results) {
+async function runLawValidators(law, patterns, substitutions, worktree, results) {
   for (const validator of law.validators) {
-    // Skip validators if pattern substitution is empty (no matching files)
-    // Self-resolving validators (npm test, tsc) omit {pattern}, so they still run
-    if (patternSubstitution === '' && validator.command.includes('{pattern}')) {
+    // Skip iff command uses {files} and there are no matching files.
+    // {pattern}-only and verbatim commands always run.
+    if (substitutions.files === '' && /(?:^|\s)\{files\}(?=\s|$)/.test(validator.command)) {
       continue;
     }
     results.validatorsRun++;
-    const expanded = expandValidatorCommand(validator.command, patternSubstitution);
+    const expanded = expandValidatorCommand(validator.command, substitutions);
     const parseResult = await executeValidator(expanded, worktree, patterns);
     collectValidatorResult(parseResult, law.id, validator.id, results);
   }
@@ -160,8 +160,11 @@ async function performValidation(args, context) {
  */
 async function runValidatorsAndReport(laws, patterns, worktree) {
   const expandedFiles = await expandPatterns(patterns, worktree);
-  const patternSubstitution = expandedFiles.map(shellQuote).join(' ');
-  const results = await runValidators(laws, patterns, patternSubstitution, worktree);
+  const substitutions = {
+    pattern: patterns.map(shellQuote).join(' '),
+    files: expandedFiles.map(shellQuote).join(' '),
+  };
+  const results = await runValidators(laws, patterns, substitutions, worktree);
 
   return JSON.stringify({
     ok: results.errors.length === 0,
@@ -235,29 +238,34 @@ async function expandPatterns(patterns, worktree) {
 }
 
 /**
- * Expand validator command by replacing {pattern} placeholder.
+ * Expand validator command by replacing {pattern} and {files} placeholders.
  *
- * Only replaces {pattern} when it appears as a standalone token bounded by
- * whitespace or string start/end. This allows self-resolving validators
- * (e.g., npm test, tsc --noEmit) to omit the placeholder without risk of
- * accidental substitution if they contain the literal text "{pattern}" as part
- * of another string.
+ * - {pattern} → space-separated, shell-quoted globs from the artefact
+ *   type's `file-patterns:` array (e.g. "'haikus/*.md' 'drafts/*.md'").
+ * - {files}   → space-separated, shell-quoted matching file paths in the
+ *   worktree (e.g. "'haikus/one.md' 'haikus/two.md'").
  *
- * @param {string} command - The validator command
- * @param {string} patternSubstitution - Shell-quoted file paths, space-separated
- * @returns {string} The expanded command
+ * Both placeholders are recognised only as standalone tokens, bounded
+ * by whitespace or start/end of string. Surrounding single or double
+ * quotes around the placeholder are stripped first so authors can
+ * write `rg "{pattern}"` for readability.
+ *
+ * @param {string} command
+ * @param {{ pattern: string, files: string }} substitutions
+ * @returns {string}
  */
-export function expandValidatorCommand(command, patternSubstitution) {
-  // First strip surrounding quotes around {pattern} to handle cases like
-  // rg "{pattern}" where authors add quotes for readability
-  const cmd = command
+export function expandValidatorCommand(command, { pattern, files }) {
+  let cmd = command
     .replace(/"\{pattern\}"/g, '{pattern}')
-    .replace(/'\{pattern\}'/g, '{pattern}');
+    .replace(/'\{pattern\}'/g, '{pattern}')
+    .replace(/"\{files\}"/g, '{files}')
+    .replace(/'\{files\}'/g, '{files}');
 
-  // Only substitute {pattern} when it appears as a standalone token
-  // (bounded by whitespace or start/end of string)
-  return cmd.replace(/(?:^|\s)\{pattern\}(?=\s|$)/g, (match) => {
-    const leadingSpace = match.startsWith('{') ? '' : ' ';
-    return leadingSpace + patternSubstitution;
-  });
+  cmd = cmd.replace(/(?:^|\s)\{pattern\}(?=\s|$)/g, (match) =>
+    match.startsWith('{') ? pattern : ' ' + pattern);
+
+  cmd = cmd.replace(/(?:^|\s)\{files\}(?=\s|$)/g, (match) =>
+    match.startsWith('{') ? files : ' ' + files);
+
+  return cmd;
 }

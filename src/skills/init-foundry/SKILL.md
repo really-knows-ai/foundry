@@ -31,9 +31,24 @@ Set up the `foundry/` directory structure in the current project.
 
 3. **Update `.gitignore`**
 
-   Append `.snapshots/` to the project's `.gitignore` (creating the file if absent). This directory is where dry-run snapshots are written and must never be committed.
+   Append the following lines to the project's `.gitignore` (creating
+   the file if absent), skipping any that are already present:
 
-   The plugin will idempotently append `.foundry/` itself on first boot, so you do not need to add that line.
+   ```
+   .snapshots/
+   node_modules/
+   .DS_Store
+   ```
+
+   - `.snapshots/` keeps dry-run snapshots out of git.
+   - `node_modules/` keeps any npm dependencies (e.g. validator
+     packages) out of git. Without it, foundry's `config/*` tools
+     reject calls with `unexpected_files` as soon as the user runs
+     `npm install`.
+   - `.DS_Store` keeps macOS metadata out of git.
+
+   The plugin will idempotently append `.foundry/` itself on first
+   boot, so you do not need to add that line.
 
 4. **Generate foundry agent files**
 

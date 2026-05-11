@@ -1,5 +1,74 @@
 # Changelog
 
+## [3.0.2] - 2026-05-11
+
+A documentation and tool-correctness patch driven by a failing
+haiku-flow setup session. Closes the loop on the laws-with-validators
+migration: the validator contract is now fully documented in
+`add-law`; the `add_law` tool appends additional laws to an existing
+file and rolls back its file write when the commit fails;
+`init-foundry` seeds a `node_modules/` ignore so npm-installed
+validator dependencies never collide with the config-tier write
+guard.
+
+### Validator contract is canonical in `add-law`
+
+- `add-law` SKILL.md gains a **§7a. Validator contract** that covers
+  the JSONL output shape (`file`, `text` required; `location`,
+  `severity` optional), command placeholders, working directory, skip
+  rule, and a worked Node example. Authors no longer need to read
+  plugin source to write a validator.
+- `add-artefact-type` step 5 drops its half-duplicate contract and
+  cross-references `add-law` §7a. Step 1 and step 4 now make clear
+  that the frontmatter `name:` field equals the artefact type's id
+  (lowercase, hyphenated); human-readable labels go in the
+  `## Definition` prose. Step 9 reflects the new append-aware
+  `add_law`.
+
+### Validator command placeholders split
+
+- `{pattern}` now renders the artefact type's `file-patterns:` as
+  space-separated, shell-quoted globs (e.g.
+  `'haikus/*.md' 'drafts/*.md'`). Use it when a validator does its
+  own globbing or accepts globs directly (e.g. `rg --glob`).
+- `{files}` renders the matching files in the worktree as
+  space-separated, shell-quoted paths. Use it when the validator
+  takes an explicit list of file paths.
+- A validator is skipped iff its command contains `{files}` and there
+  are no matching files. `{pattern}`-only and verbatim commands
+  always run.
+- **Migration:** any existing validator authored against the prior
+  semantics (where `{pattern}` substituted expanded paths) must be
+  updated to use `{files}` instead. Foundry was tagged 3.0.1 only
+  12 hours before this release; no migration helper is provided.
+
+### `foundry_config_add_law` correctness
+
+- The tool now appends a new law to an existing `laws.md` instead of
+  erroring on file-exists. It only errors when a law with the same
+  id is already present in the file — in that case the caller
+  switches to `foundry_config_edit_law`.
+- File writes are atomic with the commit. If the commit fails (most
+  commonly `unexpected_files`), the tool restores `laws.md` to its
+  prior content (or deletes it if it didn't exist before the call).
+  This eliminates the orphaned-file state that previously broke the
+  next call with "already exists".
+
+### `init-foundry` seeds `node_modules/`
+
+- `.gitignore` now starts with `.snapshots/`, `node_modules/`, and
+  `.DS_Store`. The new entry stops `npm install` from immediately
+  blocking every config-tier tool with `unexpected_files`.
+
+### Migration
+
+- Update any validator commands that used `{pattern}` for file
+  expansion to use `{files}` instead.
+- No action needed for projects already on 3.0.1 that have not yet
+  authored validators using `{pattern}`.
+- Existing projects can add `node_modules/` to `.gitignore` by hand;
+  the `init-foundry` change only affects newly-initialised projects.
+
 ## [3.0.1] - 2026-05-11
 
 A documentation and cleanup patch. No runtime behaviour change. `quench`

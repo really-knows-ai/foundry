@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, promises as fsPromises } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
@@ -54,6 +54,43 @@ validators:
     command: ./scripts/check.sh
     failure-means: The artefact did not pass the check.
 `;
+
+// ---------------------------------------------------------------------------
+// helper functions for test convenience
+// ---------------------------------------------------------------------------
+
+async function setupArtefactType(repo, typeId, options = {}) {
+  const typePath = join(repo, 'foundry/artefacts', typeId);
+  mkdirSync(typePath, { recursive: true });
+  const defContent = options.definition || `# ${typeId} artefact type\n`;
+  writeFileSync(join(typePath, 'definition.md'), defContent);
+  if (options.filePatterns) {
+    const patternLines = options.filePatterns.map(p => `  - ${p}`).join('\n');
+    const configContent = `file-patterns:\n${patternLines}\n`;
+    writeFileSync(join(typePath, 'config.md'), configContent);
+  }
+  execSync('git add . && git commit -qm "setup artefact type"', { cwd: repo, env: GIT_ENV });
+}
+
+async function callTool(repo, toolName, args) {
+  const plugin = await FoundryPlugin({ directory: repo });
+  const tool = plugin.tool[toolName];
+  if (!tool) throw new Error(`Tool ${toolName} not found`);
+  return tool.execute(args, { worktree: repo });
+}
+
+async function pathExists(filePath) {
+  try {
+    await fsPromises.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readFile(filePath, encoding = 'utf8') {
+  return fsPromises.readFile(filePath, encoding);
+}
 
 // ---------------------------------------------------------------------------
 // foundry_config_read_law
@@ -203,6 +240,79 @@ test('foundry_config_add_law for type-specific target', async () => {
     assert.equal(res.ok, true, JSON.stringify(res));
     assert.equal(res.path, 'foundry/artefacts/widget/laws.md');
     assert.equal(existsSync(join(dir, 'foundry/artefacts/widget/laws.md')), true);
+  } finally { cleanup(dir); }
+});
+
+test('appends a new law to an existing type-specific laws.md', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/append-laws', { cwd: dir, env: GIT_ENV });
+    // setup: create artefact type 'demo' and add a first law via the tool
+    await setupArtefactType(dir, 'demo', { filePatterns: ['demo/*.md'] });
+    const first = await callTool(dir, 'foundry_config_add_law', {
+      name: 'first-law',
+      body: '## first-law\n\nFirst law body.\n',
+      target: { kind: 'type-specific', typeId: 'demo' },
+    });
+    assert.equal(JSON.parse(first).ok, true);
+
+    const second = await callTool(dir, 'foundry_config_add_law', {
+      name: 'second-law',
+      body: '## second-law\n\nSecond law body.\n',
+      target: { kind: 'type-specific', typeId: 'demo' },
+    });
+    const parsed = JSON.parse(second);
+    assert.equal(parsed.ok, true, JSON.stringify(parsed));
+    assert.match(parsed.sha, /^[0-9a-f]{7,40}$/);
+
+    const content = await readFile(join(dir, 'foundry/artefacts/demo/laws.md'), 'utf8');
+    assert.match(content, /^## first-law$/m);
+    assert.match(content, /^## second-law$/m);
+  } finally { cleanup(dir); }
+});
+
+test('errors when the law-id already exists in the file', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/dup-law', { cwd: dir, env: GIT_ENV });
+    await setupArtefactType(dir, 'demo', { filePatterns: ['demo/*.md'] });
+    await callTool(dir, 'foundry_config_add_law', {
+      name: 'dup-law',
+      body: '## dup-law\n\nOriginal body.\n',
+      target: { kind: 'type-specific', typeId: 'demo' },
+    });
+    const second = await callTool(dir, 'foundry_config_add_law', {
+      name: 'dup-law',
+      body: '## dup-law\n\nDifferent body.\n',
+      target: { kind: 'type-specific', typeId: 'demo' },
+    });
+    const parsed = JSON.parse(second);
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.errors[0], /law id "dup-law" already exists/);
+  } finally { cleanup(dir); }
+});
+
+test('rolls back the file write when commit fails (e.g. unexpected files)', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/rollback-law', { cwd: dir, env: GIT_ENV });
+    await setupArtefactType(dir, 'demo', { filePatterns: ['demo/*.md'] });
+    // Stage an unexpected file outside foundry/** so commitWithPolicy throws
+    await fsPromises.writeFile(join(dir, 'unexpected.txt'), 'taint\n');
+
+    const result = await callTool(dir, 'foundry_config_add_law', {
+      name: 'rollback-law',
+      body: '## rollback-law\n\nBody.\n',
+      target: { kind: 'type-specific', typeId: 'demo' },
+    });
+    const parsed = JSON.parse(result);
+    assert.equal(parsed.ok, undefined); // legacy error envelope from UnexpectedFilesError
+    assert.match(parsed.error, /unexpected_files/);
+
+    // Critical: the laws.md file must NOT exist on disk after a failed add.
+    const lawsPath = join(dir, 'foundry/artefacts/demo/laws.md');
+    assert.equal(await pathExists(lawsPath), false,
+      'laws.md should be removed after a failed atomic add_law');
   } finally { cleanup(dir); }
 });
 

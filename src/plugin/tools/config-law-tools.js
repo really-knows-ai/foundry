@@ -38,73 +38,47 @@ function findLawEnd(lines, startIdx) {
   return lines.length;
 }
 
-// Extract full markdown for a single law from file content
 function extractLawMarkdown(content, lawId) {
   const lines = content.split('\n');
   const startIdx = findLawStart(lines, lawId);
-
   if (startIdx < 0) return null;
-
   const endIdx = findLawEnd(lines, startIdx);
   const lawLines = lines.slice(startIdx, endIdx);
-  
-  while (lawLines.length > 0 && lawLines[lawLines.length - 1] === '') {
-    lawLines.pop();
-  }
-  
+  while (lawLines.length > 0 && lawLines[lawLines.length - 1] === '') lawLines.pop();
   return lawLines.join('\n') + '\n';
 }
 
 async function searchGlobalLaws(io, foundryDir, lawId) {
   const globalLawsDir = join(foundryDir, 'laws');
-  if (!(await io.exists(globalLawsDir))) {
-    return null;
-  }
-
+  if (!(await io.exists(globalLawsDir))) return null;
   const files = await io.readDir(globalLawsDir);
   for (const file of files) {
     if (!file.endsWith('.md')) continue;
     const path = join(globalLawsDir, file);
     const content = await io.readFile(path);
-    if (contentContainsLaw(content, lawId)) {
-      return { path, fullMarkdown: content, source: 'global' };
-    }
+    if (contentContainsLaw(content, lawId)) return { path, fullMarkdown: content, source: 'global' };
   }
-
   return null;
 }
 
 async function searchTypeSpecificLaws(io, foundryDir, lawId) {
   const artefactsDir = join(foundryDir, 'artefacts');
-  if (!(await io.exists(artefactsDir))) {
-    return null;
-  }
-
+  if (!(await io.exists(artefactsDir))) return null;
   const types = await io.readDir(artefactsDir);
   for (const typeId of types) {
     const typeLawsPath = join(artefactsDir, typeId, 'laws.md');
     if (!(await io.exists(typeLawsPath))) continue;
-
     const content = await io.readFile(typeLawsPath);
-    if (contentContainsLaw(content, lawId)) {
-      return { path: typeLawsPath, fullMarkdown: content, source: `type:${typeId}` };
-    }
+    if (contentContainsLaw(content, lawId)) return { path: typeLawsPath, fullMarkdown: content, source: `type:${typeId}` };
   }
-
   return null;
 }
 
 async function findLawByID(io, foundryDir, lawId) {
-  let result = await searchGlobalLaws(io, foundryDir, lawId);
-  if (result) {
-    return { found: true, ...result };
-  }
-
-  result = await searchTypeSpecificLaws(io, foundryDir, lawId);
-  if (result) {
-    return { found: true, ...result };
-  }
-
+  const global = await searchGlobalLaws(io, foundryDir, lawId);
+  if (global) return { found: true, ...global };
+  const typeSpec = await searchTypeSpecificLaws(io, foundryDir, lawId);
+  if (typeSpec) return { found: true, ...typeSpec };
   return { found: false };
 }
 
@@ -204,82 +178,92 @@ function computeTargetPath(target) {
 
 // --- add law executor --------------------------------------------------------
 
+function extractLawId(body) {
+  const match = body.match(/^## ([^\s]+)/m);
+  return match ? match[1] : null;
+}
+
+async function checkExistingLaw(io, path, lawId) {
+  if (!(await io.exists(path))) return { existedBefore: false, priorContent: null };
+  const priorContent = await io.readFile(path);
+  if (contentContainsLaw(priorContent, lawId)) {
+    return { error: `law id "${lawId}" already exists in ${path}; use foundry_config_edit_law to update it` };
+  }
+  return { existedBefore: true, priorContent };
+}
+
 async function validateAddLawPrerequisites(io, args) {
   const targetError = validateAddLawTarget(args.target);
-  if (targetError) {
-    return { error: targetError };
-  }
+  if (targetError) return { error: targetError };
 
   const path = computeTargetPath(args.target);
   const validation = await validateLaw({ body: args.body, io });
-  if (!validation.ok) {
-    return validation;
-  }
+  if (!validation.ok) return validation;
 
-  if (await io.exists(path)) {
-    return {
-      ok: false,
-      errors: [`${path} already exists; use foundry_config_edit_law to update an existing law in place`],
-    };
-  }
+  const lawId = extractLawId(args.body);
+  if (!lawId) return { error: 'could not determine law id from body (expected "## <law-id>" heading)' };
 
-  return { ok: true, path };
+  const existing = await checkExistingLaw(io, path, lawId);
+  if (existing.error) return { error: existing.error };
+  return { ok: true, path, lawId, ...existing };
+}
+
+function formatAddLawError(err) {
+  return err instanceof UnexpectedFilesError
+    ? JSON.stringify({ error: err.message, affected_files: err.files })
+    : errorJson(err);
+}
+
+function buildNextContent(existedBefore, priorContent, body) {
+  return existedBefore ? priorContent.trimEnd() + '\n\n' + body.trimStart() : body;
+}
+
+async function rollbackAddLaw(io, path, existedBefore, priorContent) {
+  if (existedBefore) await io.writeFile(path, priorContent);
+  else await io.rm(path);
 }
 
 async function executeAddLaw(args, context) {
   const io = makeAsyncIO(context.worktree);
   const execFile = makeExecFile(context.worktree);
+  let path, existedBefore, priorContent;
 
   try {
     const prereq = await validateAddLawPrerequisites(io, args);
-    if (prereq.error) {
-      return JSON.stringify({ ok: false, errors: [prereq.error] });
-    }
-    if (!prereq.ok) {
-      return JSON.stringify(prereq);
-    }
+    if (prereq.error) return JSON.stringify({ ok: false, errors: [prereq.error] });
+    if (!prereq.ok) return JSON.stringify(prereq);
 
-    const path = prereq.path;
+    ({ path, existedBefore, priorContent } = prereq);
+    const nextContent = buildNextContent(existedBefore, priorContent, args.body);
 
     await io.mkdirp(dirname(path));
-    await io.writeFile(path, args.body);
+    await io.writeFile(path, nextContent);
 
     const sha = commitWithPolicy({
       message: `config: add law ${args.name}\n\nvia foundry_config_add_law`,
       allowedPatterns: ['foundry/**'],
       execFile,
     });
-
     return JSON.stringify({ ok: true, path, sha });
   } catch (err) {
-    if (err instanceof UnexpectedFilesError) {
-      return JSON.stringify({ error: err.message, affected_files: err.files });
-    }
-    return errorJson(err);
+    if (path) await rollbackAddLaw(io, path, existedBefore, priorContent);
+    return formatAddLawError(err);
   }
 }
 
 // --- helper for preserving sibling laws -------------------------------------------------------
 
-// Replace a law in file content while preserving other laws
 function replaceLawInContent(content, lawId, newLawMarkdown) {
   const lines = content.split('\n');
   const startIdx = findLawStart(lines, lawId);
   if (startIdx < 0) return content.trimEnd() + '\n\n' + newLawMarkdown;
-  
   const endIdx = findLawEnd(lines, startIdx);
   const before = lines.slice(0, startIdx);
   const after = lines.slice(endIdx);
-  
-  // Trim trailing empty lines from before
   const beforeEnd = before.findLastIndex(l => l !== '') + 1;
   before.length = beforeEnd;
-  
-  // Trim leading empty lines from after  
   const afterStart = after.findIndex(l => l !== '');
   if (afterStart > 0) after.splice(0, afterStart);
-  
-  // newLawMarkdown includes trailing newline; split and rejoin without final empty string
   const newLines = newLawMarkdown.trimEnd().split('\n');
   return before.concat(newLines, after).join('\n') + '\n';
 }
