@@ -31,3 +31,10 @@ test('init-foundry tells users to switch to the Foundry agent', () => {
   const text = readFileSync(join(SKILLS_ROOT, 'init-foundry', 'SKILL.md'), 'utf8');
   assert.ok(text.includes('switch to the **Foundry** agent'));
 });
+
+test('init-foundry owns Foundry guide agent installation', () => {
+  const text = readFileSync(join(SKILLS_ROOT, 'init-foundry', 'SKILL.md'), 'utf8');
+  assert.ok(text.includes('Create `.opencode/agents/foundry.md`'));
+  assert.ok(text.includes('`dist/agents/foundry.md`'));
+  assert.ok(text.includes('`src/agents/foundry.md`'));
+});
