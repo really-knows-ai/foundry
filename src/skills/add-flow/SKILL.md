@@ -40,7 +40,9 @@ Extract or ask for the flow purpose, expected final artefact, output location, a
 
 ### 2. Inventory existing configuration
 
-Read existing flows, cycles, artefact types, laws, appraisers, and validators. Identify reusable pieces and conflicts.
+Read existing flows in `foundry/flows/*.md`, cycles in `foundry/cycles/*.md`, artefact types in `foundry/artefact-types/*.md`, laws in `foundry/laws/*.md`, appraisers in `foundry/appraisers/*.md`, and validators in `foundry/validators/*.md`. Identify reusable pieces and conflicts.
+
+Reject duplicate flow IDs — if a flow with the same ID already exists, choose a different ID. Warn about semantic duplicates (different ID but near-identical purpose) and ask whether the new flow is genuinely distinct.
 
 ### 3. Design the dependency set
 
@@ -55,13 +57,15 @@ Create missing dependencies in validation order:
 
 For the haiku example, default to a `haiku` artefact type, `haikus/*.md` file pattern, laws for form, imagery, and mood, a deterministic syllable validator where project dependencies allow it, two or three distinct appraisers, one cycle, and one flow.
 
+After designing cycles, validate the cycle graph: verify each non-starting cycle is reachable from a starting cycle through the `targets` graph, and verify each cycle's input contracts can be satisfied by other cycles in the flow. Warn about unreachable cycles or unsatisfiable contracts before proceeding.
+
 ### 4. Confirm ambiguous choices
 
 Ask only for choices that affect the user's goal or safety. Reuse compatible existing configuration when it clearly fits.
 
 ### 5. Validate and create each piece
 
-For each definition, validate first, resolve validation errors, then create it. Summarise each created file and commit hash in Foundry terms.
+For each definition, use the `foundry_config_validate_*` tool family to validate it first. Resolve any validation errors, then use the corresponding `foundry_config_create_*` tool to create it. Summarise each created file and commit hash in Foundry terms.
 
 ### 6. Final summary
 
