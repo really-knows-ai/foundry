@@ -40,7 +40,7 @@ Extract or ask for the flow purpose, expected final artefact, output location, a
 
 ### 2. Inventory existing configuration
 
-Read existing flows in `foundry/flows/*.md`, cycles in `foundry/cycles/*.md`, artefact types in `foundry/artefact-types/*.md`, laws in `foundry/laws/*.md`, appraisers in `foundry/appraisers/*.md`, and validators in `foundry/validators/*.md`. Identify reusable pieces and conflicts.
+Read existing flows in `foundry/flows/*.md`, cycles in `foundry/cycles/*.md`, artefact types in `foundry/artefacts/*/definition.md`, laws in `foundry/laws/*.md`, and appraisers in `foundry/appraisers/*.md`. Identify reusable pieces and conflicts.
 
 Reject duplicate flow IDs — if a flow with the same ID already exists, choose a different ID. Warn about semantic duplicates (different ID but near-identical purpose) and ask whether the new flow is genuinely distinct.
 
