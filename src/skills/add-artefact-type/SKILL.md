@@ -42,10 +42,12 @@ Before running this skill, verify all three of the following:
 ### 1. Gather basics
 
 From the user's prompt, establish:
-- `id` — lowercase, hyphenated identifier
-- `name` — human-readable name
-- `file-patterns` — glob patterns for files this type produces (forge's write scope is exactly these patterns)
-- A prose description of what this artefact type is
+- `id` — lowercase, hyphenated identifier (e.g. `haiku`). The
+  frontmatter `name:` field must equal this id; any human-readable
+  label goes in the `## Definition` prose, not in frontmatter.
+- `file-patterns` — glob patterns for files this type produces
+  (forge's write scope is exactly these patterns).
+- A prose description of what this artefact type is.
 
 If any of these are missing, ask.
 
@@ -87,7 +89,7 @@ Present the definition to the user:
 
 ```markdown
 ---
-name: <name>
+name: <id>
 file-patterns:
   - "<pattern>"
 ---
@@ -96,6 +98,10 @@ file-patterns:
 
 <description>
 ```
+
+The `name:` value must exactly match the artefact type's `id`
+(lowercase, hyphenated). If you want a human-readable label, put it
+in the `## Definition` prose.
 
 Ask: does this capture the artefact type correctly?
 
@@ -110,22 +116,18 @@ If yes, walk through each law using the same format as `add-law`:
 - Check for conflicts with global laws and any existing type-specific laws
 - Confirm with the user
 
-Each law may declare an optional `validators:` block. Include validators only when a deterministic check is needed. The format matches `add-law`:
+Each law may declare an optional `validators:` block; the YAML shape,
+JSONL output contract, `{pattern}` / `{files}` placeholders, skip
+rule, working directory, and a worked example are documented once in
+the `add-law` skill under **§7a. Validator contract**. Authors of
+type-specific laws must follow that contract — do not invent a
+different one here.
 
-```markdown
-## <law-id>
-
-<What this law checks — one or two sentences.>
-
-validators:
-  - id: validator-id
-    command: ./script.sh
-    failure-means: (optional description)
-```
-
-The `validators` block is optional. When present, `quench` runs each validator for this law. Validator scripts live within the artefact type directory (e.g., `foundry/artefacts/<type>/check-foo.mjs`).
-
-**Use existing libraries:** Before writing custom validation logic, search npm for well-tested libraries that solve the problem (e.g., `syllable` for syllable counting, `natural` for NLP tasks). Hand-rolled heuristics are fragile — prefer battle-tested packages. Install them as project dependencies.
+**Use existing libraries:** Before writing custom validation logic,
+search npm for well-tested libraries that solve the problem (e.g.
+`syllable` for syllable counting, `natural` for NLP tasks).
+Hand-rolled heuristics are fragile — prefer battle-tested packages.
+Install them as project dependencies.
 
 Check the project's `package.json` for `"type": "module"`:
 - If ESM (`"type": "module"`): use `import` syntax, or name scripts with `.mjs` extension
@@ -177,7 +179,12 @@ Show the user the resulting commit hash from the response.
 
 ### 9. Add laws file (if defined)
 
-The create tool writes only `definition.md`. If you drafted any type-specific laws in step 5, append them to `foundry/artefacts/<id>/laws.md` by hand on this same `config/*` branch (use the `Edit` tool to create the file) and commit that as a separate microcommit.
+If you drafted any type-specific laws in step 5, add them via
+`foundry_config_add_law` (one call per law) with
+`target: { kind: "type-specific", typeId: "<id>" }`. The first call
+creates `foundry/artefacts/<id>/laws.md`; subsequent calls append to
+that same file. Each call produces its own microcommit. See the
+`add-law` skill for the full protocol.
 
 ### 10. Confirm
 
