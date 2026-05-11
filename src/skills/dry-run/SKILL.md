@@ -22,24 +22,18 @@ files or memory rows behind on `config/<x>`.
 2. Working tree is clean.
 3. The flow id and a one-line description of the goal are known.
 
-If on `main`, edit on a `config/<x>` branch first:
-`foundry_git_branch({ kind: "config", description: "<short-name>" })`.
+If on `main`, edit on a `config/<x>` branch first. If configuration
+changes are needed, move to a suitable `config/*` branch internally
+when the current branch is safe. If the current branch is `work/*` or
+`dry-run/*/*`, stop and explain the active work must be finished first.
 
 ## Protocol
 
 ### 1. Branch into dry-run mode
 
-```text
-foundry_git_branch({
-  kind: "dry-run",
-  flowId: "<flow-id>",
-  description: "<dry-run-purpose-slug>"
-})
-```
-
-This creates `dry-run/<x>/<flow>-<purpose>` and truncates the trace
-file. From here every `foundry_*` tool call is logged to
-`.foundry/trace/<branch-slug>.jsonl`.
+The assistant creates a `dry-run/<x>/<flow>-<purpose>` branch and
+truncates the trace file. From here every internal tool call is logged
+to `.foundry/trace/<branch-slug>.jsonl`.
 
 ### 2. Run the flow
 

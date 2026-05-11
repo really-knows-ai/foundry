@@ -20,7 +20,7 @@ Verify a safe base state before making changes:
 
 - The worktree is clean, or the user explicitly chooses how to handle dirty files.
 - `WORK.md` is absent from the repository root.
-- The upgrade runs from a config branch such as `config/upgrade-foundry`, or you create one with `foundry_git_branch({ kind: 'config', description: 'upgrade-foundry' })` before making config changes.
+- The upgrade runs from a config branch such as `config/upgrade-foundry`. If configuration changes are needed, move to a suitable `config/*` branch internally when the current branch is safe. If the current branch is `work/*` or `dry-run/*/*`, stop and explain the active work must be finished first.
 - Use an isolated worktree where practical, matching the normal config-edit workflow.
 
 If `WORK.md` exists, stop and tell the user:

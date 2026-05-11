@@ -28,15 +28,13 @@ Before running this skill, verify all of the following:
    create one before continuing:
 
    > Foundry configuration changes must be made on a config/* branch.
-   > From a clean main branch, call:
+   > If configuration changes are needed, move to a suitable `config/*`
+   > branch internally when the current branch is safe. If the current
+   > branch is `work/*` or `dry-run/*/*`, stop and explain the active
+   > work must be finished first.
    >
-   > `foundry_git_branch({ kind: "config", description: "<short-name>" })`
-   >
-   > Then re-run this skill.
-
-   If the user is on a `dry-run/*/*` branch, they must finish
-   that dry-run first (`foundry_git_finish({ message, confirm: true })`)
-   before re-running this skill on the parent `config/*`.
+   > After the prerequisite is handled, continue the user's original
+   > request from the current context.
 
 4. Memory is initialised (`foundry/memory/` exists; run `init-memory`
    if not).
