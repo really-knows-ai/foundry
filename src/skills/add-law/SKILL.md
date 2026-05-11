@@ -8,6 +8,30 @@ description: Creates a new law, checking for conflicts with existing laws.
 
 You help the user create a new law. You ensure it's well-scoped, doesn't conflict with existing laws, and ends up in the right file.
 
+## Foundry Agent Preflight
+
+If you are clearly operating as the Foundry agent, continue.
+
+If you are not clearly operating as the Foundry agent, pause and tell the user:
+
+> This work is best handled by the Foundry agent. Restart OpenCode if you have just initialised Foundry, switch to the **Foundry** agent, and continue this request there.
+
+This is an advisory guard. Continue only when the active instructions make it clear you are the Foundry agent or the user explicitly asks to proceed here.
+
+## Config Branch Handling
+
+Before writing Foundry configuration:
+
+- Confirm `foundry/` exists. If it is missing, initialise Foundry first when that serves the user's goal.
+- Check the current branch.
+- On `main` or another clean non-work branch, create a `config/<short-description>` branch internally.
+- On `config/*`, continue on the current branch.
+- On `work/*`, stop and explain that active flow work must be finished before configuration changes.
+- On `dry-run/*/*`, stop and explain that the dry run must be finished before configuration changes.
+- If unrelated uncommitted changes could be affected by branching or writing files, ask before proceeding.
+
+Do not tell the user to call branch tools directly.
+
 ## Prerequisites
 
 Before running this skill, verify all three of the following:
@@ -23,19 +47,7 @@ Before running this skill, verify all three of the following:
    `git rev-parse --abbrev-ref HEAD` and confirm it matches
    `config/<description>`.
 
-3. If the branch does not start with `config/`, instruct the user to
-   create one before continuing:
-
-   > Foundry configuration changes must be made on a config/* branch.
-   > From a clean main branch, call:
-   >
-   > `foundry_git_branch({ kind: "config", description: "<short-name>" })`
-   >
-   > Then re-run this skill.
-
-   If the user is on a `dry-run/*/*` branch, they must finish
-   that dry-run first (`foundry_git_finish({ message, confirm: true })`)
-   before re-running this skill on the parent `config/*`.
+3. If the branch does not start with `config/`, stop and explain that configuration changes require a `config/*` branch. Handle branch creation internally without exposing tool syntax.
 
 ## Protocol
 
@@ -49,7 +61,7 @@ If the user doesn't specify, ask:
 
 > Should this law apply globally to all artefact types, or to a specific type?
 
-If they name a type, verify it exists in `foundry/artefacts/`. If it doesn't, tell them and ask if they want to create the artefact type first.
+If the user names a type-specific law for an artefact type that does not exist, create the artefact type first when that supports the user's stated goal. Ask for the file pattern only when it cannot be inferred safely.
 
 ### 2. Draft the law
 

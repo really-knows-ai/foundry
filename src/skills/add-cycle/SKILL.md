@@ -8,6 +8,30 @@ description: Creates a new foundry cycle within a foundry flow, specifying the o
 
 You help the user create a new foundry cycle and add it to an existing foundry flow. A foundry cycle produces one artefact type (read-write), declares its input contract, targets the next cycle(s), and optionally enables human-appraise as a quality gate.
 
+## Foundry Agent Preflight
+
+If you are clearly operating as the Foundry agent, continue.
+
+If you are not clearly operating as the Foundry agent, pause and tell the user:
+
+> This work is best handled by the Foundry agent. Restart OpenCode if you have just initialised Foundry, switch to the **Foundry** agent, and continue this request there.
+
+This is an advisory guard. Continue only when the active instructions make it clear you are the Foundry agent or the user explicitly asks to proceed here.
+
+## Config Branch Handling
+
+Before writing Foundry configuration:
+
+- Confirm `foundry/` exists. If it is missing, initialise Foundry first when that serves the user's goal.
+- Check the current branch.
+- On `main` or another clean non-work branch, create a `config/<short-description>` branch internally.
+- On `config/*`, continue on the current branch.
+- On `work/*`, stop and explain that active flow work must be finished before configuration changes.
+- On `dry-run/*/*`, stop and explain that the dry run must be finished before configuration changes.
+- If unrelated uncommitted changes could be affected by branching or writing files, ask before proceeding.
+
+Do not tell the user to call branch tools directly.
+
 ## Prerequisites
 
 Before running this skill, verify all three of the following:
@@ -23,19 +47,7 @@ Before running this skill, verify all three of the following:
    `git rev-parse --abbrev-ref HEAD` and confirm it matches
    `config/<description>`.
 
-3. If the branch does not start with `config/`, instruct the user to
-   create one before continuing:
-
-   > Foundry configuration changes must be made on a config/* branch.
-   > From a clean main branch, call:
-   >
-   > `foundry_git_branch({ kind: "config", description: "<short-name>" })`
-   >
-   > Then re-run this skill.
-
-   If the user is on a `dry-run/*/*` branch, they must finish
-   that dry-run first (`foundry_git_finish({ message, confirm: true })`)
-   before re-running this skill on the parent `config/*`.
+3. If the branch does not start with `config/`, stop and explain that configuration changes require a `config/*` branch. Handle branch creation internally without exposing tool syntax.
 
 ## Protocol
 
@@ -43,7 +55,7 @@ Before running this skill, verify all three of the following:
 
 From the user's prompt, identify which foundry flow this foundry cycle belongs to. If not specified, list available flows from `foundry/flows/` and ask.
 
-Verify the flow exists. If it doesn't, tell the user and ask if they want to create the foundry flow first (separate skill).
+If the parent flow or required artefact type is missing and the user's goal clearly requires it, create that dependency first. If multiple designs are plausible, ask one focused question before creating it.
 
 ### 2. Gather basics
 
@@ -64,7 +76,7 @@ If any of these are missing, ask.
 
 For each stage in the cycle (forge, quench, appraise), ask the user if they want to specify a model:
 
-> Each stage can optionally run on a specific model for model diversity. Available models are listed as `foundry-*` agent files in `.opencode/agents/`. Run the `list-agents` skill to see them.
+> Each stage can optionally run on a specific model for model diversity. Available models are listed as `foundry-*` agent files in `.opencode/agents/`.
 >
 > For each stage, specify a model ID (e.g., `openai/gpt-4o`) or leave blank to use the session's default model:
 > - forge: ___
@@ -72,6 +84,8 @@ For each stage in the cycle (forge, quench, appraise), ask the user if they want
 > - appraise: ___
 
 Only stages with an explicitly specified model are included in the `models` frontmatter map.
+
+List available `.opencode/agents/foundry-*.md` files directly when model selection matters. If the user has no preference, omit the `models` map and use the session defaults.
 
 ### 4. Configure human appraise
 
@@ -91,7 +105,7 @@ Ask the user:
 
 For `output-type` and each entry in `inputs`:
 - Verify the artefact type exists in `foundry/artefacts/<type>/definition.md`
-- If it doesn't, tell the user and ask if they want to create it first (separate skill)
+- If the parent flow or required artefact type is missing and the user's goal clearly requires it, create that dependency first. If multiple designs are plausible, ask one focused question before creating it.
 
 ### 6. Validate against the foundry flow
 
