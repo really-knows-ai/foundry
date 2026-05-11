@@ -12,7 +12,7 @@ describe('getBootstrapContent', () => {
     try {
       const out = getBootstrapContent(dir, '/fake/pkg');
       assert.ok(out.includes('Foundry is installed but not initialised'));
-      assert.ok(out.includes('init-foundry'));
+      assert.ok(out.includes('switch to the Foundry agent'));
       assert.ok(!out.includes('Defined flows'));
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -45,7 +45,7 @@ describe('getBootstrapContent', () => {
       mkdirSync(path.join(dir, 'foundry', 'flows'), { recursive: true });
       const out = getBootstrapContent(dir, '/fake/pkg');
       assert.ok(out.includes('Foundry is active'));
-      assert.ok(out.includes('(no flows defined yet — use the `add-flow` skill to create one)'));
+      assert.ok(out.includes('(no flows defined yet — ask the Foundry agent to set one up)'));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

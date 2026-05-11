@@ -94,14 +94,13 @@ function buildFoundryNotInitializedMessage() {
   return `<FOUNDRY_CONTEXT>
 Foundry is installed but not initialised in this project. There is no foundry/ directory.
 
-To set up Foundry, use the \`init-foundry\` skill. This will create the foundry/ directory structure
-and guide you through defining artefact types, laws, appraisers, cycles, and flows.
+To set up Foundry, initialise the project first. Initialisation creates the foundry/ directory structure, installs the user-facing Foundry agent, and generates model-routing stage agents. After initialisation, restart OpenCode and switch to the Foundry agent.
 </FOUNDRY_CONTEXT>`;
 }
 
 function buildFlowList(flows) {
   if (flows.length === 0) {
-    return '- (no flows defined yet — use the `add-flow` skill to create one)';
+    return '- (no flows defined yet — ask the Foundry agent to set one up)';
   }
   return flows.map(f => {
     const sc = f.startingCycles.length > 0 ? ` — starting cycles: ${f.startingCycles.join(', ')}` : '';
@@ -139,9 +138,7 @@ new skills). It does NOT apply to running an existing, defined flow.
 
 ## Multi-model routing
 
-Foundry uses \`foundry-*\` sub-agents defined as markdown files in \`.opencode/agents/\`.
-Call \`foundry_refresh_agents()\` to regenerate them after adding or removing providers.
-Cycle definitions can specify per-stage models via the \`models\` frontmatter map. Appraisers can override with their own \`model\` field.
+Foundry uses generated \`foundry-*\` stage agents for cycle stage dispatch. The user-facing \`Foundry\` agent is installed as \`.opencode/agents/foundry.md\` and should be used for authoring and running Foundry workflows.
 
 All user content lives under foundry/.
 Scripts are located at: ${path.join(packageRoot, 'scripts')}
