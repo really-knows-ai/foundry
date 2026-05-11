@@ -52,7 +52,7 @@ async function executeValidator(expanded, worktree, patterns) {
  *   JSON or missing required fields, `pattern-mismatch` for files that
  *   didn't match the artefact type's `file-patterns`.
  */
-async function runValidators(laws, patterns, patternSubstitution, worktree) {
+async function runValidators(laws, patterns, substitutions, worktree) {
   const results = {
     validatorsRun: 0,
     items: [],
@@ -61,7 +61,7 @@ async function runValidators(laws, patterns, patternSubstitution, worktree) {
 
   for (const law of laws) {
     if (!law.validators || law.validators.length === 0) continue;
-    await runLawValidators(law, patterns, patternSubstitution, worktree, results);
+    await runLawValidators(law, patterns, substitutions, worktree, results);
   }
 
   return results;
@@ -70,15 +70,15 @@ async function runValidators(laws, patterns, patternSubstitution, worktree) {
 /**
  * Run validators for a single law.
  */
-async function runLawValidators(law, patterns, patternSubstitution, worktree, results) {
+async function runLawValidators(law, patterns, substitutions, worktree, results) {
   for (const validator of law.validators) {
-    // Skip validators if pattern substitution is empty (no matching files)
-    // Self-resolving validators (npm test, tsc) omit {pattern}, so they still run
-    if (patternSubstitution === '' && validator.command.includes('{pattern}')) {
+    // Skip iff command uses {files} and there are no matching files.
+    // {pattern}-only and verbatim commands always run.
+    if (substitutions.files === '' && /(?:^|\s)\{files\}(?=\s|$)/.test(validator.command)) {
       continue;
     }
     results.validatorsRun++;
-    const expanded = expandValidatorCommand(validator.command, patternSubstitution);
+    const expanded = expandValidatorCommand(validator.command, substitutions);
     const parseResult = await executeValidator(expanded, worktree, patterns);
     collectValidatorResult(parseResult, law.id, validator.id, results);
   }
@@ -160,8 +160,11 @@ async function performValidation(args, context) {
  */
 async function runValidatorsAndReport(laws, patterns, worktree) {
   const expandedFiles = await expandPatterns(patterns, worktree);
-  const patternSubstitution = expandedFiles.map(shellQuote).join(' ');
-  const results = await runValidators(laws, patterns, patternSubstitution, worktree);
+  const substitutions = {
+    pattern: patterns.map(shellQuote).join(' '),
+    files: expandedFiles.map(shellQuote).join(' '),
+  };
+  const results = await runValidators(laws, patterns, substitutions, worktree);
 
   return JSON.stringify({
     ok: results.errors.length === 0,
