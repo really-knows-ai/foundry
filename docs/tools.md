@@ -793,12 +793,12 @@ success. `{ error: ... }` when verification fails.
 
 **Args:** none.
 
-**Returns:** `{ ok: true, count: <n> }` on success. `{ ok: false, error: "..." }` on failure.
+**Returns:** `{ ok: true, count: <n>, guideAgent: true }` on success. `{ ok: false, error: "..." }` on failure.
 
 **Failure modes:**
 - `opencode models` exits non-zero or produces no output → returns an error describing the issue.
 
-**Side effects:** creates `.opencode/agents/` if absent; deletes all existing `.opencode/agents/foundry-*.md` files; writes one fresh agent file per model returned by `opencode models`.
+**Side effects:** creates `.opencode/agents/` if absent; deletes stale generated `.opencode/agents/foundry-*.md` stage agents; writes one fresh stage-agent file per model returned by `opencode models`; installs or refreshes the user-facing `.opencode/agents/foundry.md` guide agent.
 
 ---
 
