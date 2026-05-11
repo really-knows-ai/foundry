@@ -59,7 +59,7 @@ If any of these are missing, ask.
 
 For each stage in the cycle (forge, quench, appraise), ask the user if they want to specify a model:
 
-> Each stage can optionally run on a specific model for model diversity. Available models are listed as `foundry-*` agent files in `.opencode/agents/`.
+> Each stage can optionally run on a specific model for model diversity. Available session models are listed in your session configuration.
 >
 > For each stage, specify a model ID (e.g., `openai/gpt-4o`) or leave blank to use the session's default model:
 > - forge: ___
@@ -68,7 +68,7 @@ For each stage in the cycle (forge, quench, appraise), ask the user if they want
 
 Only stages with an explicitly specified model are included in the `models` frontmatter map.
 
-List available `.opencode/agents/foundry-*.md` files directly when model selection matters. If the user has no preference, omit the `models` map and use the session defaults.
+If the user has no preference, omit the `models` map and use the session defaults.
 
 ### 4. Configure human appraise
 

@@ -129,3 +129,147 @@ test('add-extractor includes positive dependency-composition guidance', () => {
     'add-extractor should include positive "Compose into" guidance for missing dependencies'
   );
 });
+
+// --- add-memory-entity-type must handle branch/memory internally ---
+
+test('add-memory-entity-type must not tell users to create a config branch', () => {
+  const text = readSkill('add-memory-entity-type');
+  assert.ok(
+    !/instruct the user to\s+create one before continuing/i.test(text),
+    'add-memory-entity-type must not instruct the user to create a config branch'
+  );
+});
+
+test('add-memory-entity-type must not tell users to run init-memory', () => {
+  const text = readSkill('add-memory-entity-type');
+  assert.ok(
+    !/run\s+`init-memory`/i.test(text),
+    'add-memory-entity-type must not say to run init-memory'
+  );
+});
+
+test('add-memory-entity-type must not delegate edge creation to the user', () => {
+  const text = readSkill('add-memory-entity-type');
+  assert.ok(
+    !/suggest.*add.*edge.*using.*`add-memory-edge-type`|tell.*run.*`add-memory-edge-type`/i.test(text),
+    'add-memory-entity-type must not delegate edge follow-up as user-managed work'
+  );
+});
+
+test('add-memory-entity-type includes positive internal branch handling', () => {
+  const text = readSkill('add-memory-entity-type');
+  assert.ok(
+    /config.*branch.*internally/i.test(text),
+    'add-memory-entity-type should handle config branch internally'
+  );
+});
+
+test('add-memory-entity-type includes positive memory initialisation', () => {
+  const text = readSkill('add-memory-entity-type');
+  assert.ok(
+    /initialise.*internally|compose.*internally/i.test(text),
+    'add-memory-entity-type should initialise memory internally'
+  );
+});
+
+// --- add-memory-edge-type must handle branch/memory internally ---
+
+test('add-memory-edge-type must not tell users to create a config branch', () => {
+  const text = readSkill('add-memory-edge-type');
+  assert.ok(
+    !/instruct the user to\s+create one before continuing/i.test(text),
+    'add-memory-edge-type must not instruct the user to create a config branch'
+  );
+});
+
+test('add-memory-edge-type must not tell users to run init-memory', () => {
+  const text = readSkill('add-memory-edge-type');
+  assert.ok(
+    !/run\s+`init-memory`/i.test(text),
+    'add-memory-edge-type must not say to run init-memory'
+  );
+});
+
+test('add-memory-edge-type includes positive internal branch handling', () => {
+  const text = readSkill('add-memory-edge-type');
+  assert.ok(
+    /config.*branch.*internally/i.test(text),
+    'add-memory-edge-type should handle config branch internally'
+  );
+});
+
+test('add-memory-edge-type includes positive memory initialisation', () => {
+  const text = readSkill('add-memory-edge-type');
+  assert.ok(
+    /initialise.*internally|compose.*internally/i.test(text),
+    'add-memory-edge-type should initialise memory internally'
+  );
+});
+
+// --- add-extractor must not leave cycle wiring as user-managed ---
+
+test('add-extractor must not present manual frontmatter editing as normal outcome', () => {
+  const text = readSkill('add-extractor');
+  assert.ok(
+    !/add the following to the cycle.*frontmatter/i.test(text),
+    'add-extractor must not present manual frontmatter editing as normal outcome'
+  );
+});
+
+test('add-extractor must not tell users to create a config branch', () => {
+  const text = readSkill('add-extractor');
+  assert.ok(
+    !/instruct the user to\s+create one before continuing/i.test(text),
+    'add-extractor must not instruct the user to create a config branch'
+  );
+});
+
+test('add-extractor includes positive internal branch handling', () => {
+  const text = readSkill('add-extractor');
+  assert.ok(
+    /config.*branch.*internally/i.test(text),
+    'add-extractor should handle config branch internally'
+  );
+});
+
+test('add-extractor must not say it must not modify cycle definitions', () => {
+  const text = readSkill('add-extractor');
+  assert.ok(
+    !/[*]*must not[*]* modify cycle definitions/i.test(text),
+    'add-extractor must not say it must not modify cycle definitions'
+  );
+});
+
+test('add-extractor includes positive cycle-definition guidance', () => {
+  const text = readSkill('add-extractor');
+  assert.ok(
+    /update.*cycle.*internally|compose.*cycle.*internally|internally.*update.*cycle/i.test(text),
+    'add-extractor should include positive guidance to update cycle definitions internally'
+  );
+});
+
+// --- add-cycle must not expose generated agent files ---
+
+test('add-cycle must not mention .opencode/agents/foundry-*.md in user guidance', () => {
+  const text = readSkill('add-cycle');
+  assert.ok(
+    !text.includes('.opencode/agents/foundry-*.md'),
+    'add-cycle must not expose .opencode/agents/foundry-*.md as user guidance'
+  );
+});
+
+test('add-cycle must not reference foundry-* agent files for model selection', () => {
+  const text = readSkill('add-cycle');
+  assert.ok(
+    !/listed as `foundry-\*` agent files/i.test(text),
+    'add-cycle must not reference foundry-* agent files for model selection'
+  );
+});
+
+test('add-cycle phrases model selection in Foundry concepts', () => {
+  const text = readSkill('add-cycle');
+  assert.ok(
+    /models\s+(frontmatter|map)|session\s+defaults/i.test(text),
+    'add-cycle should phrase model selection in Foundry concepts (models map / session defaults)'
+  );
+});

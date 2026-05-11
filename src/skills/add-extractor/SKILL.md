@@ -23,17 +23,12 @@ Before running this skill, verify all of the following:
    `git rev-parse --abbrev-ref HEAD` and confirm it matches
    `config/<description>`.
 
-3. If the branch does not start with `config/`, instruct the user to
-   create one before continuing:
-
-   > Foundry configuration changes must be made on a config/* branch.
-   > If configuration changes are needed, move to a suitable `config/*`
-   > branch internally when the current branch is safe. If the current
-   > branch is `work/*` or `dry-run/*/*`, stop and explain the active
-   > work must be finished first.
-   >
-   > After the prerequisite is handled, continue the user's original
-   > request from the current context.
+3. If the branch does not start with `config/`, move to a suitable
+   `config/*` branch internally when the current branch is safe. If
+   the current branch is `work/*` or `dry-run/*/*`, stop and explain
+   the active work must be finished first. When unrelated uncommitted
+   changes could be affected by branching or writing files, ask before
+   proceeding.
 
 4. `foundry/memory/config.md` exists and has `enabled: true` (initialise
    memory internally first if not). Missing memory entity or edge type
@@ -109,20 +104,9 @@ git add foundry/memory/extractors/<name>.md scripts/<command>
 git commit -m "feat(memory): add '<name>' extractor"
 ```
 
-### 6. Guide the user on wiring it in
+### 6. Compose into a cycle when the user's goal requires it
 
-After creation, tell the user how to opt a cycle into this extractor:
-
-> To use this extractor, add the following to the cycle's frontmatter:
->
-> ```yaml
-> memory:
->   write: [<each type in memoryWrite>]   # must include every type the extractor writes
-> assay:
->   extractors: [<this extractor's name>]
-> ```
->
-> Then run the flow. On the first iteration of the cycle, the assay stage will execute this extractor before forge.
+When the user's stated goal is to add memory extraction to a flow or cycle, compose this extractor into the relevant cycle definition. See **Composing cycle definitions** below.
 
 ## Dependency composition
 
@@ -131,4 +115,7 @@ Missing memory entity or edge type dependencies are **composed internally** when
 ## What this skill must not do
 
 - **Must not** run the extractor script itself to verify it works. That is the author's job.
-- **Must not** modify cycle definitions. Opting a cycle into the extractor is an explicit editorial step for the user to take.
+
+## Composing cycle definitions
+
+When the user's stated goal includes opting an existing cycle into this extractor, update the cycle definition internally to add the `extractors` and `memoryWrite` fields. Ask for confirmation or one focused question when cycle selection or wiring is ambiguous.
