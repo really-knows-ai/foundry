@@ -142,16 +142,17 @@ Open OpenCode in your project repo and say:
 > run init-foundry
 ```
 
-Foundry scaffolds a `foundry/` directory, generates one `foundry-<model>` agent file
-per model available in your session, commits the structure, and then asks you to
-restart. All the foundational configuration directories are created; you will
-populate them next.
+Foundry scaffolds a `foundry/` directory, generates one `foundry-<model>` stage agent
+file per model available in your session, installs the user-facing `Foundry` guide
+agent, commits the structure, and asks you to restart.
 
-Restart OpenCode so the new `foundry-<model>` agents register — multi-model dispatch cannot route to agents it cannot discover.
+Restart OpenCode so the new agents register. After the restart, switch to the
+**Foundry** agent. The Foundry agent is the normal interface for authoring and
+running Foundry workflows.
 
-### Phase 3 — Build a flow without writing one
+### Phase 3 — Ask the Foundry agent for a flow
 
-Ask Foundry to set up a flow:
+With the **Foundry** agent active, ask it to set up a flow:
 
 ```
 > set up a flow that writes haikus
