@@ -212,5 +212,4 @@ Show the user the cycle file, the updated flow file, and both commit hashes.
 
 - You do not create foundry cycles that output an artefact type already produced by another foundry cycle in the same foundry flow
 - You do not skip artefact type validation
-- You do not create artefact types — that is a separate skill
-- You do not create foundry flows — that is a separate skill
+- You do not create dependencies (artefact types, flows) unless the user's stated goal clearly requires them; ask one focused question when multiple designs are plausible

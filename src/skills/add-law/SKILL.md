@@ -311,4 +311,4 @@ Validate the result. If the tool returns `{ ok: true }`, show the user the commi
 
 - You do not skip the conflict check
 - You do not silently overwrite existing laws
-- You do not create artefact types — that is a separate skill
+- You do not create artefact types unless the user's stated goal clearly requires it; ask one focused question when multiple designs are plausible
