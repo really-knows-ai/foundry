@@ -59,16 +59,16 @@ describe('foundry_refresh_agents', () => {
     assert.ok(content.includes('model: "opencode/claude-sonnet-4"'));
     assert.ok(content.includes('mode: subagent'));
 
-    // Verify guide agent is installed
-    const guideContent = readFileSync(join(agentsDir, 'foundry.md'), 'utf8');
-    assert.ok(guideContent.includes('You are the Foundry agent.'));
-    assert.equal(res.guideAgent, true);
+    // Refresh only manages generated stage agents.
+    assert.equal(res.guideAgent, undefined);
+    assert.ok(!existsSync(join(agentsDir, 'foundry.md')));
   });
 
   test('deletes stale agent files before creating new ones', async () => {
     const agentsDir = join(dir, '.opencode', 'agents');
     mkdirSync(agentsDir, { recursive: true });
     writeFileSync(join(agentsDir, 'foundry-stale-provider-model.md'), 'old', 'utf8');
+    writeFileSync(join(agentsDir, 'foundry.md'), 'existing guide', 'utf8');
     writeFileSync(join(agentsDir, 'other-agent.md'), 'keep', 'utf8');
 
     installFakeOpencode(['opencode/claude-sonnet-4']);
@@ -82,8 +82,9 @@ describe('foundry_refresh_agents', () => {
     assert.ok(!existsSync(join(agentsDir, 'foundry-stale-provider-model.md')));
     assert.ok(existsSync(join(agentsDir, 'other-agent.md')));
 
-    // Verify guide agent is preserved and non-stage agents are untouched
+    // Verify non-stage agents are untouched.
     assert.ok(existsSync(join(agentsDir, 'foundry.md')));
+    assert.equal(readFileSync(join(agentsDir, 'foundry.md'), 'utf8'), 'existing guide');
     assert.ok(existsSync(join(agentsDir, 'other-agent.md')));
   });
 
@@ -103,7 +104,7 @@ describe('foundry_refresh_agents', () => {
     assert.ok(res.error.includes('foundry_refresh_agents:'));
   });
 
-  test('preserves and refreshes the user-facing Foundry guide agent', async () => {
+  test('leaves the user-facing Foundry guide agent untouched', async () => {
     const agentsDir = join(dir, '.opencode', 'agents');
     mkdirSync(agentsDir, { recursive: true });
     writeFileSync(join(agentsDir, 'foundry.md'), 'old guide', 'utf8');
@@ -115,10 +116,10 @@ describe('foundry_refresh_agents', () => {
     const res = JSON.parse(await plugin.tool.foundry_refresh_agents.execute({}, makeCtx(dir)));
 
     assert.equal(res.ok, true);
-    assert.equal(res.guideAgent, true);
+    assert.equal(res.guideAgent, undefined);
     assert.ok(!existsSync(join(agentsDir, 'foundry-old-stage.md')));
 
     const guideContent = readFileSync(join(agentsDir, 'foundry.md'), 'utf8');
-    assert.ok(guideContent.includes('You are the Foundry agent.'));
+    assert.equal(guideContent, 'old guide');
   });
 });

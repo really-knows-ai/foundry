@@ -1,14 +1,6 @@
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const packageRoot = path.resolve(__dirname, '../../..');
-const GUIDE_AGENT_TEMPLATE_PATHS = [
-  path.join(packageRoot, 'agents', 'foundry.md'),
-  path.join(packageRoot, 'src', 'agents', 'foundry.md'),
-];
+import { mkdirSync, readdirSync, writeFileSync, unlinkSync } from 'fs';
 
 const AGENT_FRONTMATTER_TEMPLATE = `---
 description: "Foundry stage agent using MODEL_ID"
@@ -61,15 +53,6 @@ function writeAgentFiles(agentsDir, models) {
   }
 }
 
-function writeGuideAgent(agentsDir) {
-  const templatePath = GUIDE_AGENT_TEMPLATE_PATHS.find(candidate => existsSync(candidate));
-  if (!templatePath) {
-    throw new Error('Foundry guide agent template not found');
-  }
-  const template = readFileSync(templatePath, 'utf8');
-  writeFileSync(path.join(agentsDir, 'foundry.md'), template, 'utf8');
-}
-
 function refreshAgents(worktree) {
   const models = listModels(worktree);
   if (models.length === 0) {
@@ -80,15 +63,14 @@ function refreshAgents(worktree) {
   mkdirSync(agentsDir, { recursive: true });
   deleteStaleAgents(agentsDir);
   writeAgentFiles(agentsDir, models);
-  writeGuideAgent(agentsDir);
 
-  return { ok: true, count: models.length, guideAgent: true };
+  return { ok: true, count: models.length };
 }
 
 export function createRefreshAgentsTool({ tool }) {
   return {
     foundry_refresh_agents: tool({
-      description: 'Regenerate .opencode/agents/foundry-*.md agent files from the currently available models. Deletes stale agents and creates one file per model returned by `opencode models`.',
+      description: 'Regenerate .opencode/agents/foundry-*.md stage-agent files from the currently available models.',
       args: {},
       async execute(_args, context) {
         try {

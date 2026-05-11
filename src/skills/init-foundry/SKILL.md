@@ -50,18 +50,25 @@ Set up the `foundry/` directory structure in the current project.
    The plugin will idempotently append `.foundry/` itself on first
    boot, so you do not need to add that line.
 
-4. **Generate Foundry agent files**
+4. **Generate model-routing agent files**
 
-   Call `foundry_refresh_agents()` to generate model-routing `.opencode/agents/foundry-*.md` files and install the user-facing `.opencode/agents/foundry.md` guide agent.
+   Call `foundry_refresh_agents()` to generate model-routing `.opencode/agents/foundry-*.md` files.
 
-5. **Commit the structure**
+5. **Install the Foundry guide agent**
+
+   Create `.opencode/agents/foundry.md` from the packaged Foundry guide
+   agent template. This user-facing agent is installed during
+   `init-foundry`; `foundry_refresh_agents()` manages only generated
+   `foundry-*` stage agents.
+
+6. **Commit the structure**
 
    ```bash
    git add foundry/ .gitignore .opencode/agents/foundry.md .opencode/agents/foundry-*.md
    git commit -m "feat: initialise Foundry project structure"
    ```
 
-6. **Guide next steps**
+7. **Guide next steps**
 
    Tell the user:
 
