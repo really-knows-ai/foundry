@@ -1,10 +1,10 @@
 ---
 name: init-foundry
 type: atomic
-description: Initialize a Foundry project by creating the foundry/ directory structure
+description: Initialise a Foundry project by creating the foundry/ directory structure
 ---
 
-# Initialize Foundry
+# Initialise Foundry
 
 Set up the `foundry/` directory structure in the current project.
 
