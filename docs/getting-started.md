@@ -42,7 +42,7 @@ In your project, invoke the `init-foundry` skill. It:
      laws/.gitkeep
      appraisers/.gitkeep
    ```
-2. Runs `refresh-agents` to generate `.opencode/agents/foundry-*.md` — one per available model — so cycles can dispatch to specific models later.
+2. Calls `foundry_refresh_agents()` to generate `.opencode/agents/foundry-*.md` — one per available model — so cycles can dispatch to specific models later.
 3. Commits the scaffolding.
 
 The `.foundry/` runtime directory (holding `.secret` for stage tokens) is created automatically on first plugin boot and added to `.gitignore`.

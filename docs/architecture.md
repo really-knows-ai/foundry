@@ -300,7 +300,7 @@ Different stages can run on different models for cognitive diversity. Cycle defi
 
 ### Agent files
 
-`refresh-agents` generates a `foundry-<slug>.md` agent file in `.opencode/agents/` for every model available in the session, where `<slug>` is the model ID with both `/` and `.` replaced by `-` (e.g. `anthropic-claude-opus-4-7.md`).
+`foundry_refresh_agents()` generates a `foundry-<slug>.md` agent file in `.opencode/agents/` for every model available in the session, where `<slug>` is the model ID with both `/` and `.` replaced by `-` (e.g. `anthropic-claude-opus-4-7.md`).
 
 ### Dispatch behaviour
 
@@ -336,7 +336,7 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 │   │   ├── add-flow/
 │   │   ├── add-extractor/
 │   │   ├── list-agents/        # utility
-│   │   ├── refresh-agents/
+│   │   ├── refresh-agents/       # utility (now backed by foundry_refresh_agents tool)
 │   │   ├── upgrade-foundry/
 │   │   ├── init-memory/        # memory
 │   │   ├── add-memory-entity-type/

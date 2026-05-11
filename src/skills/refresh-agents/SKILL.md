@@ -9,35 +9,13 @@ Regenerate `.opencode/agents/foundry-*.md` files from the currently available mo
 
 ## Protocol
 
-1. Run `opencode models` to get all available `provider/model` IDs
-2. Create `.opencode/agents/` directory if it does not exist
-3. Delete all existing `.opencode/agents/foundry-*.md` files (stale agents from removed providers)
-4. For each model line in the output, generate a markdown agent file
+Call the `foundry_refresh_agents` tool. It runs `opencode models`, deletes stale agent files, and generates fresh ones.
 
-### Agent file format
+## Output
 
-Filename: `.opencode/agents/foundry-<slug>.md`
+The tool returns `{ ok: true, count: <n> }` on success.
 
-Where `<slug>` is the model ID with **both** `/` and `.` replaced by `-`. This keeps filenames shell-safe and unambiguous.
-
-Examples:
-- `opencode/claude-sonnet-4` → `.opencode/agents/foundry-opencode-claude-sonnet-4.md`
-- `github-copilot/claude-sonnet-4.6` → `.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md`
-- `github-copilot/gpt-5.4` → `.opencode/agents/foundry-github-copilot-gpt-5-4.md`
-
-Content:
-
-```markdown
----
-description: "Foundry stage agent using <provider>/<model-key>"
-mode: subagent
-model: "<provider>/<model-key>"
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-```
-
-5. After writing all files, output:
+After the tool completes, tell the user:
 
 > Generated `<count>` foundry agent files in `.opencode/agents/`.
 > **Restart OpenCode** for the new agents to take effect.

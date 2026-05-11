@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.0.3] - 2026-05-11
+
+A patch release that makes agent-file generation deterministic by moving
+`refresh-agents` from a skill-only protocol into a tested plugin tool.
+
+### Added
+
+- **`foundry_refresh_agents` tool.** Runs `opencode models`, deletes stale
+  `.opencode/agents/foundry-*.md` files, and generates fresh agent files — one
+  per available model. The tool is idempotent, handles missing directories, and
+  returns `{ ok: true, count: <n> }` on success. This replaces the prior
+  skill-only protocol where the LLM had to implement the logic with shell
+  commands, which was error-prone and non-deterministic.
+
+### Changed
+
+- **`refresh-agents` skill** now simply calls `foundry_refresh_agents()` and
+  reports the result.
+- **`init-foundry` skill** step 4 now calls `foundry_refresh_agents()` instead
+  of instructing the LLM to run the `refresh-agents` skill.
+- **`list-agents` skill** error message now references the tool.
+- **`sort.js`** missing-agent error now references the tool.
+- **`helpers.js`** bootstrap message now references the tool.
+- **Docs** (`tools.md`, `getting-started.md`, `architecture.md`, `concepts.md`)
+  updated to reference the tool. Tool count increased from 65 to 66.
+
 ## [3.0.2] - 2026-05-11
 
 A documentation and tool-correctness patch driven by a failing

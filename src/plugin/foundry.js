@@ -29,6 +29,7 @@ import { createMemoryTools } from './tools/memory-tools.js';
 import { createMemoryAdminTools } from './tools/memory-admin-tools.js';
 import { createSnapshotTools } from './tools/snapshot-tools.js';
 import { createAttestationTools } from './tools/attestation-tools.js';
+import { createRefreshAgentsTool } from './tools/refresh-agents-tool.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
@@ -55,6 +56,7 @@ function buildTools(createTool, pending) {
     ...createMemoryAdminTools({ tool: createTool }),
     ...createSnapshotTools({ tool: createTool }),
     ...createAttestationTools({ tool: createTool }),
+    ...createRefreshAgentsTool({ tool: createTool }),
   };
 }
 

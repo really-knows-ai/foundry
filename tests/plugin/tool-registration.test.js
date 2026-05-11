@@ -63,6 +63,7 @@ const EXPECTED_TOOLS = [
   'foundry_memory_vacuum',
   'foundry_memory_validate',
   'foundry_orchestrate',
+  'foundry_refresh_agents',
   'foundry_snapshot_delete',
   'foundry_snapshot_list',
   'foundry_snapshot_prune',

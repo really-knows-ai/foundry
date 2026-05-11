@@ -2,7 +2,7 @@
 
 Generated from the v3.0.x public plugin API. The authoritative tool set is
 enforced by `tests/plugin/tool-registration.test.js` — if that snapshot
-drifts, this doc must be updated. Total: **65 tools**.
+drifts, this doc must be updated. Total: **66 tools**.
 
 All tools accept arguments as a JSON object and return JSON-stringified
 results. Errors are returned as a stringified `{error: "..."}` object (not
@@ -117,6 +117,9 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - [`foundry_attestation_show`](#foundry_attestation_show)
 - [`foundry_attestation_verify`](#foundry_attestation_verify)
 - [`foundry_attest`](#foundry_attest)
+
+**Maintenance**
+- [`foundry_refresh_agents`](#foundry_refresh_agents)
 
 **Memory — Data**
 - [`foundry_memory_put`](#foundry_memory_put)
@@ -779,6 +782,23 @@ success. `{ error: ... }` when verification fails.
 - Git commit fails → `foundry_attest: commit failed. <stderr>`.
 
 **Side effects (when confirmed):** writes `ATTEST.md` to the work branch, commits it with message `[<cycle>] attest: cycle complete`.
+
+---
+
+## Maintenance
+
+### `foundry_refresh_agents`
+
+> Regenerate `.opencode/agents/foundry-*.md` agent files from the currently available models.
+
+**Args:** none.
+
+**Returns:** `{ ok: true, count: <n> }` on success. `{ ok: false, error: "..." }` on failure.
+
+**Failure modes:**
+- `opencode models` exits non-zero or produces no output → returns an error describing the issue.
+
+**Side effects:** creates `.opencode/agents/` if absent; deletes all existing `.opencode/agents/foundry-*.md` files; writes one fresh agent file per model returned by `opencode models`.
 
 ---
 

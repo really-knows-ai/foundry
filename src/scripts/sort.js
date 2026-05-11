@@ -156,7 +156,7 @@ function resolveModel(route, frontmatter, agentsDir, io) {
   if (!io.exists(agentPath)) {
     return {
       error: `Missing required subagent: ${model}.md is not present in ${agentsDir}/. `
-        + `Run the refresh-agents skill to regenerate agent files, then restart.`,
+        + `Call foundry_refresh_agents() to regenerate agent files, then restart.`,
     };
   }
   return model;

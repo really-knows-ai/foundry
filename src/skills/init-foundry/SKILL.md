@@ -52,7 +52,7 @@ Set up the `foundry/` directory structure in the current project.
 
 4. **Generate foundry agent files**
 
-   Run the `refresh-agents` skill to generate `.opencode/agents/foundry-*.md` files for multi-model routing.
+   Call `foundry_refresh_agents()` to generate `.opencode/agents/foundry-*.md` files for multi-model routing.
 
 5. **Commit the structure**
 

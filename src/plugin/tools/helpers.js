@@ -140,7 +140,7 @@ new skills). It does NOT apply to running an existing, defined flow.
 ## Multi-model routing
 
 Foundry uses \`foundry-*\` sub-agents defined as markdown files in \`.opencode/agents/\`.
-Run the \`refresh-agents\` skill to regenerate them after adding or removing providers.
+Call \`foundry_refresh_agents()\` to regenerate them after adding or removing providers.
 Cycle definitions can specify per-stage models via the \`models\` frontmatter map. Appraisers can override with their own \`model\` field.
 
 All user content lives under foundry/.

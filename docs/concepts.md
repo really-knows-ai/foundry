@@ -265,7 +265,7 @@ All deterministic pipeline operations are exposed as custom tools by the Foundry
 
 ## Skill
 
-A self-contained workflow written as markdown with YAML frontmatter. Foundry ships pipeline skills (`flow`, `orchestrate`, `forge`, `quench`, `appraise`, `human-appraise`), authoring skills (`add-*`, `init-foundry`), utility skills (`list-agents`, `refresh-agents`, `upgrade-foundry`), and memory skills (`init-memory`, `add-memory-*`, `rename-memory-*`, `drop-memory-*`, `reset-memory`, `change-embedding-model`). Skills are either **atomic** (do one thing) or **composite** (orchestrate other skills).
+A self-contained workflow written as markdown with YAML frontmatter. Foundry ships pipeline skills (`flow`, `orchestrate`, `forge`, `quench`, `appraise`, `human-appraise`), authoring skills (`add-*`, `init-foundry`), utility skills (`list-agents`, `refresh-agents`, `upgrade-foundry`) — `refresh-agents` is backed by the deterministic `foundry_refresh_agents` tool, and memory skills (`init-memory`, `add-memory-*`, `rename-memory-*`, `drop-memory-*`, `reset-memory`, `change-embedding-model`). Skills are either **atomic** (do one thing) or **composite** (orchestrate other skills).
 
 ---
 
