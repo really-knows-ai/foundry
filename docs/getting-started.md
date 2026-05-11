@@ -31,19 +31,9 @@ npm install --save-dev @really-knows-ai/foundry
 
 ## Initialise
 
-In your project, invoke the `init-foundry` skill. It:
+Initialisation installs the user-facing `Foundry` agent at `.opencode/agents/foundry.md` and generates model-routing `foundry-*` stage agents for any models available in your OpenCode session.
 
-1. Creates the `foundry/` directory structure:
-   ```
-   foundry/
-     artefacts/.gitkeep
-     flows/.gitkeep
-     cycles/.gitkeep
-     laws/.gitkeep
-     appraisers/.gitkeep
-   ```
-2. Calls `foundry_refresh_agents()` to generate `.opencode/agents/foundry-*.md` — one per available model — so cycles can dispatch to specific models later.
-3. Commits the scaffolding.
+Restart OpenCode after initialisation. Then switch to the **Foundry** agent before authoring flows. The Foundry agent understands Foundry's authoring workflow and handles dependent setup such as artefact types, laws, validators, appraisers, cycles, and config branches.
 
 The `.foundry/` runtime directory (holding `.secret` for stage tokens) is created automatically on first plugin boot and added to `.gitignore`.
 
