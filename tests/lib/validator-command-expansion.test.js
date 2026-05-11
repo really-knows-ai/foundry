@@ -1,116 +1,80 @@
-import { test, describe } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { expandValidatorCommand } from '../../src/plugin/tools/validate-tools.js';
 
-describe('expandValidatorCommand — standalone token detection for {pattern}', () => {
-  test('substitutes {pattern} when it is a standalone token at the start', () => {
-    const cmd = '{pattern} --flag';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'file1 file2 --flag');
+describe('expandValidatorCommand — placeholder substitution', () => {
+  const PATTERN = "'haikus/*.md' 'drafts/*.md'";
+  const FILES = "'haikus/one.md' 'haikus/two.md'";
+
+  it('substitutes {files} as a standalone token', () => {
+    const out = expandValidatorCommand('node check.mjs {files}', { pattern: PATTERN, files: FILES });
+    assert.equal(out, "node check.mjs 'haikus/one.md' 'haikus/two.md'");
   });
 
-  test('substitutes {pattern} when it is a standalone token in the middle', () => {
-    const cmd = 'rg -i "search" {pattern}';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'rg -i "search" file1 file2');
+  it('substitutes {pattern} as a standalone token', () => {
+    const out = expandValidatorCommand("rg --glob {pattern} 'TODO'", { pattern: PATTERN, files: FILES });
+    assert.equal(out, "rg --glob 'haikus/*.md' 'drafts/*.md' 'TODO'");
   });
 
-  test('substitutes {pattern} when it is a standalone token at the end', () => {
-    const cmd = 'command {pattern}';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'command file1 file2');
+  it('substitutes both {pattern} and {files} when present', () => {
+    const out = expandValidatorCommand('lint --globs {pattern} -- {files}', { pattern: PATTERN, files: FILES });
+    assert.equal(out, "lint --globs 'haikus/*.md' 'drafts/*.md' -- 'haikus/one.md' 'haikus/two.md'");
   });
 
-  test('does not substitute {pattern} when it is part of a larger word', () => {
-    const cmd = 'mycommand-{pattern}-suffix';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'mycommand-{pattern}-suffix');
+  it('passes verbatim commands through unchanged', () => {
+    const out = expandValidatorCommand('npm test', { pattern: PATTERN, files: FILES });
+    assert.equal(out, 'npm test');
   });
 
-  test('does not substitute {pattern} when it is inside a quoted string', () => {
-    const cmd = 'echo "{pattern}-literal"';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    // The unquoting step removes quotes around just {pattern}, not partial matches
-    assert.equal(result, 'echo "{pattern}-literal"');
+  it('strips surrounding double quotes around {pattern}', () => {
+    const out = expandValidatorCommand('rg --glob "{pattern}" TODO', { pattern: PATTERN, files: FILES });
+    assert.equal(out, "rg --glob 'haikus/*.md' 'drafts/*.md' TODO");
   });
 
-  test('strips quotes from {pattern} before substituting', () => {
-    const cmd = 'rg "{pattern}"';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'rg file1 file2');
+  it('strips surrounding single quotes around {pattern}', () => {
+    const out = expandValidatorCommand("rg --glob '{pattern}' TODO", { pattern: PATTERN, files: FILES });
+    assert.equal(out, "rg --glob 'haikus/*.md' 'drafts/*.md' TODO");
   });
 
-  test('strips single quotes from {pattern} before substituting', () => {
-    const cmd = "rg '{pattern}'";
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, "rg file1 file2");
+  it('strips surrounding double quotes around {files}', () => {
+    const out = expandValidatorCommand('cat "{files}"', { pattern: PATTERN, files: FILES });
+    assert.equal(out, "cat 'haikus/one.md' 'haikus/two.md'");
   });
 
-  test('preserves whitespace correctly when substituting at end', () => {
-    const cmd = 'cmd flag {pattern}';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'cmd flag file1 file2');
+  it('strips surrounding single quotes around {files}', () => {
+    const out = expandValidatorCommand("cat '{files}'", { pattern: PATTERN, files: FILES });
+    assert.equal(out, "cat 'haikus/one.md' 'haikus/two.md'");
   });
 
-  test('preserves whitespace correctly when substituting at start', () => {
-    const cmd = '{pattern} flag';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'file1 file2 flag');
+  it('does not substitute {files} inside a larger token', () => {
+    const out = expandValidatorCommand('echo prefix{files}suffix', { pattern: PATTERN, files: FILES });
+    assert.equal(out, 'echo prefix{files}suffix');
   });
 
-  test('does not substitute when {pattern} does not appear', () => {
-    const cmd = 'npm test';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'npm test');
+  it('does not substitute {pattern} inside a larger token', () => {
+    const out = expandValidatorCommand('echo prefix{pattern}suffix', { pattern: PATTERN, files: FILES });
+    assert.equal(out, 'echo prefix{pattern}suffix');
   });
 
-  test('handles empty pattern substitution (no files matched)', () => {
-    const cmd = 'rg -i "search" {pattern}';
-    const result = expandValidatorCommand(cmd, '');
-    // Should result in no trailing space when substituting with empty string at end
-    assert.equal(result, 'rg -i "search" ');
+  it('replaces multiple {files} occurrences', () => {
+    const out = expandValidatorCommand('foo {files} bar {files}', { pattern: PATTERN, files: FILES });
+    assert.equal(out, "foo 'haikus/one.md' 'haikus/two.md' bar 'haikus/one.md' 'haikus/two.md'");
   });
 
-  test('handles file paths with spaces and special characters when quoted', () => {
-    const cmd = 'cmd {pattern}';
-    const result = expandValidatorCommand(cmd, "'file with spaces' 'file-2'");
-    assert.equal(result, "cmd 'file with spaces' 'file-2'");
-  });
-
-  test('handles multiple instances of {pattern}', () => {
-    // Even though typically you would only have one {pattern}, the function
-    // should handle multiple standalone instances
-    const cmd = '{pattern} | grep pattern | {pattern}';
-    const result = expandValidatorCommand(cmd, 'file1');
-    assert.equal(result, 'file1 | grep pattern | file1');
-  });
-
-  test('substitutes {pattern} surrounded by tabs (tabs become spaces)', () => {
-    const cmd = 'cmd\t{pattern}\tflag';
-    const result = expandValidatorCommand(cmd, 'file1');
-    // Tabs are whitespace, so the pattern matches and gets replaced.
-    // The leading space is a single space (not a tab)
-    assert.equal(result, 'cmd file1\tflag');
-  });
-
-  test('self-resolving validators without {pattern} are unchanged', () => {
-    const cmd = 'npm test';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'npm test');
-  });
-
-  test('self-resolving validators with {pattern} in args correctly substitute', () => {
-    // Even though npm test shouldn't use {pattern}, if it somehow does at the
-    // token level, it should be substituted
-    const cmd = 'npm test {pattern}';
-    const result = expandValidatorCommand(cmd, 'file1 file2');
-    assert.equal(result, 'npm test file1 file2');
-  });
-
-  test('handles {pattern} with leading space only', () => {
-    const cmd = 'cmd {pattern}';
-    const result = expandValidatorCommand(cmd, 'file');
-    assert.equal(result, 'cmd file');
+  it('preserves a single leading space when {files} starts the command', () => {
+    const out = expandValidatorCommand('{files}', { pattern: PATTERN, files: FILES });
+    assert.equal(out, FILES);
   });
 });
 
+describe('expandValidatorCommand — empty inputs', () => {
+  it('substitutes empty string when files list is empty', () => {
+    const out = expandValidatorCommand('cat {files}', { pattern: "'*.md'", files: '' });
+    assert.equal(out, 'cat ');
+  });
+
+  it('substitutes empty pattern string when patterns array is empty', () => {
+    const out = expandValidatorCommand('rg --glob {pattern} TODO', { pattern: '', files: "'a.md'" });
+    assert.equal(out, 'rg --glob  TODO');
+  });
+});
