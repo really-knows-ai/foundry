@@ -1,16 +1,91 @@
 # Changelog
 
-## Unreleased
+## [3.1.0] - 2026-05-11
 
-### Foundry guide agent
+The Foundry guide agent release. Foundry now ships a user-facing agent that
+routes configuration authoring through Foundry concepts — users ask the Foundry
+agent for outcomes, and the agent composes dependent work internally rather than
+handing users a chain of individual tools and skills.
 
-- `init-foundry` now installs a user-facing `Foundry` agent at
-  `.opencode/agents/foundry.md` and instructs users to restart OpenCode and
-  switch to that agent before authoring flows.
-- `foundry_refresh_agents` now regenerates model-routing stage agents and
-  preserves the user-facing guide agent.
-- Authoring skills now frame user requests as Foundry outcomes, compose missing
-  dependencies, and keep internal tool calls out of normal user guidance.
+### Added
+
+- **Foundry guide agent** (`src/agents/foundry.md`). A user-facing agent with
+  identity marker *"You are the Foundry agent"* that maps user requests to
+  Foundry concepts, routes through the standard config-branch workflow, and
+  delegates to authoring skills internally.
+- **`foundry_refresh_agents` tool.** Deterministic stage-agent generation: runs
+  `opencode models`, deletes stale `.opencode/agents/foundry-*.md` files, and
+  writes fresh agent files — one per available model. Replaces the prior
+  skill-only protocol where the LLM had to implement the logic with shell
+  commands.
+- **`init-foundry` installs the guide agent.** Step 5 creates
+  `.opencode/agents/foundry.md` (preferring `dist/agents/foundry.md`, falling
+  back to `src/agents/foundry.md`), then instructs the user to restart OpenCode
+  and switch to the Foundry agent.
+- **Comprehensive guidance audit tests.** `tests/skills/foundry-guidance-audit.test.js`
+  (357 lines) and `tests/skills/authoring-guidance.test.js` (45 lines) enforce
+  that skills avoid dead-end delegation patterns, route through the Foundry
+  agent, keep internal tool-call syntax out of normal user guidance, and handle
+  config branches and dependencies internally.
+- **Packaging test** (`tests/plugin/packaging.test.js`). Verifies the published
+  package ships `dist/agents/` so `init-foundry` can locate the guide agent
+  template in a packaged install.
+
+### Changed
+
+- **Authoring skills reworked around the Foundry agent.** `add-flow`,
+  `add-cycle`, `add-artefact-type`, `add-law`, and `add-appraiser` now include a
+  `## Foundry Agent Preflight` section; and frame user requests as Foundry
+  outcomes, compose missing dependencies internally in validation order, and
+  hide internal tool-call syntax from normal user guidance (`foundry_git_branch`,
+  `foundry_git_finish`, `foundry_config_create_*`).
+- **Memory/config skills handle branches and dependencies internally.**
+  `init-memory`, `reset-memory`, `add-memory-entity-type`, `add-memory-edge-type`,
+  `add-extractor`, and the `rename-memory-*` / `drop-memory-*` /
+  `change-embedding-model` skills no longer tell the user to create config
+  branches or run prerequisite skills. All use *"move to a suitable `config/*`
+  branch internally when the current branch is safe"* with `work/*` /
+  `dry-run/*/*` / uncommitted-change guards.
+- **`add-extractor` composes cycle wiring internally.** The skill updates
+  relevant cycle definitions rather than presenting manual frontmatter editing
+  as the normal outcome.
+- **`add-cycle` hides generated stage-agent files.** Model selection guidance
+  now references *"Available session models are listed in your session
+  configuration"* instead of exposing `.opencode/agents/foundry-*.md`.
+- **Existing-file recovery keeps the agent in the loop.** When
+  `foundry_config_create_*` returns `{ ok: false }` because the target file
+  already exists, `add-artefact-type`, `add-appraiser`, `add-law`, and
+  `add-cycle` now read the existing content, incorporate the user's requested
+  changes, propose the merged result, and commit — rather than telling the user
+  to *"edit by hand."*
+- **Bootstrap context** (`helpers.js`) presents capabilities as Foundry
+  outcomes (*"ask the Foundry agent to add flow memory"*, *"ask the Foundry
+  agent to run that flow"*) instead of listing internal skills.
+- **`getting-started.md` reworked.** The walkthrough now routes through the
+  Foundry agent, removes direct `foundry_git_branch({` /
+  `foundry_git_finish({` / `Run \`add-*\`` / `foundry_config_validate_*({` /
+  `foundry_config_create_*({` references, and uses `pnpm add -D
+  @really-knows-ai/foundry`.
+- **`README.md` quick-start** updated for the install → init → ask-agent
+  workflow (`pnpm add -D @really-knows-ai/foundry`, ask the Foundry agent
+  to add a haiku flow).
+- **`refresh-agents` skill** delegates to `foundry_refresh_agents()`. The skill
+  is now a thin wrapper around the deterministic tool.
+- **`init-foundry`, `list-agents`, `sort.js`, `upgrade-foundry`** updated to
+  reference the `foundry_refresh_agents` tool.
+- **Docs** (`architecture.md`, `concepts.md`, `tools.md`) updated to reference
+  guide-agent installation and the refresh tool. Tool count increased from 66 to
+  67.
+
+### Fixed
+
+- **`dist/agents/` added to the published package.** The build script already
+  copied `src/agents/` to `dist/agents/`, but the `files` array in
+  `package.json` excluded `dist/agents/`. `init-foundry` can now locate the
+  guide agent template in a packaged install.
+- **`foundry_refresh_agents` preserves the guide agent.** Only
+  `foundry-*.md` stage agents are regenerated; `.opencode/agents/foundry.md`
+  survives refresh.
 
 ## [3.0.3] - 2026-05-11
 
