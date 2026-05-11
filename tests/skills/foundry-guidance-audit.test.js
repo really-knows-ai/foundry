@@ -27,6 +27,13 @@ test('skills avoid dead-end rerun instructions', () => {
   }
 });
 
+test('skills avoid exposing internal finish tool call syntax', () => {
+  for (const file of skillFiles()) {
+    const text = readFileSync(file, 'utf8');
+    assert.ok(!text.includes('foundry_git_finish({'), `${file} exposes foundry_git_finish call syntax`);
+  }
+});
+
 test('init-foundry tells users to switch to the Foundry agent', () => {
   const text = readFileSync(join(SKILLS_ROOT, 'init-foundry', 'SKILL.md'), 'utf8');
   assert.ok(text.includes('switch to the **Foundry** agent'));

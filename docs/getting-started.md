@@ -43,9 +43,9 @@ The `.foundry/` runtime directory (holding `.secret` for stage tokens) is create
 
 ## Author the configuration
 
-Foundry's configuration is five things: artefact types, laws, appraisers, cycles, and flows. You can write the files by hand, but the authoring skills do conflict checking, scaffolding, and validation — use them.
+Foundry's configuration is five things: artefact types, laws, appraisers, cycles, and flows. The Foundry agent handles branch setup, conflict checking, scaffolding, and validation for normal authoring. The manual commands in this section are for users who choose to write configuration files by hand.
 
-Before using any schema-writing skill, open a config branch. All schema-mutation tools (`foundry_config_create_*`, `foundry_memory_create_*`, `foundry_extractor_create`, the memory admin family) refuse off `main` and off flow branches:
+When writing configuration files by hand, open a config branch first. All schema-mutation tools (`foundry_config_create_*`, `foundry_memory_create_*`, `foundry_extractor_create`, the memory admin family) refuse off `main` and off flow branches:
 
 ```text
 foundry_git_branch({ kind: "config", description: "<short-name>" })
@@ -189,19 +189,14 @@ When you've changed a law, an appraiser, or a cycle on a `config/*`
 branch and want to see how the change behaves end-to-end before
 merging, use dry-run mode.
 
-```text
-# starting on a config/* branch with the in-progress edit
-foundry_git_branch({ kind: "dry-run", flowId: "make-haiku",
-                     description: "stricter-imagery-law" })
-# now on dry-run/<parent>/make-haiku-stricter-imagery-law
-
-# run the flow as you normally would
-# every foundry_* call is traced to .foundry/trace/<branch>.jsonl
-
-foundry_git_finish({ message: "trial: stricter imagery law", confirm: true })
-# writes .snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}
-# on the parent config/* working tree and force-deletes the dry-run branch
-```
+Starting on the `config/*` branch with the in-progress edit, ask the
+Foundry agent to trial the change with dry-run mode for the target flow
+and a short purpose such as `stricter-imagery-law`. The agent creates a
+`dry-run/<parent>/<flow>-<purpose>` branch, runs the flow, records every
+Foundry tool call in `.foundry/trace/<branch>.jsonl`, then finishes the
+dry-run with a findings summary. Finishing writes
+`.snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}`
+on the parent `config/*` working tree and deletes the dry-run branch.
 
 Inspect the snapshot at `.snapshots/<run-id>/`, decide whether to keep
 the config edit, and either commit/merge from the parent `config/*`
@@ -255,9 +250,9 @@ Foundry ships a typed, graph-shaped memory store that persists across cycles. Us
 
 ### Initialise
 
-Memory init and vocabulary edits are schema mutations, so they run
-on a config branch — open one first if you are not already on it
-(`foundry_git_branch({ kind: "config", description: "memory-setup" })`).
+Memory init and vocabulary edits are schema mutations, so they run on a
+config branch. The Foundry agent opens a suitable config branch when it
+is safe; if you are working by hand, open one first.
 
 Run the `init-memory` skill. It asks whether to enable embeddings (default: yes, targeting local Ollama `nomic-embed-text` on `http://localhost:11434/v1`) and then invokes `foundry_memory_init`, which deterministically:
 

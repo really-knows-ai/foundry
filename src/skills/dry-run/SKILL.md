@@ -51,12 +51,8 @@ they appear in the trace.
 
 ### 4. Finish: snapshot + discard
 
-```text
-foundry_git_finish({
-  message: "<one-paragraph findings>",
-  confirm: true
-})
-```
+Finish the dry-run with a one-paragraph findings message and explicit
+confirmation.
 
 The tool:
 
@@ -86,15 +82,8 @@ dry-run mode for another run. Snapshots accumulate; prune them with
 
 ### 6. Finish the config
 
-When ready, finish `config/<x>` to `main`:
-
-```text
-foundry_git_finish({
-  message: "<config description>",
-  baseBranch: "main",
-  confirm: true
-})
-```
+When ready, finish `config/<x>` to `main` with a config description and
+explicit confirmation.
 
 Snapshots are gitignored and stay in the local working tree; they do
 not merge with the config.

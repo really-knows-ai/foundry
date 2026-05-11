@@ -88,6 +88,8 @@ Ask the user:
 
 For `output-type` and each entry in `inputs`, verify the artefact type exists in `foundry/artefacts/<type>/definition.md`.
 
+If a required artefact type is missing and the user's goal clearly requires it, create that dependency first. If the file pattern or type design cannot be inferred safely, ask one focused question before creating it.
+
 ### 6. Validate against the foundry flow
 
 Read the flow definition from `foundry/flows/<flow-id>.md`. Check:

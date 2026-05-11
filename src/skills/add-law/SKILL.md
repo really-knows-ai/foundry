@@ -44,7 +44,7 @@ If the user doesn't specify, ask:
 
 > Should this law apply globally to all artefact types, or to a specific type?
 
-If the user names a type-specific law for an artefact type that does not exist, create the artefact type first when that supports the user's stated goal. Ask for the file pattern only when it cannot be inferred safely.
+If the user names a type-specific law for an artefact type that does not exist, create the artefact type first when that supports the user's stated goal. Use the `add-artefact-type` workflow internally, and ask for the file pattern only when it cannot be inferred safely.
 
 ### 2. Draft the law
 
