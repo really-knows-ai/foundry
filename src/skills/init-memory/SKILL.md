@@ -1,10 +1,10 @@
 ---
 name: init-memory
 type: atomic
-description: Initialize flow memory by creating the foundry/memory/ and foundry-memory/ directory structures
+description: Initialise flow memory by creating the foundry/memory/ and foundry-memory/ directory structures
 ---
 
-# Initialize Flow Memory
+# Initialise Flow Memory
 
 Scaffold `foundry/memory/` (config) and `foundry-memory/relations/` (row data)
 in the current project. `foundry/memory/` holds entity-type and edge-type
@@ -80,11 +80,7 @@ Neither `foundry/memory/` nor `foundry-memory/` may already exist.
    git commit -m "feat: initialise flow memory"
    ```
 
-5. **Tell the user what is next**:
+5. **Continue the user's original request**:
 
-   > Flow memory is scaffolded. Next steps:
-   >
-   > - Use `add-memory-entity-type` to declare entity types (e.g. `class`,
-   >   `method`, `table`).
-   > - Use `add-memory-edge-type` to declare edge types (e.g. `calls`,
-   >   `writes`, `references`).
+   > Flow memory is scaffolded. The Foundry agent will continue to define
+   > memory entity and edge types as needed to support your goal.

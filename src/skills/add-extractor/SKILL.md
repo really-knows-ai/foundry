@@ -35,10 +35,10 @@ Before running this skill, verify all of the following:
    > After the prerequisite is handled, continue the user's original
    > request from the current context.
 
-4. `foundry/memory/config.md` exists and has `enabled: true` (run
-   `init-memory` first if not). Every entity type the extractor will
-   populate must already be declared in `foundry/memory/entities/`
-   (use `add-memory-entity-type` to create any that are missing).
+4. `foundry/memory/config.md` exists and has `enabled: true` (initialise
+   memory internally first if not). Missing memory entity or edge type
+   dependencies are created or composed internally when they are part of
+   the user's stated goal.
 
 ## Steps
 
@@ -48,7 +48,7 @@ Ask the user for, in this order (one question at a time):
 
 1. **Extractor name.** Lowercase kebab-case (`java-symbols`, `python-classes`, `tree-sitter-rust`). This becomes the filename under `foundry/memory/extractors/<name>.md` and the identifier referenced from cycle frontmatter.
 2. **Command.** The path to the executable (relative to the repo root, e.g. `scripts/extract-java-symbols.sh`) or a short shell command. This is passed to `/bin/sh -c` at runtime.
-3. **Entity types to populate (`memoryWrite`).** A list of entity type names already declared in this project's memory vocabulary. Validate against what exists; if the user names a type that doesn't exist, either offer to create it via `add-memory-entity-type` first or ask them to adjust.
+3. **Entity types to populate (`memoryWrite`).** A list of entity type names already declared in this project's memory vocabulary. Validate against what exists; if the user names a type that doesn't exist, compose or create it internally when it is part of the user's stated goal, or ask one focused question when schema design is ambiguous.
 4. **Timeout** (optional). Duration string like `30s`, `2m`, or a number of milliseconds. Defaults to 60 seconds if omitted.
 5. **Brief description.** 1–3 paragraphs of prose describing what this extractor extracts, what it requires on `PATH`, and any re-run triggers. This body is injected into the forge prompt of every cycle that uses this extractor, so clarity here translates to better downstream generation.
 
@@ -122,10 +122,13 @@ After creation, tell the user how to opt a cycle into this extractor:
 >   extractors: [<this extractor's name>]
 > ```
 >
-> Then run the `flow` or `orchestrate` skill. On the first iteration of the cycle, the assay stage will execute this extractor before forge.
+> Then run the flow. On the first iteration of the cycle, the assay stage will execute this extractor before forge.
+
+## Dependency composition
+
+Missing memory entity or edge type dependencies are **composed internally** when they are part of the user's stated goal. Compose into the appropriate memory vocabulary when schema design is ambiguous — ask one focused question rather than stalling.
 
 ## What this skill must not do
 
 - **Must not** run the extractor script itself to verify it works. That is the author's job.
 - **Must not** modify cycle definitions. Opting a cycle into the extractor is an explicit editorial step for the user to take.
-- **Must not** create entity or edge types that don't already exist. Compose into `add-memory-entity-type` / `add-memory-edge-type` for any missing vocabulary.

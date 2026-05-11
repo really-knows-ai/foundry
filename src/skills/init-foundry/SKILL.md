@@ -57,8 +57,9 @@ Set up the `foundry/` directory structure in the current project.
 5. **Install the Foundry guide agent**
 
    Create `.opencode/agents/foundry.md` from the packaged Foundry guide
-   agent template. Copy `dist/agents/foundry.md` when running from the
-   built package, or `src/agents/foundry.md` when running from a source
+   agent template. Copy whichever template path exists: prefer
+   `dist/agents/foundry.md` when running from the built package, then
+   fall back to `src/agents/foundry.md` when running from a source
    checkout. This user-facing agent is installed during `init-foundry`;
    `foundry_refresh_agents()` manages only generated `foundry-*` stage
    agents.

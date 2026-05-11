@@ -51,6 +51,28 @@ describe('getBootstrapContent', () => {
     }
   });
 
+  test('bootstrap context does not instruct the model to invoke internal skills directly', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
+    try {
+      const flowsDir = path.join(dir, 'foundry', 'flows');
+      mkdirSync(flowsDir, { recursive: true });
+      writeFileSync(
+        path.join(flowsDir, 'creative.md'),
+        '---\nid: creative-flow\nname: Creative Flow\nstarting-cycles:\n  - draft\n---\n',
+        'utf-8'
+      );
+      const out = getBootstrapContent(dir, '/fake/pkg');
+      // The bootstrap context must not tell the model/user to invoke the flow skill directly
+      assert.ok(!out.includes('invoke the `flow` skill'), 'bootstrap must not contain "invoke the `flow` skill"');
+      assert.ok(!out.includes('Use the `flow` skill'), 'bootstrap must not contain "Use the `flow` skill"');
+      assert.ok(!out.includes('**Pipeline:** assay'), 'bootstrap must not list internal pipeline skills');
+      // It should instead include goal-oriented Foundry-agent routing guidance
+      assert.ok(/ask the foundry agent/i.test(out), 'bootstrap should route users to ask the Foundry agent');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('silently skips malformed flow files', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
     try {

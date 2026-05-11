@@ -36,8 +36,9 @@ Before running this skill, verify all of the following:
    > After the prerequisite is handled, continue the user's original
    > request from the current context.
 
-4. Memory is initialised (`foundry/memory/` exists; run `init-memory`
-   if not).
+4. Memory is initialised (`foundry/memory/` exists; initialise it
+   internally if not). After the reset completes, continue the user's
+   original request from context.
 
 ## Steps
 

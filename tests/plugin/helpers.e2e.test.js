@@ -111,87 +111,24 @@ describe('getBootstrapContent', () => {
     }
   });
 
-  test('lists all pipeline skills including assay and human-appraise', () => {
+  test('summarises Foundry agent capabilities without internal skill lists', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
     try {
       mkdirSync(path.join(dir, 'foundry'));
       
       const content = getBootstrapContent(dir, '/fake/package/root');
-      
-      // Extract the Pipeline skills line
-      const pipelineMatch = content.match(/\*\*Pipeline:\*\*\s+([^\n]+)/);
-      assert.ok(pipelineMatch, 'Should have Pipeline skills section');
-      
-      const pipelineSkills = pipelineMatch[1];
-      assert.match(pipelineSkills, /\bassay\b/, 'Pipeline should list assay');
-      assert.match(pipelineSkills, /\bforge\b/, 'Pipeline should list forge');
-      assert.match(pipelineSkills, /\bquench\b/, 'Pipeline should list quench');
-      assert.match(pipelineSkills, /\bappraise\b/, 'Pipeline should list appraise');
-      assert.match(pipelineSkills, /\bhuman-appraise\b/, 'Pipeline should list human-appraise');
-      assert.match(pipelineSkills, /\borchestrate\b/, 'Pipeline should list orchestrate');
-      assert.match(pipelineSkills, /\bflow\b/, 'Pipeline should list flow');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
 
-  test('lists all memory-related authoring skills', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
-    try {
-      mkdirSync(path.join(dir, 'foundry'));
-      
-      const content = getBootstrapContent(dir, '/fake/package/root');
-      
-      // Extract the Authoring skills line
-      const authoringMatch = content.match(/\*\*Authoring:\*\*\s+([^\n]+)/);
-      assert.ok(authoringMatch, 'Should have Authoring skills section');
-      
-      const authoringSkills = authoringMatch[1];
-      assert.match(authoringSkills, /\badd-memory-entity-type\b/, 'Authoring should list add-memory-entity-type');
-      assert.match(authoringSkills, /\badd-memory-edge-type\b/, 'Authoring should list add-memory-edge-type');
-      assert.match(authoringSkills, /\badd-extractor\b/, 'Authoring should list add-extractor');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  test('lists all memory-related maintenance skills', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
-    try {
-      mkdirSync(path.join(dir, 'foundry'));
-      
-      const content = getBootstrapContent(dir, '/fake/package/root');
-      
-      // Extract the Maintenance skills line
-      const maintenanceMatch = content.match(/\*\*Maintenance:\*\*\s+([^\n]+)/);
-      assert.ok(maintenanceMatch, 'Should have Maintenance skills section');
-      
-      const maintenanceSkills = maintenanceMatch[1];
-      assert.match(maintenanceSkills, /\binit-memory\b/, 'Maintenance should list init-memory');
-      assert.match(maintenanceSkills, /\bchange-embedding-model\b/, 'Maintenance should list change-embedding-model');
-      assert.match(maintenanceSkills, /\bdry-run\b/, 'Maintenance should list dry-run');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  test('lists all memory admin skills', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-bootstrap-'));
-    try {
-      mkdirSync(path.join(dir, 'foundry'));
-      
-      const content = getBootstrapContent(dir, '/fake/package/root');
-      
-      // Extract the Memory Admin skills line
-      const memoryAdminMatch = content.match(/\*\*Memory Admin:\*\*\s+([^\n]+)/);
-      assert.ok(memoryAdminMatch, 'Should have Memory Admin skills section');
-      
-      const memoryAdminSkills = memoryAdminMatch[1];
-      assert.match(memoryAdminSkills, /\bdrop-memory-entity-type\b/, 'Memory Admin should list drop-memory-entity-type');
-      assert.match(memoryAdminSkills, /\bdrop-memory-edge-type\b/, 'Memory Admin should list drop-memory-edge-type');
-      assert.match(memoryAdminSkills, /\brename-memory-entity-type\b/, 'Memory Admin should list rename-memory-entity-type');
-      assert.match(memoryAdminSkills, /\brename-memory-edge-type\b/, 'Memory Admin should list rename-memory-edge-type');
-      assert.match(memoryAdminSkills, /\breset-memory\b/, 'Memory Admin should list reset-memory');
+      assert.match(content, /Foundry agent capabilities/, 'Should have Foundry agent capabilities section');
+      assert.match(content, /pipeline execution/, 'Should summarise pipeline execution capability');
+      assert.match(content, /authoring/, 'Should summarise authoring capability');
+      assert.match(content, /maintenance/, 'Should summarise maintenance capability');
+      assert.match(content, /memory administration/, 'Should summarise memory administration capability');
+      assert.match(content, /dry-run trials/, 'Should summarise dry-run capability');
+      assert.doesNotMatch(content, /\*\*Pipeline:\*\*/, 'Should not list internal pipeline skills');
+      assert.doesNotMatch(content, /\*\*Authoring:\*\*/, 'Should not list internal authoring skills');
+      assert.doesNotMatch(content, /\*\*Maintenance:\*\*/, 'Should not list internal maintenance skills');
+      assert.doesNotMatch(content, /\*\*Memory Admin:\*\*/, 'Should not list internal memory admin skills');
+      assert.doesNotMatch(content, /add-memory-entity-type/, 'Should not list internal memory authoring skills');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

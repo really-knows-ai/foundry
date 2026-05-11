@@ -120,21 +120,15 @@ The pipeline: assay (populate memory) → forge (produce) → quench (determinis
 
 ${flowList}
 
-**CRITICAL ROUTING RULE:** When the user references any flow above — by id (e.g. "creative-flow"),
-by name (e.g. "Creative Flow"), or by clear paraphrase (e.g. "the creative flow", "use the creative pipeline") —
-invoke the \`flow\` skill DIRECTLY with that flow's id. Do NOT invoke brainstorming, do NOT explore the
-codebase, do NOT ask clarifying questions about what to build. The flow's cycles already define the
-work. The user's request text (e.g. "make a haiku about X") is the goal to pass to the flow.
+When the user references any flow above — by id (e.g. "creative-flow"),
+by name (e.g. "Creative Flow"), or by clear paraphrase (e.g. "the creative flow",
+"use the creative pipeline") — ask the Foundry agent to run that flow with the user's
+request as the goal. The Foundry agent handles cycle selection, work-branch creation, and
+orchestration automatically.
 
-Brainstorming applies to NEW features being added to foundry itself (new cycles, new artefact types,
-new skills). It does NOT apply to running an existing, defined flow.
+## Foundry agent capabilities
 
-## Available skills
-
-- **Pipeline:** assay, forge, quench, appraise, orchestrate, flow, human-appraise
-- **Authoring:** add-artefact-type, add-law, add-appraiser, add-cycle, add-flow, add-memory-entity-type, add-memory-edge-type, add-extractor, init-foundry
-- **Maintenance:** upgrade-foundry, refresh-agents, list-agents, init-memory, change-embedding-model, dry-run
-- **Memory Admin:** drop-memory-entity-type, drop-memory-edge-type, rename-memory-entity-type, rename-memory-edge-type, reset-memory
+The Foundry agent has internal workflows for pipeline execution, authoring, maintenance, memory administration, and dry-run trials. Present these capabilities as Foundry outcomes instead of naming internal skills.
 
 ## Multi-model routing
 

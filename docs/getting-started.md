@@ -26,7 +26,7 @@ OpenCode resolves the package itself — `npm install` is **not** required. Rest
 Optionally, if you want the package available to your project's local node_modules (for editor tooling or scripts), run:
 
 ```sh
-npm install --save-dev @really-knows-ai/foundry
+pnpm add -D @really-knows-ai/foundry
 ```
 
 ## Initialise
@@ -43,134 +43,67 @@ The `.foundry/` runtime directory (holding `.secret` for stage tokens) is create
 
 ## Author the configuration
 
-Foundry's configuration is five things: artefact types, laws, appraisers, cycles, and flows. The Foundry agent handles branch setup, conflict checking, scaffolding, and validation for normal authoring. The manual commands in this section are for users who choose to write configuration files by hand.
+Foundry's configuration is five things: artefact types, laws, appraisers, cycles, and flows. The Foundry agent handles branch setup, conflict checking, scaffolding, and validation for normal authoring.
 
-When writing configuration files by hand, open a config branch first. All schema-mutation tools (`foundry_config_create_*`, `foundry_memory_create_*`, `foundry_extractor_create`, the memory admin family) refuse off `main` and off flow branches:
+### Author through the Foundry agent
 
-```text
-foundry_git_branch({ kind: "config", description: "<short-name>" })
-```
+Ask the Foundry agent to author or modify any part of the configuration. For example:
 
-This typically puts you on `config/<short-name>` from `main`. Make all the
-edits below on this branch, then `foundry_git_finish({ message: "...",
-baseBranch: "main", confirm: true })` squashes the work back to
-`main` in one commit. To trial the in-progress edits against a real
-flow before merging, see "Trial config edits with dry-run" below.
+> Add a `haiku` artefact type with a `poetic-form` appraiser.
 
-### 1. Define an artefact type
+> Add a law that requires at least one sensory metaphor in every haiku.
 
-Run `add-artefact-type`. It walks you through:
+> Create a cycle that produces haikus from petitions.
 
-- `id` (lowercase, hyphenated), `name`, prose description.
-- `file-patterns` — glob patterns describing which files this type owns. Forge's write scope is exactly these patterns; anything written outside them violates the cycle. The skill refuses patterns that overlap with existing types.
-- Appraiser config — how many appraisers evaluate this type and which personalities are allowed.
-- Optional `laws.md` — type-specific criteria, with optional validators for deterministic checks.
+> Set up a `make-haiku` flow starting from `haiku-ideation`.
 
-Produces `foundry/artefacts/<id>/definition.md` (+ optional `laws.md`).
+The agent opens a config branch, creates the files, validates them, and commits the result. To trial in-progress edits against a real flow before merging, see "Trial config edits with dry-run" below.
 
-### 2. Write laws
+### Configuration reference
 
-Laws are subjective pass/fail criteria evaluated by appraisers. Two scopes:
+These are the five pieces of a Foundry configuration, in dependency order:
 
-- **Global** — `foundry/laws/*.md`. All files are concatenated and apply to every artefact.
-- **Type-specific** — `foundry/artefacts/<type>/laws.md`.
+1. **Artefact types** — define the output of each cycle. Each type has an `id`, `name`, prose description, `file-patterns` (forge's write scope), appraiser config, and optional type-specific `laws.md`. Produces `foundry/artefacts/<id>/definition.md`.
 
-Run `add-law` to create one with conflict detection. Each law is a `## heading` (its identifier, referenced as `law:<id>` in feedback) with a description, passing criteria, and failing criteria.
+2. **Laws** — subjective pass/fail criteria evaluated by appraisers. Two scopes: global (`foundry/laws/*.md`, concatenated for every artefact) and type-specific (`foundry/artefacts/<type>/laws.md`). Each law is a `## heading` (its identifier, referenced as `law:<id>` in feedback) with a description, passing criteria, and failing criteria.
 
-### 3. Create appraisers
+3. **Appraisers** — independent evaluators with named personalities. Each may override the cycle-level appraise model via a `model` field. Artefact types pick which appraisers may evaluate them (`appraisers.allowed`).
 
-Appraisers are independent evaluators with named personalities. Run `add-appraiser`. Each appraiser may override the cycle-level appraise model via a `model` field. Artefact types pick which appraisers may evaluate them (`appraisers.allowed`).
+4. **Cycles** — produce one artefact type and declare `output-type`, `inputs` (a contract over other types), `targets` (reachable downstream cycles), human-gate config, and optional per-stage model overrides. Example:
 
-### 4. Define a cycle
+   ```markdown
+   ---
+   id: haiku-creation
+   name: Haiku Creation
+   output-type: haiku
+   inputs:
+     type: any-of
+     artefacts:
+       - petition
+   targets: []
+   human-appraise: false
+   deadlock-appraise: true
+   deadlock-iterations: 5
+   models:
+     appraise: openai/gpt-5
+   ---
+   ```
 
-Run `add-cycle`. A cycle produces one artefact type and declares:
+5. **Flows** — group cycles and declare starting points. Routing between cycles is owned by individual cycles via their `targets`.
 
-- `output-type` — the artefact type (must already exist).
-- `inputs` — a contract (`any-of` or `all-of`) over other types. Empty for starting cycles.
-- `targets` — the cycle(s) that may run after this one. Empty for terminal cycles.
-- `human-appraise` / `deadlock-appraise` / `deadlock-iterations` — human-gate config.
-- `models` — optional per-stage model overrides.
+### Hand-authoring configuration files
 
-Example:
-
-```markdown
----
-id: haiku-creation
-name: Haiku Creation
-output-type: haiku
-inputs:
-  type: any-of
-  artefacts:
-    - petition
-targets: []
-human-appraise: false
-deadlock-appraise: true
-deadlock-iterations: 5
-models:
-  appraise: openai/gpt-5
----
-
-# Haiku Creation
-
-Writes a haiku satisfying the petition produced by haiku-ideation.
-```
-
-The skill validates that every input type can be produced by some cycle in the flow and that targets are reachable.
-
-### 5. Define a flow
-
-Run `add-flow`. A flow groups cycles and declares starting points:
-
-```markdown
----
-id: make-haiku
-name: Make a Haiku
-starting-cycles:
-  - haiku-ideation
----
-
-# Make a Haiku
-
-End-to-end flow: petition → haiku, with a human quality gate.
-
-## Cycles
-
-- haiku-ideation
-- haiku-creation
-```
-
-Routing between cycles is owned by individual cycles via their `targets`, not by the flow.
-
-### 6. Validate before writing (optional)
-
-Each `add-*` skill writes and commits in one step. When you want to validate a draft body without committing it, call the matching validator first:
-
-```text
-foundry_config_validate_artefact_type({ name, body })
-foundry_config_validate_law({ name, body })
-foundry_config_validate_appraiser({ name, body })
-foundry_config_validate_cycle({ name, body })
-foundry_config_validate_flow({ name, body })
-```
-
-Validators return `{ok: true}` on success or
-`{ok: false, errors: [...]}` on a parse / schema / overlap problem; nothing
-is written either way. Once the validator is happy, call the
-matching `_create_*` tool to commit it.
+Users who prefer to write configuration files by hand open a config branch first. The Foundry agent handles this automatically; hand-authoring is for users who choose to work outside the agent. See [`docs/tools.md`](./tools.md) for the full list of schema-mutation and validation tools.
 
 ---
 
 ## Run the flow
 
-Tell OpenCode something like:
+To run a flow, ask the Foundry agent with your goal as the input (e.g. "Run the make-haiku flow to write a haiku about autumn rain"). The Foundry agent dispatches the `flow` skill, which:
 
-> Run the `make-haiku` flow to write a haiku about autumn rain.
-
-The `flow` skill will:
-
-1. Check prerequisites and pick a starting cycle — matching your prose to a cycle's output type. If the request is ambiguous, it prompts (defaulting to `starting-cycles`). If a cycle's input contract can't be satisfied from files on disk, it won't be chosen.
-2. Create a work branch and scaffold `WORK.md` with the goal.
-3. Hand off to `orchestrate`, which drives the cycle:
+1. Checks prerequisites and picks a starting cycle — matching your prose to a cycle's output type. If the request is ambiguous, it prompts (defaulting to `starting-cycles`). If a cycle's input contract can't be satisfied from files on disk, it won't be chosen.
+2. Creates a work branch and scaffolds `WORK.md` with the goal.
+3. Hands off to `orchestrate`, which drives the cycle:
    - **forge** writes the artefact.
    - **quench** runs CLI validators (if configured).
    - **appraise** dispatches parallel appraiser sub-agents and consolidates their `law:<id>` feedback.
@@ -254,7 +187,7 @@ Memory init and vocabulary edits are schema mutations, so they run on a
 config branch. The Foundry agent opens a suitable config branch when it
 is safe; if you are working by hand, open one first.
 
-Run the `init-memory` skill. It asks whether to enable embeddings (default: yes, targeting local Ollama `nomic-embed-text` on `http://localhost:11434/v1`) and then invokes `foundry_memory_init`, which deterministically:
+To enable memory, ask the Foundry agent to add flow memory. It asks whether to enable embeddings (default: yes, targeting local Ollama `nomic-embed-text` on `http://localhost:11434/v1`) and then initialises memory, which deterministically:
 
 - creates `foundry/memory/entities/` and `edges/` (each with `.gitkeep`) plus the top-level sibling `foundry-memory/relations/` for committed row data,
 - writes `foundry/memory/config.md` (frontmatter driven by your embeddings choice) and `foundry/memory/schema.json`,
@@ -264,6 +197,8 @@ Run the `init-memory` skill. It asks whether to enable embeddings (default: yes,
 ### Declare vocabulary
 
 Two concepts: **entity types** (things memory knows about, e.g. `class`, `method`) and **edge types** (directed relationships, e.g. `calls`, `references`).
+
+The Foundry agent handles vocabulary setup as part of the normal authoring path — declare what you need in prose and it creates the types. For reference or hand-authoring, the underlying skills are:
 
 - `add-memory-entity-type` — name + prose body (naming convention, what `value` should contain, likely related edges). The body is injected into the prompt of every cycle that reads/writes this type, so write it for an LLM reader.
 - `add-memory-edge-type` — name, `sources` (list of entity types or `any`), `targets` (list or `any`), and a prose body that describes **when** the edge holds and **what it does not cover**.
