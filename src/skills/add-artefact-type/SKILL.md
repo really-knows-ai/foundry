@@ -32,23 +32,6 @@ Before writing Foundry configuration:
 
 Do not tell the user to call branch tools directly.
 
-## Prerequisites
-
-Before running this skill, verify all three of the following:
-
-1. The `foundry/` directory exists in the project root. If it does not
-   exist, stop and tell the user:
-
-   > Foundry is not initialized in this project. Run the
-   > `init-foundry` skill first to create the foundry/ directory
-   > structure.
-
-2. The current git branch is a `config/*` branch. Run
-   `git rev-parse --abbrev-ref HEAD` and confirm it matches
-   `config/<description>`.
-
-3. If the branch does not start with `config/`, stop and explain that configuration changes require a `config/*` branch. Handle branch creation internally without exposing tool syntax.
-
 ## Protocol
 
 ### 1. Gather basics

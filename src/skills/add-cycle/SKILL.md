@@ -32,23 +32,6 @@ Before writing Foundry configuration:
 
 Do not tell the user to call branch tools directly.
 
-## Prerequisites
-
-Before running this skill, verify all three of the following:
-
-1. The `foundry/` directory exists in the project root. If it does not
-   exist, stop and tell the user:
-
-   > Foundry is not initialized in this project. Run the
-   > `init-foundry` skill first to create the foundry/ directory
-   > structure.
-
-2. The current git branch is a `config/*` branch. Run
-   `git rev-parse --abbrev-ref HEAD` and confirm it matches
-   `config/<description>`.
-
-3. If the branch does not start with `config/`, stop and explain that configuration changes require a `config/*` branch. Handle branch creation internally without exposing tool syntax.
-
 ## Protocol
 
 ### 1. Identify the foundry flow
@@ -91,11 +74,11 @@ List available `.opencode/agents/foundry-*.md` files directly when model selecti
 
 Ask the user:
 
-> Human-appraise has two independent knobs:
+> Human-appraise has two independent knobs and one dependent setting:
 >
 > 1. `human-appraise` — should a human review the artefact every iteration? Default: no.
 > 2. `deadlock-appraise` — should a human be pulled in only when LLM appraisers deadlock? Default: yes.
-> 3. If either is enabled, `deadlock-iterations` sets the deadlock threshold (default: 5).
+> 3. `deadlock-iterations` — the deadlock threshold (default: 5). Only applies when `deadlock-appraise` or `human-appraise` is enabled.
 >
 > - human-appraise: yes/no (default no)
 > - deadlock-appraise: yes/no (default yes)
@@ -103,9 +86,7 @@ Ask the user:
 
 ### 5. Validate artefact types
 
-For `output-type` and each entry in `inputs`:
-- Verify the artefact type exists in `foundry/artefacts/<type>/definition.md`
-- If the parent flow or required artefact type is missing and the user's goal clearly requires it, create that dependency first. If multiple designs are plausible, ask one focused question before creating it.
+For `output-type` and each entry in `inputs`, verify the artefact type exists in `foundry/artefacts/<type>/definition.md`.
 
 ### 6. Validate against the foundry flow
 
