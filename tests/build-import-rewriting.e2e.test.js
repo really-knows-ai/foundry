@@ -12,7 +12,7 @@ const projectRoot = path.resolve(__dirname, '..');
 describe('Build script import path rewriting', () => {
   test('built plugin has correct import paths and is importable', async () => {
     // Build the package
-    execSync('npm run build', { 
+    execSync('pnpm run build', {
       cwd: projectRoot,
       stdio: 'pipe',
     });
@@ -42,6 +42,14 @@ describe('Build script import path rewriting', () => {
     assert.ok(
       !builtHelpersContent.includes("from '../../../../scripts/"),
       'Should not have 4 levels up for scripts imports'
+    );
+
+    // Verify the Foundry guide agent template is packaged
+    const builtGuideAgent = path.join(projectRoot, 'dist', 'agents', 'foundry.md');
+    const builtGuideAgentContent = readFileSync(builtGuideAgent, 'utf-8');
+    assert.ok(
+      builtGuideAgentContent.includes('You are the Foundry agent.'),
+      'Expected built Foundry guide agent template'
     );
 
     // Most importantly: verify the built plugin is actually importable

@@ -6,6 +6,7 @@
  * - src/plugin/foundry.js → dist/.opencode/plugins/foundry.js
  * - src/plugin/tools/*.js → dist/.opencode/plugins/foundry-tools/*.js
  * - src/skills/ → dist/skills/
+ * - src/agents/ → dist/agents/
  * - src/scripts/ → dist/scripts/
  * 
  * Also rewrites imports to account for the new paths.
@@ -102,6 +103,9 @@ async function copyTopLevelTrees() {
   console.log('📚 Copying skills...');
   await copyDir(path.join(srcDir, 'skills'), path.join(distDir, 'skills'));
 
+  console.log('🤖 Copying agents...');
+  await copyDir(path.join(srcDir, 'agents'), path.join(distDir, 'agents'));
+
   console.log('📜 Copying scripts...');
   await copyDir(path.join(srcDir, 'scripts'), path.join(distDir, 'scripts'));
 
@@ -133,6 +137,7 @@ function printSummary() {
   console.log('  dist/.opencode/plugins/foundry.js');
   console.log('  dist/.opencode/plugins/foundry-tools/*.js');
   console.log('  dist/skills/');
+  console.log('  dist/agents/');
   console.log('  dist/scripts/');
   console.log('  dist/docs/');
 }
