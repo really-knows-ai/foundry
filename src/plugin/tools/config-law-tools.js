@@ -4,6 +4,7 @@
 // foundry_config_edit_law: update body and commit on config/* branch
 
 import { join, dirname } from 'path';
+import { unlink } from 'node:fs/promises';
 import { validate as validateLaw } from '../../scripts/lib/config-validators/law.js';
 import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
 import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
@@ -202,6 +203,12 @@ function computeTargetPath(target) {
   return join('foundry', 'artefacts', target.typeId, 'laws.md');
 }
 
+function extractLawIdFromBody(body) {
+  const match = body.match(/^## ([^\s]+)/m);
+  return match ? match[1] : null;
+}
+
+
 // --- add law executor --------------------------------------------------------
 
 async function validateAddLawPrerequisites(io, args) {
@@ -216,46 +223,73 @@ async function validateAddLawPrerequisites(io, args) {
     return validation;
   }
 
-  if (await io.exists(path)) {
-    return {
-      ok: false,
-      errors: [`${path} already exists; use foundry_config_edit_law to update an existing law in place`],
-    };
+  const lawId = extractLawIdFromBody(args.body);
+  if (!lawId) {
+    return { ok: false, errors: ['could not determine law id from body (expected "## <law-id>" heading)'] };
   }
 
-  return { ok: true, path };
+  const existedBefore = await io.exists(path);
+  const priorContent = existedBefore ? await io.readFile(path) : null;
+  if (existedBefore && contentContainsLaw(priorContent, lawId)) {
+    return {
+      ok: false,
+      errors: [`law id "${lawId}" already exists in ${path}; use foundry_config_edit_law to update it`],
+    };
+  }
+  return { ok: true, path, lawId, existedBefore, priorContent };
 }
 
-async function executeAddLaw(args, context) {
-  const io = makeAsyncIO(context.worktree);
-  const execFile = makeExecFile(context.worktree);
-
+async function commitAddLaw(opts) {
+  const { execFile, args, path, existedBefore, priorContent, io, worktree } = opts;
   try {
-    const prereq = await validateAddLawPrerequisites(io, args);
-    if (prereq.error) {
-      return JSON.stringify({ ok: false, errors: [prereq.error] });
-    }
-    if (!prereq.ok) {
-      return JSON.stringify(prereq);
-    }
-
-    const path = prereq.path;
-
-    await io.mkdirp(dirname(path));
-    await io.writeFile(path, args.body);
-
     const sha = commitWithPolicy({
       message: `config: add law ${args.name}\n\nvia foundry_config_add_law`,
       allowedPatterns: ['foundry/**'],
       execFile,
     });
-
-    return JSON.stringify({ ok: true, path, sha });
-  } catch (err) {
-    if (err instanceof UnexpectedFilesError) {
-      return JSON.stringify({ error: err.message, affected_files: err.files });
+    return { ok: true, path, sha };
+  } catch (commitErr) {
+    if (existedBefore) {
+      await io.writeFile(path, priorContent);
+    } else {
+      try { await unlink(join(worktree, path)); } catch {}
     }
-    return errorJson(err);
+    throw commitErr;
+  }
+}
+
+async function doAddLaw(io, args, context) {
+  const prereq = await validateAddLawPrerequisites(io, args);
+  if (prereq.error) {
+    return { error: true, result: { ok: false, errors: [prereq.error] } };
+  }
+  if (!prereq.ok) {
+    return { error: true, result: prereq };
+  }
+
+  const { path, existedBefore, priorContent } = prereq;
+  const nextContent = existedBefore
+    ? priorContent.trimEnd() + '\n\n' + args.body.trimStart()
+    : args.body;
+
+  await io.mkdirp(dirname(path));
+  await io.writeFile(path, nextContent);
+  const result = await commitAddLaw({
+    execFile: makeExecFile(context.worktree), args, path,
+    existedBefore, priorContent, io, worktree: context.worktree,
+  });
+  return { error: false, result };
+}
+
+async function executeAddLaw(args, context) {
+  try {
+    const io = makeAsyncIO(context.worktree);
+    const { error, result } = await doAddLaw(io, args, context);
+    return JSON.stringify(error ? result : result);
+  } catch (err) {
+    return err instanceof UnexpectedFilesError
+      ? JSON.stringify({ error: err.message, affected_files: err.files })
+      : errorJson(err);
   }
 }
 
