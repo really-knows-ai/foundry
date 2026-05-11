@@ -113,6 +113,22 @@ test('reset-memory avoids user-facing dead-end delegation', () => {
   assert.ok(!text.includes('tell the user to run'), 'reset-memory must not use tell the user to run');
 });
 
+test('reset-memory must not tell users to create a config branch', () => {
+  const text = readSkill('reset-memory');
+  assert.ok(
+    !/instruct the user to\s+create one before continuing/i.test(text),
+    'reset-memory must not instruct the user to create a config branch'
+  );
+});
+
+test('reset-memory includes positive internal branch handling', () => {
+  const text = readSkill('reset-memory');
+  assert.ok(
+    /config.*branch.*internally/i.test(text),
+    'reset-memory should handle config branch internally'
+  );
+});
+
 test('add-extractor avoids dead-end wording and direct tool-call JSON examples for the user', () => {
   const text = readSkill('add-extractor');
   assert.ok(!text.includes('offer to create it via `add-memory-entity-type`'), 'add-extractor must not offer to create via add-memory-entity-type');
