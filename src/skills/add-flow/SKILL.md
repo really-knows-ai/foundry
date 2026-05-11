@@ -6,119 +6,70 @@ description: Creates a new foundry flow definition.
 
 # Add Flow
 
-You help the user create a new foundry flow. A foundry flow is a set of foundry cycles with declared starting points — cycles own their own routing via targets and input contracts.
+You help the user create a complete Foundry flow for their stated outcome. A flow may require artefact types, laws, validators, appraisers, and cycles before the flow file itself can validate. Work backwards from the requested outcome and create missing dependencies in validation order.
 
-## Prerequisites
+## Foundry Agent Preflight
 
-Before running this skill, verify all three of the following:
+If you are clearly operating as the Foundry agent, continue.
 
-1. The `foundry/` directory exists in the project root. If it does not
-   exist, stop and tell the user:
+If you are not clearly operating as the Foundry agent, pause and tell the user:
 
-   > Foundry is not initialized in this project. Run the
-   > `init-foundry` skill first to create the foundry/ directory
-   > structure.
+> This work is best handled by the Foundry agent. Restart OpenCode if you have just initialised Foundry, switch to the **Foundry** agent, and continue this request there.
 
-2. The current git branch is a `config/*` branch. Run
-   `git rev-parse --abbrev-ref HEAD` and confirm it matches
-   `config/<description>`.
+This is an advisory guard. Continue only when the active instructions make it clear you are the Foundry agent or the user explicitly asks to proceed here.
 
-3. If the branch does not start with `config/`, instruct the user to
-   create one before continuing:
+## Config Branch Handling
 
-   > Foundry configuration changes must be made on a config/* branch.
-   > From a clean main branch, call:
-   >
-   > `foundry_git_branch({ kind: "config", description: "<short-name>" })`
-   >
-   > Then re-run this skill.
+Before writing Foundry configuration:
 
-   If the user is on a `dry-run/*/*` branch, they must finish
-   that dry-run first (`foundry_git_finish({ message, confirm: true })`)
-   before re-running this skill on the parent `config/*`.
+- Confirm `foundry/` exists. If it is missing, initialise Foundry first when that serves the user's goal.
+- Check the current branch.
+- On `main` or another clean non-work branch, create a `config/<short-description>` branch internally.
+- On `config/*`, continue on the current branch.
+- On `work/*`, stop and explain that active flow work must be finished before configuration changes.
+- On `dry-run/*/*`, stop and explain that the dry run must be finished before configuration changes.
+- If unrelated uncommitted changes could be affected by branching or writing files, ask before proceeding.
+
+Do not tell the user to call branch tools directly.
 
 ## Protocol
 
-### 1. Gather basics
+### 1. Understand the outcome
 
-From the user's prompt, establish:
-- `id` — lowercase, hyphenated identifier
-- `name` — human-readable name
-- A prose description of what this foundry flow achieves end-to-end
+Extract or ask for the flow purpose, expected final artefact, output location, and any quality constraints. Prefer practical defaults for common requests.
 
-If any of these are missing, ask.
+### 2. Inventory existing configuration
 
-### 2. Check for id conflicts
+Read existing flows, cycles, artefact types, laws, appraisers, and validators. Identify reusable pieces and conflicts.
 
-Read all existing flow definitions in `foundry/flows/*.md`.
+### 3. Design the dependency set
 
-- Exact id match → hard conflict, must choose a different id
-- Semantically similar name or description → warn and ask if the new foundry flow is genuinely distinct
+Create missing dependencies in validation order:
 
-### 3. Determine foundry cycles and starting cycles
+1. Artefact type and file patterns.
+2. Type-specific laws.
+3. Deterministic validators attached to laws.
+4. Appraisers or appraiser selection.
+5. Cycles that produce the artefact types.
+6. Flow tying starting cycles and cycle list together.
 
-Ask the user which foundry cycles this flow includes. List available cycles from `foundry/cycles/*.md` for reference.
+For the haiku example, default to a `haiku` artefact type, `haikus/*.md` file pattern, laws for form, imagery, and mood, a deterministic syllable validator where project dependencies allow it, two or three distinct appraisers, one cycle, and one flow.
 
-Then ask: which of these are **starting cycles** — the cycles that can be entered first when the flow begins?
+### 4. Confirm ambiguous choices
 
-- Starting cycles typically have no input dependencies
-- Multiple starting cycles are fine — the user (or context) determines which one to run first
+Ask only for choices that affect the user's goal or safety. Reuse compatible existing configuration when it clearly fits.
 
-### 4. Validate cycle graph
+### 5. Validate and create each piece
 
-For each non-starting cycle, verify it is reachable:
-- At least one other cycle in the flow has it as a target
-- Its input contract can be satisfied by cycles in the flow
+For each definition, validate first, resolve validation errors, then create it. Summarise each created file and commit hash in Foundry terms.
 
-If a cycle is unreachable (no cycle targets it and it's not a starting cycle), warn:
+### 6. Final summary
 
-> Cycle `<id>` is not a starting cycle and no other cycle targets it. It will never be reached in this flow.
+Report the flow, starting cycles, artefact type, laws, validators, appraisers, and files created. Tell the user they can now ask the Foundry agent to run the flow.
 
-### 5. Draft the definition
+## Safety Rules
 
-Present the flow definition to the user:
-
-```markdown
----
-id: <id>
-name: <name>
-starting-cycles:
-  - <cycle-id>
----
-
-# <Name>
-
-<description>
-
-## Cycles
-
-- <cycle-id>
-- <cycle-id>
-```
-
-The `starting-cycles` field lists entry points. `## Cycles` lists all cycles in the flow (no ordering implied — routing is owned by individual cycle definitions via their `targets` field).
-
-Ask: does this capture the flow correctly?
-
-### 6. Validate the draft
-
-Call `foundry_config_validate_flow({ name: "<id>", body: "<full markdown>" })`.
-
-If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
-
-### 7. Create the file
-
-Call `foundry_config_create_flow({ name: "<id>", body: "<full markdown>" })`. The tool:
-
-- re-validates the body (TOCTOU);
-- writes `foundry/flows/<id>.md`;
-- produces one git commit on the current `config/*` branch.
-
-If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_flow` does not support updates.
-
-Show the user the resulting commit hash from the response.
-
-## What you do NOT do
-
-- You do not create foundry cycles — that is a separate skill
-- You do not skip dependency validation
+- Do not create overlapping artefact file patterns.
+- Do not skip dependency validation.
+- Do not expose internal tool-call syntax to the user.
+- Do not continue when a branch or worktree state could overwrite user changes.
