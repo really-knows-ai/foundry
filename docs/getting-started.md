@@ -31,6 +31,8 @@ npm install --save-dev @really-knows-ai/foundry
 
 ## Initialise
 
+Run the `init-foundry` skill.
+
 Initialisation installs the user-facing `Foundry` agent at `.opencode/agents/foundry.md` and generates model-routing `foundry-*` stage agents for any models available in your OpenCode session.
 
 Restart OpenCode after initialisation. Then switch to the **Foundry** agent before authoring flows. The Foundry agent understands Foundry's authoring workflow and handles dependent setup such as artefact types, laws, validators, appraisers, cycles, and config branches.
