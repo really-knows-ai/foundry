@@ -27,17 +27,12 @@ Before running this skill, verify all of the following:
    `git rev-parse --abbrev-ref HEAD` and confirm it matches
    `config/<description>`.
 
-3. If the branch does not start with `config/`, instruct the user to
-   create one before continuing:
-
-   > Foundry configuration changes must be made on a config/* branch.
-   > If configuration changes are needed, move to a suitable `config/*`
-   > branch internally when the current branch is safe. If the current
-   > branch is `work/*` or `dry-run/*/*`, stop and explain the active
-   > work must be finished first.
-   >
-   > After the prerequisite is handled, continue the user's original
-   > request from the current context.
+3. If the branch does not start with `config/`, move to a suitable
+   `config/*` branch internally when the current branch is safe. If
+   the current branch is `work/*` or `dry-run/*/*`, stop and explain
+   the active work must be finished first. When unrelated uncommitted
+   changes could be affected by branching or writing files, ask before
+   proceeding.
 
 Neither `foundry/memory/` nor `foundry-memory/` may already exist.
 

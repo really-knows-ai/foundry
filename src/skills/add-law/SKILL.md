@@ -149,7 +149,7 @@ Show the user the resulting commit hash from the response.
 
 ### 7. Verify uniqueness
 
-After the file is created, confirm the law id is unique across all law files. If a collision exists, ask the user to rename and edit by hand on this branch.
+After the file is created, confirm the law id is unique across all law files. If a collision exists, read the colliding law, present the conflict to the user, propose a rename or merge, ask one focused question about the user's preference, then write and commit the resolution.
 
 ### 7a. Validator contract
 

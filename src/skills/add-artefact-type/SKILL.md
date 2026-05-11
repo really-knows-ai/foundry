@@ -170,7 +170,7 @@ Call `foundry_config_create_artefact_type({ name: "<id>", body: "<full markdown>
 - writes `foundry/artefacts/<id>/definition.md`;
 - produces one git commit on the current `config/*` branch.
 
-If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_artefact_type` does not support updates.
+If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
 
 Show the user the resulting commit hash from the response.
 

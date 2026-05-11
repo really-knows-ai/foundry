@@ -172,7 +172,7 @@ Call `foundry_config_create_cycle({ name: "<id>", body: "<full markdown>" })`. T
 - writes `foundry/cycles/<id>.md`;
 - produces one git commit on the current `config/*` branch.
 
-If the tool returns `{ ok: false, errors }` because the target file already exists, the user should edit the file by hand on this `config/*` branch — `foundry_config_create_cycle` does not support updates.
+If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing cycle file, apply any necessary updates, write it back, and commit on this `config/*` branch.
 
 Show the user the resulting commit hash from the response.
 
@@ -180,12 +180,7 @@ Show the user the resulting commit hash from the response.
 
 `foundry_config_create_cycle` writes the cycle file only. The cycle still needs to appear in the parent flow's `## Cycles` list.
 
-Edit `foundry/flows/<flow-id>.md` by hand on this same `config/*` branch using the `Edit` tool. Add the new cycle id under `## Cycles` (if not already present). Commit that edit by hand as a separate microcommit, e.g.:
-
-```
-git add foundry/flows/<flow-id>.md
-git commit -m "config(flow): add <cycle-id> to <flow-id>"
-```
+Read the existing flow file from `foundry/flows/<flow-id>.md`. Add the new cycle id under `## Cycles` if it is not already present. Write the updated file back and commit on this same `config/*` branch.
 
 ### 14. Confirm
 

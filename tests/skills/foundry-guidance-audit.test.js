@@ -273,3 +273,69 @@ test('add-cycle phrases model selection in Foundry concepts', () => {
     'add-cycle should phrase model selection in Foundry concepts (models map / session defaults)'
   );
 });
+
+// --- add-cycle must not make flow wiring manual ---
+
+test('add-cycle must not tell assistant to edit flow files by hand', () => {
+  const text = readSkill('add-cycle');
+  assert.ok(
+    !/edit\s+`?foundry\/flows\/.*by hand/i.test(text),
+    'add-cycle must not tell the assistant to edit flow files by hand'
+  );
+  assert.ok(
+    !/commit\s+that\s+edit\s+by hand/i.test(text),
+    'add-cycle must not tell the assistant to commit flow edits by hand'
+  );
+});
+
+// --- init-memory must handle config branch internally ---
+
+test('init-memory must not tell users to create a config branch', () => {
+  const text = readSkill('init-memory');
+  assert.ok(
+    !/instruct the user to\s+create one before continuing/i.test(text),
+    'init-memory must not instruct the user to create a config branch'
+  );
+});
+
+test('init-memory includes positive internal branch handling', () => {
+  const text = readSkill('init-memory');
+  assert.ok(
+    /config.*branch.*internally/i.test(text),
+    'init-memory should handle config branch internally'
+  );
+});
+
+// --- existing-file recovery must not fall back to hand editing ---
+
+test('add-artefact-type must not fall back to hand editing for existing files', () => {
+  const text = readSkill('add-artefact-type');
+  assert.ok(
+    !/the user should edit the file by hand/i.test(text),
+    'add-artefact-type must not tell the user to edit the file by hand'
+  );
+});
+
+test('add-cycle must not fall back to hand editing for existing files', () => {
+  const text = readSkill('add-cycle');
+  assert.ok(
+    !/the user should edit the file by hand/i.test(text),
+    'add-cycle must not tell the user to edit the file by hand for existing-file recovery'
+  );
+});
+
+test('add-appraiser must not fall back to hand editing for existing files', () => {
+  const text = readSkill('add-appraiser');
+  assert.ok(
+    !/the user should edit the file by hand/i.test(text),
+    'add-appraiser must not tell the user to edit the file by hand'
+  );
+});
+
+test('add-law must not fall back to hand editing for collisions', () => {
+  const text = readSkill('add-law');
+  assert.ok(
+    !/ask the user to rename and edit by hand/i.test(text),
+    'add-law must not ask the user to rename and edit by hand'
+  );
+});
