@@ -1,5 +1,35 @@
 # Changelog
 
+## [3.3.0] - 2026-05-14
+
+### Added
+
+- **Structured config tool signatures.** All six config creation and editing
+  tools now accept typed, self-documenting fields instead of raw `body`
+  strings containing YAML frontmatter. Each tool generates the correct
+  markdown file internally from the provided fields. The AI no longer needs
+  to hand-craft YAML frontmatter or reverse-engineer format from validation
+  errors. Tool descriptions include field names and types.
+
+  | Tool | New args |
+  |------|----------|
+  | `foundry_config_create_artefact_type` | `id`, `name`, `filePatterns`, `description`, `appraisers?` |
+  | `foundry_config_create_appraiser` | `id`, `name`, `description`, `model?` |
+  | `foundry_config_create_flow` | `id`, `name`, `startingCycles`, `description` |
+  | `foundry_config_create_cycle` | `id`, `name`, `outputType` + 10 optional fields |
+  | `foundry_config_add_law` | `id`, `name`, `description`, `passing`, `failing`, `target`, `validators?` |
+  | `foundry_config_edit_law` | `id` + per-field optional updates |
+
+  All five authoring skills updated to use the new signatures. Validate tools
+  unchanged — they still accept `{ name, body }`.
+
+### Changed
+
+- **`tool-paths.js` resolves command paths from `PATH`.** `git` and `opencode`
+  paths are resolved lazily and overridable via `FOUNDRY_GIT_PATH` /
+  `FOUNDRY_OPENCODE_PATH` env vars. Removed `sonarjs/no-os-command-from-path`
+  overrides for `foundry.js` and `agent-refresh.js`.
+
 ## [3.2.7] - 2026-05-14
 
 ### Added
