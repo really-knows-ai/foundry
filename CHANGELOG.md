@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.2.3] - 2026-05-14
+
+### Fixed
+
+- **Config hook blocked startup waiting for TUI client.** `showStartupMessage`
+  was awaited in the config hook, and its `retryUntilReady` loop could block
+  opencode startup for up to 30 seconds if the TUI client wasn't immediately
+  available. The call is now fire-and-forget: the config hook returns
+  immediately, and the message either shows within the 3-second retry window
+  or falls back to the `messages.transform` hook.
+
 ## [3.2.2] - 2026-05-14
 
 ### Added
