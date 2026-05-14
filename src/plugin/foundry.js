@@ -13,6 +13,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { tool } from '@opencode-ai/plugin';
 import { createPendingStore } from '../scripts/lib/pending.js';
 import { getBootstrapContent } from './tools/helpers.js';
@@ -35,6 +36,7 @@ import { createMemoryAdminTools } from './tools/memory-admin-tools.js';
 import { createSnapshotTools } from './tools/snapshot-tools.js';
 import { createAttestationTools } from './tools/attestation-tools.js';
 import { createRefreshAgentsTool } from './tools/refresh-agents-tool.js';
+import { resolveGit } from '../scripts/lib/tool-paths.js';
 
 function findPackageRoot(startDir) {
   let dir = startDir;
@@ -81,12 +83,24 @@ function bootstrapGitignore(worktree) {
   }
   content = ensureNewlineSuffix(content);
   const existingLines = content.split('\n').map(l => l.trim());
-  const lines = ['.snapshots/', 'node_modules/', '.DS_Store'];
+  const lines = ['.snapshots/', '.foundry/', 'node_modules/', '.DS_Store'];
   for (const line of lines) {
     if (existingLines.includes(line)) continue;
     content += `${line}\n`;
   }
   writeFileSync(gitignorePath, content, 'utf8');
+}
+
+function initGitRepo(worktree) {
+  if (existsSync(path.join(worktree, '.git'))) return;
+  try {
+    const git = resolveGit();
+    execFileSync(git, ['init'], { cwd: worktree, stdio: 'pipe' });
+    execFileSync(git, ['add', '.'], { cwd: worktree, stdio: 'pipe' });
+    execFileSync(git, ['commit', '-m', 'chore: initialise Foundry'], { cwd: worktree, stdio: 'pipe' });
+  } catch (err) {
+    console.error('Foundry git init error:', err.message);
+  }
 }
 
 function runBootstrapSequence(worktree, pkgRoot) {
@@ -96,6 +110,7 @@ function runBootstrapSequence(worktree, pkgRoot) {
   writeFoundryGuideAgent(worktree, pkgRoot);
   const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
   writeFileSync(path.join(worktree, 'foundry', 'VERSION'), pkg.version, 'utf8');
+  initGitRepo(worktree);
 }
 
 function checkVersionMatch(foundryDir, pkgRoot) {

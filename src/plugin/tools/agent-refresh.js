@@ -6,6 +6,7 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { createHash } from 'crypto';
+import { resolveOpenCode } from '../../scripts/lib/tool-paths.js';
 
 const AGENT_FRONTMATTER_TEMPLATE = `---
 description: "Foundry stage agent using MODEL_ID"
@@ -25,7 +26,7 @@ function buildAgentContent(modelId) {
 }
 
 function listModels(worktree) {
-  const stdout = execFileSync('opencode', ['models'], {
+  const stdout = execFileSync(resolveOpenCode(), ['models'], {
     cwd: worktree,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
