@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.2.6] - 2026-05-14
+
+### Fixed
+
+- **Bootstrap context messages confused the AI.** The injected `FOUNDRY_CONTEXT`
+  messages were written as direct user instructions ("Restart OpenCode..."),
+  but the AI reads them as system context and interprets them as commands to
+  itself. Rewritten as AI-facing framing: "Tell the user to restart...",
+  "The user should switch to the Foundry agent...".
+
 ## [3.2.5] - 2026-05-14
 
 ### Changed
