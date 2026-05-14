@@ -24,8 +24,13 @@ export function assembleAppraiserMarkdown(args) {
   return body;
 }
 
-export const create = makeCreator({
+const _create = makeCreator({
   kind: { human: 'appraiser', underscored: 'appraiser' },
-  pathFor: (args) => join('foundry', 'appraisers', `${args.name}.md`),
+  pathFor: (args) => join('foundry', 'appraisers', `${args.id}.md`),
   validator: validate,
 });
+
+export async function create(args) {
+  const body = assembleAppraiserMarkdown(args);
+  return _create({ ...args, name: args.id, body });
+}

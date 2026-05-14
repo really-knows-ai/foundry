@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { create } from '../../../src/scripts/lib/config-creators/appraiser.js';
+import { create, assembleAppraiserMarkdown } from '../../../src/scripts/lib/config-creators/appraiser.js';
 import { makeAsyncMockIO } from '../../helpers/async-mock-io.js';
 
-const VALID_BODY = `---
-id: skeptic
-name: The Skeptic
----
+const VALID_ARGS = {
+  id: 'skeptic',
+  name: 'The Skeptic',
+  description: 'A reviewer who looks for unsupported claims.',
+};
 
-A reviewer who looks for unsupported claims.
-`;
+const VALID_BODY = assembleAppraiserMarkdown(VALID_ARGS);
 
 function makeFakeExecFile(dirtyFiles = []) {
   const calls = [];
@@ -27,7 +27,7 @@ test('appraiser creator: happy path', async () => {
   const io = makeAsyncMockIO();
   const path = 'foundry/appraisers/skeptic.md';
   const exec = makeFakeExecFile([path]);
-  const out = await create({ name: 'skeptic', body: VALID_BODY, io, execFile: exec });
+  const out = await create({ ...VALID_ARGS, io, execFile: exec });
   assert.equal(out.ok, true);
   assert.equal(out.path, path);
   assert.equal(out.sha, 'aa11bb2');
@@ -39,8 +39,8 @@ test('appraiser creator: happy path', async () => {
 test('appraiser creator: validator failure', async () => {
   const io = makeAsyncMockIO();
   const exec = makeFakeExecFile();
-  const bad = `---\nid: skeptic\n---\n`; // missing name + body prose
-  const out = await create({ name: 'skeptic', body: bad, io, execFile: exec });
+  // Empty description produces a body that fails validation
+  const out = await create({ id: 'skeptic', name: 'The Skeptic', description: '', io, execFile: exec });
   assert.equal(out.ok, false);
   assert.ok(out.errors.length > 0);
   assert.equal(io._has('foundry/appraisers/skeptic.md'), false);
@@ -51,7 +51,7 @@ test('appraiser creator: target file exists', async () => {
   const path = 'foundry/appraisers/skeptic.md';
   const io = makeAsyncMockIO({ [path]: 'pre-existing' });
   const exec = makeFakeExecFile();
-  const out = await create({ name: 'skeptic', body: VALID_BODY, io, execFile: exec });
+  const out = await create({ ...VALID_ARGS, io, execFile: exec });
   assert.equal(out.ok, false);
   assert.ok(out.errors.some((e) => /already exists/.test(e)));
   assert.equal(io._get(path), 'pre-existing');

@@ -1,19 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { create } from '../../../src/scripts/lib/config-creators/flow.js';
+import { create, assembleFlowMarkdown } from '../../../src/scripts/lib/config-creators/flow.js';
 import { makeAsyncMockIO } from '../../helpers/async-mock-io.js';
 
-const VALID_BODY = `---
-id: creative
-name: Creative
-starting-cycles:
-  - draft
----
+const VALID_ARGS = {
+  id: 'creative',
+  name: 'Creative',
+  startingCycles: ['draft'],
+  description: 'Some prose.',
+};
 
-## Cycles
-
-Some prose.
-`;
+const VALID_BODY = assembleFlowMarkdown(VALID_ARGS);
 
 function makeFakeExecFile(dirtyFiles = []) {
   const calls = [];
@@ -31,7 +28,7 @@ test('flow creator: happy path', async () => {
   const io = makeAsyncMockIO({ 'foundry/cycles/draft.md': '' });
   const path = 'foundry/flows/creative.md';
   const exec = makeFakeExecFile([path]);
-  const out = await create({ name: 'creative', body: VALID_BODY, io, execFile: exec });
+  const out = await create({ ...VALID_ARGS, io, execFile: exec });
   assert.equal(out.ok, true);
   assert.equal(out.path, path);
   assert.equal(out.sha, 'cc33dd4');
@@ -43,8 +40,8 @@ test('flow creator: happy path', async () => {
 test('flow creator: validator failure', async () => {
   const io = makeAsyncMockIO();
   const exec = makeFakeExecFile();
-  const bad = `---\nid: creative\n---\n\n## Cycles\n`; // missing name, starting-cycles
-  const out = await create({ name: 'creative', body: bad, io, execFile: exec });
+  // Empty startingCycles produces a body that fails validation
+  const out = await create({ id: 'creative', name: 'Creative', startingCycles: [], description: 'Some prose.', io, execFile: exec });
   assert.equal(out.ok, false);
   assert.ok(out.errors.length > 0);
   assert.equal(io._has('foundry/flows/creative.md'), false);
@@ -58,7 +55,7 @@ test('flow creator: target file exists', async () => {
     'foundry/cycles/draft.md': '',
   });
   const exec = makeFakeExecFile();
-  const out = await create({ name: 'creative', body: VALID_BODY, io, execFile: exec });
+  const out = await create({ ...VALID_ARGS, io, execFile: exec });
   assert.equal(out.ok, false);
   assert.ok(out.errors.some((e) => /already exists/.test(e)));
   assert.equal(io._get(path), 'pre-existing');

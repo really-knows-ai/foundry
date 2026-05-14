@@ -44,8 +44,13 @@ export function assembleArtefactTypeMarkdown(args) {
   return body;
 }
 
-export const create = makeCreator({
+const _create = makeCreator({
   kind: { human: 'artefact-type', underscored: 'artefact_type' },
-  pathFor: (args) => join('foundry', 'artefacts', args.name, 'definition.md'),
+  pathFor: (args) => join('foundry', 'artefacts', args.id, 'definition.md'),
   validator: validate,
 });
+
+export async function create(args) {
+  const body = assembleArtefactTypeMarkdown(args);
+  return _create({ ...args, name: args.id, body });
+}

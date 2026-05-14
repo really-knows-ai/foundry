@@ -53,19 +53,42 @@ const VALIDATE_GUARDS = [gitRepoGuard, foundryRootGuard];
 
 // --- tool factories --------------------------------------------------------
 
-// Module-level helper: returns a `makeCreate` function bound to `tool` and `baseArgs`.
-function createMakeCreate(tool, baseArgs) {
-  return function makeCreate(toolName, creator, extraArgs = {}) {
-    const kind = toolName.replace('foundry_config_create_', '');
-    let desc = `Create a new ${kind} definition (config-tier; requires a config/* branch).`;
+const TYPE_NAMES = {
+  ZodString: 'string',
+  ZodArray: 'string[]',
+  ZodBoolean: 'boolean',
+  ZodNumber: 'number',
+  ZodObject: 'object',
+  ZodEnum: 'string',
+};
 
-    if (kind === 'law') {
-      desc += ' target must be {kind:"global", file:"<name>.md"} or {kind:"type-specific", typeId:"<id>"}.';
-    }
+function unwrapOptional(schema) {
+  let s = schema;
+  while (s._def && s._def.typeName === 'ZodOptional') s = s._def.innerType;
+  return s;
+}
+
+function describeField(name, schema) {
+  const inner = unwrapOptional(schema);
+  const type = inner._def ? (TYPE_NAMES[inner._def.typeName] || 'any') : 'any';
+  const required = schema._def && schema._def.required !== false;
+  return required ? `${name} (${type})` : `${name} (${type}, optional)`;
+}
+
+function humaniseKind(kind) {
+  return kind.replace(/_/g, '-');
+}
+
+// Module-level helper: returns a `makeCreate` function bound to `tool`.
+function createMakeCreate(tool) {
+  return function makeCreate(toolName, creator, createArgs) {
+    const kind = humaniseKind(toolName.replace('foundry_config_create_', ''));
+    const fieldSummary = Object.keys(createArgs).map(k => describeField(k, createArgs[k])).join(', ');
+    const description = `Create a new ${kind} definition (config-tier; requires a config/* branch).\nFields: ${fieldSummary}`;
 
     return tool({
-      description: desc,
-      args: { ...baseArgs, ...extraArgs },
+      description,
+      args: createArgs,
       execute: guarded(toolName, CREATE_GUARDS, async (args, context) => {
         try {
           const io = makeAsyncIO(context.worktree);
@@ -104,20 +127,71 @@ function createMakeValidate(tool, baseArgs) {
 
 // --- tool factory ---------------------------------------------------------
 
+// Per-tool arg schemas (defined outside createConfigCreateTools to keep it under 40 lines).
+function artefactTypeArgs(s) { return {
+  id: s.string().describe('Slugged identifier used as directory name under foundry/artefacts/'),
+  name: s.string().describe('Human-readable display name (accepted at boundary, not persisted — id becomes frontmatter.name)'),
+  filePatterns: s.array(s.string()).describe('Glob patterns defining forge write scope (written to frontmatter.file-patterns)'),
+  description: s.string().describe('Prose description placed under ## Definition'),
+  appraisers: s.object({
+    count: s.number().optional().describe('Number of appraisers per cycle'),
+    allowed: s.array(s.string()).optional().describe('Restrict to specific appraiser IDs'),
+  }).optional().describe('Appraiser selection config'),
+}; }
+
+function appraiserArgs(s) { return {
+  id: s.string().describe('Slugged identifier matching the filename under foundry/appraisers/'),
+  name: s.string().describe('Human-readable display name written to frontmatter.name'),
+  description: s.string().describe('Prose personality description placed after frontmatter'),
+  model: s.string().optional().describe('Optional model override for this appraiser (e.g. openai/gpt-4o)'),
+}; }
+
+function flowArgs(s) { return {
+  id: s.string().describe('Slugged identifier matching the filename under foundry/flows/'),
+  name: s.string().describe('Human-readable display name written to frontmatter.name'),
+  startingCycles: s.array(s.string()).describe('Non-empty array of cycle IDs that can start this flow'),
+  description: s.string().describe('Prose description placed under ## Cycles'),
+}; }
+
+function cycleArgs(s) { return {
+  id: s.string().describe('Slugged identifier matching the filename under foundry/cycles/'),
+  name: s.string().describe('Human-readable display name written to frontmatter.name'),
+  outputType: s.string().describe('Artefact type ID this cycle produces (must exist in foundry/artefacts/)'),
+  inputs: s.object({
+    type: s.enum(['any-of', 'all-of']).describe('Contract type: any-of (at least one) or all-of (all must exist)'),
+    artefacts: s.array(s.string()).describe('Artefact type IDs this cycle reads'),
+  }).optional().describe('Input contract for this cycle'),
+  targets: s.array(s.string()).optional().describe('Downstream cycle IDs this cycle can route to'),
+  humanAppraise: s.boolean().optional().describe('Include human-appraise in every iteration'),
+  deadlockAppraise: s.boolean().optional().describe('Route to human-appraise on LLM appraiser deadlock'),
+  deadlockIterations: s.number().optional().describe('Iteration threshold for deadlock detection'),
+  maxIterations: s.number().optional().describe('Maximum forge iterations before cycle blocks'),
+  assay: s.object({
+    extractors: s.array(s.string()).describe('Extractor IDs for the assay stage'),
+  }).optional().describe('Assay stage configuration'),
+  memory: s.object({
+    read: s.array(s.string()).describe('Memory store keys this cycle can read'),
+    write: s.array(s.string()).describe('Memory store keys this cycle can write'),
+  }).optional().describe('Flow memory permissions'),
+  models: s.object({}).optional().describe('Per-stage model overrides (e.g. { forge: "openai/gpt-4o" })'),
+  description: s.string().optional().describe('Prose description placed after frontmatter'),
+}; }
+
 export function createConfigCreateTools({ tool }) {
   const baseArgs = {
     name: tool.schema.string(),
     body: tool.schema.string(),
   };
 
-  const makeCreate = createMakeCreate(tool, baseArgs);
   const makeValidate = createMakeValidate(tool, baseArgs);
+  const makeCreate = createMakeCreate(tool);
+  const s = tool.schema;
 
   return {
-    foundry_config_create_artefact_type: makeCreate('foundry_config_create_artefact_type', createArtefactType),
-    foundry_config_create_appraiser: makeCreate('foundry_config_create_appraiser', createAppraiser),
-    foundry_config_create_flow: makeCreate('foundry_config_create_flow', createFlow),
-    foundry_config_create_cycle: makeCreate('foundry_config_create_cycle', createCycle),
+    foundry_config_create_artefact_type: makeCreate('foundry_config_create_artefact_type', createArtefactType, artefactTypeArgs(s)),
+    foundry_config_create_appraiser: makeCreate('foundry_config_create_appraiser', createAppraiser, appraiserArgs(s)),
+    foundry_config_create_flow: makeCreate('foundry_config_create_flow', createFlow, flowArgs(s)),
+    foundry_config_create_cycle: makeCreate('foundry_config_create_cycle', createCycle, cycleArgs(s)),
 
     foundry_config_validate_artefact_type: makeValidate('foundry_config_validate_artefact_type', validateArtefactType),
     foundry_config_validate_law: makeValidate('foundry_config_validate_law', validateLaw),

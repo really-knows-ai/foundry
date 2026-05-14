@@ -109,8 +109,13 @@ export function assembleCycleMarkdown(args) {
   return fm;
 }
 
-export const create = makeCreator({
+const _create = makeCreator({
   kind: KIND,
-  pathFor: (args) => join('foundry', 'cycles', `${args.name}.md`),
+  pathFor: (args) => join('foundry', 'cycles', `${args.id}.md`),
   validator: validate,
 });
+
+export async function create(args) {
+  const body = assembleCycleMarkdown(args);
+  return _create({ ...args, name: args.id, body });
+}

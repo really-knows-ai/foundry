@@ -24,8 +24,13 @@ export function assembleFlowMarkdown(args) {
   return body;
 }
 
-export const create = makeCreator({
+const _create = makeCreator({
   kind: KIND,
-  pathFor: (args) => join('foundry', 'flows', `${args.name}.md`),
+  pathFor: (args) => join('foundry', 'flows', `${args.id}.md`),
   validator: validate,
 });
+
+export async function create(args) {
+  const body = assembleFlowMarkdown(args);
+  return _create({ ...args, name: args.id, body });
+}

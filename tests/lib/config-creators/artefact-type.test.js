@@ -1,18 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { create } from '../../../src/scripts/lib/config-creators/artefact-type.js';
+import { create, assembleArtefactTypeMarkdown } from '../../../src/scripts/lib/config-creators/artefact-type.js';
 import { makeAsyncMockIO } from '../../helpers/async-mock-io.js';
 
-const VALID_BODY = `---
-name: short-story
-file-patterns:
-  - artefacts/short-story/*.md
----
+const VALID_ARGS = {
+  id: 'short-story',
+  name: 'Short Story',
+  filePatterns: ['artefacts/short-story/*.md'],
+  description: 'A short story.',
+};
 
-## Definition
-
-A short story.
-`;
+const VALID_BODY = assembleArtefactTypeMarkdown(VALID_ARGS);
 
 function makeFakeExecFile(dirtyFiles = []) {
   const calls = [];
@@ -33,7 +31,7 @@ test('artefact-type creator: happy path', async () => {
   const io = makeAsyncMockIO();
   const path = 'foundry/artefacts/short-story/definition.md';
   const exec = makeFakeExecFile([path]);
-  const out = await create({ name: 'short-story', body: VALID_BODY, io, execFile: exec });
+  const out = await create({ ...VALID_ARGS, io, execFile: exec });
   assert.equal(out.ok, true);
   assert.equal(out.path, path);
   assert.equal(out.sha, 'abc1234');
@@ -50,8 +48,8 @@ test('artefact-type creator: happy path', async () => {
 test('artefact-type creator: validator failure', async () => {
   const io = makeAsyncMockIO();
   const exec = makeFakeExecFile();
-  const bad = `---\nname: short-story\n---\n\n## Definition\n`;
-  const out = await create({ name: 'short-story', body: bad, io, execFile: exec });
+  // Empty filePatterns produces a body that fails validation
+  const out = await create({ id: 'short-story', name: 'Short Story', filePatterns: [], description: 'A short story.', io, execFile: exec });
   assert.equal(out.ok, false);
   assert.ok(out.errors.length > 0);
   assert.equal(io._has('foundry/artefacts/short-story/definition.md'), false);
@@ -62,7 +60,7 @@ test('artefact-type creator: target file exists', async () => {
   const path = 'foundry/artefacts/short-story/definition.md';
   const io = makeAsyncMockIO({ [path]: 'pre-existing' });
   const exec = makeFakeExecFile();
-  const out = await create({ name: 'short-story', body: VALID_BODY, io, execFile: exec });
+  const out = await create({ ...VALID_ARGS, io, execFile: exec });
   assert.equal(out.ok, false);
   assert.ok(out.errors.some((e) => /already exists/.test(e)));
   assert.equal(io._get(path), 'pre-existing');
