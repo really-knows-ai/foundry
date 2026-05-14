@@ -300,7 +300,7 @@ Different stages can run on different models for cognitive diversity. Cycle defi
 
 ### Agent files
 
-The user-facing `Foundry` agent is installed by `init-foundry` as `.opencode/agents/foundry.md`. Users switch to this agent after restarting OpenCode. It guides authoring and flow execution while generated `foundry-*` stage agents remain hidden routing targets for specific models.
+The user-facing `Foundry` agent is installed by the plugin's `config` hook as `.opencode/agents/foundry.md`. Users switch to this agent after restarting OpenCode. It guides authoring and flow execution while generated `foundry-*` stage agents remain hidden routing targets for specific models.
 
 `foundry_refresh_agents()` generates a `foundry-<slug>.md` agent file in `.opencode/agents/` for every model available in the session, where `<slug>` is the model ID with both `/` and `.` replaced by `-` (e.g. `anthropic-claude-opus-4-7.md`).
 
@@ -330,7 +330,7 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 │   │   ├── quench/
 │   │   ├── appraise/
 │   │   ├── human-appraise/
-│   │   ├── init-foundry/       # authoring
+│   │   ├── add-artefact-type/  # authoring
 │   │   ├── add-artefact-type/
 │   │   ├── add-law/
 │   │   ├── add-appraiser/
@@ -391,7 +391,7 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 └── README.md
 ```
 
-### User project (after `init-foundry`)
+### User project (after auto-bootstrapping)
 
 ```
 your-project/

@@ -21,10 +21,10 @@ test('requireFoundryRoot: ok when foundry exists', () => {
   assert.deepEqual(requireFoundryRoot(ioWith(new Set(['foundry']))), { ok: true });
 });
 
-test('requireFoundryRoot: fails when foundry missing, names init-foundry', () => {
+test('requireFoundryRoot: fails when foundry missing, asks to restart OpenCode', () => {
   const r = requireFoundryRoot(ioWith(new Set()));
   assert.equal(r.ok, false);
-  assert.match(r.error, /init-foundry/);
+  assert.match(r.error, /Restart OpenCode/);
 });
 
 test('requireFoundryRoot: probe path matches requireGitRepo style (no trailing slash)', () => {

@@ -43,19 +43,6 @@ test('skills avoid exposing internal finish tool call syntax', () => {
   }
 });
 
-test('init-foundry tells users to switch to the Foundry agent', () => {
-  const text = readSkill('init-foundry');
-  assert.ok(text.includes('switch to the **Foundry** agent'));
-});
-
-test('init-foundry owns Foundry guide agent installation', () => {
-  const text = readSkill('init-foundry');
-  assert.ok(text.includes('Create `.opencode/agents/foundry.md`'));
-  assert.ok(text.includes('Copy whichever template path exists'));
-  assert.ok(text.includes('`dist/agents/foundry.md`'));
-  assert.ok(text.includes('`src/agents/foundry.md`'));
-});
-
 // --- getting-started.md walkthrough guidance ---
 
 test('getting-started does not expose direct branch tool call syntax in walkthrough', () => {

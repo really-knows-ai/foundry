@@ -31,11 +31,9 @@ pnpm add -D @really-knows-ai/foundry
 
 ## Initialise
 
-Run the `init-foundry` skill.
+Restart OpenCode after adding the plugin. On boot, the plugin's config hook checks project state: if `foundry/` is missing or its VERSION does not match the installed plugin version, it bootstraps the directory structure, generates model-routing `foundry-*` stage agents, installs the user-facing `Foundry` guide agent, and prompts a second restart.
 
-Initialisation installs the user-facing `Foundry` agent at `.opencode/agents/foundry.md` and generates model-routing `foundry-*` stage agents for any models available in your OpenCode session.
-
-Restart OpenCode after initialisation. Then switch to the **Foundry** agent before authoring flows. The Foundry agent understands Foundry's authoring workflow and handles dependent setup such as artefact types, laws, validators, appraisers, cycles, and config branches.
+Restart OpenCode again so the new agents register. Then switch to the **Foundry** agent before authoring flows. The Foundry agent understands Foundry's authoring workflow and handles dependent setup such as artefact types, laws, validators, appraisers, cycles, and config branches.
 
 The `.foundry/` runtime directory (holding `.secret` for stage tokens) is created automatically on first plugin boot and added to `.gitignore`.
 

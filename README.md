@@ -105,7 +105,7 @@ Add the plugin to `opencode.json`:
 
 Restart OpenCode so the plugin registers its tools and skills. You will see new
 tools and skills become available in OpenCode's command palette once the restart
-completes. The `init-foundry` skill and flow-management tools are now ready to use.
+completes. Flow-management tools are now ready to use.
 
 ---
 
@@ -132,23 +132,19 @@ Add the plugin to `opencode.json` (see Install section above):
 
 Then restart OpenCode so the plugin registers its tools and skills. You will see new
 tools and skills become available in OpenCode's command palette once the restart
-completes. The `init-foundry` skill and flow-management tools are now ready to use.
+completes. Flow-management tools are now ready to use.
 
 ### Phase 2 — Initialise
 
-Open OpenCode in your project repo and say:
+Restart OpenCode after adding the plugin. On boot, the plugin's config hook runs
+a decision tree: if `foundry/` is missing or its VERSION does not match the
+installed plugin version, it bootstraps the directory structure, generates
+`foundry-<model>` stage agent files, installs the user-facing `Foundry` guide
+agent, and tells you to restart again.
 
-```
-> run init-foundry
-```
-
-Foundry scaffolds a `foundry/` directory, generates one `foundry-<model>` stage agent
-file per model available in your session, installs the user-facing `Foundry` guide
-agent, commits the structure, and asks you to restart.
-
-Restart OpenCode so the new agents register. After the restart, switch to the
-**Foundry** agent. The Foundry agent is the normal interface for authoring and
-running Foundry workflows.
+Restart OpenCode a second time so the new agents register. After the restart,
+switch to the **Foundry** agent. The Foundry agent is the normal interface for
+authoring and running Foundry workflows.
 
 ### Phase 3 — Ask the Foundry agent for a flow
 

@@ -10,7 +10,7 @@ Getting oriented with Foundry means understanding both the concepts it uses and 
 
 **Reading order:** Work through them in order; [getting-started.md](getting-started.md) builds hands-on confidence, and [concepts.md](concepts.md) provides reference depth. Most implementers spend 1–2 hours on getting-started before moving to Reference materials.
 
-- **getting-started.md** — Complete end-to-end installation, bootstrap (`init-foundry`), and first flow walkthrough. Read this immediately after installing the plugin and before authoring any of your own configuration. 
+- **getting-started.md** — Complete end-to-end installation, auto-bootstrapping, and first flow walkthrough. Read this immediately after installing the plugin and before authoring any of your own configuration. 
 
   It establishes the operating model, directory structure, and practical confidence in one pass. Includes hands-on guidance on authoring the five foundational concepts (artefact types, laws, appraisers, cycles, flows) with worked examples you can run against real code. Also covers the optional flow-memory path: initialise memory, declare vocabulary, add extractors, and opt a cycle into assay for codebase-aware flows.
 

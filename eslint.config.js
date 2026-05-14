@@ -285,9 +285,9 @@ export default [
     },
   },
 
-  // Refresh agents tool: requires OS command execution via PATH
+  // Agent refresh utility and tool: requires OS command execution via PATH
   {
-    files: ['src/plugin/tools/refresh-agents-tool.js'],
+    files: ['src/plugin/tools/agent-refresh.js', 'src/plugin/tools/refresh-agents-tool.js'],
     rules: {
       'sonarjs/no-os-command-from-path': 'off',
     },

@@ -12,7 +12,7 @@ You orchestrate subjective appraisal of an artefact by dispatching independent s
 
 Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
 
-> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+> Restart OpenCode to initialise Foundry, then retry this command.
 
 ## Stage lifecycle (mandatory)
 

@@ -87,7 +87,7 @@ function buildSchema(embeddingsEnabled, model, dimensions) {
 
 async function validatePrerequisites(io, p) {
   if (!(await io.exists('foundry'))) {
-    throw new Error('foundry/ does not exist; run init-foundry first');
+    throw new Error('foundry/ does not exist. Restart OpenCode to initialise Foundry.');
   }
   if (await io.exists(p.root)) {
     throw new Error('foundry/memory/ already exists');

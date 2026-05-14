@@ -252,7 +252,7 @@ plain-files directory at `.snapshots/<runId>/` on the parent
 - `trace.jsonl` — the full tool-call trace.
 
 `runId` is `<branch-slug>-<ulid>`. Snapshots are gitignored
-(`.snapshots/` is added to `.gitignore` by `init-foundry`) and
+(`.snapshots/` is added to `.gitignore` by the plugin's auto-bootstrapping) and
 accumulate locally; `foundry_snapshot_list` enumerates them,
 `foundry_snapshot_show` returns a structured summary,
 `foundry_snapshot_delete` removes one, and

@@ -1,17 +1,22 @@
 /**
  * Foundry plugin for OpenCode.ai
  *
- * All skills are always registered. Individual skills check for foundry/ dir.
- * - If foundry/ exists: pipeline context injected into first message
- * - If foundry/ does not exist: minimal prompt guiding user to init-foundry
- * Multi-model agents are managed as .opencode/agents/foundry-*.md files via the refresh-agents skill.
+ * The config hook runs a boot decision tree on every plugin load: if foundry/
+ * is missing or its VERSION mismatches, it bootstraps the directory structure,
+ * agent files, and guide agent, then sets a restartNeeded flag. If VERSION
+ * matches but the agent file set changed, only agents are refreshed. The
+ * message-transform hook injects either a restart prompt or the full Foundry
+ * context based on the restartNeeded flag. All skills are always registered;
+ * individual skills check for foundry/ dir.
  */
 
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { tool } from '@opencode-ai/plugin';
 import { createPendingStore } from '../scripts/lib/pending.js';
 import { getBootstrapContent } from './tools/helpers.js';
+import { refreshAgents, detectChanges, writeFoundryGuideAgent } from './tools/agent-refresh.js';
 import { createHistoryTools } from './tools/history-tools.js';
 import { createStageTools } from './tools/stage-tools.js';
 import { createWorkfileTools } from './tools/workfile-tools.js';
@@ -34,6 +39,97 @@ import { createRefreshAgentsTool } from './tools/refresh-agents-tool.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '../..');
 const allSkillsDir = path.join(packageRoot, 'skills');
+
+// Module-level flag shared between config and message-transform hooks.
+let restartNeeded = false;
+
+// -- Bootstrap helpers --
+
+function bootstrapDirectories(worktree) {
+  const foundryDir = path.join(worktree, 'foundry');
+  mkdirSync(foundryDir, { recursive: true });
+  for (const sub of ['artefacts', 'flows', 'cycles', 'laws', 'appraisers']) {
+    const subDir = path.join(foundryDir, sub);
+    mkdirSync(subDir, { recursive: true });
+    const gitkeep = path.join(subDir, '.gitkeep');
+    if (!existsSync(gitkeep)) {
+      writeFileSync(gitkeep, '', 'utf8');
+    }
+  }
+}
+
+function ensureNewlineSuffix(str) {
+  if (str !== '' && !str.endsWith('\n')) return str + '\n';
+  return str;
+}
+
+function bootstrapGitignore(worktree) {
+  const gitignorePath = path.join(worktree, '.gitignore');
+  let content = '';
+  if (existsSync(gitignorePath)) {
+    content = readFileSync(gitignorePath, 'utf8');
+  }
+  content = ensureNewlineSuffix(content);
+  const existingLines = content.split('\n').map(l => l.trim());
+  const lines = ['.snapshots/', 'node_modules/', '.DS_Store'];
+  for (const line of lines) {
+    if (existingLines.includes(line)) continue;
+    content += `${line}\n`;
+  }
+  writeFileSync(gitignorePath, content, 'utf8');
+}
+
+function runBootstrapSequence(worktree, pkgRoot) {
+  bootstrapDirectories(worktree);
+  bootstrapGitignore(worktree);
+  refreshAgents(worktree);
+  writeFoundryGuideAgent(worktree, pkgRoot);
+  const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
+  writeFileSync(path.join(worktree, 'foundry', 'VERSION'), pkg.version, 'utf8');
+}
+
+function checkVersionMatch(foundryDir, pkgRoot) {
+  try {
+    const installedVersion = readFileSync(path.join(foundryDir, 'VERSION'), 'utf8').trim();
+    const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
+    return installedVersion === pkg.version;
+  } catch {
+    return false;
+  }
+}
+
+function isFoundryPopulated(worktree) {
+  const foundryDir = path.join(worktree, 'foundry');
+  if (!existsSync(foundryDir)) return false;
+  return readdirSync(foundryDir).some(e => e !== '.gitkeep');
+}
+
+function ensureGuideAgent(worktree, pkgRoot) {
+  const guideAgentPath = path.join(worktree, '.opencode', 'agents', 'foundry.md');
+  if (!existsSync(guideAgentPath)) {
+    writeFoundryGuideAgent(worktree, pkgRoot);
+    return true;
+  }
+  return false;
+}
+
+function runConfigBootstrap(worktree, pkgRoot) {
+  if (!isFoundryPopulated(worktree)) {
+    runBootstrapSequence(worktree, pkgRoot);
+    return true;
+  }
+
+  const foundryDir = path.join(worktree, 'foundry');
+  if (!checkVersionMatch(foundryDir, pkgRoot)) {
+    runBootstrapSequence(worktree, pkgRoot);
+    return true;
+  }
+
+  const result = detectChanges(worktree);
+  const changed = result.ok && result.changed;
+  const guideWritten = ensureGuideAgent(worktree, pkgRoot);
+  return changed || guideWritten;
+}
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
@@ -84,10 +180,17 @@ export const FoundryPlugin = async ({ directory }) => {
       if (!config.skills.paths.includes(allSkillsDir)) {
         config.skills.paths.push(allSkillsDir);
       }
+
+      // Boot decision tree: bootstrap or detect changes, then set restart flag
+      try {
+        restartNeeded = runConfigBootstrap(directory, packageRoot);
+      } catch (err) {
+        console.error('Foundry bootstrap error:', err.message);
+      }
     },
 
     'experimental.chat.messages.transform': async (_input, output) => {
-      const bootstrap = getBootstrapContent(directory, packageRoot);
+      const bootstrap = getBootstrapContent(directory, packageRoot, restartNeeded);
       if (!bootstrap) return;
 
       const firstUser = getFirstUserWithParts(output);
@@ -103,5 +206,9 @@ export const FoundryPlugin = async ({ directory }) => {
   };
 
   Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
+    get: () => restartNeeded,
+    configurable: true,
+  });
   return plugin;
 };

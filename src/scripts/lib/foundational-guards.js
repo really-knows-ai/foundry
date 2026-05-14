@@ -8,6 +8,6 @@ export function requireFoundryRoot(io) {
   if (io.exists('foundry')) return { ok: true };
   return {
     ok: false,
-    error: 'foundry/ directory not found at worktree root. Run the init-foundry skill to scaffold it.',
+    error: 'foundry/ directory not found at worktree root. Restart OpenCode to initialise Foundry.',
   };
 }
