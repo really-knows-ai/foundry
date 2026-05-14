@@ -85,7 +85,7 @@ describe('bootstrap — config hook', () => {
     const versionPath = join(dir, 'foundry', 'VERSION');
     assert.ok(existsSync(versionPath));
     const version = readFileSync(versionPath, 'utf8').trim();
-    assert.equal(version, '3.1.0');
+    assert.equal(version, '3.2.0');
 
     // Agent files created in .opencode/agents/
     const agentsDir = join(dir, '.opencode', 'agents');
@@ -103,7 +103,7 @@ describe('bootstrap — config hook', () => {
     // Pre-seed foundry/ with correct VERSION
     const foundryDir = join(dir, 'foundry');
     mkdirSync(foundryDir, { recursive: true });
-    writeFileSync(join(foundryDir, 'VERSION'), '3.1.0', 'utf8');
+    writeFileSync(join(foundryDir, 'VERSION'), '3.2.0', 'utf8');
 
     // Pre-seed .opencode/agents/ to match what opencode produces
     const agentsDir = join(dir, '.opencode', 'agents');
@@ -136,7 +136,7 @@ You are the Foundry agent.
     assert.equal(existsSync(join(dir, 'foundry', 'flows')), false);
 
     // VERSION unchanged
-    assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), '3.1.0');
+    assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), '3.2.0');
 
     // Agent files intact
     assert.ok(existsSync(join(agentsDir, `foundry-${slug}.md`)));
@@ -159,7 +159,7 @@ You are the Foundry agent.
     assert.ok(existsSync(join(dir, 'foundry', 'flows')));
 
     // VERSION overwritten
-    assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), '3.1.0');
+    assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), '3.2.0');
 
     // Agent files created
     assert.ok(existsSync(join(dir, '.opencode', 'agents', 'foundry-opencode-claude-sonnet-4.md')));
@@ -173,7 +173,7 @@ You are the Foundry agent.
     // Pre-seed foundry/ with correct VERSION (needed to pass version check)
     const foundryDir = join(dir, 'foundry');
     mkdirSync(foundryDir, { recursive: true });
-    writeFileSync(join(foundryDir, 'VERSION'), '3.1.0', 'utf8');
+    writeFileSync(join(foundryDir, 'VERSION'), '3.2.0', 'utf8');
 
     // Pre-seed agent files that are STALE (different model than opencode returns)
     const agentsDir = join(dir, '.opencode', 'agents');
@@ -188,7 +188,7 @@ You are the Foundry agent.
     assert.equal(existsSync(join(dir, 'foundry', 'flows')), false);
 
     // VERSION unchanged (full bootstrap did not run)
-    assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), '3.1.0');
+    assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), '3.2.0');
 
     // Old agent gone, new agent written
     assert.equal(existsSync(join(agentsDir, 'foundry-stale-model.md')), false);
