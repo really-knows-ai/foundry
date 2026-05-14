@@ -139,7 +139,13 @@ Scripts are located at: ${path.join(packageRoot, 'scripts')}
 </FOUNDRY_CONTEXT>`;
 }
 
-export function getBootstrapContent(directory, packageRoot) {
+export function getBootstrapContent(directory, packageRoot, restartNeeded = false) {
+  if (restartNeeded) {
+    return `<FOUNDRY_CONTEXT>
+Foundry initialised. Restart OpenCode so the Foundry agent and model-routing agents register. After restart, switch to the Foundry agent to author and run workflows.
+</FOUNDRY_CONTEXT>`;
+  }
+
   const foundryDir = path.join(directory, 'foundry');
   const foundryExists = existsSync(foundryDir) && statSync(foundryDir).isDirectory();
 
