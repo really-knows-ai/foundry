@@ -1,36 +1,38 @@
 ---
 name: make-phased-plan
-description: Use when you have a spec in plans/specs/ that needs a phased implementation plan written as PLAN.md and PHASE_XX.md files.
+description: Use when a project folder under plans/ contains SPEC.md and needs PLAN.md plus PHASE_XX.md files.
 ---
 
 # Make Phased Plan
 
-Turn a spec from `plans/specs/` into a phased implementation plan. The resulting plan lives under `plans/` and is designed for execution in a new session via subagent-driven development.
+Turn `plans/<project-name>/SPEC.md` into a phased implementation plan. The resulting `PLAN.md` and `PHASE_XX.md` files live in the same project directory and are designed for execution in a new session with the `execute-phased-plan` skill.
 
 ## Workflow
 
-### 1. Select a spec
+### 1. Select a project spec
 
-List files in `plans/specs/`. If the directory is missing or empty, ask the user for the spec path. If multiple specs exist and the user has not specified one, present the list and ask which to plan. If exactly one spec exists, use it.
+Use the project directory provided by the user. If none is provided, list directories under `plans/` that contain `SPEC.md` and ask which project to plan. If exactly one project directory contains `SPEC.md`, use it.
 
-Read the chosen spec in full. Understand its scope, deliverables, and constraints before planning.
+Read `SPEC.md` in full. Understand its scope, deliverables, and constraints before planning. If the chosen project directory does not contain `SPEC.md`, stop and ask the user to run `make-project-spec` first or provide the correct project directory.
 
-### 2. Choose a plan directory
+### 2. Use the project directory
 
-Create a unique directory under `plans/` named after the spec:
+Write the generated plan files beside the spec:
 
 ```
-plans/<spec-slug>/
+plans/<project-name>/SPEC.md
+plans/<project-name>/PLAN.md
+plans/<project-name>/PHASE_XX.md
 ```
 
-Use the spec filename (without extension) as the slug. If the directory already exists, append a numeric suffix (`-02`, `-03`, etc.) to avoid collisions.
+If `PLAN.md` or `PHASE_XX.md` files already exist, ask whether to replace them or stop.
 
 ### 3. Draft the plan with @implementer
 
 Dispatch a subagent using the platform's subagent mechanism, such as `@implementer` or `subagent_type: "implementer"`, with this prompt:
 
 ```
-You are drafting a phased implementation plan. Read the spec below and produce a PLAN.md and one PHASE_XX.md file per phase.
+You are drafting a phased implementation plan. Read the spec below and produce a PLAN.md and one PHASE_XX.md file per phase for the same project directory.
 
 **Spec:**
 [full spec content]
@@ -41,7 +43,7 @@ You are drafting a phased implementation plan. Read the spec below and produce a
 - Order phases by dependency: foundational work first, downstream work later.
 - Name phases descriptively (e.g., PHASE_01_core_schema.md, PHASE_02_api_layer.md).
 - Each PHASE_XX.md must state: goal, deliverables, verification steps, and acceptance criteria.
-- PLAN.md must list all phases in order, state the execution method (subagent-driven development), and include a "How to Execute" section that instructs the executing session to use the subagent-driven-development skill.
+- PLAN.md must reference `SPEC.md`, list all phases in order, state the execution method (`execute-phased-plan`), and include a "How to Execute" section that instructs the executing session to use the `execute-phased-plan` skill on this project directory.
 - Do not omit handoff instructions between phases — state what the next phase depends on from the prior one.
 - Use British English spelling throughout.
 
@@ -49,56 +51,96 @@ You are drafting a phased implementation plan. Read the spec below and produce a
 Return the full content of PLAN.md followed by each PHASE_XX.md, clearly separated by headings.
 ```
 
-### 4. Review with @reviewer
+### 4. Write draft files
+
+Write `PLAN.md` and each `PHASE_XX.md` to the project directory before review. Reviewers receive file paths, not pasted plan or spec content.
+
+Confirm the files are written by listing the directory contents.
+
+### 5. Review each phase with @reviewer
+
+Dispatch one reviewer subagent per phase, in phase order. Wait for each phase review result before starting the next one. Each reviewer receives only the phase file path. Do not pass the spec to individual phase reviewers.
+
+Use this prompt for each phase review:
+
+```
+Review this phase file for internal coherence and execution clarity:
+
+**Phase file:**
+[path to PHASE_XX.md]
+
+Focus on:
+1. The phase goal is clear and matches its deliverables.
+2. Deliverables are concrete and verifiable.
+3. Verification steps are specific enough for an executing agent to run.
+4. Acceptance criteria are objective pass/fail conditions.
+5. Dependencies and handoff instructions are clear within the phase.
+6. Ambiguities are surfaced as clarifying questions.
+
+Do not review this phase against the original spec. Focus on whether this phase is internally coherent, testable, and clear enough to execute.
+
+Respond with one of:
+- "APPROVED" (phase is internally coherent and execution-ready)
+- A numbered list of specific issues or clarifying questions to resolve
+```
+
+### 6. Review the full plan with @reviewer
+
+After all phase reviewers approve their phase files, dispatch a holistic reviewer.
 
 Dispatch a subagent using the platform's subagent mechanism, such as `@reviewer` or `subagent_type: "reviewer"`, with this prompt:
 
 ```
-Review the following phased implementation plan against its spec for completeness, correctness, and execution readiness.
+Review this phased implementation plan holistically for coherence across phases and alignment with `SPEC.md`.
 
-**Spec:**
-[full spec content]
+**Spec file:**
+[path to SPEC.md]
 
-**Proposed plan:**
-[draft plan from Step 3 — PLAN.md and all PHASE_XX.md files]
+**Plan file:**
+[path to PLAN.md]
+
+**Phase files:**
+[paths to all PHASE_XX.md files, in order]
 
 Check for:
 1. Every requirement in the spec maps to at least one phase deliverable.
-2. Each phase has concrete, verifiable acceptance criteria.
+2. The phases fit together into a coherent implementation sequence.
 3. Phases are ordered by dependency with clear handoff instructions.
-4. PLAN.md states execution uses subagent-driven development.
-5. No phase is vague or untestable.
+4. PLAN.md states execution uses the `execute-phased-plan` skill.
+5. Phase boundaries are clear and avoid duplicated or missing work.
 6. The plan covers edge cases and error handling mentioned in the spec.
+7. The full set of files is sufficient for a new session to execute the plan.
 
 Respond with one of:
 - "APPROVED" (plan meets spec requirements)
 - A numbered list of specific issues to fix
 ```
 
-### 5. Iterate or finalise
+### 7. Iterate or finalise
 
-If the reviewer returns "APPROVED", write the plan files and stop.
+If every phase reviewer and the holistic reviewer return "APPROVED", proceed to reporting.
 
-If the reviewer raises issues, dispatch the @implementer again with the issues and original spec, receive the revised plan, and re-review. Maximum two review cycles before stopping and reporting unresolved issues to the user.
+If any reviewer raises issues, dispatch the @implementer again with the issues, `SPEC.md` path, and current plan file paths. Receive the revised content, update the files, and re-review the affected phase files followed by the holistic review. Maximum two review cycles before stopping and reporting unresolved issues to the user.
 
-### 6. Write files
+### 8. Report the result
 
-Write `PLAN.md` and each `PHASE_XX.md` to the chosen plan directory. Confirm the files are written by listing the directory contents.
+Confirm the final files exist by listing the directory contents.
 
 Report to the user:
-- The plan directory path
+- The project directory path
 - Number of phases
-- Confirmation that execution should use a new session with subagent-driven development
+- Confirmation that each phase review and the holistic review passed, or the unresolved review issues
+- Confirmation that execution should use a new session with the `execute-phased-plan` skill
 
 ## Output file requirements
 
 ### PLAN.md
 
 Contains:
-- Plan title and spec reference
-- Execution method: subagent-driven development
+- Plan title and `SPEC.md` reference
+- Execution method: `execute-phased-plan`
 - Ordered list of phases with one-line descriptions
-- "How to Execute" section instructing the executing session to load the `subagent-driven-development` skill and follow it
+- "How to Execute" section instructing the executing session to load the `execute-phased-plan` skill and follow it
 
 ### PHASE_XX.md
 
@@ -112,8 +154,11 @@ Each phase file contains:
 ## Common mistakes
 
 - **Committing plans/**: The `plans/` directory is untracked. Do not stage or commit anything under `plans/`.
+- **Using `plans/specs/`**: Specs for this workflow live at `plans/<project-name>/SPEC.md`.
 - **One giant plan file**: The plan must be split into `PLAN.md` plus individual `PHASE_XX.md` files. A single file defeats phased execution.
-- **Omitting the reviewer**: The @reviewer step is mandatory. A plan without review remains a draft.
+- **Omitting reviewers**: Phase-by-phase @reviewer checks and the final holistic @reviewer check are mandatory. A plan without both review levels remains a draft.
+- **Pasting specs into phase reviews**: Individual phase reviewers receive only the phase file path. They focus on internal coherence and clarifying questions.
+- **Pasting file contents into holistic reviews**: The holistic reviewer receives file references for the spec, PLAN.md, and all phase files.
 - **Vague phase deliverables**: "Implement the API" is not a deliverable. "Create `src/routes/users.ts` with GET, POST, DELETE handlers and input validation" is.
 - **Missing handoff instructions**: Each phase must state what it depends on from prior phases. The executing session needs this context.
-- **Ignoring the execution method**: PLAN.md must explicitly state that execution uses subagent-driven development. Without this instruction, the executing session may attempt a different approach.
+- **Ignoring the execution method**: PLAN.md must explicitly state that execution uses the `execute-phased-plan` skill. Without this instruction, the executing session may attempt a different approach.
