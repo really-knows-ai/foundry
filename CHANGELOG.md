@@ -1,5 +1,53 @@
 # Changelog
 
+## [3.2.0] - 2026-05-14
+
+Plugin auto-bootstrapping release. Foundry now ensures the guide agent is
+present on every plugin load and deletes the now-redundant `init-foundry`
+skill. The project also ships a publish-release skill and documented
+workflows for plans and git worktrees.
+
+### Added
+
+- **Bootstrap logic** (`src/plugin.js`). On every `detectChanges` call,
+  Foundry ensures the guide agent file (`foundry.md`) exists in
+  `.opencode/agents/`, running the same deterministic agent-refresh path
+  that the `foundry_refresh_agents` tool uses. If the guide agent is
+  newly created, a post-install restart message is injected into the
+  detection context.
+- **`publish-release` skill** (`.opencode/skills/publish-release/`). A
+  workflow skill that commits loose changes, runs the quality gate,
+  bumps the version, updates the changelog, tags, pushes, and publishes
+  to npm.
+
+### Changed
+
+- **`init-foundry` skill removed.** The manual installation step is
+  replaced by deterministic auto-bootstrapping on plugin load.
+  `init-foundry` was the last on-ramp skill; new users no longer need
+  to run any skill after `pnpm add`.
+- **Shared agent-refresh utility extracted** (`src/lib/agent-refresh.js`).
+  The deterministic agent generation logic that lived in
+  `scripts/tools/foundry_refresh_agents.js` is now a shared module,
+  consumed by both the tool and the `detectChanges` bootstrap path.
+- **Phase reviews run in parallel** with partitioned iteration via
+  parallel implementer agents.
+- **Implementer agent model** updated to `deepseek-v4-flash`.
+
+### Fixed
+
+- **Guide agent now always present after `detectChanges`.** Previously
+  the guide agent could be absent until `init-foundry` or
+  `foundry_refresh_agents` was explicitly run.
+- **Guide agent preserved during `foundry_refresh_agents`.** The refresh
+  tool now ensures `foundry.md` is generated alongside stage agents,
+  not just preserved.
+
+### Docs
+
+- Git worktrees in `.worktrees/` directory documented.
+- Plans directory workflow and phased planning skills documented.
+
 ## [3.1.0] - 2026-05-11
 
 The Foundry guide agent release. Foundry now ships a user-facing agent that
