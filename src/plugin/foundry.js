@@ -143,6 +143,24 @@ function runPluginBootstrap(worktree, pkgRoot) {
   }
 }
 
+async function showStartupMessage(needsRestart, directory, client) {
+  if (needsRestart) {
+    try {
+      await client.tui.appendPrompt({
+        body: { text: 'Foundry initialised. Restart OpenCode so the Foundry agent registers, then switch to it to author and run workflows.' },
+      });
+    } catch { /* client may not be ready yet — messages.transform is the fallback */ }
+    return;
+  }
+  if (existsSync(path.join(directory, 'foundry'))) {
+    try {
+      await client.tui.showToast({
+        body: { message: 'Foundry is active', variant: 'info' },
+      });
+    } catch { /* client may not be ready yet */ }
+  }
+}
+
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
 function buildTools(createTool, pending) {
@@ -179,7 +197,7 @@ function getFirstUserWithParts(output) {
   return firstUser;
 }
 
-export const FoundryPlugin = async ({ directory }) => {
+export const FoundryPlugin = async ({ directory, client }) => {
   // Pending store is per-plugin-instance (shared across all tool invocations).
   const pending = createPendingStore();
 
@@ -194,6 +212,7 @@ export const FoundryPlugin = async ({ directory }) => {
       }
 
       restartNeeded = runPluginBootstrap(directory, packageRoot);
+      await showStartupMessage(restartNeeded, directory, client);
     },
 
     'experimental.chat.messages.transform': async (_input, output) => {
