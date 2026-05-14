@@ -131,6 +131,18 @@ function runConfigBootstrap(worktree, pkgRoot) {
   return changed || guideWritten;
 }
 
+function runPluginBootstrap(worktree, pkgRoot) {
+  // Skip if FOUNDRY_SKIP_BOOTSTRAP is set to prevent infinite recursion
+  // when this plugin spawns `opencode models` as a child process.
+  if (process.env.FOUNDRY_SKIP_BOOTSTRAP === '1') return false;
+  try {
+    return runConfigBootstrap(worktree, pkgRoot);
+  } catch (err) {
+    console.error('Foundry bootstrap error:', err.message);
+    return false;
+  }
+}
+
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
 function buildTools(createTool, pending) {
@@ -181,12 +193,7 @@ export const FoundryPlugin = async ({ directory }) => {
         config.skills.paths.push(allSkillsDir);
       }
 
-      // Boot decision tree: bootstrap or detect changes, then set restart flag
-      try {
-        restartNeeded = runConfigBootstrap(directory, packageRoot);
-      } catch (err) {
-        console.error('Foundry bootstrap error:', err.message);
-      }
+      restartNeeded = runPluginBootstrap(directory, packageRoot);
     },
 
     'experimental.chat.messages.transform': async (_input, output) => {

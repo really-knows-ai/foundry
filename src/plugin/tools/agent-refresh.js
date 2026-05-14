@@ -29,6 +29,7 @@ function listModels(worktree) {
     cwd: worktree,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, FOUNDRY_SKIP_BOOTSTRAP: '1' },
   });
   return stdout
     .split('\n')
