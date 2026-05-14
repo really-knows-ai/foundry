@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.2.5] - 2026-05-14
+
+### Changed
+
+- **Startup flow simplified to "hello foundry".** Removed the TUI client
+  retry approach for startup messages. Users now type **hello foundry**
+  after restarting; the AI reads the injected `FOUNDRY_CONTEXT` and responds
+  with restart instructions or readiness confirmation. This replaces the
+  silent double-restart dance.
+- **E2E tests no longer depend on Python or `dd`.** The SIGTERM trap test
+  now uses shell builtins (`trap`/`echo`/`while`). The output cap tests use
+  small Node.js scripts instead of `dd` piped to `tr`. Tests are faster and
+  have no external dependencies.
+- **Install docs updated** (`README.md`, `docs/getting-started.md`) to
+  reflect the "hello foundry" flow.
+
 ## [3.2.4] - 2026-05-14
 
 ### Fixed
