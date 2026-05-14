@@ -8,64 +8,75 @@ description: Create a new extractor definition under foundry/memory/extractors/.
 
 Use this skill to register a new extractor — a script that reads the codebase (via `tree-sitter`, `javap`, language servers, or whatever suits the project) and emits line-delimited JSON describing entities and edges to upsert into flow memory during an `assay` stage.
 
-## Prerequisites
+## Foundry Agent Preflight
 
-Before running this skill, verify all of the following:
+If you are clearly operating as the Foundry agent, continue.
 
-1. The `foundry/` directory exists in the project root. If it does not
-   exist, stop and tell the user:
+If you are not clearly operating as the Foundry agent, pause and tell the user:
 
-   > Restart OpenCode to initialise Foundry, then retry this command.
+> This work is best handled by the Foundry agent. Restart OpenCode if you have just initialised Foundry, switch to the **Foundry** agent, and continue this request there.
 
-2. The current git branch is a `config/*` branch. Run
-   `git rev-parse --abbrev-ref HEAD` and confirm it matches
-   `config/<description>`.
+This is an advisory guard. Continue only when the active instructions make it clear you are the Foundry agent or the user explicitly asks to proceed here.
 
-3. If the branch does not start with `config/`, move to a suitable
-   `config/*` branch internally when the current branch is safe. If
-   the current branch is `work/*` or `dry-run/*/*`, stop and explain
-   the active work must be finished first. When unrelated uncommitted
-   changes could be affected by branching or writing files, ask before
-   proceeding.
+## Config Branch Handling
 
-4. `foundry/memory/config.md` exists and has `enabled: true` (initialise
-   memory internally first if not). Missing memory entity or edge type
-   dependencies are created or composed internally when they are part of
-   the user's stated goal.
+Before writing Foundry configuration:
 
-## Steps
+- Confirm `foundry/` exists. If it is missing, initialise Foundry first when that serves the user's goal.
+- Check the current branch.
+- On `main` or another clean non-work branch, create a `config/<short-description>` branch internally.
+- On `config/*`, continue on the current branch.
+- On `work/*`, stop and explain that active flow work must be finished before configuration changes.
+- On `dry-run/*/*`, stop and explain that the dry run must be finished before configuration changes.
+- If unrelated uncommitted changes could be affected by branching or writing files, ask before proceeding.
 
-### 1. Gather inputs
+Do not tell the user to call branch tools directly.
 
-Ask the user for, in this order (one question at a time):
+`foundry/memory/config.md` must exist with `enabled: true`. Initialise memory internally first if not. Missing memory entity or edge type dependencies are composed internally when they are part of the user's stated goal.
+
+## Protocol
+
+### 1. Understand
+
+Ask the user for each field one question at a time, in this order:
 
 1. **Extractor name.** Lowercase kebab-case (`java-symbols`, `python-classes`, `tree-sitter-rust`). This becomes the filename under `foundry/memory/extractors/<name>.md` and the identifier referenced from cycle frontmatter.
 2. **Command.** The path to the executable (relative to the repo root, e.g. `scripts/extract-java-symbols.sh`) or a short shell command. This is passed to `/bin/sh -c` at runtime.
 3. **Entity types to populate (`memoryWrite`).** A list of entity type names already declared in this project's memory vocabulary. Validate against what exists; if the user names a type that doesn't exist, compose or create it internally when it is part of the user's stated goal, or ask one focused question when schema design is ambiguous.
-4. **Timeout** (optional). Duration string like `30s`, `2m`, or a number of milliseconds. Defaults to 60 seconds if omitted.
+4. **Timeout** (optional). Present as a choice:
+
+   > Set a timeout for this extractor?
+   > 1. 60 seconds (Recommended)
+   > 2. Custom duration (specify as `30s`, `2m`, or milliseconds)
 5. **Brief description.** 1–3 paragraphs of prose describing what this extractor extracts, what it requires on `PATH`, and any re-run triggers. This body is injected into the forge prompt of every cycle that uses this extractor, so clarity here translates to better downstream generation.
 
 **Security note:** Remind the user that extractors inherit the agent's full environment, including any API tokens or credentials. Extractors should keep environment variable handling internal to extraction logic.
 
-### 2. Propose and confirm
+### 2. Plan
 
-Summarise the proposed extractor back to the user and ask for confirmation before writing. Example:
+Summarise the proposed extractor back to the user and invite refinement. Include the extractor name, command, memory write path, description, and timeout. Ask: "Does this capture the extractor correctly?" Example:
 
 > I'll create `foundry/memory/extractors/java-symbols.md` with:
 > - command: `scripts/extract-java-symbols.sh`
 > - memoryWrite: [class, method]
-> - timeout: 60s (default)
+> - timeout: 60s
 > - brief: "Walks the Java source tree with tree-sitter-java…"
 >
-> OK to proceed?
+> Does this capture the extractor correctly?
 
-### 3. Create the extractor file
+### 3. Confirm
 
-Call `foundry_extractor_create({ name, command, memoryWrite, body, timeout? })`. On error, surface the error to the user and stop — do not attempt to recover silently.
+Ask: "Proceed with this plan?" — wait for the user to answer. Do not proceed to Build unless the user says yes. If the user rejects the plan, return to the Understand phase and adjust.
 
-### 4. Offer to scaffold the command script
+### 4. Build
 
-If the user confirms, create the script file at the `command` path with an executable permission. Provide a starter stub that documents the JSONL contract and a minimal example. For example, for `scripts/extract-java-symbols.sh`:
+1. **Create**: Call `foundry_extractor_create({ name: "<name>", command: "<command>", memoryWrite: ["<type>", ...], body: "<description>", timeout: "<optional>" })`. On error, surface the error to the user and stop — do not attempt to recover silently.
+
+2. **Commit**: Run `git add foundry/memory/extractors/<name>.md` plus the command script path if one was created. Run `git commit -m "feat(memory): add '<name>' extractor"`. Report the commit hash.
+
+#### Post-Build — scaffold the command script
+
+When the user has confirmed, create the script file at the `command` path with executable permission. Provide a starter stub that documents the JSONL contract and a minimal example:
 
 ```bash
 #!/bin/sh
@@ -93,27 +104,12 @@ echo '{"kind":"entity","type":"class","name":"example.Foo","value":"Example clas
 
 Make the script executable (`chmod +x <path>`). Do **not** run the script — validation is the author's responsibility.
 
-### 5. Commit
+#### Post-Build — compose into a cycle
 
-Commit both the definition and (if created) the stub script:
+When the user's stated goal is to add memory extraction to a flow or cycle, compose this extractor into the relevant cycle definition. Update the cycle definition internally to add the `extractors` and `memoryWrite` fields. Ask for confirmation or one focused question when cycle selection or wiring is ambiguous.
 
-```bash
-git add foundry/memory/extractors/<name>.md scripts/<command>
-git commit -m "feat(memory): add '<name>' extractor"
-```
-
-### 6. Compose into a cycle when the user's goal requires it
-
-When the user's stated goal is to add memory extraction to a flow or cycle, compose this extractor into the relevant cycle definition. See **Composing cycle definitions** below.
-
-## Dependency composition
-
-Missing memory entity or edge type dependencies are **composed internally** when they are part of the user's stated goal. Compose into the appropriate memory vocabulary when schema design is ambiguous — ask one focused question rather than stalling.
+Compose into the appropriate memory vocabulary when schema design is ambiguous — ask one focused question rather than stalling.
 
 ## What this skill must not do
 
 - **Must not** run the extractor script itself to verify it works. That is the author's job.
-
-## Composing cycle definitions
-
-When the user's stated goal includes opting an existing cycle into this extractor, update the cycle definition internally to add the `extractors` and `memoryWrite` fields. Ask for confirmation or one focused question when cycle selection or wiring is ambiguous.
