@@ -38,47 +38,114 @@ Do not tell the user to call branch tools directly.
 
 Extract or ask for the flow purpose, expected final artefact, output location, and any quality constraints. Prefer practical defaults for common requests.
 
-### 2. Inventory existing configuration
+**Flow basics**: Gather the flow's own required fields:
+- `id` — lowercase, hyphenated identifier. Reject duplicate IDs — if a flow with the same ID already exists, choose a different ID. Warn about semantic duplicates (different ID but near-identical purpose) and ask whether the new flow is genuinely distinct.
+- `name` — human-readable name
+- `description` — prose description of the flow purpose
 
-Read existing flows in `foundry/flows/*.md`, cycles in `foundry/cycles/*.md`, artefact types in `foundry/artefacts/*/definition.md`, laws in `foundry/laws/*.md`, and appraisers in `foundry/appraisers/*.md`. Identify reusable pieces and conflicts.
+**What the flow produces**: Ask about the artefact type the flow should produce. Determine whether it needs a new artefact type or whether an existing one fits.
 
-Reject duplicate flow IDs — if a flow with the same ID already exists, choose a different ID. Warn about semantic duplicates (different ID but near-identical purpose) and ask whether the new flow is genuinely distinct.
+**Quality constraints**: Ask about the laws that govern quality. For each law: what it checks, whether it applies globally or to a specific artefact type, and the deterministic-vs-subjective split.
 
-### 3. Design the dependency set
+**Appraisers**: Ask about the appraisers that evaluate quality. Determine how many are needed and whether existing appraisers fit or new ones are needed.
+
+**Cycles**: Ask about the cycles that process the artefact. Determine how many cycles there are and what each produces.
+
+**Starting cycles**: Identify which cycle IDs begin the flow.
+
+**Cycle graph validation**: After designing the cycles, validate the cycle graph: verify each non-starting cycle is reachable from a starting cycle through the `targets` graph, and verify each cycle's input contracts can be satisfied by other cycles in the flow. Warn about unreachable cycles or unsatisfiable contracts before proceeding.
+
+**Inventory**: Read existing flows in `foundry/flows/*.md`, cycles in `foundry/cycles/*.md`, artefact types in `foundry/artefacts/*/definition.md`, laws in `foundry/laws/*.md`, and appraisers in `foundry/appraisers/*.md`. Identify reusable pieces and conflicts.
+
+### 2. Gather requirements for each dependency
+
+For each dependency type in dependency order, ask questions to build a context object. This is the Understand phase for each sub-skill — the answers are captured and passed along when building.
 
 Create missing dependencies in validation order:
 
-1. Artefact type and file patterns.
-2. Type-specific laws.
-3. Deterministic validators attached to laws.
-4. Appraisers or appraiser selection.
-5. Cycles that produce the artefact types.
-6. Flow tying starting cycles and cycle list together.
+1. **Artefact types** (no sub-dependencies): For each new artefact type, gather `id`, `name`, `filePatterns`, `description`, and whether it needs type-specific laws or appraiser configuration. Context object: `{id, name, filePatterns, description, appraisers?}`.
+
+2. **Laws** (may reference artefact types): For each new law, gather `id`, `name`, `description`, `passing`, `failing`, the target (global file or type-specific with `typeId`), and the deterministic-vs-subjective split. Determine whether validators are needed. Context object: `{id, name, description, passing, failing, target: {kind, file|typeId}, validators?}`.
+
+3. **Appraisers** (may reference models): For each new appraiser, gather `id`, `name`, `description`, and optional `model` preference. Context object: `{id, name, description, model?}`.
+
+4. **Cycles** (reference artefact types, laws, appraisers): For each new cycle, gather `id`, `name`, `outputType`, `description`, and any optional settings (inputs, targets, appraise, assay, memory, models). Context object: `{id, name, outputType, description, inputs?, targets?, humanAppraise?, deadlockAppraise?, deadlockIterations?, maxIterations?, assay?, memory?, models?}`.
 
 For the haiku example, default to a `haiku` artefact type, `haikus/*.md` file pattern, laws for form, imagery, and mood, a deterministic syllable validator where project dependencies allow it, two or three distinct appraisers, one cycle, and one flow.
 
-After designing cycles, validate the cycle graph: verify each non-starting cycle is reachable from a starting cycle through the `targets` graph, and verify each cycle's input contracts can be satisfied by other cycles in the flow. Warn about unreachable cycles or unsatisfiable contracts before proceeding.
+For each dependency, determine whether it already exists (user says "use the existing haiku artefact type") or needs to be created. If it already exists, capture its id for reference. If it needs creating, capture the context object fields.
 
-### 4. Confirm ambiguous choices
+### 3. Present the combined plan
 
-Ask only for choices that affect the user's goal or safety. Reuse compatible existing configuration when it clearly fits.
+Show the full dependency tree as a structured summary:
 
-### 5. Validate and create each piece
+```text
+Flow: <id> — <name>
+  Starting cycles: <cycle-id>, ...
+  Description: <description>
+  Artefact Types:
+    · <id> (<name>) — <filePatterns>
+  Laws:
+    · <id> — <description> [deterministic|subjective]
+      validators: <validator-id> (if deterministic)
+  Appraisers:
+    · <id> — <description>
+  Cycles:
+    · <id> → <outputType> — <description>
+```
 
-For each definition, use the `foundry_config_validate_*` tool family to validate it first. Resolve any validation errors, then use the corresponding `foundry_config_create_*` tool to create it. Summarise each created file and commit hash in Foundry terms.
+Ask "Proceed with this plan?" — do not build anything until the user confirms.
 
-For the flow definition itself, use these structured fields:
+If the user rejects the plan, return to the Understand phase and adjust.
 
-- `id` (string) — lowercase, hyphenated identifier
-- `name` (string) — human-readable name
-- `description` (string) — prose description of the flow purpose
-- `startingCycles` (string[]) — cycle IDs that begin the flow
+### 4. Build dependencies in order
 
-Call `foundry_config_create_flow({ id: "<id>", name: "<name>", startingCycles: ["<id>"], description: "<description>" })` to create the flow file.
+For each dependency, invoke the sub-skill's protocol with the captured context object. The context object for each sub-skill matches the args of the corresponding `foundry_config_create_*` tool, with fields populated from the Understand and Gather phases.
 
-### 6. Final summary
+Build order (dependency order):
 
-Report the flow, starting cycles, artefact type, laws, validators, appraisers, and files created. Tell the user they can now ask the Foundry agent to run the flow.
+1. **Artefact types**: For each new artefact type, invoke the `add-artefact-type` protocol with the captured context. Example:
+
+   > Invoke the add-artefact-type protocol with context: `{id: "haiku", name: "Haiku", filePatterns: ["haikus/*.md"], description: "A traditional Japanese poem"}`.
+   > The add-artefact-type skill checks its Context object section. If all required fields are present, it proceeds directly to Build, skipping Understand, Plan, and Confirm. If only some fields are present, it asks only for the missing ones and proceeds to Build — it skips Plan and Confirm since the parent's combined plan already handled confirmation.
+
+2. **Laws**: For each new law, invoke the `add-law` protocol with the captured context. Example:
+
+   > Invoke the add-law protocol with context: `{id: "three-lines", name: "Three Lines", description: "must have exactly three lines", passing: "...", failing: "...", target: {kind: "type-specific", typeId: "haiku"}}`.
+   > If all required fields are present, the sub-skill proceeds directly to Build. Otherwise it asks only for the missing required fields, then proceeds to Build.
+
+3. **Appraisers**: For each new appraiser, invoke the `add-appraiser` protocol with the captured context.
+
+   > Invoke the add-appraiser protocol with context: `{id: "haiku-critic", name: "Haiku Critic", description: "Evaluates haiku structure and imagery"}`.
+   > If all required fields are present, proceed directly to Build. Otherwise ask for missing required fields only.
+
+4. **Cycles**: For each new cycle, invoke the `add-cycle` protocol with the captured context.
+
+   > Invoke the add-cycle protocol with context: `{id: "haiku-cycle", name: "Haiku Cycle", outputType: "haiku", description: "Generates haiku poems"}`.
+   > If all required fields are present, proceed directly to Build. Otherwise ask for missing required fields only.
+
+**Build-only mode**: When all required fields for a sub-skill are present in the context, the sub-skill skips Understand, Plan, and Confirm — proceeding directly to validate → create → commit. When only some required fields are present, the sub-skill enters its Understand phase to ask only for those missing required fields, then proceeds to Build (still skipping Plan and Confirm since the parent's combined plan already handled confirmation). Optional fields that are missing are silently skipped.
+
+**Error handling during build**: If a sub-skill's Build phase fails (validation error or tool error), surface the error to the user:
+
+> Build of `<piece>` failed: `<error>`. Retry, skip this piece, or abort?
+
+Do not silently skip or auto-resolve.
+
+### 5. Build the flow
+
+After all dependencies are built, create the flow itself:
+
+1. **Validate**: Call `foundry_config_validate_flow({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or cycles that do not exist yet.
+
+2. **Create**: Call `foundry_config_create_flow({ id: "<id>", name: "<name>", startingCycles: ["<cycle-id>", ...], description: "<description>" })`. The tool:
+   - re-validates the body (TOCTOU);
+   - writes `foundry/flows/<id>.md`;
+   - produces one git commit on the current `config/*` branch.
+
+   If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing flow file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
+
+3. **Report**: Show the user the flow file and the commit hash. Also summarise each dependency that was created, with its commit hash. Tell the user they can now ask the Foundry agent to run the flow.
 
 ## Safety Rules
 

@@ -34,151 +34,83 @@ Do not tell the user to call branch tools directly.
 
 ## Protocol
 
-### 1. Identify the foundry flow
+### Context object
 
-From the user's prompt, identify which foundry flow this foundry cycle belongs to. If not specified, list available flows from `foundry/flows/` and ask.
+When invoked with pre-filled fields matching the `foundry_config_create_cycle` tool args, skip questions for provided fields. Missing fields trigger clarifying questions.
+
+Context fields: `{id, name, outputType, description, inputs?, targets?, humanAppraise?, deadlockAppraise?, deadlockIterations?, maxIterations?, assay?, memory?, models?}`
+
+When invoked with a context:
+- If all required fields are present, skip the Understand phase and proceed to Plan → Confirm → Build.
+- If only some fields are present, ask only for the missing ones.
+
+### 1. Understand
+
+**Identify the flow**: From the user's prompt, identify which foundry flow this cycle belongs to. If not specified, list available flows from `foundry/flows/` and ask.
 
 If the parent flow or required artefact type is missing and the user's goal clearly requires it, create that dependency first. If multiple designs are plausible, ask one focused question before creating it.
 
-### 2. Gather basics
-
-From the user's prompt, establish:
-- `id` — lowercase, hyphenated identifier for the foundry cycle
+**Required fields** — Gather each required field one question at a time:
+- `id` — lowercase, hyphenated identifier for the cycle
 - `name` — human-readable name
-- `output-type` — the artefact type this foundry cycle produces (must exist in `foundry/artefacts/`)
-- `inputs` — artefact types this cycle reads, with a contract type:
-  - `type`: `any-of` (at least one must exist) or `all-of` (all must exist)
-  - `artefacts`: list of artefact type IDs
-  - May be empty for starting cycles
-- `targets` — cycle(s) to route to after this cycle completes (may be empty for terminal cycles)
-- A prose description of what this foundry cycle does
+- `outputType` — the artefact type this cycle produces. List existing artefact types from `foundry/artefacts/*/definition.md` as multiple-choice options.
+- `description` — prose description of what this cycle does
 
-If any of these are missing, ask.
+**Id conflict check**: Read all existing cycle definitions in `foundry/cycles/*.md`. An exact id match is a hard conflict — choose a different id.
 
-### 3. Gather model configuration
+**Output-type conflict check**: Read the flow definition from `foundry/flows/<flow-id>.md`. Check that no cycle in the flow already outputs the same artefact type. Two cycles producing the same type in one flow is a conflict — the file modification enforcement cannot distinguish which cycle owns the files. If a conflict exists, present it:
 
-For each stage in the cycle (forge, quench, appraise), ask the user if they want to specify a model:
-
-> Each stage can optionally run on a specific model for model diversity. Available session models are listed in your session configuration.
->
-> For each stage, specify a model ID (e.g., `openai/gpt-4o`) or leave blank to use the session's default model:
-> - forge: ___
-> - quench: ___
-> - appraise: ___
-
-Only stages with an explicitly specified model are included in the `models` frontmatter map.
-
-If the user has no preference, omit the `models` map and use the session defaults.
-
-### 4. Configure human appraise
-
-Ask the user:
-
-> Human-appraise has two independent knobs and one dependent setting:
->
-> 1. `human-appraise` — should a human review the artefact every iteration? Default: no.
-> 2. `deadlock-appraise` — should a human be pulled in only when LLM appraisers deadlock? Default: yes.
-> 3. `deadlock-iterations` — the deadlock threshold (default: 5). Only applies when `deadlock-appraise` or `human-appraise` is enabled.
->
-> - human-appraise: yes/no (default no)
-> - deadlock-appraise: yes/no (default yes)
-> - deadlock-iterations: number (default 5)
-
-### 5. Validate artefact types
-
-For `output-type` and each entry in `inputs`, verify the artefact type exists in `foundry/artefacts/<type>/definition.md`.
-
-If a required artefact type is missing and the user's goal clearly requires it, create that dependency first. If the file pattern or type design cannot be inferred safely, ask one focused question before creating it.
-
-### 6. Validate against the foundry flow
-
-Read the flow definition from `foundry/flows/<flow-id>.md`. Check:
-
-- No existing foundry cycle in the foundry flow already outputs the same artefact type. Two foundry cycles producing the same type in one foundry flow is a conflict — the file modification enforcement can't distinguish which foundry cycle owns the files.
-- Each `input` artefact type is produced by some cycle that can run before this one according to the flow's `targets` graph (a reachable predecessor). If an input references an artefact type that no reachable predecessor outputs, warn:
-
-> Input `<type>` is not produced by any reachable predecessor of this foundry cycle in the flow's `targets` graph. The artefact won't exist when this foundry cycle runs.
+> A cycle `<existing-id>` already produces `<outputType>` in this flow. Two cycles producing the same artefact type creates a conflict.
 >
 > Options:
-> 1. Add a foundry cycle that produces `<type>` and route to this cycle via `targets`
-> 2. Remove `<type>` from inputs (this foundry cycle won't have that context)
-> 3. Proceed anyway (the artefact may exist from a previous foundry flow run)
+> 1. Choose a different `outputType`
+> 2. Choose a different flow
+> 3. Proceed anyway if the types are intentionally distinct
 
-### 7. Check for id conflicts
+**Input reachability check**: For each input artefact type, verify that a reachable predecessor in the flow's `targets` graph produces it. If an input references a type that no reachable predecessor outputs, warn:
 
-Read all existing cycle definitions in `foundry/cycles/*.md`.
+> Input `<type>` is not produced by any reachable predecessor of this cycle in the flow's `targets` graph. The artefact will not exist when this cycle runs.
+>
+> Options:
+> 1. Add a cycle that produces `<type>` and route to this cycle via `targets`
+> 2. Remove `<type>` from inputs (this cycle will not have that context)
+> 3. Proceed anyway (the artefact may exist from a previous flow run)
 
-- Exact id match → hard conflict, must choose a different id
+**Validate target routing**: For each target cycle, verify the target exists in `foundry/cycles/` and that this cycle's output type satisfies at least one of the target's input artefacts. If a target does not exist yet, note it as pending.
 
-### 8. Check for semantic overlap
+**Optional clusters** — After each cluster, ask whether the user wants to configure it; if not, skip:
 
-For foundry cycles already in this foundry flow, check whether the new foundry cycle overlaps in purpose:
-- Does another foundry cycle already transform the same inputs into a similar output?
-- Would the new foundry cycle's description make sense as a revision of an existing foundry cycle rather than a new one?
+- **Routing**: `inputs` (input contract: `{type: "any-of"|"all-of", artefacts: string[]}`), `targets` (cycle IDs to route to after completion), `maxIterations` (maximum iterations before forced progression)
+- **Human-appraise**: `humanAppraise` (boolean, default false) — human reviews every iteration; `deadlockAppraise` (boolean, default true) — human is pulled in when LLM appraisers deadlock; `deadlockIterations` (number, default 5) — deadlock threshold. Only applies when either appraise is enabled.
+- **Memory and models**: `assay` (assay configuration), `memory` (memory configuration), `models` (stage-specific model overrides, e.g. `{forge: "openai/gpt-4o", appraise: "openai/gpt-4o"}`). For models, offer each stage (forge, quench, appraise) individually. If the user has no preference, omit the `models` map and use the session defaults.
 
-If overlap is found, present it and ask the user to confirm the distinction is real.
+### 2. Plan
 
-### 9. Draft the definition
+Present a structured summary of the cycle definition: id, name, outputType, description, and any configured optional fields (inputs, targets, humanAppraise, deadlockAppraise, deadlockIterations, maxIterations, assay, memory, models). Include only fields that have values.
 
-Present the foundry cycle definition to the user with these structured fields:
+Ask: "Does this capture the cycle correctly?" Iterate until the user is satisfied.
 
-- `id` (string) — lowercase, hyphenated identifier
-- `name` (string) — human-readable name
-- `outputType` (string) — the artefact type this cycle produces (must exist in `foundry/artefacts/`)
-- `description` (string) — prose description of what this cycle does
-- `inputs` (object, optional) — input contract. Shape: `{ type: "any-of" | "all-of", artefacts: string[] }`. May be omitted for starting cycles.
-- `targets` (string[], optional) — cycle IDs to route to after completion. May be omitted for terminal cycles.
-- `humanAppraise` (boolean, optional, default: false) — whether a human reviews the artefact every iteration
-- `deadlockAppraise` (boolean, optional, default: true) — whether a human is pulled in when LLM appraisers deadlock
-- `deadlockIterations` (number, optional, default: 5) — deadlock threshold
-- `maxIterations` (number, optional) — maximum iterations before forced progression
-- `assay` (object, optional) — assay configuration
-- `memory` (object, optional) — memory configuration
-- `models` (object, optional) — stage-specific model overrides, e.g. `{ appraise: "openai/gpt-4o" }`
+### 3. Confirm
 
-Ask: does this capture the foundry cycle correctly?
+Ask: "Proceed with this plan?" — wait for user answer before building. If the user rejects the plan, return to the Understand phase and adjust.
 
-### 10. Validate target routing
+### 4. Build
 
-For each target cycle:
-- Verify the target cycle exists in `foundry/cycles/`
-- Verify this cycle's output type satisfies at least one of the target's input artefacts
-- If the target doesn't exist yet, note it as pending
+1. **Validate**: Call `foundry_config_validate_cycle({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that do not exist yet.
 
-For input validation:
-- Verify that at least one cycle in the flow has the input artefact type(s) as its output
-- If using `all-of`, verify all input types are producible
+2. **Create**: Call `foundry_config_create_cycle({ id: "<id>", name: "<name>", outputType: "<type>", description: "<description>", inputs: ..., targets: ..., humanAppraise: ..., deadlockAppraise: ..., deadlockIterations: ..., maxIterations: ..., assay: ..., memory: ..., models: ... })`. The tool:
+   - re-validates the body (TOCTOU);
+   - writes `foundry/cycles/<id>.md`;
+   - produces one git commit on the current `config/*` branch.
 
-### 11. Validate the draft
+   If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing cycle file, apply any necessary updates, write it back, and commit on this `config/*` branch.
 
-Call `foundry_config_validate_cycle({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally.
+3. **Add to flow cycle list**: `foundry_config_create_cycle` writes the cycle file only. The cycle still needs to appear in the parent flow's `## Cycles` list. Read the existing flow file from `foundry/flows/<flow-id>.md`. Add the new cycle id under `## Cycles` if not already present. Write the updated file back and commit on this same `config/*` branch.
 
-If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
-
-### 12. Create the cycle file
-
-Call `foundry_config_create_cycle({ id: "<id>", name: "<name>", outputType: "<type>", description: "<description>", inputs: ..., targets: ..., humanAppraise: ..., deadlockAppraise: ..., deadlockIterations: ..., maxIterations: ..., assay: ..., memory: ..., models: ... })`. The tool:
-
-- re-validates the body (TOCTOU);
-- writes `foundry/cycles/<id>.md`;
-- produces one git commit on the current `config/*` branch.
-
-If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing cycle file, apply any necessary updates, write it back, and commit on this `config/*` branch.
-
-Show the user the resulting commit hash from the response.
-
-### 13. Add the cycle to the flow's cycle list
-
-`foundry_config_create_cycle` writes the cycle file only. The cycle still needs to appear in the parent flow's `## Cycles` list.
-
-Read the existing flow file from `foundry/flows/<flow-id>.md`. Add the new cycle id under `## Cycles` if it is not already present. Write the updated file back and commit on this same `config/*` branch.
-
-### 14. Confirm
-
-Show the user the cycle file, the updated flow file, and both commit hashes.
+4. Show the user the cycle file, the updated flow file, and both commit hashes.
 
 ## What you do NOT do
 
-- You do not create foundry cycles that output an artefact type already produced by another foundry cycle in the same foundry flow
+- You do not create cycles that output an artefact type already produced by another cycle in the same flow
 - You do not skip artefact type validation
 - You do not create dependencies (artefact types, flows) unless the user's stated goal clearly requires them; ask one focused question when multiple designs are plausible
