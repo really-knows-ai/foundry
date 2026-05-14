@@ -103,9 +103,18 @@ Add the plugin to `opencode.json`:
 }
 ```
 
-Restart OpenCode so the plugin registers its tools and skills. You will see new
-tools and skills become available in OpenCode's command palette once the restart
-completes. Flow-management tools are now ready to use.
+Restart OpenCode so the plugin registers. On startup, Foundry bootstraps the
+directory structure, generates stage agents, and installs the Foundry guide
+agent automatically.
+
+After restart, type **hello foundry**. The assistant will tell you whether a
+further restart is needed and when to switch to the Foundry agent.
+
+Optionally, to make the package available to your project's local `node_modules`:
+
+```sh
+pnpm add -D @really-knows-ai/foundry
+```
 
 ---
 
@@ -121,29 +130,17 @@ The upgrade process asks clarifying questions for ambiguous routing, input contr
 
 ### Phase 1 — Install
 
-Add the plugin to `opencode.json` (see Install section above):
+Add the plugin to `opencode.json` (see Install section above), then restart
+OpenCode.
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@really-knows-ai/foundry"]
-}
-```
+Type **hello foundry**. The assistant will guide you through any remaining
+setup. If Foundry was just initialised, it will ask you to restart and switch
+to the **Foundry** agent. If Foundry is already set up, it will tell you to
+switch to the Foundry agent directly.
 
-Then restart OpenCode so the plugin registers its tools and skills. You will see new
-tools and skills become available in OpenCode's command palette once the restart
-completes. Flow-management tools are now ready to use.
+### Phase 2 — Switch to the Foundry agent
 
-### Phase 2 — Initialise
-
-Restart OpenCode after adding the plugin. On boot, the plugin's config hook runs
-a decision tree: if `foundry/` is missing or its VERSION does not match the
-installed plugin version, it bootstraps the directory structure, generates
-`foundry-<model>` stage agent files, installs the user-facing `Foundry` guide
-agent, and tells you to restart again.
-
-Restart OpenCode a second time so the new agents register. After the restart,
-switch to the **Foundry** agent. The Foundry agent is the normal interface for
+Switch to the **Foundry** agent. The Foundry agent is the normal interface for
 authoring and running Foundry workflows.
 
 ### Phase 3 — Ask the Foundry agent for a flow

@@ -21,7 +21,12 @@ Add Foundry to `opencode.json`:
 }
 ```
 
-OpenCode resolves the package itself — `npm install` is **not** required. Restart OpenCode (or reload plugins) so the plugin registers its tools and skills.
+Restart OpenCode so the plugin registers. On startup, Foundry bootstraps the
+directory structure, generates stage agents, and installs the Foundry guide
+agent automatically.
+
+After restart, type **hello foundry**. The assistant will tell you whether a
+further restart is needed and when to switch to the Foundry agent.
 
 Optionally, if you want the package available to your project's local node_modules (for editor tooling or scripts), run:
 
@@ -31,11 +36,20 @@ pnpm add -D @really-knows-ai/foundry
 
 ## Initialise
 
-Restart OpenCode after adding the plugin. On boot, the plugin's config hook checks project state: if `foundry/` is missing or its VERSION does not match the installed plugin version, it bootstraps the directory structure, generates model-routing `foundry-*` stage agents, installs the user-facing `Foundry` guide agent, and prompts a second restart.
+After restarting OpenCode with the plugin, type **hello foundry**. The
+assistant will read the Foundry bootstrap context and respond with guidance:
 
-Restart OpenCode again so the new agents register. Then switch to the **Foundry** agent before authoring flows. The Foundry agent understands Foundry's authoring workflow and handles dependent setup such as artefact types, laws, validators, appraisers, cycles, and config branches.
+- If Foundry was just initialised: it will tell you to restart again and switch
+  to the Foundry agent.
+- If Foundry is already set up: it will tell you to switch to the Foundry agent
+  directly.
 
-The `.foundry/` runtime directory (holding `.secret` for stage tokens) is created automatically on first plugin boot and added to `.gitignore`.
+switch to the **Foundry** agent before authoring flows. The Foundry agent
+understands Foundry's authoring workflow and handles dependent setup such as
+artefact types, laws, validators, appraisers, cycles, and config branches.
+
+The `.foundry/` runtime directory (holding `.secret` for stage tokens) is
+created automatically on first plugin boot and added to `.gitignore`.
 
 ---
 
