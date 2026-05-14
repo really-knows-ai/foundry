@@ -194,6 +194,9 @@ You are the Foundry agent.
     assert.equal(existsSync(join(agentsDir, 'foundry-stale-model.md')), false);
     assert.ok(existsSync(join(agentsDir, 'foundry-opencode-claude-sonnet-4.md')));
 
+    // Guide agent should exist (ensureGuideAgent also runs)
+    assert.ok(existsSync(join(agentsDir, 'foundry.md')));
+
     // restartNeeded set because agents changed
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
     assert.equal(restartNeeded, true);

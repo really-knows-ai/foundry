@@ -126,9 +126,9 @@ function runConfigBootstrap(worktree, pkgRoot) {
   }
 
   const result = detectChanges(worktree);
-  if (result.ok && result.changed) return true;
-
-  return ensureGuideAgent(worktree, pkgRoot);
+  const changed = result.ok && result.changed;
+  const guideWritten = ensureGuideAgent(worktree, pkgRoot);
+  return changed || guideWritten;
 }
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
