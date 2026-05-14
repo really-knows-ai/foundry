@@ -48,27 +48,19 @@ If the user names a type-specific law for an artefact type that does not exist, 
 
 ### 2. Draft the law
 
-Write the law following the standard format:
+Write the law using these structured fields:
 
-```markdown
-## <law-id>
+- `id` (string) — lowercase, hyphenated law identifier, unique across all laws
+- `name` (string) — human-readable name
+- `description` (string) — one or two sentences describing what this law checks
+- `passing` (string) — description of what passing looks like
+- `failing` (string) — description of what failing looks like
+- `validators` (array, optional) — validator entries. Include only when a deterministic check can decide pass/fail. See **Validator contract** below for the exact shape a validator command must satisfy.
 
-<What this law checks — one or two sentences.>
-
-validators:
-  - id: validator-id
-    command: ./script.sh
-    failure-means: (optional description)
-```
-
-The `law-id` (heading) should be:
+The `id` value should be:
 - Lowercase, hyphenated
 - Short but descriptive
 - Unique across all laws (global and type-specific)
-
-The `validators:` block is optional. Include it only when a
-deterministic check can decide pass/fail. See **Validator contract**
-below for the exact shape a validator command must satisfy.
 
 ### 3. Check for conflicts
 
@@ -111,7 +103,7 @@ Iterate until the user is happy.
 
 ### 5. Validate the draft
 
-Call `foundry_config_validate_law({ name: "<file-name-without-extension>", body: "<full markdown>" })`.
+Call `foundry_config_validate_law({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the `## <id>` heading format the tool produces internally.
 
 If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types that don't exist yet.
 
@@ -126,8 +118,11 @@ Then call:
 
 ```
 foundry_config_add_law({
-  name: "<file-name-without-extension>",
-  body: "<full markdown>",
+  id: "<id>",
+  name: "<name>",
+  description: "<description>",
+  passing: "<passing>",
+  failing: "<failing>",
   target: { kind: "global", file: "<file-name>.md" }   // OR
            { kind: "type-specific", typeId: "<artefact-type>" }
 })
@@ -140,9 +135,9 @@ The tool:
 - produces one git commit on the current `config/*` branch.
 
 The tool appends to an existing `laws.md` automatically when the
-new `## <law-id>` heading is not already present. It only errors when
+new law id is not already present. It only errors when
 a law with the same id is already in the file — in that case use
-`foundry_config_edit_law({ id: "<law-id>", body: "<updated-body>" })`
+`foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>" })`
 to modify the existing law in place.
 
 Show the user the resulting commit hash from the response.
@@ -286,7 +281,7 @@ Then proceed with the update.
 
 #### 8e. Apply the update
 
-Call `foundry_config_edit_law({ id: "<law-id>", body: "<updated-markdown>" })` with the full updated body (prose and validators combined).
+Call `foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>", validators: [...] })` with the full updated fields.
 
 Validate the result. If the tool returns `{ ok: true }`, show the user the commit hash. If it returns `{ ok: false, errors }`, address each error and retry.
 

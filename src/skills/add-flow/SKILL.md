@@ -67,6 +67,15 @@ Ask only for choices that affect the user's goal or safety. Reuse compatible exi
 
 For each definition, use the `foundry_config_validate_*` tool family to validate it first. Resolve any validation errors, then use the corresponding `foundry_config_create_*` tool to create it. Summarise each created file and commit hash in Foundry terms.
 
+For the flow definition itself, use these structured fields:
+
+- `id` (string) — lowercase, hyphenated identifier
+- `name` (string) — human-readable name
+- `description` (string) — prose description of the flow purpose
+- `startingCycles` (string[]) — cycle IDs that begin the flow
+
+Call `foundry_config_create_flow({ id: "<id>", name: "<name>", startingCycles: ["<id>"], description: "<description>" })` to create the flow file.
+
 ### 6. Final summary
 
 Report the flow, starting cycles, artefact type, laws, validators, appraisers, and files created. Tell the user they can now ask the Foundry agent to run the flow.

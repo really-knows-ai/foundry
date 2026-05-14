@@ -80,23 +80,17 @@ Do not proceed until the patterns are non-overlapping.
 
 ### 4. Draft the definition
 
-Present the definition to the user:
+Present the definition to the user with these structured fields:
 
-```markdown
----
-name: <id>
-file-patterns:
-  - "<pattern>"
----
+- `id` (string) — lowercase, hyphenated identifier (e.g. `haiku`). Must be unique across artefact types.
+- `name` (string) — human-readable label
+- `filePatterns` (string[]) — glob patterns for files this type produces (forge's write scope is exactly these patterns)
+- `description` (string) — prose description of what this artefact type is
+- `appraisers` ({ count?: number, allowed?: string[] }, optional) — appraiser configuration
 
-## Definition
-
-<description>
-```
-
-The `name:` value must exactly match the artefact type's `id`
+The `id` value must exactly match the artefact type's identifier
 (lowercase, hyphenated). If you want a human-readable label, put it
-in the `## Definition` prose.
+in the `name` field.
 
 Ask: does this capture the artefact type correctly?
 
@@ -139,32 +133,24 @@ Ask:
 > - How many appraisers per foundry cycle? (default: 3)
 > - Restrict to specific appraiser personalities? (default: all available)
 
-If the user specifies preferences, add an `appraisers` section to the definition frontmatter:
+If the user specifies preferences, include these fields:
 
-```yaml
-appraisers:
-  count: 3                              # how many appraisers (default: 3)
-  allowed: [pedantic, pragmatic]        # which personalities (default: all available)
-```
+- `appraisers.count` (number, optional, default: 3) — how many appraisers per foundry cycle
+- `appraisers.allowed` (string[], optional, default: all available) — whitelist of appraiser personality IDs
 
-If the user is happy with the defaults (3 appraisers, any personality), add just:
-
-```yaml
-appraisers:
-  count: 3
-```
+If the user is happy with the defaults (3 appraisers, any personality), omit the appraisers configuration entirely.
 
 List the available appraisers from `foundry/appraisers/*.md` so the user can see their options.
 
 ### 7. Validate the draft
 
-Call `foundry_config_validate_artefact_type({ name: "<id>", body: "<full markdown>" })`.
+Call `foundry_config_validate_artefact_type({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally.
 
 If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
 
 ### 8. Create the file
 
-Call `foundry_config_create_artefact_type({ name: "<id>", body: "<full markdown>" })`. The tool:
+Call `foundry_config_create_artefact_type({ id: "<id>", name: "<name>", filePatterns: ["<pattern>"], description: "<description>" })`. The tool:
 
 - re-validates the body (TOCTOU);
 - writes `foundry/artefacts/<id>/definition.md`;

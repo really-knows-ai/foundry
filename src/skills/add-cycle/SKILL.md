@@ -120,30 +120,21 @@ If overlap is found, present it and ask the user to confirm the distinction is r
 
 ### 9. Draft the definition
 
-Present the foundry cycle definition to the user:
+Present the foundry cycle definition to the user with these structured fields:
 
-```markdown
----
-id: <id>
-name: <name>
-output-type: <artefact-type-id>
-inputs:
-  type: <any-of|all-of>
-  artefacts:
-    - <artefact-type-id>
-targets:
-  - <cycle-id>
-human-appraise: <true|false>
-deadlock-appraise: <true|false>
-deadlock-iterations: <number>
-models:
-  appraise: <model-id>
----
-
-# <Name>
-
-<description>
-```
+- `id` (string) — lowercase, hyphenated identifier
+- `name` (string) — human-readable name
+- `outputType` (string) — the artefact type this cycle produces (must exist in `foundry/artefacts/`)
+- `description` (string) — prose description of what this cycle does
+- `inputs` (object, optional) — input contract. Shape: `{ type: "any-of" | "all-of", artefacts: string[] }`. May be omitted for starting cycles.
+- `targets` (string[], optional) — cycle IDs to route to after completion. May be omitted for terminal cycles.
+- `humanAppraise` (boolean, optional, default: false) — whether a human reviews the artefact every iteration
+- `deadlockAppraise` (boolean, optional, default: true) — whether a human is pulled in when LLM appraisers deadlock
+- `deadlockIterations` (number, optional, default: 5) — deadlock threshold
+- `maxIterations` (number, optional) — maximum iterations before forced progression
+- `assay` (object, optional) — assay configuration
+- `memory` (object, optional) — memory configuration
+- `models` (object, optional) — stage-specific model overrides, e.g. `{ appraise: "openai/gpt-4o" }`
 
 Ask: does this capture the foundry cycle correctly?
 
@@ -160,13 +151,13 @@ For input validation:
 
 ### 11. Validate the draft
 
-Call `foundry_config_validate_cycle({ name: "<id>", body: "<full markdown>" })`.
+Call `foundry_config_validate_cycle({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally.
 
 If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
 
 ### 12. Create the cycle file
 
-Call `foundry_config_create_cycle({ name: "<id>", body: "<full markdown>" })`. The tool:
+Call `foundry_config_create_cycle({ id: "<id>", name: "<name>", outputType: "<type>", description: "<description>", inputs: ..., targets: ..., humanAppraise: ..., deadlockAppraise: ..., deadlockIterations: ..., maxIterations: ..., assay: ..., memory: ..., models: ... })`. The tool:
 
 - re-validates the body (TOCTOU);
 - writes `foundry/cycles/<id>.md`;

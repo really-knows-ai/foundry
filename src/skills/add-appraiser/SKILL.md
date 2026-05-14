@@ -76,19 +76,12 @@ Do not proceed until the user has decided.
 
 ### 4. Draft the definition
 
-Present the definition to the user:
+Present the definition to the user with these structured fields:
 
-```markdown
----
-id: <id>
-name: <name>
-model: <model-id>            # only include if specified
----
-
-# <Name>
-
-<personality description — 2-4 sentences describing how this appraiser thinks, what they care about, and how they approach evaluation>
-```
+- `id` (string) — lowercase, hyphenated identifier
+- `name` (string) — a short character name (e.g., "The Pedant", "The Pragmatist")
+- `description` (string) — 2-4 sentences describing how this appraiser thinks, what they care about, and how they approach evaluation
+- `model` (string, optional) — a specific model ID to use for this appraiser (e.g., `openai/gpt-4o`). Overrides the cycle-level model for the appraise stage. Omit this field to use the cycle's default model.
 
 Ask: does this capture the personality correctly?
 
@@ -101,13 +94,13 @@ Iterate until the user is happy with the personality description. Key things to 
 
 ### 6. Validate the draft
 
-Call `foundry_config_validate_appraiser({ name: "<id>", body: "<full markdown>" })`.
+Call `foundry_config_validate_appraiser({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally.
 
 If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
 
 ### 7. Create the file
 
-Call `foundry_config_create_appraiser({ name: "<id>", body: "<full markdown>" })`. The tool:
+Call `foundry_config_create_appraiser({ id: "<id>", name: "<name>", description: "<description>" })`. The tool:
 
 - re-validates the body (TOCTOU);
 - writes `foundry/appraisers/<id>.md`;
