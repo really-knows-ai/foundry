@@ -110,3 +110,13 @@ Run scripts via `pnpm run <script>`.
 
 Use `build:all` before publishing or opening a pull request to confirm
 the entire pipeline passes.
+
+## Git worktrees
+
+Git worktrees are stored in `.worktrees/` at the project root. Each
+worktree subdirectory is a fully functional clone sharing the repository
+object store. When running tools or scripts that inspect the working
+tree, be aware that changes may live in a worktree rather than the main
+working copy.
+
+List worktrees with `git worktree list`.
