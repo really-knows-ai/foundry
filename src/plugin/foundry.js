@@ -143,21 +143,39 @@ function runPluginBootstrap(worktree, pkgRoot) {
   }
 }
 
-async function showStartupMessage(needsRestart, directory, client) {
-  if (needsRestart) {
+const defaultSleep = ms => new Promise(resolve => { setTimeout(resolve, ms); });
+
+function resolveOpt(opts, key, fallback) {
+  return (opts && opts[key] !== undefined) ? opts[key] : fallback;
+}
+
+async function retryUntilReady(fn, opts) {
+  const sleep = resolveOpt(opts, 'sleep', defaultSleep);
+  const now = resolveOpt(opts, 'now', Date.now);
+  const maxMs = resolveOpt(opts, 'maxMs', 30000);
+  const deadline = now() + maxMs;
+  while (now() < deadline) {
     try {
-      await client.tui.appendPrompt({
-        body: { text: 'Foundry initialised. Restart OpenCode so the Foundry agent registers, then switch to it to author and run workflows.' },
-      });
-    } catch { /* client may not be ready yet — messages.transform is the fallback */ }
+      await fn();
+      return;
+    } catch {
+      await sleep(500);
+    }
+  }
+}
+
+async function showStartupMessage(needsRestart, directory, client, timerFns) {
+  if (!client) return;
+  if (needsRestart) {
+    await retryUntilReady(() => client.tui.appendPrompt({
+      body: { text: 'Foundry initialised. Restart OpenCode so the Foundry agent registers, then switch to it to author and run workflows.' },
+    }), timerFns);
     return;
   }
   if (existsSync(path.join(directory, 'foundry'))) {
-    try {
-      await client.tui.showToast({
-        body: { message: 'Foundry is active', variant: 'info' },
-      });
-    } catch { /* client may not be ready yet */ }
+    await retryUntilReady(() => client.tui.showToast({
+      body: { message: 'Foundry is active', variant: 'info' },
+    }), timerFns);
   }
 }
 
