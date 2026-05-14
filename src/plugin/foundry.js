@@ -149,10 +149,12 @@ function resolveOpt(opts, key, fallback) {
   return (opts && opts[key] !== undefined) ? opts[key] : fallback;
 }
 
+const STARTUP_MSG_MAX_MS = 3000;
+
 async function retryUntilReady(fn, opts) {
   const sleep = resolveOpt(opts, 'sleep', defaultSleep);
   const now = resolveOpt(opts, 'now', Date.now);
-  const maxMs = resolveOpt(opts, 'maxMs', 30000);
+  const maxMs = resolveOpt(opts, 'maxMs', STARTUP_MSG_MAX_MS);
   const deadline = now() + maxMs;
   while (now() < deadline) {
     try {
@@ -230,7 +232,8 @@ export const FoundryPlugin = async ({ directory, client }) => {
       }
 
       restartNeeded = runPluginBootstrap(directory, packageRoot);
-      await showStartupMessage(restartNeeded, directory, client);
+      // Fire-and-forget: don't block startup. messages.transform is the fallback.
+      showStartupMessage(restartNeeded, directory, client);
     },
 
     'experimental.chat.messages.transform': async (_input, output) => {
