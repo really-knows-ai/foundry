@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.3.1] - 2026-05-14
+
+### Fixed
+
+- **Appraiser tool description** now explicitly states that appraisers are
+  personalities only — boundaries and constraints belong in laws. Prevents
+  the AI from embedding criteria in appraiser descriptions that should be
+  encoded as laws.
+- **Validator command description** now mandates `.mjs` scripts and NDJSON
+  stdout format (`file`, `text`, optional `location`/`severity`, exit code
+  ignored). Prevents the AI from using inline bash/Python validators that
+  don't produce machine-parseable output.
+- **add-law skill** gains §2a: a deterministic-vs-subjective split step
+  that walks the user through which law elements can be script-checked and
+  which are left to appraisers. Includes guidance to prefer existing
+  libraries over hand-rolled validation logic.
+- **add-artefact-type skill** no longer carries validator guidance
+  (validators are exclusively law-related, not artefact-type-related).
+
 ## [3.3.0] - 2026-05-14
 
 ### Added
