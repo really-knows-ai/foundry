@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.2.7] - 2026-05-14
+
+### Added
+
+- **Git repo initialisation during bootstrap.** If the worktree has no
+  `.git` directory, Foundry now runs `git init`, `git add .`, and
+  `git commit` after creating the initial directory structure. Projects
+  start with a clean initial commit of the generated configuration.
+- **Tool path resolution from PATH.** A new `tool-paths.js` module
+  resolves `git` and `opencode` from `PATH` on each call instead of
+  executing bare command names. Overridable via `FOUNDRY_GIT_PATH` and
+  `FOUNDRY_OPENCODE_PATH` environment variables. Removed
+  `sonarjs/no-os-command-from-path` lint overrides for `foundry.js`
+  and `agent-refresh.js`.
+
+### Changed
+
+- **`.foundry/` added to default `.gitignore`.** The runtime state
+  directory was previously created but not ignored by default.
+
 ## [3.2.6] - 2026-05-14
 
 ### Fixed
