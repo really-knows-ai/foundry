@@ -287,8 +287,8 @@ describe('getBootstrapContent — message variants', () => {
 
   test('restartNeeded with no foundry/ returns restart message', () => {
     const msg = getBootstrapContent(dir, dir, true);
-    assert.ok(msg.includes('Restart OpenCode'));
-    assert.ok(msg.includes('Foundry initialised'));
+    assert.ok(msg.includes('restart OpenCode'));
+    assert.ok(msg.includes('initialised'));
     assert.ok(msg.includes('FOUNDRY_CONTEXT'));
   });
 
@@ -302,7 +302,7 @@ describe('getBootstrapContent — message variants', () => {
     assert.ok(msg.includes('FOUNDRY_CONTEXT'));
 
     // Restart message should NOT appear
-    assert.equal(msg.includes('Restart OpenCode'), false);
+    assert.equal(msg.includes('restart OpenCode'), false);
   });
 
   test('restartNeeded = true with existing foundry/ returns restart message (bootstrap just ran)', () => {
@@ -310,7 +310,7 @@ describe('getBootstrapContent — message variants', () => {
     mkdirSync(foundryDir, { recursive: true });
 
     const msg = getBootstrapContent(dir, dir, true);
-    assert.ok(msg.includes('Restart OpenCode'));
-    assert.ok(msg.includes('Foundry initialised'));
+    assert.ok(msg.includes('restart OpenCode'));
+    assert.ok(msg.includes('initialised'));
   });
 });

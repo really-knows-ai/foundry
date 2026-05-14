@@ -92,9 +92,11 @@ export function listFlows(foundryDir) {
 
 function buildFoundryNotInitializedMessage() {
   return `<FOUNDRY_CONTEXT>
-Foundry is installed but not initialised in this project. There is no foundry/ directory.
-
-To set up Foundry, initialise the project first. Initialisation creates the foundry/ directory structure, installs the user-facing Foundry agent, and generates model-routing stage agents. After initialisation, restart OpenCode and switch to the Foundry agent.
+Foundry is installed but not yet initialised in this project — there is no foundry/ directory.
+The plugin will bootstrap the directory structure, generate stage agents, and install the
+Foundry guide agent automatically on the next startup. The user may just need to restart
+OpenCode for this to happen. Once initialised, direct the user to restart again so the new
+agents register, then switch to the Foundry agent.
 </FOUNDRY_CONTEXT>`;
 }
 
@@ -110,8 +112,9 @@ function buildFlowList(flows) {
 
 function buildFoundryInitializedMessage(flowList, packageRoot) {
   return `<FOUNDRY_CONTEXT>
-Foundry is active in this project. The foundry/ directory contains the project's artefact definitions,
-laws, appraisers, cycles, and flows.
+Foundry is active in this project. The foundry/ directory contains the project's artefact
+definitions, laws, appraisers, cycles, and flows. The user should switch to the Foundry agent
+to author and run workflows.
 
 Foundry is a skill-driven framework for governed artefact generation and evaluation.
 The pipeline: assay (populate memory) → forge (produce) → quench (deterministic checks) → appraise (subjective evaluation) → human-appraise (human review) → iterate.
@@ -142,7 +145,10 @@ Scripts are located at: ${path.join(packageRoot, 'scripts')}
 export function getBootstrapContent(directory, packageRoot, restartNeeded = false) {
   if (restartNeeded) {
     return `<FOUNDRY_CONTEXT>
-Foundry initialised. Restart OpenCode so the Foundry agent and model-routing agents register. After restart, switch to the Foundry agent to author and run workflows.
+Foundry has just been initialised in this project. The directory structure, stage agent files,
+and Foundry guide agent have all been created. Tell the user to restart OpenCode now so the new
+agents register. After restarting, the user should switch to the Foundry agent to author and
+run workflows.
 </FOUNDRY_CONTEXT>`;
   }
 
