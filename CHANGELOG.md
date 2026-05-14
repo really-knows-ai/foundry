@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.2.4] - 2026-05-14
+
+### Fixed
+
+- **Bootstrap error in cached npm installs.** The `packageRoot` was resolved
+  from `__dirname` using a hardcoded relative path (`../..`) that only worked
+  in the source tree. In the dist tree (`dist/.opencode/plugins/`), the same
+  path resolved to `dist/` instead of the package root, causing
+  `ENOENT: package.json` errors. The resolution now walks up from `__dirname`
+  until it finds `package.json`.
+
 ## [3.2.3] - 2026-05-14
 
 ### Fixed
