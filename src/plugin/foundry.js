@@ -153,44 +153,6 @@ function runPluginBootstrap(worktree, pkgRoot) {
   }
 }
 
-const defaultSleep = ms => new Promise(resolve => { setTimeout(resolve, ms); });
-
-function resolveOpt(opts, key, fallback) {
-  return (opts && opts[key] !== undefined) ? opts[key] : fallback;
-}
-
-const STARTUP_MSG_MAX_MS = 3000;
-
-async function retryUntilReady(fn, opts) {
-  const sleep = resolveOpt(opts, 'sleep', defaultSleep);
-  const now = resolveOpt(opts, 'now', Date.now);
-  const maxMs = resolveOpt(opts, 'maxMs', STARTUP_MSG_MAX_MS);
-  const deadline = now() + maxMs;
-  while (now() < deadline) {
-    try {
-      await fn();
-      return;
-    } catch {
-      await sleep(500);
-    }
-  }
-}
-
-async function showStartupMessage(needsRestart, directory, client, timerFns) {
-  if (!client) return;
-  if (needsRestart) {
-    await retryUntilReady(() => client.tui.appendPrompt({
-      body: { text: 'Foundry initialised. Restart OpenCode so the Foundry agent registers, then switch to it to author and run workflows.' },
-    }), timerFns);
-    return;
-  }
-  if (existsSync(path.join(directory, 'foundry'))) {
-    await retryUntilReady(() => client.tui.showToast({
-      body: { message: 'Foundry is active', variant: 'info' },
-    }), timerFns);
-  }
-}
-
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
 function buildTools(createTool, pending) {
@@ -227,7 +189,7 @@ function getFirstUserWithParts(output) {
   return firstUser;
 }
 
-export const FoundryPlugin = async ({ directory, client }) => {
+export const FoundryPlugin = async ({ directory }) => {
   // Pending store is per-plugin-instance (shared across all tool invocations).
   const pending = createPendingStore();
 
@@ -242,8 +204,6 @@ export const FoundryPlugin = async ({ directory, client }) => {
       }
 
       restartNeeded = runPluginBootstrap(directory, packageRoot);
-      // Fire-and-forget: don't block startup. messages.transform is the fallback.
-      showStartupMessage(restartNeeded, directory, client);
     },
 
     'experimental.chat.messages.transform': async (_input, output) => {
