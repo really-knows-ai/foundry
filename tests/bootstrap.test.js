@@ -120,6 +120,15 @@ You are a Foundry stage agent. Follow the skill instructions provided in your ta
 `;
     writeFileSync(join(agentsDir, `foundry-${slug}.md`), agentContent, 'utf8');
 
+    // Pre-seed guide agent — the config hook ensures it exists
+    const guideAgentContent = `---
+description: "Guide users through Foundry authoring and flow execution"
+mode: primary
+---
+You are the Foundry agent.
+`;
+    writeFileSync(join(agentsDir, 'foundry.md'), guideAgentContent, 'utf8');
+
     const plugin = await runConfigHook(dir, binDir, [modelId]);
 
     // foundry/ should NOT have been re-created (no subdirectories from bootstrap)

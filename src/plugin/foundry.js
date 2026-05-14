@@ -104,6 +104,15 @@ function isFoundryPopulated(worktree) {
   return readdirSync(foundryDir).some(e => e !== '.gitkeep');
 }
 
+function ensureGuideAgent(worktree, pkgRoot) {
+  const guideAgentPath = path.join(worktree, '.opencode', 'agents', 'foundry.md');
+  if (!existsSync(guideAgentPath)) {
+    writeFoundryGuideAgent(worktree, pkgRoot);
+    return true;
+  }
+  return false;
+}
+
 function runConfigBootstrap(worktree, pkgRoot) {
   if (!isFoundryPopulated(worktree)) {
     runBootstrapSequence(worktree, pkgRoot);
@@ -119,7 +128,7 @@ function runConfigBootstrap(worktree, pkgRoot) {
   const result = detectChanges(worktree);
   if (result.ok && result.changed) return true;
 
-  return false;
+  return ensureGuideAgent(worktree, pkgRoot);
 }
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
