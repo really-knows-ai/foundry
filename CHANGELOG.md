@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.2.1] - 2026-05-14
+
+### Fixed
+
+- **Plugin hangs on startup due to infinite recursion.** The config hook's
+  `refreshAgents` call spawns `opencode models` via `execFileSync`. When the
+  project directory has the foundry plugin configured, the child process
+  loads plugins too, triggering another `opencode models` — infinite
+  synchronous recursion that hangs the parent. The plugin now sets
+  `FOUNDRY_SKIP_BOOTSTRAP=1` in the child process environment and skips the
+  bootstrap in the config hook when that variable is set.
+
 ## [3.2.0] - 2026-05-14
 
 Plugin auto-bootstrapping release. Foundry now ensures the guide agent is
