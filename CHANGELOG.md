@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.2.2] - 2026-05-14
+
+### Added
+
+- **Immediate startup feedback via TUI.** Instead of waiting for the first
+  user prompt to inject the Foundry context message, the config hook now
+  shows feedback immediately. When a restart is needed, the message is
+  appended directly to the prompt bar via `client.tui.appendPrompt`. When
+  Foundry is already active, a non-intrusive toast notification confirms
+  readiness via `client.tui.showToast`. The `messages.transform` hook
+  remains as a fallback for AI context injection.
+- **Injectable timer for startup retry logic.** `retryUntilReady` accepts
+  injectable `sleep`, `now`, and `maxMs` functions so tests can control
+  timing without real delays. `showStartupMessage` bails early when the
+  TUI client is unavailable to avoid hanging in environments without a
+  client.
+
 ## [3.2.1] - 2026-05-14
 
 ### Fixed
