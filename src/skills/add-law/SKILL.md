@@ -57,6 +57,23 @@ Write the law using these structured fields:
 - `failing` (string) — description of what failing looks like
 - `validators` (array, optional) — validator entries. Include only when a deterministic check can decide pass/fail. See **Validator contract** below for the exact shape a validator command must satisfy.
 
+#### 2a. Identify deterministic vs subjective elements
+
+For each law, explicitly split what it checks into two categories:
+
+- **Deterministic** — can be checked by a script without human or LLM judgment. Examples: line count, syllable count, word minimum, forbidden patterns, file existence, formatting rules. These become `validators:` entries in the law.
+- **Subjective** — requires judgment. Examples: imagery quality, emotional resonance, persuasiveness, aesthetic appeal, clarity of argument. The appraisers evaluate these during the appraise stage. No validator entry needed; the law's prose alone guides the appraiser.
+
+Walk the user through this split for each law:
+
+> This law covers [summary]. Here's what's deterministic vs subjective:
+> - Deterministic: [list elements that can be script-checked]
+> - Subjective: [list elements requiring judgment — appraisers handle these]
+>
+> Shall I add validators for the deterministic elements?
+
+For each deterministic element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Prefer Node.js built-ins and libraries already in the project; hand-rolled heuristics are fragile — use available packages instead of writing custom validation logic from scratch.
+
 The `id` value should be:
 - Lowercase, hyphenated
 - Short but descriptive

@@ -332,7 +332,7 @@ function makeAddLawTool(tool) {
       }).describe('Where to write the law'),
       validators: tool.schema.array(tool.schema.object({
         id: tool.schema.string().describe('Validator identifier'),
-        command: tool.schema.string().describe('CLI command with optional {pattern} / {files} placeholders'),
+        command: tool.schema.string().describe('CLI command with optional {pattern} / {files} placeholders. Prefer JavaScript (.mjs) scripts as separate files (e.g. "node foundry/artefacts/<type>/check.mjs {files}"). Stdout must be NDJSON: one JSON object per line with required fields "file" (relative path) and "text" (message). Optional: "location" (line:col), "severity" (error|warning). Exit code is ignored.'),
         failureMeans: tool.schema.string().optional().describe('Description of what failure means'),
       })).optional().describe('Optional deterministic validators'),
     },

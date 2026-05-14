@@ -142,7 +142,7 @@ function artefactTypeArgs(s) { return {
 function appraiserArgs(s) { return {
   id: s.string().describe('Slugged identifier matching the filename under foundry/appraisers/'),
   name: s.string().describe('Human-readable display name written to frontmatter.name'),
-  description: s.string().describe('Prose personality description placed after frontmatter'),
+  description: s.string().describe('Personality or perspective (2-4 sentences: how they think, what they care about, how they evaluate). Appraisers read laws to learn what to check — laws define boundaries and constraints, this field defines the evaluator character and lens only. Do not enumerate criteria here; put those in laws.'),
   model: s.string().optional().describe('Optional model override for this appraiser (e.g. openai/gpt-4o)'),
 }; }
 

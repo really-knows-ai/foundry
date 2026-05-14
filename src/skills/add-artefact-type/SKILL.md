@@ -94,8 +94,6 @@ in the `name` field.
 
 Ask: does this capture the artefact type correctly?
 
-When laws or validators are clearly part of the requested artefact type, draft them during artefact-type creation. Use the validator contract from `add-law` and prefer established packages installed with the project package manager.
-
 ### 5. Laws (optional)
 
 Ask:
@@ -113,17 +111,6 @@ rule, working directory, and a worked example are documented once in
 the `add-law` skill under **§7a. Validator contract**. Authors of
 type-specific laws must follow that contract — do not invent a
 different one here.
-
-**Use existing libraries:** Before writing custom validation logic,
-search npm for well-tested libraries that solve the problem (e.g.
-`syllable` for syllable counting, `natural` for NLP tasks).
-Hand-rolled heuristics are fragile — prefer battle-tested packages.
-Install them as project dependencies.
-
-Check the project's `package.json` for `"type": "module"`:
-- If ESM (`"type": "module"`): use `import` syntax, or name scripts with `.mjs` extension
-- If CommonJS (no `"type"` field or `"type": "commonjs"`): `require()` is fine, or use `.cjs` extension
-- When in doubt, use `.mjs` or `.cjs` extensions to be explicit regardless of project settings
 
 ### 6. Appraisers (optional)
 
