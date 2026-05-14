@@ -178,12 +178,10 @@ function cycleArgs(s) { return {
 }; }
 
 export function createConfigCreateTools({ tool }) {
-  const baseArgs = {
+  const makeValidate = createMakeValidate(tool, {
     name: tool.schema.string(),
     body: tool.schema.string(),
-  };
-
-  const makeValidate = createMakeValidate(tool, baseArgs);
+  });
   const makeCreate = createMakeCreate(tool);
   const s = tool.schema;
 

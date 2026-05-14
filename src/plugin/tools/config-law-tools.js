@@ -352,7 +352,7 @@ function makeEditLawTool(tool) {
       failing: tool.schema.string().optional().describe('Updated failing criteria'),
       validators: tool.schema.array(tool.schema.object({
         id: tool.schema.string(), command: tool.schema.string(), failureMeans: tool.schema.string().optional(),
-      })).optional().nullable().describe('Updated validators (replaces existing; null/omitted leaves unchanged)'),
+      })).optional().nullable().describe('Updated validators (replaces existing; null removes validators block; omitted leaves unchanged)'),
     },
     execute: guarded('foundry_config_edit_law', EDIT_GUARDS, executeEditLaw, { branchIo: branchIoFactory, io: asyncIoFactory }),
   });
