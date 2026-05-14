@@ -5,6 +5,7 @@ import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { assembleLawMarkdown } from '../../src/scripts/lib/config-creators/law.js';
 
 const GIT_ENV = {
   ...process.env,
@@ -33,11 +34,6 @@ function setupRepoWithFoundry() {
 function cleanup(dir) {
   try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
-
-const VALID_LAW_BODY = `## test-law
-
-The artefact must do the thing correctly and completely.
-`;
 
 const VALID_ARTEFACT_BODY = `---
 name: widget
@@ -275,9 +271,10 @@ test('foundry_config_create_cycle with all optional fields', async () => {
 test('foundry_config_validate_law returns ok for a valid body on main', async () => {
   const dir = setupRepoWithFoundry();
   try {
+    const validLawBody = assembleLawMarkdown({ id: 'test-law', name: 'Test Law', description: 'A test law.', passing: 'Passing criteria.', failing: 'Failing criteria.' });
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_config_validate_law.execute(
-      { name: 'rules', body: VALID_LAW_BODY },
+      { name: 'rules', body: validLawBody },
       makeCtx(dir),
     ));
     assert.equal(res.ok, true, JSON.stringify(res));
