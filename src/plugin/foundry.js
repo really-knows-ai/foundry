@@ -36,8 +36,18 @@ import { createSnapshotTools } from './tools/snapshot-tools.js';
 import { createAttestationTools } from './tools/attestation-tools.js';
 import { createRefreshAgentsTool } from './tools/refresh-agents-tool.js';
 
+function findPackageRoot(startDir) {
+  let dir = startDir;
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    if (existsSync(path.join(dir, 'package.json'))) return dir;
+    dir = path.dirname(dir);
+  }
+  return startDir;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const packageRoot = path.resolve(__dirname, '../..');
+const packageRoot = findPackageRoot(__dirname);
 const allSkillsDir = path.join(packageRoot, 'skills');
 
 // Module-level flag shared between config and message-transform hooks.
