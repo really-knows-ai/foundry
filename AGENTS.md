@@ -59,6 +59,32 @@ Code identifiers, package names, and external API names keep their
 upstream spelling (`color: '#fff'` in CSS, `initialize()` from a
 third-party library, etc.).
 
+## Plans directory
+
+The `plans/` directory is intentionally untracked and gitignored. Tools
+that respect `.gitignore` or rely on the git index, including Glob-style
+file discovery and git status/diff output, will not reliably find plan
+files.
+
+When working with plans, use explicit `plans/...` paths or commands that
+include ignored files. Treat missing results from git-aware discovery as
+an indexing limitation, not evidence that a plan file is absent.
+
+Use `ls` directly to list plan files and project folders, for example
+`ls plans` or `ls plans/[project-name]`.
+
+Plans use this structure:
+
+```text
+plans/[project-name]/
+  SPEC.md       # Work specification
+  PLAN.md       # Implementation plan
+  PHASE_XX.md   # Plan phases referenced by PLAN.md
+```
+
+The `make-project-spec`, `make-phased-plan`, and `execute-phased-plan`
+skills work with this structure.
+
 ## Package manager: pnpm
 
 This project uses **pnpm** (`packageManager: pnpm@10.15.1`). Always use
