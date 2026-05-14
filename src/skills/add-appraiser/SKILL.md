@@ -34,30 +34,23 @@ Do not tell the user to call branch tools directly.
 
 ## Protocol
 
-### 1. Gather basics
+### Context object
 
-From the user's prompt, establish:
-- `id` — lowercase, hyphenated identifier
-- `name` — a short character name (e.g., "The Pedant", "The Pragmatist")
-- `model` — (optional) a specific model ID to use for this appraiser (e.g., `openai/gpt-4o`). Overrides the cycle-level model for the appraise stage. If omitted, the appraiser uses whatever model the cycle's appraise stage is configured with.
-- A prose description of the personality: how they think, what they prioritize, how they evaluate
+When invoked with pre-filled fields matching the `foundry_config_create_appraiser` tool args, skip questions for provided fields. Missing fields trigger clarifying questions.
 
-If `id`, `name`, or the personality description are missing, ask. The `model` field is optional — only ask about it if the user mentions wanting a specific model for this appraiser.
+Context fields: `{id, name, description, model?}`
 
-### 2. Check for id conflicts
+When invoked with a context:
+- If all required fields are present, skip the Understand phase and proceed to Plan → Confirm → Build.
+- If only some fields are present, ask only for the missing ones.
 
-Read all existing appraiser definitions in `foundry/appraisers/*.md`.
+### 1. Understand
 
-- Exact id match → hard conflict, must choose a different id
+Ask for `id`, `name`, and `description` one at a time. Ask about `model` (optional) — offer the default model as the recommended choice.
 
-### 3. Check for semantic overlap
+**Id conflict check**: Read all existing appraiser definitions in `foundry/appraisers/*.md`. Exact id match means a hard conflict — choose a different id.
 
-For each existing appraiser, compare the new personality against it:
-- What does this appraiser prioritize?
-- What lens do they evaluate through?
-- Would two artefacts get meaningfully different feedback from these appraisers?
-
-If significant overlap is found, present it to the user:
+**Semantic overlap check**: For each existing appraiser, compare the new personality against it. If significant overlap is found, present it to the user:
 
 > The new appraiser `<new-id>` seems to overlap with existing appraiser `<existing-id>`:
 > - New: <name> — <personality summary>
@@ -74,45 +67,23 @@ If significant overlap is found, present it to the user:
 
 Do not proceed until the user has decided.
 
-### 4. Draft the definition
+### 2. Plan
 
-Present the definition to the user with these structured fields:
+Present a quick inline summary: id, name, personality description. Include the model if one was specified. Ask: "Does this capture the personality correctly?" Iterate until the user is satisfied.
 
-- `id` (string) — lowercase, hyphenated identifier
-- `name` (string) — a short character name (e.g., "The Pedant", "The Pragmatist")
-- `description` (string) — 2-4 sentences describing how this appraiser thinks, what they care about, and how they approach evaluation
-- `model` (string, optional) — a specific model ID to use for this appraiser (e.g., `openai/gpt-4o`). Overrides the cycle-level model for the appraise stage. Omit this field to use the cycle's default model.
+### 3. Confirm
 
-Ask: does this capture the personality correctly?
+Ask: "Proceed with this plan?" — wait for user answer before building. If the user rejects the plan, return to the Understand phase and adjust.
 
-### 5. Refine with the user
+### 4. Build
 
-Iterate until the user is happy with the personality description. Key things to check:
-- Is the personality distinct enough from existing appraisers?
-- Does the description give the LLM enough direction to adopt a consistent voice?
-- Is it clear what this appraiser would flag vs let pass?
+1. **Validate**: Call `foundry_config_validate_appraiser({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that do not exist yet.
 
-### 6. Validate the draft
+2. **Create**: Call `foundry_config_create_appraiser({ id: "<id>", name: "<name>", description: "<description>" })`. The tool re-validates the body (TOCTOU), writes `foundry/appraisers/<id>.md`, and produces one git commit on the current `config/*` branch. Show the user the resulting commit hash.
 
-Call `foundry_config_validate_appraiser({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally.
+   If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
 
-If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
-
-### 7. Create the file
-
-Call `foundry_config_create_appraiser({ id: "<id>", name: "<name>", description: "<description>" })`. The tool:
-
-- re-validates the body (TOCTOU);
-- writes `foundry/appraisers/<id>.md`;
-- produces one git commit on the current `config/*` branch.
-
-If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
-
-Show the user the resulting commit hash from the response.
-
-### 8. Mention artefact type configuration
-
-After creating the appraiser, offer to connect it to relevant artefact-type configuration when doing so supports the user's stated goal. If the user confirms, update the artefact type's `appraisers.allowed` list on the same config branch.
+3. **Artefact type configuration**: After creating the appraiser, offer to connect it to relevant artefact-type configuration when doing so supports the user's stated goal. If the user confirms, update the artefact type's `appraisers.allowed` list on the same config branch.
 
 ## What you do NOT do
 

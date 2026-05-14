@@ -34,24 +34,21 @@ Do not tell the user to call branch tools directly.
 
 ## Protocol
 
-### 1. Gather basics
+### Context object
 
-From the user's prompt, establish:
-- `id` — lowercase, hyphenated identifier (e.g. `haiku`). The
-  frontmatter `name:` field must equal this id; any human-readable
-  label goes in the `## Definition` prose, not in frontmatter.
-- `file-patterns` — glob patterns for files this type produces
-  (forge's write scope is exactly these patterns).
-- A prose description of what this artefact type is.
+When invoked with pre-filled fields matching the `foundry_config_create_artefact_type` tool args, skip questions for provided fields. Missing fields trigger clarifying questions.
 
-If any of these are missing, ask.
+Context fields: `{id, name, filePatterns, description, appraisers?}`
 
-### 2. Check for naming conflicts
+When invoked with a context:
+- If all required fields are present, skip the Understand phase and proceed to Plan → Confirm → Build.
+- If only some fields are present, ask only for the missing ones.
 
-Read all existing artefact type definitions in `foundry/artefacts/*/definition.md`.
+### 1. Understand
 
-- Exact id match → hard conflict, must choose a different id
-- Semantically similar name or description → warn the user. Ask:
+Ask for each field one question at a time. Prefer multiple choice for `filePatterns`, deriving options from the artefact type name and common conventions (e.g. `haikus/*.md`, `haiku.md`, `output/haiku/*.md`). Ask about `appraisers` (optional) — either provide an existing appraiser ID or skip.
+
+**Naming conflict check**: Read all existing artefact type definitions in `foundry/artefacts/*/definition.md`. Exact id match means a hard conflict — choose a different id. A semantically similar name or description triggers a warning:
 
 > An artefact type `<existing-id>` already exists that seems similar:
 > - Existing: <name> — <description summary>
@@ -59,16 +56,7 @@ Read all existing artefact type definitions in `foundry/artefacts/*/definition.m
 >
 > Is the new type genuinely distinct, or should you extend the existing one?
 
-### 3. Check for glob intersection
-
-For each existing artefact type, check whether the new type's `file-patterns` could match the same files as any existing type's `file-patterns`.
-
-Examples of intersections:
-- `features/*.feature` vs `features/*.feature` — exact overlap
-- `features/**` vs `features/*.feature` — subset overlap
-- `output/*.md` vs `output/reports/*.md` — potential overlap if nested
-
-If any intersection is found, this is a hard block:
+**File pattern overlap check**: For each existing artefact type, check whether the new type's `filePatterns` could match the same files as any existing type's patterns. Overlapping file patterns are a hard block:
 
 > The file pattern `<new-pattern>` intersects with artefact type `<existing-id>` which uses `<existing-pattern>`.
 >
@@ -78,87 +66,33 @@ If any intersection is found, this is a hard block:
 
 Do not proceed until the patterns are non-overlapping.
 
-### 4. Draft the definition
+### 2. Plan
 
 Present the definition to the user with these structured fields:
 
-- `id` (string) — lowercase, hyphenated identifier (e.g. `haiku`). Must be unique across artefact types.
-- `name` (string) — human-readable label
-- `filePatterns` (string[]) — glob patterns for files this type produces (forge's write scope is exactly these patterns)
-- `description` (string) — prose description of what this artefact type is
-- `appraisers` ({ count?: number, allowed?: string[] }, optional) — appraiser configuration
+- `id` (string) — lowercase, hyphenated identifier. Must be unique across artefact types.
+- `name` (string) — human-readable label.
+- `filePatterns` (string[]) — glob patterns for files this type produces.
+- `description` (string) — prose description of what this artefact type is.
+- `appraisers` ({ count?: number, allowed?: string[] }, optional) — appraiser configuration.
 
-The `id` value must exactly match the artefact type's identifier
-(lowercase, hyphenated). If you want a human-readable label, put it
-in the `name` field.
+Ask: does this capture the artefact type correctly? Iterate until the user is satisfied.
 
-Ask: does this capture the artefact type correctly?
+### 3. Confirm
 
-### 5. Laws (optional)
+Ask: "Proceed with this plan?" — wait for user answer before building. If the user rejects the plan, return to the Understand phase and adjust.
 
-Ask:
+### 4. Build
 
-> Do you want to define any type-specific laws for this artefact type? (Global laws in `foundry/laws/` will apply automatically.)
+1. **Validate**: Call `foundry_config_validate_artefact_type({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that do not exist yet.
 
-If yes, walk through each law using the same format as `add-law`:
-- Draft each law, adding validators where a deterministic check applies
-- Check for conflicts with global laws and any existing type-specific laws
-- Confirm with the user
+2. **Create**: Call `foundry_config_create_artefact_type({ id: "<id>", name: "<name>", filePatterns: ["<pattern>"], description: "<description>" })`. The tool re-validates the body (TOCTOU), writes `foundry/artefacts/<id>/definition.md`, and produces one git commit on the current `config/*` branch. Show the user the resulting commit hash.
 
-Each law may declare an optional `validators:` block; the YAML shape,
-JSONL output contract, `{pattern}` / `{files}` placeholders, skip
-rule, working directory, and a worked example are documented once in
-the `add-law` skill under **§7a. Validator contract**. Authors of
-type-specific laws must follow that contract — do not invent a
-different one here.
+   If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
 
-### 6. Appraisers (optional)
+3. **Type-specific laws**: Ask "Define any type-specific laws for this artefact type?" If yes, invoke the `add-law` protocol with context: `{target: {kind: "type-specific", typeId: "<new-type-id>"}}`. The `add-law` skill asks for the missing law fields (id, name, description, passing, failing) and creates the law at `foundry/artefacts/<typeId>/laws.md`.
 
-Ask:
-
-> How should appraisers be configured for this artefact type?
-> - How many appraisers per foundry cycle? (default: 3)
-> - Restrict to specific appraiser personalities? (default: all available)
-
-If the user specifies preferences, include these fields:
-
-- `appraisers.count` (number, optional, default: 3) — how many appraisers per foundry cycle
-- `appraisers.allowed` (string[], optional, default: all available) — whitelist of appraiser personality IDs
-
-If the user is happy with the defaults (3 appraisers, any personality), omit the appraisers configuration entirely.
-
-List the available appraisers from `foundry/appraisers/*.md` so the user can see their options.
-
-### 7. Validate the draft
-
-Call `foundry_config_validate_artefact_type({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally.
-
-If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that don't exist yet.
-
-### 8. Create the file
-
-Call `foundry_config_create_artefact_type({ id: "<id>", name: "<name>", filePatterns: ["<pattern>"], description: "<description>" })`. The tool:
-
-- re-validates the body (TOCTOU);
-- writes `foundry/artefacts/<id>/definition.md`;
-- produces one git commit on the current `config/*` branch.
-
-If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
-
-Show the user the resulting commit hash from the response.
-
-### 9. Add laws file (if defined)
-
-If you drafted any type-specific laws in step 5, add them via
-`foundry_config_add_law` (one call per law) with
-`target: { kind: "type-specific", typeId: "<id>" }`. The first call
-creates `foundry/artefacts/<id>/laws.md`; subsequent calls append to
-that same file. Each call produces its own microcommit. See the
-`add-law` skill for the full protocol.
-
-### 10. Confirm
-
-Show the user the complete file listing and the commit hashes.
+4. **Appraisers**: Ask "How should appraisers be configured for this artefact type?" Offer the defaults (3 appraisers, any personality) or let the user specify preferences. List the available appraisers from `foundry/appraisers/*.md` so the user can see their options.
 
 ## What you do NOT do
 

@@ -34,32 +34,26 @@ Do not tell the user to call branch tools directly.
 
 ## Protocol
 
-### 1. Determine scope
+### Context object
 
-If the user specifies where the law applies:
-- "global law" → goes in `foundry/laws/` (ask which file, or create a new one)
-- "law for X artefacts" → goes in `foundry/artefacts/<type>/laws.md`
+When invoked with pre-filled fields matching the `foundry_config_add_law` tool args, skip questions for provided fields. Missing fields trigger clarifying questions.
 
-If the user doesn't specify, ask:
+Context fields (global): `{id, name, description, passing, failing, target: {kind: "global", file}, validators?}`
+Context fields (type-specific): `{id, name, description, passing, failing, target: {kind: "type-specific", typeId}, validators?}`
 
-> Should this law apply globally to all artefact types, or to a specific type?
+When invoked with a context:
+- If all required fields are present, skip the Understand phase and proceed to Plan → Confirm → Build.
+- If only some fields are present, ask only for the missing ones.
 
-If the user names a type-specific law for an artefact type that does not exist, create the artefact type first when that supports the user's stated goal. Use the `add-artefact-type` workflow internally, and ask for the file pattern only when it cannot be inferred safely.
+### 1. Understand
 
-### 2. Draft the law
+**Scope**: Ask "Should this law apply globally to all artefact types, or to a specific type?" If the user names a type-specific law for an artefact type that does not exist, create the artefact type first when that supports the user's stated goal using the `add-artefact-type` workflow internally.
 
-Write the law using these structured fields:
+If global, ask for the `file` (the filename under `foundry/laws/`, e.g. `rules.md`). If type-specific, ask for the `typeId`.
 
-- `id` (string) — lowercase, hyphenated law identifier, unique across all laws
-- `name` (string) — human-readable name
-- `description` (string) — one or two sentences describing what this law checks
-- `passing` (string) — description of what passing looks like
-- `failing` (string) — description of what failing looks like
-- `validators` (array, optional) — validator entries. Include only when a deterministic check can decide pass/fail. See **Validator contract** below for the exact shape a validator command must satisfy.
+**Fields**: Ask for `id`, `name`, `description`, `passing` criteria, and `failing` criteria one at a time.
 
-#### 2a. Identify deterministic vs subjective elements
-
-For each law, explicitly split what it checks into two categories:
+**Deterministic vs subjective split**: For each law, explicitly split what it checks into two categories:
 
 - **Deterministic** — can be checked by a script without human or LLM judgment. Examples: line count, syllable count, word minimum, forbidden patterns, file existence, formatting rules. These become `validators:` entries in the law.
 - **Subjective** — requires judgment. Examples: imagery quality, emotional resonance, persuasiveness, aesthetic appeal, clarity of argument. The appraisers evaluate these during the appraise stage. No validator entry needed; the law's prose alone guides the appraiser.
@@ -74,24 +68,9 @@ Walk the user through this split for each law:
 
 For each deterministic element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Prefer Node.js built-ins and libraries already in the project; hand-rolled heuristics are fragile — use available packages instead of writing custom validation logic from scratch.
 
-The `id` value should be:
-- Lowercase, hyphenated
-- Short but descriptive
-- Unique across all laws (global and type-specific)
+**Validators**: Ask about `validators` (optional) — offer to create one or skip.
 
-### 3. Check for conflicts
-
-Read all existing laws that would apply to the same artefact types:
-- All files in `foundry/laws/` (global)
-- `foundry/artefacts/<type>/laws.md` if the law is type-specific
-- If the law is global, also read all `foundry/artefacts/*/laws.md` since a global law applies everywhere
-
-For each existing law, check:
-- Does the new law contradict an existing law? (e.g., "must be formal" vs "must be conversational")
-- Does the new law duplicate an existing law? (same criterion, different wording)
-- Does the new law overlap with an existing law? (partially covers the same ground)
-
-If any conflict is found, present it to the user:
+**Conflict check**: Read all existing laws that would apply to the same artefact types. Check for contradiction, duplication, or overlap. If any conflict is found, present it to the user:
 
 > The new law `<new-id>` may conflict with existing law `<existing-id>`:
 > - New: <summary of new law>
@@ -104,66 +83,77 @@ If any conflict is found, present it to the user:
 > 3. Rephrase the new law to avoid the conflict
 > 4. Cancel
 
-### 4. Refine with the user
+### 2. Plan
 
-Present the drafted law to the user before writing it. Ask:
+Present a structured summary: law id, name, description, passing/failing criteria, target (global or type-specific with typeId), deterministic/subjective split, validators. Ask: "Does this capture what you want, or should we adjust the wording?" Iterate until the user is satisfied.
 
-> Here's the draft law:
->
-> ## <law-id>
->
-> <law content>
->
-> Does this capture what you want, or should we adjust the wording?
+### 3. Confirm
 
-Iterate until the user is happy.
+Ask: "Proceed with this plan?" — wait for user answer before building. If the user rejects the plan, return to the Understand phase and adjust.
 
-### 5. Validate the draft
+### 4. Build
 
-Call `foundry_config_validate_law({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the `## <id>` heading format the tool produces internally.
+1. **Validate**: Call `foundry_config_validate_law({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the `## <id>` heading format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types that do not exist yet.
 
-If the result is `{ ok: false, errors: [...] }`, address each error (adjust the body) and re-run until you get `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types that don't exist yet.
+2. **Create**: Translate the scope into the `target` argument:
+   - Global → `target: { kind: "global", file: "<file-name>.md" }`
+   - Type-specific → `target: { kind: "type-specific", typeId: "<artefact-type>" }`
 
-### 6. Create the file
+   Call:
 
-Pick the target. The user has already chosen scope in step 1 — translate that into the `target` argument:
+   ```
+   foundry_config_add_law({
+     id: "<id>",
+     name: "<name>",
+     description: "<description>",
+     passing: "<passing>",
+     failing: "<failing>",
+     target: { kind: "global", file: "<file-name>.md" }
+              // or { kind: "type-specific", typeId: "<artefact-type>" }
+   })
+   ```
 
-- Global → `target: { kind: "global", file: "<file-name>.md" }` (lives at `foundry/laws/<file-name>.md`).
-- Type-specific → `target: { kind: "type-specific", typeId: "<artefact-type>" }` (lives at `foundry/artefacts/<typeId>/laws.md`).
+   The tool re-validates the body (TOCTOU), writes the law file at the path determined by `target`, and produces one git commit on the current `config/*` branch. Show the user the resulting commit hash.
 
-Then call:
+   The tool appends to an existing `laws.md` automatically when the new law id is not already present. It only errors when a law with the same id is already in the file — in that case use `foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>" })` to modify the existing law in place.
 
-```
-foundry_config_add_law({
-  id: "<id>",
-  name: "<name>",
-  description: "<description>",
-  passing: "<passing>",
-  failing: "<failing>",
-  target: { kind: "global", file: "<file-name>.md" }   // OR
-           { kind: "type-specific", typeId: "<artefact-type>" }
-})
-```
+3. **Verify uniqueness**: After the file is created, confirm the law id is unique across all law files. If a collision exists, read the colliding law, present the conflict to the user, propose a rename or merge, ask one focused question about the user's preference, then write and commit the resolution.
 
-The tool:
+### 5. Editing existing laws (prose or validators)
 
-- re-validates the body (TOCTOU);
-- writes the law file at the path determined by `target`;
-- produces one git commit on the current `config/*` branch.
+When the user wants to modify an existing law — whether updating the prose description or adding/changing validators — use this flow:
 
-The tool appends to an existing `laws.md` automatically when the
-new law id is not already present. It only errors when
-a law with the same id is already in the file — in that case use
-`foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>" })`
-to modify the existing law in place.
+#### 5a. Read the existing law
 
-Show the user the resulting commit hash from the response.
+Call `foundry_config_read_law({ id: "<law-id>" })` to fetch the full markdown content.
 
-### 7. Verify uniqueness
+#### 5b. Refine with the user
 
-After the file is created, confirm the law id is unique across all law files. If a collision exists, read the colliding law, present the conflict to the user, propose a rename or merge, ask one focused question about the user's preference, then write and commit the resolution.
+Show the current content and ask what should change. Iterate on the updated markdown until the user is satisfied.
 
-### 7a. Validator contract
+#### 5c. Drift mitigation: Prose changes
+
+**If the user is modifying the law's prose description**, insert this prompt before updating:
+
+> 🔍 **Drift check:** Verify that all existing validators on this law still accurately enforce the updated intent. Open each validator's command and confirm it catches the same class of failure the prose now describes.
+
+Then proceed with the update.
+
+#### 5d. Drift mitigation: Validator changes
+
+**If the user is adding or modifying a validator**, insert this prompt before updating:
+
+> 🔍 **Drift check:** Verify that the changed validator still aligns with the law's prose. If the validator has narrowed or broadened, the prose may need a corresponding update.
+
+Then proceed with the update.
+
+#### 5e. Apply the update
+
+Call `foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>", validators: [...] })` with the full updated fields.
+
+Validate the result. If the tool returns `{ ok: true }`, show the user the commit hash. If it returns `{ ok: false, errors }`, address each error and retry.
+
+### 6. Validator contract
 
 A law's `validators:` entries declare CLI commands that `quench` runs
 during a cycle. The plugin parses each command's stdout as **JSONL**
@@ -267,40 +257,6 @@ validators:
     command: node foundry/artefacts/haiku/check-line-count.mjs {files}
     failure-means: The artefact file does not contain exactly three non-empty lines.
 ~~~
-
-### 8. Editing existing laws (prose or validators)
-
-When the user wants to modify an existing law — whether updating the prose description or adding/changing validators — use this flow:
-
-#### 8a. Read the existing law
-
-Call `foundry_config_read_law({ id: "<law-id>" })` to fetch the full markdown content.
-
-#### 8b. Refine with the user
-
-Show the current content and ask what should change. Iterate on the updated markdown until the user is satisfied.
-
-#### 8c. Drift mitigation: Prose changes
-
-**If the user is modifying the law's prose description**, insert this prompt before updating:
-
-> 🔍 **Drift check:** Verify that all existing validators on this law still accurately enforce the updated intent. Open each validator's command and confirm it catches the same class of failure the prose now describes.
-
-Then proceed with the update.
-
-#### 8d. Drift mitigation: Validator changes
-
-**If the user is adding or modifying a validator**, insert this prompt before updating:
-
-> 🔍 **Drift check:** Verify that the changed validator still aligns with the law's prose. If the validator has narrowed or broadened, the prose may need a corresponding update.
-
-Then proceed with the update.
-
-#### 8e. Apply the update
-
-Call `foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>", validators: [...] })` with the full updated fields.
-
-Validate the result. If the tool returns `{ ok: true }`, show the user the commit hash. If it returns `{ ok: false, errors }`, address each error and retry.
 
 ## What you do NOT do
 
