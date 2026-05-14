@@ -59,7 +59,9 @@ Confirm the files are written by listing the directory contents.
 
 ### 5. Review each phase with @reviewer
 
-Dispatch one reviewer subagent per phase, in phase order. Wait for each phase review result before starting the next one. Each reviewer receives only the phase file path. Do not pass the spec to individual phase reviewers.
+Dispatch one reviewer subagent per phase, in parallel. Wait for all phase review results before proceeding. Each reviewer receives only the phase file path. Do not pass the spec to individual phase reviewers.
+
+If any phase review returns issues, record which phases failed. Do not proceed to the holistic review — go to the iteration step instead.
 
 Use this prompt for each phase review:
 
@@ -86,7 +88,7 @@ Respond with one of:
 
 ### 6. Review the full plan with @reviewer
 
-After all phase reviewers approve their phase files, dispatch a holistic reviewer.
+This step MUST NOT run until every phase review has returned APPROVED. Confirm that zero phase reviews have outstanding issues before proceeding. Only then dispatch a holistic reviewer.
 
 Dispatch a subagent using the platform's subagent mechanism, such as `@reviewer` or `subagent_type: "reviewer"`, with this prompt:
 
@@ -120,7 +122,28 @@ Respond with one of:
 
 If every phase reviewer and the holistic reviewer return "APPROVED", proceed to reporting.
 
-If any reviewer raises issues, dispatch the @implementer again with the issues, `SPEC.md` path, and current plan file paths. Receive the revised content, update the files, and re-review the affected phase files followed by the holistic review. Maximum two review cycles before stopping and reporting unresolved issues to the user.
+If any reviewer raises issues, partition the issues by phase file. For each phase file with outstanding issues, dispatch one @implementer in parallel, each receiving only their phase's issues and file path. Use this prompt per implementer:
+
+```
+Revise this phase file to resolve the issues listed below. Read the current file, address each issue, and return the full revised content.
+
+**Phase file:**
+[path to affected PHASE_XX.md]
+
+**Issues to resolve:**
+[numbered list of issues specific to this phase]
+
+**Spec file:**
+[path to SPEC.md]
+
+Return the full revised content of the phase file.
+```
+
+Wait for all parallel implementers to finish. Update each phase file with its revised content. If the holistic reviewer raised issues that are not specific to any single phase file, dispatch a single @implementer to fix the PLAN.md and affected phase files.
+
+After all implementers complete, re-review the affected phase files in parallel (repeat step 5 for those files only). If all phase re-reviews pass, proceed to the holistic review (step 6). If any phase re-review returns issues, repeat this iteration step.
+
+Maximum two total review cycles before stopping and reporting unresolved issues to the user.
 
 ### 8. Report the result
 
