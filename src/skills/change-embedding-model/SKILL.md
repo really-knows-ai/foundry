@@ -38,17 +38,27 @@ Before running this skill, verify all of the following:
    from this machine. Allow enough time and bandwidth to re-embed
    (O(#entities) requests in batches).
 
-## Steps
+## Protocol
 
-1. **Ask the user for**: `model`, `dimensions`, optionally new `baseURL`, `apiKey`.
-2. **Invoke `foundry_memory_change_embedding_model`** with `{ model, dimensions, baseURL?, apiKey? }`.
-   The tool probes the new provider, re-embeds every entity, rewrites
-   `schema.json`, and then updates `foundry/memory/config.md` frontmatter to
-   match. On probe or re-embed failure, nothing is written.
-3. **Verify** by invoking `foundry_memory_search` with a sample query.
-4. **Commit**:
+### 1. Understand
 
-   ```bash
-   git add foundry/memory/config.md foundry/memory/schema.json foundry-memory/relations/
-   git commit -m "chore(memory): change embedding model to <model>"
-   ```
+Ask for each field one question at a time:
+
+1. **Model**: Offer multiple choice from available models (e.g. `text-embedding-3-small`, `text-embedding-3-large`, `nomic-embed-text`).
+2. **Dimensions**: Recommend the default for the chosen model.
+3. **Custom endpoint and API key**: Ask: "Do you need a custom endpoint or API key? (No is the default — uses the current provider.)" Only ask for `baseURL` and `apiKey` if the user says yes.
+
+### 2. Plan
+
+Present a summary: "Change embedding model to `<model>` with `<dimensions>` dimensions. Base URL: `<baseURL or 'default'>`. API key: `<'custom' or 'default'>`."
+
+### 3. Confirm
+
+Ask: "Proceed?" — wait for the user's answer. Do not proceed to Build unless the user says yes. If the user rejects the plan, return to the Understand phase and adjust.
+
+### 4. Build
+
+1. **Check connectivity**: Verify the new provider is reachable from this machine and the model name is valid.
+2. **Execute**: Call `foundry_memory_change_embedding_model({ model: "<model>", dimensions: <dimensions>, baseURL: "<baseURL>", apiKey: "<apiKey>" })`. The tool probes the new provider, re-embeds every entity, rewrites `schema.json`, and then updates `foundry/memory/config.md` frontmatter to match. On probe or re-embed failure, nothing is written.
+3. **Verify**: Invoke `foundry_memory_search` with a sample query.
+4. **Commit**: Run `git add foundry/memory/config.md foundry/memory/schema.json foundry-memory/relations/`. Run `git commit -m "chore(memory): change embedding model to <model>"`. Report the commit hash.

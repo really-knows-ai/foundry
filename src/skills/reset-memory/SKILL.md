@@ -33,14 +33,23 @@ Before running this skill, verify all of the following:
    internally if not). After the reset completes, continue the user's
    original request from context.
 
-## Steps
+## Protocol
 
-1. Warn the user of the scope.
-2. Require explicit confirmation.
-3. Invoke `foundry_memory_reset` with `{ confirm: true }`.
-4. Commit:
+### 1. Understand
 
-   ```bash
-   git add foundry-memory/relations/ foundry/memory/schema.json
-   git commit -m "chore(memory): reset memory data"
-   ```
+Warn about the destructive nature: this permanently deletes all memory data including entity types, edge types, and embeddings. This action cannot be undone.
+
+Ask the user to type "reset" to confirm intent. The user must type "reset" to proceed past the Understand phase.
+
+### 2. Plan
+
+Present a destructive-action summary: "This will permanently delete all memory data including entity types, edge types, and embeddings. This action cannot be undone."
+
+### 3. Confirm
+
+Ask: "Proceed?" — this is the final gate. Wait for the user's answer. Do not proceed to Build unless the user says yes. If the user rejects the plan, return to the Understand phase.
+
+### 4. Build
+
+1. **Execute**: Call `foundry_memory_reset({ confirm: true })`.
+2. **Commit**: Run `git add foundry-memory/relations/ foundry/memory/schema.json`. Run `git commit -m "chore(memory): reset memory data"`. Report the commit hash.
