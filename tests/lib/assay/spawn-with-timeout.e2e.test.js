@@ -64,24 +64,19 @@ describe('spawnWithTimeout', () => {
   // This tests G24/G25 - that the SIGKILL timer is set and would fire for stubborn processes
   it('applies SIGKILL after 500ms when process ignores SIGTERM (TF2)', async () => {
     const d = scriptDir();
-    // Run Python directly via shell -c, using exec to replace the shell with Python
-    // Sleep for 1 second after trapping SIGTERM to ensure we hit the SIGKILL timer
-    const cmd = 'exec python3 -c "import signal, time; signal.signal(signal.SIGTERM, lambda *_: (print(\\"trapped\\", flush=True), time.sleep(1))); [time.sleep(0.1) for _ in iter(int, 1)]"';
-    
+    // Shell builtins: trap SIGTERM with a handler that prints and keeps running,
+    // then busy-loop so the process never exits on its own. SIGKILL must fire.
+    const cmd = 'trap \'echo trapped\' TERM; while true; do :; done';
+
     const start = Date.now();
     const r = await spawnWithTimeout({ command: cmd, cwd: d, timeoutMs: 100 });
     const elapsed = Date.now() - start;
-    
+
     assert.equal(r.ok, false, 'should fail because it timed out');
     assert.equal(r.timedOut, true, 'should be marked as timed out');
-    // Should take timeout (100ms) + SIGKILL delay (500ms) = ~600ms
-    // Use more forgiving bounds: at least 500ms (allowing for some timing variance)
-    // and proportional check that we waited a significant portion of the expected time
     assert.ok(elapsed >= 500, `should wait for SIGKILL fallback, took ${elapsed}ms`);
     assert.ok(elapsed < 1000, `should not exceed reasonable bounds, took ${elapsed}ms`);
-    // Process should be killed by SIGKILL since it trapped SIGTERM
     assert.equal(r.signal, 'SIGKILL', 'should be killed by SIGKILL after SIGTERM was trapped');
-    // Verify SIGTERM was actually received and trapped
     assert.match(r.stdout, /trapped/, 'should show SIGTERM was trapped before SIGKILL');
     rmSync(d, { recursive: true, force: true });
   });
@@ -154,24 +149,28 @@ describe('spawnWithTimeout', () => {
   // G28: stdout/stderr must be capped to prevent OOM
   it('caps stdout at 50MB and kills the process with tooMuchOutput flag (G28)', async () => {
     const d = scriptDir();
-    // Use dd to generate exactly 60MB of output quickly
-    const p = writeScript(d, 'huge.sh', '#!/bin/sh\ndd if=/dev/zero bs=1048576 count=60 2>/dev/null | tr "\\0" "x"\n');
+    // Node.js script that writes 60MB of 'x' to stdout in 1MB chunks
+    const p = writeScript(d, 'huge.js', `#!/usr/bin/env node
+const chunk = 'x'.repeat(1048576);
+for (let i = 0; i < 60; i++) process.stdout.write(chunk);
+`);
     const r = await spawnWithTimeout({ command: p, cwd: d, timeoutMs: 10000 });
     assert.equal(r.ok, false);
     assert.equal(r.tooMuchOutput, true, 'tooMuchOutput flag should be set');
-    // Stdout should be truncated at ~50MB
     assert.ok(r.stdout.length <= 52_428_800, `stdout was ${r.stdout.length} bytes, should be ≤50MB`);
     rmSync(d, { recursive: true, force: true });
   });
 
   it('caps stderr at 1MB and kills the process with tooMuchOutput flag (G28)', async () => {
     const d = scriptDir();
-    // Use dd to generate exactly 2MB of stderr quickly
-    const p = writeScript(d, 'huge-err.sh', '#!/bin/sh\ndd if=/dev/zero bs=1048576 count=2 2>/dev/null | tr "\\0" "x" >&2\n');
+    // Node.js script that writes 2MB of 'x' to stderr in 1MB chunks
+    const p = writeScript(d, 'huge-err.js', `#!/usr/bin/env node
+const chunk = 'x'.repeat(1048576);
+for (let i = 0; i < 2; i++) process.stderr.write(chunk);
+`);
     const r = await spawnWithTimeout({ command: p, cwd: d, timeoutMs: 10000 });
     assert.equal(r.ok, false);
     assert.equal(r.tooMuchOutput, true, 'tooMuchOutput flag should be set');
-    // Stderr should be truncated at ~1MB
     assert.ok(r.stderr.length <= 1_048_576, `stderr was ${r.stderr.length} bytes, should be ≤1MB`);
     rmSync(d, { recursive: true, force: true });
   });
