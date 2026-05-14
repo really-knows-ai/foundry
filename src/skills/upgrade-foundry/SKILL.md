@@ -14,7 +14,7 @@ This is a rebuild-style upgrade. Treat the old `foundry/` directory as source ma
 
 Before running this skill, verify that the project root contains `foundry/`. If it does not, stop and tell the user:
 
-> Foundry is not initialised in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+> Restart OpenCode to initialise Foundry, then retry this command.
 
 Verify a safe base state before making changes:
 
@@ -53,7 +53,7 @@ Do not modify the preserved source directory after moving it. Read from it as so
 
 ### 3. Initialise current-version configuration
 
-Run the current `init-foundry` flow to create a fresh `foundry/` directory for the installed Foundry version.
+On next restart, the plugin's config hook will auto-initialise a fresh `foundry/` directory.
 
 After initialisation, confirm the new config directory exists and contains the expected current top-level structure.
 

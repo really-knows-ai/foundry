@@ -15,7 +15,7 @@ A foundry flow reads a flow definition, creates a work branch, and executes cycl
 
 Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
 
-> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+> Restart OpenCode to initialise Foundry, then retry this command.
 
 ## Starting a flow
 

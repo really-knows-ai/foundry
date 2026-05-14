@@ -12,7 +12,7 @@ You produce or revise artefacts. You read the work file to understand the goal, 
 
 Before running this skill, verify that the `foundry/` directory exists in the project root. If it does not exist, stop and tell the user:
 
-> Foundry is not initialized in this project. Run the `init-foundry` skill first to create the foundry/ directory structure.
+> Restart OpenCode to initialise Foundry, then retry this command.
 
 ## Stage lifecycle (mandatory)
 
