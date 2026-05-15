@@ -1,5 +1,33 @@
 # Changelog
 
+## [3.3.2] - 2026-05-14
+
+### Changed
+
+- **All 15 creation and edit skills converted to an interactive wizard
+  protocol.** Every skill now follows Understand → Plan → Confirm → Build
+  instead of auto-creating configuration. The AI asks questions, presents a
+  plan, waits for confirmation, then builds — no file is created before the
+  user says yes.
+
+  Skills converted:
+
+  | Phase | Skills |
+  |-------|--------|
+  | Core config | `add-artefact-type`, `add-appraiser`, `add-law` |
+  | Cycle and flow | `add-cycle`, `add-flow` (composite — invokes sub-skills with context) |
+  | Memory creation | `add-extractor`, `add-memory-entity-type`, `add-memory-edge-type`, `init-memory` |
+  | Memory edit/destructive | `rename-memory-entity-type`, `rename-memory-edge-type`, `change-embedding-model`, `reset-memory`, `drop-memory-entity-type`, `drop-memory-edge-type` |
+
+- **Sub-skill composition via context object contract.** Parent skills (e.g.
+  `add-flow`, `add-artefact-type`) pass pre-filled field objects to
+  sub-skills (e.g. `add-law`, `add-cycle`). Sub-skills skip questions for
+  provided fields and only ask for gaps. `add-flow` presents a single
+  combined plan covering all dependencies and confirms once before building.
+- **Destructive skills require typed confirmation.** `reset-memory` requires
+  typing "reset"; `drop-*` skills show previews of affected rows and edges
+  before requiring explicit confirmation.
+
 ## [3.3.1] - 2026-05-14
 
 ### Fixed
