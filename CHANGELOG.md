@@ -1,17 +1,14 @@
 # Changelog
 
-## [3.3.5] - 2026-05-18
+## [3.3.6] - 2026-05-18
 
 ### Fixed
 
-- **Foundry skills now appear in `available_skills`.** The plugin copies all
-  authoring skills to `.opencode/skills/` on every startup and during
-  bootstrap, so the LLM sees them in the system prompt and can load them
-  with the `skill` tool. Previously skills were registered at the runtime
-  level but invisible to the agent.
-- **Agent instructions updated** to call the `skill` tool explicitly and
-  clarified that skills are always available even if not listed in
-  `available_skills`.
+- **Foundry skills reference in agent.** The Foundry agent now lists all 27
+  skills in an "Available Skills" table with their purposes and instructions
+  on how to load them via the `skill` tool. The LLM can call
+  `skill({name: "add-flow"})` etc. without needing them listed in the
+  system prompt's `available_skills` section.
 
 ## [3.3.4] - 2026-05-18
 
