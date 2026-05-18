@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.3.4] - 2026-05-18
+
+### Fixed
+
+- **Corrected law/validator framing across all skills and agent.** Laws are
+  rules — they are never "deterministic" or "subjective." Validators are
+  optional scripts attached to laws that check script-checkable elements
+  during quench. Appraisers evaluate every law, de-prioritising elements
+  already covered by passed validators. Removed all `[deterministic|subjective]`
+  law labelling from add-flow's plan template and add-law's Understand phase.
+
 ## [3.3.3] - 2026-05-15
 
 ### Fixed

@@ -45,7 +45,7 @@ Extract or ask for the flow purpose, expected final artefact, output location, a
 
 **What the flow produces**: Ask about the artefact type the flow should produce. Determine whether it needs a new artefact type or whether an existing one fits.
 
-**Quality constraints**: Ask about the laws that govern quality. For each law: what it checks, whether it applies globally or to a specific artefact type, and the deterministic-vs-subjective split.
+**Quality constraints**: Ask about the laws that govern quality. For each law: what it checks, whether it applies globally or to a specific artefact type, and which elements can be checked with validators.
 
 **Appraisers**: Ask about the appraisers that evaluate quality. Determine how many are needed and whether existing appraisers fit or new ones are needed.
 
@@ -65,7 +65,7 @@ Create missing dependencies in validation order:
 
 1. **Artefact types** (no sub-dependencies): For each new artefact type, gather `id`, `name`, `filePatterns`, `description`, and whether it needs type-specific laws or appraiser configuration. Context object: `{id, name, filePatterns, description, appraisers?}`.
 
-2. **Laws** (may reference artefact types): For each new law, gather `id`, `name`, `description`, `passing`, `failing`, the target (global file or type-specific with `typeId`), and the deterministic-vs-subjective split. Determine whether validators are needed. Context object: `{id, name, description, passing, failing, target: {kind, file|typeId}, validators?}`.
+2. **Laws** (may reference artefact types): For each new law, gather `id`, `name`, `description`, `passing`, `failing`, the target (global file or type-specific with `typeId`), and which elements can be checked with validators. Determine whether validators are needed. Context object: `{id, name, description, passing, failing, target: {kind, file|typeId}, validators?}`.
 
 3. **Appraisers** (may reference models): For each new appraiser, gather `id`, `name`, `description`, and optional `model` preference. Context object: `{id, name, description, model?}`.
 
@@ -86,8 +86,8 @@ Flow: <id> — <name>
   Artefact Types:
     · <id> (<name>) — <filePatterns>
   Laws:
-    · <id> — <description> [deterministic|subjective]
-      validators: <validator-id> (if deterministic)
+    · <id> — <description>
+      validators: <validator-id> (if any)
   Appraisers:
     · <id> — <description>
   Cycles:

@@ -53,20 +53,20 @@ If global, ask for the `file` (the filename under `foundry/laws/`, e.g. `rules.m
 
 **Fields**: Ask for `id`, `name`, `description`, `passing` criteria, and `failing` criteria one at a time.
 
-**Deterministic vs subjective split**: For each law, explicitly split what it checks into two categories:
+**Validators**: For each law, identify which elements can be validated deterministically:
 
-- **Deterministic** — can be checked by a script without human or LLM judgment. Examples: line count, syllable count, word minimum, forbidden patterns, file existence, formatting rules. These become `validators:` entries in the law.
-- **Subjective** — requires judgment. Examples: imagery quality, emotional resonance, persuasiveness, aesthetic appeal, clarity of argument. The appraisers evaluate these during the appraise stage. No validator entry needed; the law's prose alone guides the appraiser.
+- **Script-checkable** — can be checked by a validator without human or LLM judgment. Examples: line count, syllable count, word minimum, forbidden patterns, file existence, formatting rules. These become `validators:` entries in the law. Since quench runs before appraise, validators that pass mean those elements are already verified — the appraiser is aware of this and can de-prioritise them, focusing judgment on elements without validators.
+- **Requires judgment** — needs the appraiser's evaluation. Examples: imagery quality, emotional resonance, persuasiveness, aesthetic appeal, clarity of argument. The law's prose alone guides the appraiser — no validator entry needed.
 
-Walk the user through this split for each law:
+Walk the user through which elements of the law can be validated deterministically:
 
-> This law covers [summary]. Here's what's deterministic vs subjective:
-> - Deterministic: [list elements that can be script-checked]
-> - Subjective: [list elements requiring judgment — appraisers handle these]
+> This law covers [summary]. Here's which parts can be checked with validators:
+> - Validatable: [list elements that can be script-checked]
+> - Requires judgment: [list elements the appraiser evaluates]
 >
-> Shall I add validators for the deterministic elements?
+> Shall I add validators for the script-checkable elements?
 
-For each deterministic element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Prefer Node.js built-ins and libraries already in the project; hand-rolled heuristics are fragile — use available packages instead of writing custom validation logic from scratch.
+For each script-checkable element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Prefer Node.js built-ins and libraries already in the project; hand-rolled heuristics are fragile — use available packages instead of writing custom validation logic from scratch.
 
 **Validators**: Ask about `validators` (optional) — offer to create one or skip.
 
@@ -85,7 +85,7 @@ For each deterministic element, write a standalone `.mjs` script next to the art
 
 ### 2. Plan
 
-Present a structured summary: law id, name, description, passing/failing criteria, target (global or type-specific with typeId), deterministic/subjective split, validators. Ask: "Does this capture what you want, or should we adjust the wording?" Iterate until the user is satisfied.
+Present a structured summary: law id, name, description, passing/failing criteria, target (global or type-specific with typeId), and validators (which elements are checked deterministically). Ask: "Does this capture what you want, or should we adjust the wording?" Iterate until the user is satisfied.
 
 ### 3. Confirm
 

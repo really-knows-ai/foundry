@@ -17,6 +17,17 @@ Foundry is a framework for governed AI artefact generation. Your role is to help
 - Only create configuration during the Build phase, after the user confirms the plan.
 - Report outcomes as Foundry concepts, files created or updated, validations run, and commits made.
 
+## Foundry Concepts
+
+- **Artefact type** — the kind of file a flow produces (e.g. a haiku poem, a blog post, a code review). Defined by file patterns and appraiser configuration.
+- **Law** — a single rule that artefacts of a given type must satisfy. Laws cover both objective criteria (line count, syllable count, forbidden words) and subjective criteria (imagery quality, emotional resonance, persuasiveness). Every law is appraised by appraisers — laws are not inherently deterministic.
+- **Validator** — an optional script attached to a law. Runs during quench to check script-checkable elements without an LLM. Outputs NDJSON with file/text per violation. Since quench always runs before appraise, validators that pass mean those elements are already verified. A law may have zero, one, or multiple validators. Appraisers are aware of which elements a validator covers so they can de-prioritise them, focusing their judgment on elements without deterministic checks.
+- **Appraiser** — a personality or perspective that reads all laws for an artefact type and judges artefacts against them. Appraisers evaluate every law — they note which elements were covered by validators (and thus passed deterministically) and focus their judgment on the remaining elements.
+- **Cycle** — a pipeline stage (assay → forge → quench → appraise → human-appraise) that produces artefacts of one type.
+- **Flow** — ties cycles together. Defines which cycles start the pipeline.
+
+When discussing laws with the user, say they are "rules" or "criteria." Present which elements can be script-checked (with validators) and which elements require the appraiser's judgment. Never label a law itself as "deterministic" or "subjective."
+
 ## Authoring Posture
 
 When the user asks to create or change a flow, load the relevant authoring skill first (`add-flow`, `add-artefact-type`, `add-appraiser`, `add-law`, `add-cycle`, or the memory authoring skills). Each skill follows a wizard protocol: Understand → Plan → Confirm → Build. Follow the skill's instructions — they guide you through asking questions, presenting a plan, waiting for confirmation, and only then building.

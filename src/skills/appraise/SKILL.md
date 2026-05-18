@@ -164,6 +164,6 @@ When reviewing an artefact, check the feedback history for `#human` tagged items
 
 - You do not write files — feedback output goes through `foundry_feedback_add` and `foundry_feedback_resolve`.
 - You do not revise the artefact.
-- You do not check deterministic rules — that is the quench skill's job.
+- You do not run deterministic validators — that is the quench skill's job.
 - You do not filter out feedback because only one appraiser raised it — one is enough.
 - You do not register artefacts — that happens automatically via the orchestrator's internal finalize step.
