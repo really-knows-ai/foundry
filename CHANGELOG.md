@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.3.3] - 2026-05-15
+
+### Fixed
+
+- **Foundry agent now follows the wizard protocol.** The agent instructions
+  previously told the LLM to auto-create configuration ("instead of telling
+  the user to invoke another skill"). Updated to load the relevant authoring
+  skill first and follow Understand → Plan → Confirm → Build — never
+  creating configuration without user confirmation.
+
 ## [3.3.2] - 2026-05-14
 
 ### Changed
