@@ -152,29 +152,13 @@ function resolveGuideSource(packageRoot) {
   return path.join(packageRoot, 'src', 'agents', 'foundry.md');
 }
 
-/**
- * Copy the Foundry guide agent (foundry.md) from the installed package
- * to the project's .opencode/agents/ directory.
- *
- * Resolves the source from `packageRoot/dist/agents/foundry.md` and
- * falls back to `packageRoot/src/agents/foundry.md` when the dist
- * path does not exist. Skips writing when the target file already
- * exists (uses existsSync check).
- *
- * @param {string} worktree - Absolute path to the project worktree root.
- * @param {string} packageRoot - Absolute path to the installed package root.
- * @returns {{ ok: true, written: boolean } | { ok: false, error: string }}
- */
 export function writeFoundryGuideAgent(worktree, packageRoot) {
   const targetDir = path.join(worktree, '.opencode', 'agents');
   const targetPath = path.join(targetDir, 'foundry.md');
 
-  if (existsSync(targetPath)) {
-    return { ok: true, written: false };
-  }
+  if (existsSync(targetPath)) return { ok: true, written: false };
 
   const sourcePath = resolveGuideSource(packageRoot);
-
   try {
     const content = readFileSync(sourcePath, 'utf8');
     mkdirSync(targetDir, { recursive: true });
@@ -183,4 +167,54 @@ export function writeFoundryGuideAgent(worktree, packageRoot) {
   } catch (err) {
     return { ok: false, error: `Failed to write guide agent: ${err.message ?? String(err)}` };
   }
+}
+
+/**
+ * Copy all Foundry skills from the installed package to the project's
+ * .opencode/skills/ directory so they appear in the agent's
+ * available_skills list.
+ *
+ * Reads each skill directory from `packageRoot/dist/skills/` and copies
+ * its SKILL.md to `.opencode/skills/<name>/SKILL.md`. Falls back to
+ * `packageRoot/src/skills/` when dist does not exist. Overwrites
+ * existing files with updated content on each call (skills change
+ * between plugin versions).
+ *
+ * @param {string} worktree - Absolute path to the project worktree root.
+ * @param {string} packageRoot - Absolute path to the installed package root.
+ * @returns {{ ok: true, count: number } | { ok: false, error: string }}
+ */
+export function writeFoundrySkills(worktree, packageRoot) {
+  const sourceDir = resolveSkillsSource(packageRoot);
+  if (!sourceDir) {
+    return { ok: false, error: 'Skills directory not found in dist/skills or src/skills' };
+  }
+
+  const skillDirs = readdirSync(sourceDir, { withFileTypes: true })
+    .filter(e => e.isDirectory());
+
+  let count = 0;
+  for (const dir of skillDirs) {
+    const sourceSkill = path.join(sourceDir, dir.name, 'SKILL.md');
+    if (!existsSync(sourceSkill)) continue;
+    copySkillFile(worktree, dir.name, sourceSkill);
+    count++;
+  }
+
+  return { ok: true, count };
+}
+
+function resolveSkillsSource(packageRoot) {
+  const distSkillsDir = path.join(packageRoot, 'dist', 'skills');
+  if (existsSync(distSkillsDir)) return distSkillsDir;
+  const srcSkillsDir = path.join(packageRoot, 'src', 'skills');
+  if (existsSync(srcSkillsDir)) return srcSkillsDir;
+  return null;
+}
+
+function copySkillFile(worktree, name, sourcePath) {
+  const targetDir = path.join(worktree, '.opencode', 'skills', name);
+  mkdirSync(targetDir, { recursive: true });
+  const content = readFileSync(sourcePath, 'utf8');
+  writeFileSync(path.join(targetDir, 'SKILL.md'), content, 'utf8');
 }

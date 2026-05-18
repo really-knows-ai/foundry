@@ -17,7 +17,7 @@ import { execFileSync } from 'child_process';
 import { tool } from '@opencode-ai/plugin';
 import { createPendingStore } from '../scripts/lib/pending.js';
 import { getBootstrapContent } from './tools/helpers.js';
-import { refreshAgents, detectChanges, writeFoundryGuideAgent } from './tools/agent-refresh.js';
+import { refreshAgents, detectChanges, writeFoundryGuideAgent, writeFoundrySkills } from './tools/agent-refresh.js';
 import { createHistoryTools } from './tools/history-tools.js';
 import { createStageTools } from './tools/stage-tools.js';
 import { createWorkfileTools } from './tools/workfile-tools.js';
@@ -108,6 +108,7 @@ function runBootstrapSequence(worktree, pkgRoot) {
   bootstrapGitignore(worktree);
   refreshAgents(worktree);
   writeFoundryGuideAgent(worktree, pkgRoot);
+  writeFoundrySkills(worktree, pkgRoot);
   const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
   writeFileSync(path.join(worktree, 'foundry', 'VERSION'), pkg.version, 'utf8');
   initGitRepo(worktree);
@@ -217,6 +218,10 @@ export const FoundryPlugin = async ({ directory }) => {
       if (!config.skills.paths.includes(allSkillsDir)) {
         config.skills.paths.push(allSkillsDir);
       }
+
+      // Always ensure guide agent and skills are up to date
+      ensureGuideAgent(directory, packageRoot);
+      writeFoundrySkills(directory, packageRoot);
 
       restartNeeded = runPluginBootstrap(directory, packageRoot);
     },

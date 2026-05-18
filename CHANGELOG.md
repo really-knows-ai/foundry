@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.3.5] - 2026-05-18
+
+### Fixed
+
+- **Foundry skills now appear in `available_skills`.** The plugin copies all
+  authoring skills to `.opencode/skills/` on every startup and during
+  bootstrap, so the LLM sees them in the system prompt and can load them
+  with the `skill` tool. Previously skills were registered at the runtime
+  level but invisible to the agent.
+- **Agent instructions updated** to call the `skill` tool explicitly and
+  clarified that skills are always available even if not listed in
+  `available_skills`.
+
 ## [3.3.4] - 2026-05-18
 
 ### Fixed
