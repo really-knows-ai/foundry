@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.3.8] - 2026-05-19
+
+### Fixed
+
+- **Build script now rewrites dynamic `import()` paths.** The `rewriteImports`
+  function only handled static `from '...'` imports, missing `await import()`
+  calls in `orchestrate-tool.js`. Added a second regex pass for dynamic imports.
+- **New packaging test** verifies every relative import in `dist/` resolves.
+- **add-flow now offers next steps after building.** After creating a flow on a
+  `config/*` branch, the skill presents dry-run / merge / leave options instead
+  of telling the LLM to auto-merge.
+
 ## [3.3.7] - 2026-05-18
 
 ### Fixed

@@ -145,7 +145,17 @@ After all dependencies are built, create the flow itself:
 
    If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing flow file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
 
-3. **Report**: Show the user the flow file and the commit hash. Also summarise each dependency that was created, with its commit hash. Tell the user they can now ask the Foundry agent to run the flow.
+3. **Report and offer next steps**: Show the user the flow file and the commit hash. Summarise each dependency that was created, with its commit hash. Then present these options:
+
+> The flow is built on the `config/*` branch. Before merging to main, you can:
+>
+> 1. **Dry-run the flow** — test it safely from the config branch without touching main. I'll run a dry-run: `dry-run/haiku-flow/01`.
+> 2. **Merge to main** — commit the configuration and make the flow available for normal runs.
+> 3. **Leave it on this branch** — you can review the configuration or come back later.
+>
+> Which would you like?
+
+Do NOT automatically merge or call `foundry_git_finish` unless the user explicitly asks for it.
 
 ## Safety Rules
 
@@ -153,3 +163,4 @@ After all dependencies are built, create the flow itself:
 - Do not skip dependency validation.
 - Do not expose internal tool-call syntax to the user.
 - Do not continue when a branch or worktree state could overwrite user changes.
+- Do not merge or call `foundry_git_finish` unless the user explicitly asks — always offer to dry-run first.

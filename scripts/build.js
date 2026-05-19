@@ -47,24 +47,30 @@ async function copyDir(src, dest) {
 async function rewriteImports(filePath, fromDir, toDir) {
   const content = await fs.readFile(filePath, 'utf-8');
   
-  // Calculate depth difference between old and new location
-  // For foundry.js: src/plugin → dist/.opencode/plugins (need ../../.. to reach package root)
-  // For tool files: src/plugin/tools → dist/.opencode/plugins/foundry-tools (need ../../../.. to reach package root)
+  // Calculate depth: how many ../ to go from the destination directory
+  // back to the package root (dist/ directory)
+  const distDirSegments = distDir.split(path.sep).length;
+  const toDirSegments = toDir.split(path.sep).length;
+  const depth = toDirSegments - distDirSegments;
+  const prefix = '../'.repeat(depth);
   
-  // Rewrite imports that reference scripts or other package-local files
-  const rewritten = content
-    // Rewrite ../../scripts/ style imports to account for new depth
-    .replace(/from ['"](\.\.\/)+(scripts\/[^'"]+)['"]/g, (match, dots, scriptPath) => {
-      // From dist/.opencode/plugins, we need ../../../scripts/
-      // From dist/.opencode/plugins/foundry-tools, we need ../../../../scripts/
-      const depth = toDir.split(path.sep).length - distDir.split(path.sep).length;
-      const prefix = '../'.repeat(depth);
-      return `from '${prefix}${scriptPath}'`;
-    })
-    // Rewrite ./tools/ to ./foundry-tools/ (tools become sibling to foundry.js)
-    .replace(/from ['"]\.\/tools\/([^'"]+)['"]/g, (match, toolFile) => {
-      return `from './foundry-tools/${toolFile}'`;
-    });
+  let rewritten = content;
+  
+  // Rewrite static imports: from '../../scripts/...' → depth-adjusted path
+  rewritten = rewritten.replace(
+    /from ['"](\.\.\/)+(scripts\/[^'"]+)['"]/g,
+    (_match, _dots, scriptPath) => `from '${prefix}${scriptPath}'`
+  );
+  // Rewrite dynamic imports: import('../../scripts/...') → depth-adjusted path
+  rewritten = rewritten.replace(
+    /import\(['"](\.\.\/)+(scripts\/[^'"]+)['"]\)/g,
+    (_match, _dots, scriptPath) => `import('${prefix}${scriptPath}')`
+  );
+  // Rewrite ./tools/ to ./foundry-tools/ (tools become sibling to foundry.js)
+  rewritten = rewritten.replace(
+    /from ['"]\.\/tools\/([^'"]+)['"]/g,
+    (match, toolFile) => `from './foundry-tools/${toolFile}'`
+  );
 
   await fs.writeFile(filePath, rewritten, 'utf-8');
 }
