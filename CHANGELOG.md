@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.3.7] - 2026-05-18
+
+### Fixed
+
+- **Skills table in agent + file copying.** The Foundry agent lists all 27
+  skills in an "Available Skills" table. The plugin also copies them to
+  `.opencode/skills/` on every startup, making them loadable via the
+  `skill` tool. Both pieces together ensure the LLM knows about the skills
+  AND can load them.
+
 ## [3.3.6] - 2026-05-18
 
 ### Fixed
