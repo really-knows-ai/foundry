@@ -110,6 +110,7 @@ export function createOrchestrateTool({ tool, pending }) {
           error: tool.schema.string().optional(),
         }).optional(),
         cycleDef: tool.schema.string().optional().describe('Test-mode cycle definition override (path to cycle file)'),
+        defaultModel: tool.schema.string().optional().describe('Fallback model for stages with no explicit model in the cycle definition (e.g. "opencode-go/deepseek-v4-flash")'),
       },
 
       async execute(args, context) {
@@ -145,6 +146,7 @@ export function createOrchestrateTool({ tool, pending }) {
             cwd, cycleDef: args.cycleDef, git, mint, finalize,
             now: () => Date.now(),
             lastResult: args.lastResult ?? null,
+            defaultModel: args.defaultModel,
           }, io);
 
           await injectDispatchPromptExtras(result, cwd);

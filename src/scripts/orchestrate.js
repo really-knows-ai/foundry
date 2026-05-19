@@ -87,6 +87,7 @@ function buildSortArgs(args, now) {
     mint: args.mint,
     now: typeof now === 'function' ? now() : now,
     ulid: args.ulid ?? defaultUlid,
+    defaultModel: args.defaultModel,
   };
 }
 

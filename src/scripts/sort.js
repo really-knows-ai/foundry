@@ -147,10 +147,26 @@ function resolveRoute(ctx) {
   return determineRoute(ctx.stages, ctx.history, ctx.feedback, ctx.maxIterations);
 }
 
-function resolveModel(route, frontmatter, agentsDir, io) {
-  const routeBase = baseStage(route);
-  if (!frontmatter.models || !frontmatter.models[routeBase]) return null;
-  const modelId = frontmatter.models[routeBase];
+function firstModelValue(models) {
+  if (!models) return undefined;
+  const keys = Object.keys(models);
+  return keys.length > 0 ? models[keys[0]] : undefined;
+}
+
+function resolveModelId(routeBase, models, defaultModel) {
+  return models[routeBase] || defaultModel || models.default || firstModelValue(models);
+}
+
+function pickModelId(route, frontmatter, defaultModel) {
+  const models = frontmatter.models;
+  if (!models) return defaultModel || null;
+  return resolveModelId(baseStage(route), models, defaultModel) || null;
+}
+
+function resolveModel(route, frontmatter, agentsDir, io, defaultModel) {
+  const modelId = pickModelId(route, frontmatter, defaultModel);
+  if (!modelId) return null;
+
   const model = `foundry-${modelId.replace(/[/.]/g, '-')}`;
   const agentPath = `${agentsDir}/${model}.md`;
   if (!io.exists(agentPath)) {
@@ -162,8 +178,8 @@ function resolveModel(route, frontmatter, agentsDir, io) {
   return model;
 }
 
-function checkModel(route, frontmatter, agentsDir, io) {
-  const modelResult = resolveModel(route, frontmatter, agentsDir, io);
+function checkModel(route, frontmatter, agentsDir, io, defaultModel) {
+  const modelResult = resolveModel(route, frontmatter, agentsDir, io, defaultModel);
   if (modelResult && modelResult.error) return { error: modelResult.error };
   return { model: typeof modelResult === 'string' ? modelResult : null };
 }
@@ -217,6 +233,7 @@ const RUN_SORT_DEFAULTS = Object.freeze({
   historyPath: 'WORK.history.yaml',
   foundryDir: 'foundry',
   cycleDef: undefined,
+  defaultModel: undefined,
   agentsDir: '.opencode/agents',
   mint: undefined,
 });
@@ -246,7 +263,7 @@ export function runSort(args = {}, io = defaultIO) {
   if (prep.kind !== 'ok') return { route: prep.kind, details: prep.details };
 
   const route = resolveRoute(buildRouteCtx(prep));
-  const modelCheck = checkModel(route, prep.frontmatter, opts.agentsDir, io);
+  const modelCheck = checkModel(route, prep.frontmatter, opts.agentsDir, io, opts.defaultModel);
   if (modelCheck.error) return { route: 'violation', details: modelCheck.error };
 
   return mintToken({

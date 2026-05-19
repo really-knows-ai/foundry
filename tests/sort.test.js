@@ -914,6 +914,29 @@ describe('runSort', () => {
     assert.equal(result.model, 'foundry-opencode-claude-sonnet-4');
   });
 
+  it('uses defaultModel when cycle has no models map at all', () => {
+    const workText = [
+      '---',
+      'cycle: c1',
+      'stages:',
+      '  - forge:write',
+      '---',
+      '',
+    ].join('\n');
+    const io = {
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === '.opencode/agents/foundry-openai-gpt-4o.md') return true;
+        return false;
+      },
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml', defaultModel: 'openai/gpt-4o' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, 'foundry-openai-gpt-4o');
+  });
+
   it('does not fail-fast when cycle has no models map', () => {
     const workText = [
       '---',
@@ -933,17 +956,81 @@ describe('runSort', () => {
     assert.equal(result.model, undefined);
   });
 
-  it('does not fail-fast when models map has no entry for current stage base', () => {
+  it('falls back to first available model when current stage has no entry', () => {
     const workText = workWithModels(['  quench: opencode/claude-sonnet-4']);
     const io = {
-      exists: (p) => p === 'WORK.md',
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === '.opencode/agents/foundry-opencode-claude-sonnet-4.md') return true;
+        return false;
+      },
       readFile: () => workText,
       exec: () => '',
     };
-    // Fresh cycle routes to forge:write, but models map only defines quench
+    // Fresh cycle routes to forge:write, but models map only defines quench.
+    // Should fall back to the quench model as the first available.
     const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
     assert.equal(result.route, 'forge:write');
-    assert.equal(result.model, undefined);
+    assert.equal(result.model, 'foundry-opencode-claude-sonnet-4');
+  });
+
+  it('prefers cycle-level models.default over first-available fallback', () => {
+    const workText = workWithModels([
+      '  quench: opencode/claude-sonnet-4',
+      '  default: github-copilot/claude-sonnet-4.6',
+    ]);
+    const io = {
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md') return true;
+        return false;
+      },
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, 'foundry-github-copilot-claude-sonnet-4-6');
+  });
+
+  it('prefers caller-provided defaultModel over cycle-level default', () => {
+    const workText = workWithModels([
+      '  quench: opencode/claude-sonnet-4',
+      '  default: github-copilot/claude-sonnet-4.6',
+    ]);
+    const io = {
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === '.opencode/agents/foundry-openai-gpt-4o.md') return true;
+        return false;
+      },
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml', defaultModel: 'openai/gpt-4o' }, io);
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, 'foundry-openai-gpt-4o');
+  });
+
+  it('prefers stage-specific model over all fallbacks', () => {
+    const workText = workWithModels([
+      '  forge: opencode/deepseek-v4-flash',
+      '  quench: opencode/claude-sonnet-4',
+      '  default: github-copilot/claude-sonnet-4.6',
+    ]);
+    const io = {
+      exists: (p) => {
+        if (p === 'WORK.md') return true;
+        if (p === '.opencode/agents/foundry-opencode-deepseek-v4-flash.md') return true;
+        return false;
+      },
+      readFile: () => workText,
+      exec: () => '',
+    };
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml', defaultModel: 'openai/gpt-4o' }, io);
+    assert.equal(result.route, 'forge:write');
+    // Stage-specific forge model wins over default, defaultModel, and first-available
+    assert.equal(result.model, 'foundry-opencode-deepseek-v4-flash');
   });
 });
 

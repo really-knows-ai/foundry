@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.3.9] - 2026-05-19
+
+### Fixed
+
+- **Stage model fallback.** When a cycle's `models:` map omits a stage (e.g.,
+  `quench`), the orchestrator now falls back to the caller's `defaultModel`,
+  then `models.default`, then any available model in the map, instead of
+  failing with a hard violation. `foundry_orchestrate` accepts an optional
+  `defaultModel` arg for this purpose.
+- **No-models-map fallback.** When the cycle has no `models:` block at all but
+  `defaultModel` is provided, the orchestrator uses it — previously returned
+  a violation.
+
 ## [3.3.8] - 2026-05-19
 
 ### Fixed

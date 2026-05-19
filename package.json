@@ -1,6 +1,6 @@
 {
   "name": "@really-knows-ai/foundry",
-  "version": "3.3.8",
+  "version": "3.3.9",
   "description": "A skill-driven framework for governed artefact generation with AI coding tools. Define your own artefact types, laws, and flows — Foundry handles the forge → quench → appraise pipeline with deterministic routing, quality gates, and iterative refinement.",
   "type": "module",
   "main": "dist/.opencode/plugins/foundry.js",
