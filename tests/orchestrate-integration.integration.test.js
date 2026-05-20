@@ -160,80 +160,44 @@ appraisers:
   assert.match(histAfterForge, /wrote first draft/);
   assert.match(histAfterForge, /route: forge:create-haiku/);
 
-  // Quench ran internally — no dispatch for quench. The route advanced
-  // to appraise.
-  assert.strictEqual(r2.action, 'dispatch');
-  assert.strictEqual(r2.stage, 'appraise:create-haiku');
+  // Quench ran internally — no dispatch for quench. Appraise also runs
+  // internally (gather + consolidate) since no appraisers are configured,
+  // so the cycle advances all the way to done.
+  assert.strictEqual(r2.action, 'done');
+  assert.strictEqual(r2.cycle, 'create-haiku');
+  assert.strictEqual(r2.artefact_file, 'haikus/a.md');
+  assert.deepStrictEqual(r2.next_cycles, ['create-short-story']);
 
-  // Both forge and quench were finalized in this one call
-  assert.strictEqual(finalizeCalls.length, 2);
+  // All three stages were finalized in this one call
+  assert.strictEqual(finalizeCalls.length, 3);
   assert.strictEqual(finalizeCalls[0].stage, 'forge:create-haiku');
   assert.strictEqual(finalizeCalls[1].stage, 'quench:create-haiku');
+  assert.strictEqual(finalizeCalls[2].stage, 'appraise:create-haiku');
 
-  // Quench commit was created during internal runQuench
+  // Quench and appraise commits were created during internal run
   assert.ok(
     commits.some(m => m.startsWith('[create-haiku] quench:create-haiku')),
     `expected quench commit, got: ${commits.join(' | ')}`
   );
-
-  // Active stage cleared after quench finalisation
-  assert.strictEqual(
-    io.exists('.foundry/active-stage.json'),
-    false,
-    'active stage cleared after quench finalize'
-  );
-
-  const histAfterQuench = io.readFile('WORK.history.yaml');
-  assert.match(histAfterQuench, /stage: quench:create-haiku/);
-
-  // Simulate the dispatched appraise agent's full lifecycle
-  writeActiveStage(io, {
-    cycle: 'create-haiku',
-    stage: 'appraise:create-haiku',
-    token: r2.prompt.match(/Token: (\S+)/)?.[1] || 'T2',
-    baseSha: 'sha3',
-  });
-  writeLastStage(io, {
-    cycle: 'create-haiku',
-    stage: 'appraise:create-haiku',
-    baseSha: 'sha3',
-    summary: 'unanimous approval',
-  });
-  clearActiveStage(io);
-
-  // ------------------------------------------------------------------
-  // Call 3: finalize appraise -> sort returns 'done'.
-  // ------------------------------------------------------------------
-  const r3 = await runOrchestrate(
-    { ...args, lastResult: { kind: 'dispatch', ok: true } },
-    io
-  );
-  assert.strictEqual(r3.action, 'done');
-  assert.strictEqual(r3.cycle, 'create-haiku');
-  assert.strictEqual(r3.artefact_file, 'haikus/a.md');
-  assert.deepStrictEqual(r3.next_cycles, ['create-short-story']);
-
-  assert.strictEqual(finalizeCalls.length, 3);
-  assert.strictEqual(finalizeCalls[2].stage, 'appraise:create-haiku');
   assert.ok(
     commits.some(m => m.startsWith('[create-haiku] appraise:create-haiku')),
     `expected appraise commit, got: ${commits.join(' | ')}`
   );
+
+  // Active stage cleared after final finalize
   assert.strictEqual(
     io.exists('.foundry/active-stage.json'),
     false,
     'active stage cleared after final finalize'
   );
 
-  // ------------------------------------------------------------------
   // Final state: history contains all stages + sort routing entries,
   // and we have at least one commit per finalized stage plus setup.
-  // ------------------------------------------------------------------
   const histFinal = io.readFile('WORK.history.yaml');
   assert.match(histFinal, /stage: forge:create-haiku/);
   assert.match(histFinal, /stage: quench:create-haiku/);
   assert.match(histFinal, /stage: appraise:create-haiku/);
-  assert.match(histFinal, /unanimous approval/);
+  assert.match(histFinal, /No issues found by appraisers/);
 
   // 1 setup + 3 stage commits = 4 minimum
   assert.ok(

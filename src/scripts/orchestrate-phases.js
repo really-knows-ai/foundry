@@ -77,8 +77,8 @@ export async function handleSortResult(sortResult, ctx) {
   if (isTerminalRoute(route)) {
     return handleTerminalRoute(route, sortResult, ctx);
   }
-  if (routeDispatch(route) === 'quench') {
-    return violation('quench route reached handleSortResult — should have been handled by runQuench in orchestrate.js');
+  if (routeDispatch(route) === 'quench' || routeDispatch(route) === 'appraise') {
+    return violation(`${routeDispatch(route)} route reached handleSortResult — should have been handled upstream in orchestrate.js`);
   }
   if (routeDispatch(route) === 'human-appraise') {
     return humanAppraiseAction(route, token, ctx.cycleId, ctx.io);
