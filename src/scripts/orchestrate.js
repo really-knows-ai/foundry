@@ -15,6 +15,7 @@ import {
   synthesizeStages,
   violation,
   computeOpenFeedback,
+  markArtefactBlocked,
   DISPATCH_MULTI_ACTION,
   validateDispatchMulti,
   buildDispatchMultiResponse,
@@ -205,8 +206,13 @@ async function handleAppraiseGatherRoute(sortResult, preCheck, args, io) {
 }
 
 async function handleAppraiseConsolidateRoute(sortResult, preCheck, args, io) {
-  const result = await consolidateAppraise(buildAppraiseCtx(preCheck.cycleId, args, io), args.lastResults);
-  if (result.action === 'violation') return result;
+  const ctx = buildAppraiseCtx(preCheck.cycleId, args, io);
+  const result = await consolidateAppraise(ctx, args.lastResults);
+  if (result.action === 'violation') {
+    markArtefactBlocked(preCheck.cycleId, io);
+    clearActiveStage(io);
+    return result;
+  }
   if (!result.ok) return violation(result.error || 'appraise consolidation failed');
   const nextSort = runSort(buildSortArgs(args, args.now ?? Date.now), io);
   return dispatchByRoute(nextSort, args, preCheck, io);

@@ -231,6 +231,7 @@ function resolvePriorAppraise(ctx, consolidated, stageId) {
   const priorItems = ctx.feedback.list({ source: stageId });
 
   for (const prior of priorItems) {
+    if (prior.state === 'resolved') continue;
     const sig = `${prior.file}:${prior.tag}`;
     const decision = current.has(sig) ? 'rejected' : 'approved';
     ctx.feedback.resolve(prior.id, decision);

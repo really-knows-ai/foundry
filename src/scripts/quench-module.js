@@ -136,6 +136,7 @@ function resolvePriorFeedback(ctx, currentFeedback) {
   const priorItems = ctx.feedback.list({ source: ctx.stageId });
 
   for (const prior of priorItems) {
+    if (prior.state === 'resolved') continue;
     const sig = `${prior.file}:${prior.tag}`;
     const decision = currentSigs.has(sig) ? 'rejected' : 'approved';
     ctx.feedback.resolve(prior.id, decision);
