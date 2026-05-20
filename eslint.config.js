@@ -220,6 +220,7 @@ export default [
       'sonarjs/no-identical-functions': 'off',
       'sonarjs/no-os-command-from-path': 'off',
       'sonarjs/os-command': 'off',
+      'sonarjs/pseudo-random': 'off',
       'sonarjs/publicly-writable-directories': 'off',
       'sonarjs/slow-regex': 'off',             // test regexes match fixed git output, not user input
       'no-template-curly-in-string': 'off',     // test fixtures contain bash/template-like syntax
@@ -232,6 +233,14 @@ export default [
   // Plugin validation tool: requires OS command execution
   {
     files: ['src/plugin/tools/validate-tools.js'],
+    rules: {
+      'sonarjs/os-command': 'off',
+    },
+  },
+
+  // Shared validation module: requires OS command execution
+  {
+    files: ['src/scripts/lib/validation.js'],
     rules: {
       'sonarjs/os-command': 'off',
     },

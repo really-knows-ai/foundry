@@ -577,10 +577,14 @@ file-patterns: ["haikus/*.md"]
 
   assert.ok(commits.some(m => m.includes('[create-haiku] forge')),
     `expected forge commit, got: ${commits.join(', ')}`);
-  assert.strictEqual(result.action, 'dispatch');
-  assert.strictEqual(result.stage, 'quench:create-haiku');
+
+  // Quench and appraise run internally — result advances to done
+  assert.strictEqual(result.action, 'done');
+
   const history = io.readFile('WORK.history.yaml');
   assert.match(history, /stage: forge:create-haiku/);
+  assert.match(history, /stage: quench:create-haiku/);
+  assert.match(history, /stage: appraise:create-haiku/);
 });
 
 test('runOrchestrate subsequent call with lastResult.ok=false marks artefact blocked', async () => {
@@ -1375,8 +1379,9 @@ file-patterns: ["haikus/*.md"]
     finalize: async () => ({ ok: true, artefacts: [], changedFiles: [] }),
   }, io);
 
-  assert.strictEqual(result.action, 'dispatch');
-  
+  // Appraise is internal — cycle completes (forge → appraise → done)
+  assert.strictEqual(result.action, 'done', 'expected done (appraise runs internally, no lastResult needed)');
+
   // CRITICAL: lastStage must be cleared after successful finalization
   assert.strictEqual(io.exists('.foundry/last-stage.json'), false, 
     'lastStage should be cleared after successful finalization to prevent stale state corruption');

@@ -149,3 +149,15 @@ export function setArtefactStatus(text, file, newStatus) {
 
   throw new Error(`File not found in artefacts table: ${file}`);
 }
+
+/**
+ * Get draft artefacts for a specific cycle from the artefacts table.
+ * @param {string} cycleId - Cycle ID to filter by
+ * @param {object} io - IO interface
+ * @returns {Array<{file: string, type: string, cycle: string, status: string}>}
+ */
+export function getArtefactsForCycle(cycleId, io) {
+  const text = io.readFile('WORK.md');
+  const artefacts = parseArtefactsTable(text);
+  return artefacts.filter(a => a.cycle === cycleId && a.status === 'draft');
+}
