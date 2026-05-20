@@ -74,10 +74,26 @@ Review this phase file for internal coherence and execution clarity:
 Focus on:
 1. The phase goal is clear and matches its deliverables.
 2. Deliverables are concrete and verifiable.
-3. Verification steps are specific enough for an executing agent to run.
-4. Acceptance criteria are objective pass/fail conditions.
-5. Dependencies and handoff instructions are clear within the phase.
-6. Ambiguities are surfaced as clarifying questions.
+3. Acceptance criteria are objective pass/fail conditions.
+4. Dependencies and handoff instructions are clear within the phase.
+5. Ambiguities are surfaced as clarifying questions.
+
+Do NOT flag:
+- Whether a helper function pre-exists in the codebase — the executing agent
+  discovers this during implementation.
+- The exact file a helper should live in — the agent follows project conventions.
+- Which line in an existing file to modify — the agent reads the code before
+  editing.
+- Source-versus-dist path confusion — the agent works with source files and
+  follows the project's build tooling.
+- Whether a test file already exists — the agent creates what is needed and
+  follows existing test patterns.
+
+Flag ONLY when a phase is missing a deliverable, has contradictory
+instructions, or leaves a contract gap that would prevent an agent from
+starting. Contract gaps include: underspecified function signatures that
+cross phase boundaries, unclear who owns a responsibility, or missing
+error-handling rules for a named scenario.
 
 Do not review this phase against the original spec. Focus on whether this phase is internally coherent, testable, and clear enough to execute.
 
