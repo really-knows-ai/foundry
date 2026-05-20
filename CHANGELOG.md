@@ -1,5 +1,49 @@
 # Changelog
 
+## [3.4.0] - 2026-05-20
+
+### Changed
+
+- **Quench runs as an internal orchestrator module.** Quench no longer
+  dispatches an LLM subagent — it runs validators directly within the
+  orchestrator, posting feedback and resolving prior items without any
+  model involvement. A single `foundry_orchestrate` call handles the
+  full quench stage inline.
+- **Appraise dispatch moves into the orchestrator.** Instead of
+  dispatching a single appraise subagent that can't use `task`, the
+  orchestrator gathers context internally, returns a `dispatch_multi`
+  action with pre-built prompts, and the LLM dispatches individual
+  appraiser subagents in parallel. After dispatch, the orchestrator
+  consolidates results internally — unioning, de-duplicating, and
+  posting feedback — all within the `foundry_orchestrate` loop.
+- **New `dispatch_multi` action and `lastResults` input.** The
+  `foundry_orchestrate` tool now returns `action: "dispatch_multi"`
+  with `tasks: [{subagent_type, prompt}, ...]` and accepts
+  `lastResults: [{ok, output?, error?}, ...]` for consolidating
+  multi-dispatch results. Mutual exclusivity with `lastResult` is
+  enforced.
+- **Stage model fallback.** When a cycle's `models:` map omits a stage,
+  the orchestrator falls back to the caller's `defaultModel`, then
+  `models.default`, then any available model in the map.
+
+### Added
+
+- `src/scripts/quench-module.js` — `runQuench(ctx)` runs validators
+  deterministically with no LLM.
+- `src/scripts/appraise-module.js` — `gatherAppraiseContext(ctx)` and
+  `consolidateAppraise(ctx, lastResults)` for multi-appraiser dispatch.
+- `src/scripts/lib/validation.js` — extracted `performValidation` and
+  related functions from `validate-tools.js`.
+- `getArtefactsForCycle()` on `src/scripts/lib/artefacts.js`.
+- `DISPATCH_MULTI_ACTION`, `validateDispatchMulti`, and
+  `buildDispatchMultiResponse` on `orchestrate-cycle.js`.
+- `guardLastResults()` and `dispatchByRoute()` in `orchestrate.js`.
+- Defensive guards in `handleSortResult` for quench and appraise routes.
+- Integration tests: `tests/orchestrate-quench.integration.test.js`,
+  `tests/orchestrate-appraise.integration.test.js`,
+  `tests/orchestrate-contract.test.js`.
+- Unit tests: `tests/quench-module.test.js`, `tests/appraise-module.test.js`.
+
 ## [3.3.9] - 2026-05-19
 
 ### Fixed
