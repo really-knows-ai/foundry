@@ -159,7 +159,7 @@ Wait for all parallel implementers to finish. Update each phase file with its re
 
 After all implementers complete, re-review the affected phase files in parallel (repeat step 5 for those files only). If all phase re-reviews pass, proceed to the holistic review (step 6). If any phase re-review returns issues, repeat this iteration step.
 
-Maximum two total review cycles before stopping and reporting unresolved issues to the user.
+Continue cycling until all phases pass review, or the user asks to stop.
 
 ### 8. Report the result
 
