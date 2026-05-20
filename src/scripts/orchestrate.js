@@ -202,6 +202,8 @@ async function handleAppraiseGatherRoute(sortResult, preCheck, args, io) {
     // No appraisers/artefacts — consolidate with empty results to advance
     return handleAppraiseConsolidateRoute(sortResult, preCheck, { ...args, lastResults: [] }, io);
   }
+  const validationErr = validateDispatchMulti(result);
+  if (validationErr) return validationErr;
   return result;
 }
 

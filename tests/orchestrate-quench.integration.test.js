@@ -129,15 +129,17 @@ file-patterns: ["out/*.md"]
   assert.ok(!(r2.action === 'dispatch' && r2.stage?.startsWith('quench:')),
     'no dispatch action for quench stage');
 
-  // The cycle advanced past quench
-  assert.strictEqual(r2.action, 'dispatch');
-  assert.strictEqual(r2.stage, 'appraise:test-cycle');
+  // The cycle advanced past quench; in Phase 5 appraise is also internal,
+  // so it advances all the way to done (no human-appraise in this config)
+  assert.ok(r2.action === 'done' || r2.action === 'dispatch',
+    `expected done or dispatch, got ${r2.action}`);
 
-  // Both forge and quench were finalized (forge from runPostDispatch,
-  // quench from internal runQuench)
-  assert.strictEqual(finalizeCalls.length, 2);
+  // Forge, quench, and appraise all finalized (forge from runPostDispatch,
+  // quench from internal runQuench, appraise from internal consolidate)
+  assert.strictEqual(finalizeCalls.length, 3);
   assert.strictEqual(finalizeCalls[0], 'forge:test-cycle');
   assert.strictEqual(finalizeCalls[1], 'quench:test-cycle');
+  assert.strictEqual(finalizeCalls[2], 'appraise:test-cycle');
 });
 
 // ---------------------------------------------------------------------------
@@ -194,15 +196,17 @@ models:
   });
   clearActiveStage(io);
 
-  // Call 2: finalize forge → internal quench (no artefacts → SKIP) → appraise
+  // Call 2: finalize forge → internal quench (no artefacts → SKIP) →
+  //          internal appraise (no artefacts → SKIP) → done
   const r2 = await runOrchestrate(
     { ...args, lastResult: { ok: true }, finalize },
     io
   );
 
-  assert.strictEqual(r2.action, 'dispatch');
-  assert.strictEqual(r2.stage, 'appraise:test-cycle',
-    'should skip quench and advance to appraise');
+  // The cycle advanced through quench and appraise (both internal)
+  // to completion since there are no draft artefacts
+  assert.strictEqual(r2.action, 'done',
+    'should advance through quench and appraise to done');
 });
 
 // ---------------------------------------------------------------------------
@@ -310,19 +314,20 @@ file-patterns: ["out/*.md"]
   });
   clearActiveStage(io);
 
-  // Call 2: finalize forge → internal quench → appraise
+  // Call 2: finalize forge → internal quench → internal appraise → done
   const r2 = await runOrchestrate(
     { ...args, lastResult: { ok: true }, git, finalize },
     io
   );
 
-  assert.strictEqual(r2.stage, 'appraise:test-cycle',
-    'cycle advanced past quench to appraise');
+  assert.strictEqual(r2.action, 'done',
+    'cycle advanced through quench and appraise to done');
 
-  // History should contain both forge and quench entries
+  // History should contain forge, quench, and appraise entries
   const history = io.readFile('WORK.history.yaml');
   assert.match(history, /stage: forge:test-cycle/);
   assert.match(history, /stage: quench:test-cycle/);
+  assert.match(history, /stage: appraise:test-cycle/);
 });
 
 // ---------------------------------------------------------------------------
