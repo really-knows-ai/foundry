@@ -5,6 +5,7 @@
 import { runSort } from './sort.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { readActiveStage, readLastStage } from './lib/state.js';
+import { stageBaseOf } from './lib/stage-guard.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
 import {
   findCycleOutputArtefact,
@@ -14,6 +15,9 @@ import {
   synthesizeStages,
   violation,
   computeOpenFeedback,
+  DISPATCH_MULTI_ACTION,
+  validateDispatchMulti,
+  buildDispatchMultiResponse,
 } from './orchestrate-cycle.js';
 import {
   handleSortResult,
@@ -22,7 +26,10 @@ import {
   handleViolation,
 } from './orchestrate-phases.js';
 
-export { renderDispatchPrompt, synthesizeStages, computeOpenFeedback };
+export {
+  renderDispatchPrompt, synthesizeStages, computeOpenFeedback,
+  DISPATCH_MULTI_ACTION, validateDispatchMulti, buildDispatchMultiResponse,
+};
 export { findCycleOutputArtefact, readCycleTargets, readForgeFilePatterns };
 export { handleSortResult as __handleSortResultForTest };
 
@@ -81,6 +88,49 @@ function guardMissingLastStage(lastStage) {
   return null;
 }
 
+function checkLastResultsConflict(args) {
+  if (args.lastResult !== undefined && args.lastResults !== undefined) {
+    return violation('lastResult and lastResults are mutually exclusive');
+  }
+  return null;
+}
+
+function checkLastResultsShape(args) {
+  if (args.lastResults === undefined) return null;
+  if (!Array.isArray(args.lastResults)) {
+    return violation('lastResults must be an array');
+  }
+  return null;
+}
+
+function isDuplicateConsolidation(lastStage, activeStage) {
+  return lastStage && lastStage.stage === activeStage.stage;
+}
+
+function checkLastResultsStageContext(args, activeStage, lastStage) {
+  if (args.lastResults === undefined) return null;
+  if (!activeStage) {
+    return violation('lastResults provided but no active stage exists');
+  }
+  if (stageBaseOf(activeStage.stage) !== 'appraise') {
+    return violation(
+      `lastResults provided but active stage "${activeStage.stage}" is not an appraise stage`,
+    );
+  }
+  if (isDuplicateConsolidation(lastStage, activeStage)) {
+    return violation(
+      `duplicate lastResults: consolidation already completed for this appraise stage "${activeStage.stage}"`,
+    );
+  }
+  return null;
+}
+
+function guardLastResults(args, activeStage, lastStage) {
+  return checkLastResultsConflict(args)
+    ?? checkLastResultsShape(args)
+    ?? checkLastResultsStageContext(args, activeStage, lastStage);
+}
+
 function buildSortArgs(args, now) {
   return {
     cycleDef: args.cycleDef ?? null,
@@ -115,6 +165,20 @@ export async function runOrchestrate(args, io) {
   return runOrchestrateFlow(preCheck, args, io);
 }
 
+function checkFlowGuards(args, activeStage, lastStage) {
+  const lastResultsErr = guardLastResults(args, activeStage, lastStage);
+  if (lastResultsErr) return lastResultsErr;
+
+  // Only flag an orphaned stage when not on the consolidation path.
+  // When lastResults is provided, an active stage without lastResult is
+  // expected (this is the consolidation path after parallel appraiser
+  // dispatch).
+  if (args.lastResults === undefined) {
+    return guardOrphanedStage(activeStage, args.lastResult);
+  }
+  return null;
+}
+
 async function runOrchestrateFlow(preCheck, args, io) {
   const setupResult = await runSetupIfNeeded(preCheck, args, io);
   if (isViolation(setupResult)) return setupResult;
@@ -122,8 +186,8 @@ async function runOrchestrateFlow(preCheck, args, io) {
   const activeStage = readActiveStage(io);
   const lastStage = readLastStage(io);
 
-  const orphanErr = guardOrphanedStage(activeStage, args.lastResult);
-  if (orphanErr) return orphanErr;
+  const guardErr = checkFlowGuards(args, activeStage, lastStage);
+  if (guardErr) return guardErr;
 
   const postDispatchResult = await runPostDispatch(args, activeStage, lastStage, preCheck.cycleId, io);
   if (isViolation(postDispatchResult)) return postDispatchResult;

@@ -47,6 +47,34 @@ task tool:
 
 When the task returns, call `foundry_orchestrate({lastResult: {ok: true}})`. If the task tool itself errored or reported a subagent crash, pass `{ok: false, error: '<message>'}`.
 
+### `dispatch_multi`
+
+Payload: `{stage, cycle, tasks}`.
+
+Fire all tasks in parallel by making multiple `task` tool calls in a single response:
+
+```
+task tool:
+  subagent_type: <task.subagent_type>
+  description: "Appraise <artefact> for <cycle>"
+  prompt: <task.prompt — pass verbatim>
+```
+
+Repeat for every entry in the `tasks` array. If `tasks` is empty, call
+`foundry_orchestrate({lastResults: []})` directly — no dispatch needed.
+
+When all tasks complete, collect their outputs into a `lastResults` array:
+
+- Task succeeded: `{ok: true, output: "<subagent output text>"}`
+- Task failed: `{ok: false, error: "<error message>"}`
+
+Then call `foundry_orchestrate({lastResults})`.
+
+Each appraiser sub-agent prompt already contains the appraiser personality,
+artefact content, and applicable laws. Do NOT inject additional instructions.
+Do NOT call `foundry_stage_begin` or `foundry_stage_end` — the appraise
+module handles lifecycle internally.
+
 ### `human_appraise`
 
 Payload: `{stage, token, context}`.
@@ -77,7 +105,7 @@ Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<af
 
 ## What you do NOT do
 
-- You do NOT inline forge / quench / appraise work. Always dispatch via `task`.
+- You do NOT inline forge work. Always dispatch forge via `task`. Quench runs internally in the orchestrator. Appraise uses `dispatch_multi` for parallel subagent dispatch followed by internal consolidation.
 - You do NOT mint, modify, or cache tokens. The `prompt` from orchestrate already contains the token verbatim.
 - `foundry_history_append`, `foundry_git_commit`, `foundry_stage_finalize`, and `foundry_sort` are not registered tools; orchestrate handles them internally via the loop.
 - You do NOT reorder the protocol. `foundry_orchestrate` returns, you act, you call back. Nothing else between.
