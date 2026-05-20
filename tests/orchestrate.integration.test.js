@@ -577,10 +577,14 @@ file-patterns: ["haikus/*.md"]
 
   assert.ok(commits.some(m => m.includes('[create-haiku] forge')),
     `expected forge commit, got: ${commits.join(', ')}`);
+
+  // Quench runs internally — result advances to appraise, not quench
   assert.strictEqual(result.action, 'dispatch');
-  assert.strictEqual(result.stage, 'quench:create-haiku');
+  assert.strictEqual(result.stage, 'appraise:create-haiku');
+
   const history = io.readFile('WORK.history.yaml');
   assert.match(history, /stage: forge:create-haiku/);
+  assert.match(history, /stage: quench:create-haiku/);
 });
 
 test('runOrchestrate subsequent call with lastResult.ok=false marks artefact blocked', async () => {

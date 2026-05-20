@@ -4,7 +4,7 @@
 
 import { runSort } from './sort.js';
 import { parseFrontmatter } from './lib/workfile.js';
-import { readActiveStage, readLastStage } from './lib/state.js';
+import { readActiveStage, readLastStage, writeActiveStage } from './lib/state.js';
 import { stageBaseOf } from './lib/stage-guard.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
 import {
@@ -24,7 +24,10 @@ import {
   setupWorkfile,
   finaliseStage,
   handleViolation,
+  routeDispatch,
 } from './orchestrate-phases.js';
+import { runQuench } from './quench-module.js';
+import { openFeedbackStore } from './lib/feedback-store.js';
 
 export {
   renderDispatchPrompt, synthesizeStages, computeOpenFeedback,
@@ -159,6 +162,71 @@ function isViolation(result) {
   return result && result.action === 'violation';
 }
 
+function buildQuenchContext(cycleId, args, io) {
+  const stageId = `quench:${cycleId}`;
+  return {
+    cycleId,
+    stageId,
+    io,
+    git: args.git,
+    finalize: ({ lastStage, activeStage }) =>
+      finaliseStage({ lastStage, activeStage, cycleId, io, finalize: args.finalize, git: args.git }),
+    now: args.now,
+    ulid: args.ulid,
+    mint: args.mint,
+    foundryDir: 'foundry',
+    defaultModel: args.defaultModel,
+    feedback: {
+      add: (item) => {
+        const store = openFeedbackStore('WORK.feedback.yaml', io);
+        return store.add({
+          file: item.file,
+          tag: item.tag,
+          text: item.text,
+          source: stageId,
+          cycle: cycleId,
+        });
+      },
+      list: (query) => {
+        const store = openFeedbackStore('WORK.feedback.yaml', io);
+        let items = store.list();
+        if (query?.file) items = items.filter(it => it.file === query.file);
+        if (query?.source) items = items.filter(it => it.source === query.source);
+        return items;
+      },
+      resolve: (id, decision, reason) => {
+        const store = openFeedbackStore('WORK.feedback.yaml', io);
+        const target = decision === 'approved' ? 'resolved' : 'rejected';
+        return store.transition({ id, target, stage: stageId, cycle: cycleId });
+      },
+    },
+  };
+}
+
+function resolveBaseSha(io) {
+  try {
+    const sha = io.exec(['git', 'rev-parse', 'HEAD']);
+    if (sha && typeof sha === 'string' && sha.trim()) return sha.trim();
+  } catch { /* use default */ }
+  return '0000000';
+}
+
+async function handleQuenchRoute(sortResult, preCheck, args, io) {
+  writeActiveStage(io, {
+    cycle: preCheck.cycleId,
+    stage: `${sortResult.route}`,
+    token: null,
+    baseSha: resolveBaseSha(io),
+  });
+  const quenchCtx = buildQuenchContext(preCheck.cycleId, args, io);
+  const quenchResult = await runQuench(quenchCtx);
+  if (quenchResult.ok === false) {
+    return violation(quenchResult.error || 'quench failed');
+  }
+  const nextSort = runSort(buildSortArgs(args, args.now ?? Date.now), io);
+  return handleSortResult(nextSort, buildSortContext(preCheck.cycleId, args, io));
+}
+
 export async function runOrchestrate(args, io) {
   const preCheck = runPreChecks(io);
   if (preCheck.error) return preCheck.error;
@@ -192,7 +260,15 @@ async function runOrchestrateFlow(preCheck, args, io) {
   const postDispatchResult = await runPostDispatch(args, activeStage, lastStage, preCheck.cycleId, io);
   if (isViolation(postDispatchResult)) return postDispatchResult;
 
-  const sortResult = runSort(buildSortArgs(args, args.now ?? Date.now), io);
+  return runSortAndDispatch(args, preCheck, io);
+}
+
+async function runSortAndDispatch(args, preCheck, io) {
+  const sortTime = args.now ?? Date.now();
+  const sortResult = runSort(buildSortArgs(args, sortTime), io);
+  if (routeDispatch(sortResult.route) === 'quench') {
+    return handleQuenchRoute(sortResult, preCheck, args, io);
+  }
   return handleSortResult(sortResult, buildSortContext(preCheck.cycleId, args, io));
 }
 

@@ -58,7 +58,7 @@ async function buildDispatchAction(route, model, token, ctx) {
   return { action: 'dispatch', stage: route, subagent_type: model, prompt: renderDispatchPrompt(makeDispatchPayload(route, ctx.cycleId, token, ctx.cwd, filePatterns)) };
 }
 
-function routeDispatch(route) {
+export function routeDispatch(route) {
   return typeof route === 'string' ? route.split(':')[0] : '';
 }
 
@@ -68,10 +68,17 @@ async function handleTerminalRoute(route, sortResult, ctx) {
   return violation(sortResult.details ?? 'sort returned violation');
 }
 
+function isTerminalRoute(route) {
+  return route === 'done' || route === 'blocked' || route === 'violation';
+}
+
 export async function handleSortResult(sortResult, ctx) {
   const { route, model, token } = sortResult;
-  if (route === 'done' || route === 'blocked' || route === 'violation') {
+  if (isTerminalRoute(route)) {
     return handleTerminalRoute(route, sortResult, ctx);
+  }
+  if (routeDispatch(route) === 'quench') {
+    return violation('quench route reached handleSortResult — should have been handled by runQuench in orchestrate.js');
   }
   if (routeDispatch(route) === 'human-appraise') {
     return humanAppraiseAction(route, token, ctx.cycleId, ctx.io);

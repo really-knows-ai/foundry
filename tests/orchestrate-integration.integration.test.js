@@ -141,20 +141,15 @@ appraisers:
   clearActiveStage(io);
 
   // ------------------------------------------------------------------
-  // Call 2: finalize forge, append history, commit, dispatch quench.
+  // Call 2: finalize forge, append history, commit, run quench
+  // internally, re-sort, dispatch appraise.
   // ------------------------------------------------------------------
   const r2 = await runOrchestrate(
     { ...args, lastResult: { kind: 'dispatch', ok: true } },
     io
   );
-  assert.strictEqual(r2.action, 'dispatch');
-  assert.strictEqual(r2.stage, 'quench:create-haiku');
-  assert.match(r2.prompt, /Token: T2/);
-  assert.doesNotMatch(r2.prompt, /File patterns/, 'quench has no file-patterns');
 
-  assert.strictEqual(finalizeCalls.length, 1);
-  assert.strictEqual(finalizeCalls[0].stage, 'forge:create-haiku');
-
+  // Forge was finalized (commit, history)
   assert.ok(
     commits.some(m => m.startsWith('[create-haiku] forge:create-haiku')),
     `expected forge commit, got: ${commits.join(' | ')}`
@@ -164,48 +159,38 @@ appraisers:
   assert.match(histAfterForge, /stage: forge:create-haiku/);
   assert.match(histAfterForge, /wrote first draft/);
   assert.match(histAfterForge, /route: forge:create-haiku/);
-  assert.strictEqual(
-    io.exists('.foundry/active-stage.json'),
-    false,
-    'active stage cleared after finalize'
-  );
 
-  // Simulate quench agent (full lifecycle)
-  writeActiveStage(io, {
-    cycle: 'create-haiku',
-    stage: 'quench:create-haiku',
-    token: 'T2',
-    baseSha: 'sha2',
-  });
-  writeLastStage(io, {
-    cycle: 'create-haiku',
-    stage: 'quench:create-haiku',
-    baseSha: 'sha2',
-    summary: 'all checks passed',
-  });
-  clearActiveStage(io);
+  // Quench ran internally — no dispatch for quench. The route advanced
+  // to appraise.
+  assert.strictEqual(r2.action, 'dispatch');
+  assert.strictEqual(r2.stage, 'appraise:create-haiku');
 
-  // ------------------------------------------------------------------
-  // Call 3: finalize quench, dispatch appraise.
-  // ------------------------------------------------------------------
-  const r3 = await runOrchestrate(
-    { ...args, lastResult: { kind: 'dispatch', ok: true } },
-    io
-  );
-  assert.strictEqual(r3.action, 'dispatch');
-  assert.strictEqual(r3.stage, 'appraise:create-haiku');
+  // Both forge and quench were finalized in this one call
   assert.strictEqual(finalizeCalls.length, 2);
+  assert.strictEqual(finalizeCalls[0].stage, 'forge:create-haiku');
   assert.strictEqual(finalizeCalls[1].stage, 'quench:create-haiku');
+
+  // Quench commit was created during internal runQuench
   assert.ok(
     commits.some(m => m.startsWith('[create-haiku] quench:create-haiku')),
     `expected quench commit, got: ${commits.join(' | ')}`
   );
 
-  // Simulate appraise agent (full lifecycle)
+  // Active stage cleared after quench finalisation
+  assert.strictEqual(
+    io.exists('.foundry/active-stage.json'),
+    false,
+    'active stage cleared after quench finalize'
+  );
+
+  const histAfterQuench = io.readFile('WORK.history.yaml');
+  assert.match(histAfterQuench, /stage: quench:create-haiku/);
+
+  // Simulate the dispatched appraise agent's full lifecycle
   writeActiveStage(io, {
     cycle: 'create-haiku',
     stage: 'appraise:create-haiku',
-    token: 'T3',
+    token: r2.prompt.match(/Token: (\S+)/)?.[1] || 'T2',
     baseSha: 'sha3',
   });
   writeLastStage(io, {
@@ -217,16 +202,16 @@ appraisers:
   clearActiveStage(io);
 
   // ------------------------------------------------------------------
-  // Call 4: finalize appraise -> sort returns 'done'.
+  // Call 3: finalize appraise -> sort returns 'done'.
   // ------------------------------------------------------------------
-  const r4 = await runOrchestrate(
+  const r3 = await runOrchestrate(
     { ...args, lastResult: { kind: 'dispatch', ok: true } },
     io
   );
-  assert.strictEqual(r4.action, 'done');
-  assert.strictEqual(r4.cycle, 'create-haiku');
-  assert.strictEqual(r4.artefact_file, 'haikus/a.md');
-  assert.deepStrictEqual(r4.next_cycles, ['create-short-story']);
+  assert.strictEqual(r3.action, 'done');
+  assert.strictEqual(r3.cycle, 'create-haiku');
+  assert.strictEqual(r3.artefact_file, 'haikus/a.md');
+  assert.deepStrictEqual(r3.next_cycles, ['create-short-story']);
 
   assert.strictEqual(finalizeCalls.length, 3);
   assert.strictEqual(finalizeCalls[2].stage, 'appraise:create-haiku');
