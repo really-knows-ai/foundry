@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.1] - 2026-05-22
+
+### Fixed
+
+- Run CI against the active Node release lines: 22.x, 24.x, 25.x, and 26.x.
+- Use Node 22-compatible `mock.module({ namedExports })` test mocks.
+
 ## [3.5.0] - 2026-05-22
 
 ### Changed
