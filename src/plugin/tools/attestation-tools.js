@@ -131,11 +131,18 @@ function commitAttestation(cwd, cycle, content, opts) {
 function buildAttestationInputs(opts) {
   return {
     cwd: opts.cwd,
+    foundryDir: 'foundry',
     baseBranch: opts.baseBranch,
+    branchBaseSha: opts.branchBaseSha,
     goalText: opts.goalText,
     archiveBranch: opts.archiveBranch,
     archiveTipSha: opts.archiveTipSha,
-    io: { readFile: (p) => readFileSync(p, 'utf8'), fileExists: (p) => existsSync(p) },
+    io: {
+      readFile: (p) => readFileSync(p, 'utf8'),
+      fileExists: (p) => existsSync(p),
+      exists: (p) => existsSync(p),
+      exec: (args) => execFileSync(args[0], args.slice(1), { cwd: opts.cwd, encoding: 'utf8' }),
+    },
     execGit: opts.execGit,
   };
 }
@@ -151,7 +158,7 @@ function createAttestTool(tool) {
   return tool({
     description:
       'Verify the current work cycle is complete (all required stages ran, no unresolved ' +
-      'feedback, no blocked artefacts) and commit an ATTEST.md attestation file to the work branch. ' +
+      'feedback) and commit an ATTEST.md attestation file to the work branch. ' +
       'foundry_git_finish will not merge without this commit at HEAD.',
     args: {
       baseBranch: tool.schema.string().optional()

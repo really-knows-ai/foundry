@@ -5,21 +5,25 @@
  */
 
 import { readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { parseFrontmatter } from '../workfile.js';
-import { parseArtefactsTable } from '../artefacts.js';
+import { getArtefactFiles } from '../artefacts.js';
+import { getCycleDefinition } from '../config.js';
 import { parseAllHistoryEntries } from '../history.js';
 import { sha256Text, sortPaths } from './hash.js';
 
-function defaultIo() {
+function defaultIo(cwd) {
   return {
     readFile: (filePath) => readFileSync(filePath, 'utf8'),
     fileExists: (filePath) => existsSync(filePath),
+    exists: (filePath) => existsSync(filePath),
+    exec: (args) => execFileSync(args[0], args.slice(1), { cwd, encoding: 'utf8' }),
   };
 }
 
 function readWorkFiles(cwd, io) {
-  const { readFile, fileExists } = io ?? defaultIo();
+  const { readFile, fileExists } = io ?? defaultIo(cwd);
 
   return {
     workText: readFile(path.join(cwd, 'WORK.md')),
@@ -85,11 +89,28 @@ function buildGovernance(frontmatter, workText, historyText, feedbackText) {
   };
 }
 
-export function buildAttestationPayload({ cwd, goalText, archiveBranch, archiveTipSha, io }) {
-  const { workText, historyText, feedbackText } = readWorkFiles(cwd, io);
+export async function buildAttestationPayload({ cwd, foundryDir, goalText, archiveBranch, archiveTipSha, baseBranch, branchBaseSha, io }) {
+  const resolvedIo = io ?? defaultIo(cwd);
+  const { workText, historyText, feedbackText } = readWorkFiles(cwd, resolvedIo);
 
   const frontmatter = parseFrontmatter(workText);
-  const artefacts = parseArtefactsTable(workText);
+
+  // Discover artefact outputs from branch changes
+  const cycleId = frontmatter.cycle;
+  let outputs = [];
+  if (cycleId) {
+    try {
+      const cfm = (await getCycleDefinition(foundryDir ?? 'foundry', cycleId, resolvedIo)).frontmatter || {};
+      const outputType = cfm['output-type'];
+      if (outputType) {
+        outputs = await getArtefactFiles(foundryDir ?? 'foundry', outputType, resolvedIo, { baseBranch, branchBaseSha });
+      }
+    } catch {
+      // If cycle definition is missing, outputs remain empty
+    }
+  }
+
+  const outputEntries = outputs.map(({ file, state }) => ({ path: file, state }));
 
   const sortedEntries = parseAndSortHistoryEntries(historyText);
   const stages = buildStagesFromEntries(sortedEntries);
@@ -97,7 +118,7 @@ export function buildAttestationPayload({ cwd, goalText, archiveBranch, archiveT
   return {
     contract: buildContract(frontmatter),
     governance: buildGovernance(frontmatter, workText, historyText, feedbackText),
-    outputs: artefacts.map(row => ({ path: row.file, status: row.status })),
+    outputs: outputEntries,
     process: { stages },
     request: { goal_text: goalText },
     schema: 'foundry-attestation/v1',

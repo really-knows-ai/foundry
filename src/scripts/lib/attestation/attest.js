@@ -7,7 +7,6 @@
 import path from 'node:path';
 import { load as loadYaml } from 'js-yaml';
 import { parseFrontmatter } from '../workfile.js';
-import { parseArtefactsTable } from '../artefacts.js';
 import { parseAllHistoryEntries } from '../history.js';
 import { sha256Buffer } from './hash.js';
 import { buildAttestationPayload } from './payload.js';
@@ -24,14 +23,6 @@ function readWorkFiles(cwd, io) {
     historyText: io.fileExists(historyPath) ? io.readFile(historyPath) : '',
     feedbackText: io.fileExists(feedbackPath) ? io.readFile(feedbackPath) : '',
   };
-}
-
-function checkBlockedArtefacts(artefacts) {
-  const blocked = artefacts.filter(a => a.status === 'blocked');
-  if (blocked.length > 0) {
-    return `foundry_attest: cycle has blocked artefact(s): ${blocked.map(a => a.file).join(', ')}`;
-  }
-  return null;
 }
 
 function checkMissingStages(frontmatter, historyText) {
@@ -54,10 +45,7 @@ function checkUnresolvedFeedback(feedbackText) {
   return null;
 }
 
-function findCycleError(frontmatter, artefacts, historyText, feedbackText) {
-  const blockedError = checkBlockedArtefacts(artefacts);
-  if (blockedError) return blockedError;
-
+function findCycleError(frontmatter, historyText, feedbackText) {
   const missingError = checkMissingStages(frontmatter, historyText);
   if (missingError) return missingError;
 
@@ -73,7 +61,9 @@ function computeDiffSha(execGit, baseBranch) {
 
 export async function buildAttestation({
   cwd,
+  foundryDir,
   baseBranch,
+  branchBaseSha,
   goalText,
   archiveBranch,
   archiveTipSha,
@@ -82,20 +72,22 @@ export async function buildAttestation({
 }) {
   const { workText, historyText, feedbackText } = readWorkFiles(cwd, io);
   const frontmatter = parseFrontmatter(workText);
-  const artefacts = parseArtefactsTable(workText);
 
-  const cycleError = findCycleError(frontmatter, artefacts, historyText, feedbackText);
+  const cycleError = findCycleError(frontmatter, historyText, feedbackText);
   if (cycleError) {
     return { ok: false, error: cycleError };
   }
 
   const diffSha = computeDiffSha(execGit, baseBranch);
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd,
+    foundryDir: foundryDir ?? 'foundry',
     goalText,
     archiveBranch,
     archiveTipSha,
+    baseBranch,
+    branchBaseSha,
     io,
   });
 
