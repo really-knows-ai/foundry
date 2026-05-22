@@ -49,7 +49,7 @@ function classifyFiles(files, allowedPatterns) {
   return { matched, unexpected };
 }
 
-export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, registerArtefact, io }) {
+export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, io }) {
   if (!io?.exec) {
     throw new Error('finalizeStage: io.exec is required');
   }
@@ -62,9 +62,9 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
   // For non-forge stages, matched files are tool-managed side effects
   // (e.g. assay's memory writes) that should not become artefacts.
   if (stageBase !== 'forge') return { ok: true, artefacts: [], changedFiles: sortedFiles };
-  const artefacts = sortedFiles.map(file => {
-    registerArtefact({ file, type: cycleDef.outputArtefactType, status: 'draft' });
-    return { file, type: cycleDef.outputArtefactType, status: 'draft' };
-  });
+  const artefacts = sortedFiles.map(file => ({
+    file,
+    type: cycleDef.outputArtefactType,
+  }));
   return { ok: true, artefacts, changedFiles: sortedFiles };
 }

@@ -1,11 +1,8 @@
-import path from 'path';
 import { execFileSync } from 'child_process';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'fs';
 import { signToken } from '../../scripts/lib/token.js';
 import { readOrCreateSecret } from '../../scripts/lib/secret.js';
 import { getCycleDefinition, getArtefactType } from '../../scripts/lib/config.js';
-import { addArtefactRow } from '../../scripts/lib/artefacts.js';
 import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
 import { finalizeStage } from '../../scripts/lib/finalize.js';
 import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
@@ -40,15 +37,6 @@ function createGitBridge(cwd) {
   };
 }
 
-function makeRegisterArtefact(cwd, cycleId) {
-  const workPath = path.join(cwd, 'WORK.md');
-  return ({ file, type, status }) => {
-    const text = readFileSync(workPath, 'utf-8');
-    const updated = addArtefactRow(text, { file, type, cycle: cycleId, status });
-    writeFileSync(workPath, updated, 'utf-8');
-  };
-}
-
 async function createFinalize(cwd, io) {
   return async ({ cycleId, stage, baseSha }) => {
     let cycleDoc;
@@ -78,7 +66,6 @@ async function createFinalize(cwd, io) {
       cycleDef,
       artefactTypes,
       io,
-      registerArtefact: makeRegisterArtefact(cwd, cycleId),
     });
     return result;
   };
