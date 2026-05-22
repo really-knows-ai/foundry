@@ -17,11 +17,11 @@ const mockSelectAppraisers = mock.fn();
 const mockGetLaws = mock.fn();
 
 mock.module('../src/scripts/lib/artefacts.js', {
-  exports: { getArtefactFiles: mockGetArtefactFiles },
+  namedExports: { getArtefactFiles: mockGetArtefactFiles },
 });
 
 mock.module('../src/scripts/lib/config.js', {
-  exports: {
+  namedExports: {
     getCycleDefinition: mockGetCycleDefinition,
     selectAppraisers: mockSelectAppraisers,
     getLaws: mockGetLaws,

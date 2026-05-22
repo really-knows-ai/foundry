@@ -16,19 +16,19 @@ const mockGetCycleDefinition = mock.fn();
 const mockPerformValidation = mock.fn();
 
 mock.module('../src/scripts/lib/state.js', {
-  exports: { readActiveStage: mockReadActiveStage },
+  namedExports: { readActiveStage: mockReadActiveStage },
 });
 
 mock.module('../src/scripts/lib/artefacts.js', {
-  exports: { getArtefactFiles: mockGetArtefactFiles },
+  namedExports: { getArtefactFiles: mockGetArtefactFiles },
 });
 
 mock.module('../src/scripts/lib/config.js', {
-  exports: { getCycleDefinition: mockGetCycleDefinition },
+  namedExports: { getCycleDefinition: mockGetCycleDefinition },
 });
 
 mock.module('../src/scripts/lib/validation.js', {
-  exports: { performValidation: mockPerformValidation },
+  namedExports: { performValidation: mockPerformValidation },
 });
 
 // Module under test — loaded dynamically after mocks are in place
