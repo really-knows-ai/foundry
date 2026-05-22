@@ -8,14 +8,12 @@ import { readActiveStage, readLastStage, writeActiveStage, clearActiveStage } fr
 import { stageBaseOf } from './lib/stage-guard.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
 import {
-  findCycleOutputArtefact,
   readCycleTargets,
   readForgeFilePatterns,
   renderDispatchPrompt,
   synthesizeStages,
   violation,
   computeOpenFeedback,
-  markArtefactBlocked,
   DISPATCH_MULTI_ACTION,
   validateDispatchMulti,
   buildDispatchMultiResponse,
@@ -36,7 +34,7 @@ export {
   DISPATCH_MULTI_ACTION, validateDispatchMulti, buildDispatchMultiResponse,
 };
 export { gatherAppraiseContext, consolidateAppraise };
-export { findCycleOutputArtefact, readCycleTargets, readForgeFilePatterns };
+export { readCycleTargets, readForgeFilePatterns };
 export { handleSortResult as __handleSortResultForTest };
 
 export function needsSetup(workMdContent) {
@@ -121,7 +119,7 @@ function buildSortArgs(args, now) {
 }
 
 function buildSortContext(cycleId, args, io) {
-  return { cycleId, cwd: args.cwd ?? process.cwd(), io };
+  return { cycleId, cwd: args.cwd ?? process.cwd(), io, foundryDir: args.foundryDir ?? 'foundry', baseBranch: args.baseBranch ?? 'main' };
 }
 
 function buildSetupArgs(cycleResult, args, io) {
@@ -211,7 +209,6 @@ async function handleAppraiseConsolidateRoute(sortResult, preCheck, args, io) {
   const ctx = buildAppraiseCtx(preCheck.cycleId, args, io);
   const result = await consolidateAppraise(ctx, args.lastResults);
   if (result.action === 'violation') {
-    markArtefactBlocked(preCheck.cycleId, io);
     clearActiveStage(io);
     return result;
   }

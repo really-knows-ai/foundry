@@ -5,20 +5,11 @@ import {
   getCycleDefinition,
   getArtefactType,
 } from './lib/config.js';
-import { parseArtefactsTable, setArtefactStatus } from './lib/artefacts.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 
 // ---------------------------------------------------------------------------
 // Public helpers (re-exported by orchestrate.js for tests).
 // ---------------------------------------------------------------------------
-
-export function findCycleOutputArtefact(cycleId, io) {
-  if (!io.exists('WORK.md')) return null;
-  const content = io.readFile('WORK.md');
-  const rows = parseArtefactsTable(content);
-  const match = rows.find(r => r.cycle === cycleId);
-  return match ? { file: match.file, type: match.type, status: match.status } : null;
-}
 
 export async function readCycleTargets(cycleId, io) {
   try {
@@ -148,31 +139,7 @@ export function tryCommit(git, message, allowedPatterns, phase) {
   }
 }
 
-function findCycleRow(cycleId, rows) {
-  return rows.find(r => r.cycle === cycleId);
-}
 
-function writeBlockedStatus(content, row, io) {
-  try {
-    io.writeFile('WORK.md', setArtefactStatus(content, row.file, 'blocked'));
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e?.message || String(e) };
-  }
-}
-
-export function markArtefactBlocked(cycleId, io) {
-  if (!io.exists('WORK.md')) return { ok: true };
-  const content = io.readFile('WORK.md');
-  const rows = parseArtefactsTable(content);
-  const row = findCycleRow(cycleId, rows);
-  if (!row) return { ok: true };
-  return writeBlockedStatus(content, row, io);
-}
-
-export function formatBlockNote(blockResult) {
-  return blockResult.ok ? '' : ` (also: failed to mark artefact blocked: ${blockResult.error})`;
-}
 
 // ---------------------------------------------------------------------------
 // Stage synthesis (pure utility, used by setupWorkfile and exported publicly).

@@ -13,38 +13,48 @@ import { stageBaseOf } from './lib/stage-guard.js';
 import { allowedPatternsForStage } from './lib/git-policy.js';
 import { loadExtractor } from './lib/assay/loader.js';
 import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
+import { getArtefactFiles } from './lib/artefacts.js';
 import {
-  findCycleOutputArtefact,
   readCycleTargets,
   readForgeFilePatterns,
   readRecentFeedback,
   computeOpenFeedback,
   violation,
   tryCommit,
-  markArtefactBlocked,
-  formatBlockNote,
   synthesizeStages,
   renderDispatchPrompt,
 } from './orchestrate-cycle.js';
 
-async function doneAction(cycleId, io) {
-  const art = findCycleOutputArtefact(cycleId, io);
-  return { action: 'done', cycle: cycleId, artefact_file: art?.file ?? null, next_cycles: await readCycleTargets(cycleId, io) };
+async function doneAction(cycleId, io, foundryDir = 'foundry', baseBranch = 'main') {
+  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
+  const outputType = cfm['output-type'];
+  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
+  const artefactFile = artefacts.find(a => a.state !== 'deleted')?.file ?? null;
+  return { action: 'done', cycle: cycleId, artefact_file: artefactFile, next_cycles: await readCycleTargets(cycleId, io) };
 }
 
-function blockedAction(cycleId, io, details) {
-  const art = findCycleOutputArtefact(cycleId, io);
-  return { action: 'blocked', cycle: cycleId, artefact_file: art?.file ?? null, reason: details ?? 'iteration limit reached with unresolved feedback' };
+async function blockedAction(cycleId, io, details, foundryDir = 'foundry', baseBranch = 'main') {
+  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
+  const outputType = cfm['output-type'];
+  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
+  const artefactFile = artefacts.find(a => a.state !== 'deleted')?.file ?? null;
+  return { action: 'blocked', cycle: cycleId, artefact_file: artefactFile, reason: details ?? 'iteration limit reached with unresolved feedback' };
 }
 
-function humanAppraiseAction(route, token, cycleId, io) {
-  const art = findCycleOutputArtefact(cycleId, io);
-  return { action: 'human_appraise', stage: route, token, context: { cycle: cycleId, artefact_file: art?.file ?? null, recent_feedback: readRecentFeedback(io) } };
+async function humanAppraiseAction(route, token, cycleId, io, foundryDir = 'foundry', baseBranch = 'main') {
+  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
+  const outputType = cfm['output-type'];
+  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
+  const artefactFile = artefacts.find(a => a.state !== 'deleted')?.file ?? null;
+  return { action: 'human_appraise', stage: route, token, context: { cycle: cycleId, artefact_file: artefactFile, recent_feedback: readRecentFeedback(io) } };
 }
 
-function missingModelViolation(cycleId, route, io) {
-  const art = findCycleOutputArtefact(cycleId, io);
-  return violation(`cycle ${cycleId} stage ${route} has no model declared in cycle definition`, [art?.file].filter(Boolean));
+async function missingModelViolation(cycleId, route, io, foundryDir = 'foundry', baseBranch = 'main') {
+  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
+  const outputType = cfm['output-type'];
+  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
+  const affectedFiles = artefacts.filter(a => a.state !== 'deleted').map(a => a.file);
+  return violation(`cycle ${cycleId} stage ${route} has no model declared in cycle definition`, affectedFiles);
 }
 
 function makeDispatchPayload(route, cycleId, token, cwd, filePatterns) {
@@ -52,7 +62,7 @@ function makeDispatchPayload(route, cycleId, token, cwd, filePatterns) {
 }
 
 async function buildDispatchAction(route, model, token, ctx) {
-  if (!model) return missingModelViolation(ctx.cycleId, route, ctx.io);
+  if (!model) return missingModelViolation(ctx.cycleId, route, ctx.io, ctx.foundryDir, ctx.baseBranch ?? 'main');
   const base = route.split(':')[0];
   const filePatterns = base === 'forge' ? await readForgeFilePatterns(ctx.cycleId, ctx.io) : null;
   return { action: 'dispatch', stage: route, subagent_type: model, prompt: renderDispatchPrompt(makeDispatchPayload(route, ctx.cycleId, token, ctx.cwd, filePatterns)) };
@@ -63,8 +73,8 @@ export function routeDispatch(route) {
 }
 
 async function handleTerminalRoute(route, sortResult, ctx) {
-  if (route === 'done') return doneAction(ctx.cycleId, ctx.io);
-  if (route === 'blocked') return blockedAction(ctx.cycleId, ctx.io, sortResult.details);
+  if (route === 'done') return doneAction(ctx.cycleId, ctx.io, ctx.foundryDir, ctx.baseBranch ?? 'main');
+  if (route === 'blocked') return blockedAction(ctx.cycleId, ctx.io, sortResult.details, ctx.foundryDir, ctx.baseBranch ?? 'main');
   return violation(sortResult.details ?? 'sort returned violation');
 }
 
@@ -81,7 +91,7 @@ export async function handleSortResult(sortResult, ctx) {
     return violation(`${routeDispatch(route)} route reached handleSortResult — should have been handled upstream in orchestrate.js`);
   }
   if (routeDispatch(route) === 'human-appraise') {
-    return humanAppraiseAction(route, token, ctx.cycleId, ctx.io);
+    return humanAppraiseAction(route, token, ctx.cycleId, ctx.io, ctx.foundryDir, ctx.baseBranch ?? 'main');
   }
   return buildDispatchAction(route, model, token, ctx);
 }
@@ -243,12 +253,11 @@ function readOriginalState(io) {
   return { workMd: io.readFile('WORK.md'), history: io.exists('WORK.history.yaml') ? io.readFile('WORK.history.yaml') : null };
 }
 
-function buildFinalizeViolation(finalizeResult, blockResult) {
-  const blockNote = formatBlockNote(blockResult);
+function buildFinalizeViolation(finalizeResult) {
   if (finalizeResult.error === 'unexpected_files') {
-    return violation(`unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}${blockNote}`, finalizeResult.files || []);
+    return violation(`unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}`, finalizeResult.files || []);
   }
-  return violation(`stage_finalize error: ${finalizeResult.error}${blockNote}`, []);
+  return violation(`stage_finalize error: ${finalizeResult.error}`, []);
 }
 
 function writeHistoryEntries(ctx) {
@@ -291,9 +300,8 @@ export async function finaliseStage(args) {
   }
   const finalizeResult = await finalize({ cycleId, stage: lastStage.stage, baseSha: lastStage.baseSha, io });
   if (!finalizeResult.ok) {
-    const blockResult = markArtefactBlocked(cycleId, io);
     clearStageState(activeStage, null, io);
-    return buildFinalizeViolation(finalizeResult, blockResult);
+    return buildFinalizeViolation(finalizeResult);
   }
   const historyPath = 'WORK.history.yaml';
   const iteration = getIteration(historyPath, cycleId, io);
@@ -310,12 +318,12 @@ export async function finaliseStage(args) {
 }
 
 export function handleViolation(args) {
-  const { lastResult, activeStage, lastStage, cycleId, io } = args;
+  const { lastResult, activeStage, lastStage } = args;
   const failedStage = activeStage || lastStage;
   if (!failedStage) { return violation('lastResult.ok=false but no stage recorded — orphaned state'); }
-  const blockResult = markArtefactBlocked(cycleId, io);
-  clearStageState(activeStage, lastStage, io);
-  const art = findCycleOutputArtefact(cycleId, io);
-  const blockNote = formatBlockNote(blockResult);
-  return violation(`subagent dispatch failed: ${lastResult.error || 'unknown error'}${blockNote}`, [art?.file].filter(Boolean));
+  clearStageState(activeStage, lastStage, args.io);
+  return violation(
+    `subagent dispatch failed: ${lastResult.error || 'unknown error'}`,
+    lastResult.affected_files || [],
+  );
 }
