@@ -127,8 +127,5 @@ export function createWorkfile(frontmatter, goal) {
 # Goal
 
 ${goal}
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
 `;
 }
