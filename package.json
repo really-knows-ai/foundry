@@ -23,7 +23,7 @@
     "plugin"
   ],
   "engines": {
-    "node": ">=18.3.0"
+    "node": ">=22.3.0"
   },
   "scripts": {
     "build": "node scripts/build.js",
