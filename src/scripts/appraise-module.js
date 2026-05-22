@@ -11,8 +11,8 @@
  * so the orchestrator can re-sort and determine the next action.
  */
 
-import { getArtefactsForCycle } from './lib/artefacts.js';
-import { selectAppraisers, getLaws } from './lib/config.js';
+import { getArtefactFiles } from './lib/artefacts.js';
+import { selectAppraisers, getLaws, getCycleDefinition } from './lib/config.js';
 
 // ---------------------------------------------------------------------------
 // Public API — gather
@@ -27,6 +27,8 @@ import { selectAppraisers, getLaws } from './lib/config.js';
  * @param {string} ctx.cycleId
  * @param {object} ctx.io
  * @param {string} ctx.foundryDir
+ * @param {string} [ctx.baseBranch] - Git base branch for diff comparison,
+ *   defaults to 'main'.
  * @param {string} [ctx.defaultModel] - Fallback model when an appraiser has no
  *   explicit model.
  * @returns {Promise<{action: string, tasks: Array, stage: string, cycle: string}>}
@@ -36,12 +38,18 @@ export async function gatherAppraiseContext(ctx) {
     return violation('cycleId is required', []);
   }
 
-  const artefacts = getArtefactsForCycle(ctx.cycleId, ctx.io);
+  const cfm = (await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io)).frontmatter || {};
+  const outputType = cfm['output-type'];
+  if (!outputType) {
+    return violation(`cycle ${ctx.cycleId} missing output-type field`, []);
+  }
+  const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch: ctx.baseBranch ?? 'main' });
   if (artefacts.length === 0) {
     return emptyDispatch(ctx.cycleId);
   }
 
-  const tasks = await collectTasks(artefacts, ctx);
+  const typedArtefacts = artefacts.map(artefact => ({ ...artefact, type: outputType }));
+  const tasks = await collectTasks(typedArtefacts, ctx);
 
   return {
     action: 'dispatch_multi',
@@ -91,7 +99,10 @@ async function resolveTypeEntry(typeId, cache, ctx) {
  * Build and append appraiser tasks for a single artefact.
  */
 function addTasksForArtefact(tasks, artefact, entry, ctx) {
-  const content = ctx.io.readFile(artefact.file);
+  let content = '';
+  if (artefact.state !== 'deleted') {
+    content = ctx.io.readFile(artefact.file);
+  }
 
   for (const appraiser of entry.appraisers) {
     const prompt = buildAppraiserPrompt({
