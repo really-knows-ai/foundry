@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.5.0] - 2026-05-22
+
+### Changed
+
+- Add branch-based artefact discovery with `getArtefactFiles` and git change-state tracking.
+- Remove the `WORK.md` artefact table, artefact registration side effects, and per-artefact status updates.
+- Update quench, appraise, orchestration, plugin tools, and attestation to use branch artefact discovery.
+- Remove `foundry_artefacts_set_status` and update `foundry_artefacts_list` to return `{file, state}` entries.
+- Remove artefact table generation from new `WORK.md` files.
+- Update tests and docs for branch artefact discovery.
+
+### Fixed
+
+- Include all non-deleted artefact files in missing-model violation payloads.
+- Thread base-branch selection through artefact discovery contexts.
+
 ## [3.4.0] - 2026-05-20
 
 ### Changed
