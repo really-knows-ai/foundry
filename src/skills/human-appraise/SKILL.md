@@ -23,7 +23,7 @@ Human-appraise runs inside an enforced stage. Your **first** and **last** tool c
 
 Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. `foundry_stage_end` flags unexpected writes as a violation.
 
-Human-appraise **cannot** call `foundry_feedback_action`, `foundry_feedback_wontfix`, or `foundry_artefacts_set_status` — the tools reject those calls during a human-appraise stage (action/wontfix are forge-only forward transitions; set-status requires no active stage). See "Feedback handling" below for the legal transitions available to human-appraise.
+Human-appraise **cannot** call `foundry_feedback_action` or `foundry_feedback_wontfix` — the tools reject those calls during a human-appraise stage (action/wontfix are forge-only forward transitions). See "Feedback handling" below for the legal transitions available to human-appraise.
 
 ## Input
 
@@ -54,7 +54,7 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
      >   3. Investigate and fix the root cause of the failure before restarting.
 
      Then call `foundry_stage_end({summary: 'Flow is failed; no human appraisal performed'})`, return control to the user, and stop.
-   - `foundry_artefacts_list({cycle: <current-cycle>})` — this cycle's artefact files and status (always pass the `cycle` filter; omitting it returns stale rows from prior sessions)
+   - `foundry_artefacts_list({})` — this cycle's branch artefact changes as `[{ file, state }]` entries
    - `foundry_feedback_list` — all existing feedback
    - `foundry_history_list({cycle: <current-cycle>})` — what has happened so far
 
@@ -75,7 +75,7 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
    - **Approve** — "looks good" / "continue" — no feedback added, sort will advance.
    - **Provide feedback** — `foundry_feedback_add({ file, text, tag: 'human' })`. Sort will route back to forge.
    - **Resolve feedback** — `foundry_feedback_resolve({ id, resolution, reason? })` for items in `{actioned, wont-fix, deadlocked}`. See "Feedback handling" below for the legal transitions and authority rules.
-   - **Abort** — human-appraise cannot directly mark the artefact `blocked` (the `foundry_artefacts_set_status` tool refuses calls during an active stage). To abort: end the stage with a summary explaining the abort, then either (a) instruct the user to call `foundry_workfile_delete({ confirm: true })` to discard the cycle, or (b) reject outstanding feedback so routing exhausts iterations and sort marks the artefact blocked on its own.
+   - **Abort** — human-appraise cannot directly mark the artefact `blocked` (the repository no longer has a per-artefact status tool or table). To abort: end the stage with a summary explaining the abort, then either (a) instruct the user to call `foundry_workfile_delete({ confirm: true })` to discard the cycle, or (b) reject outstanding feedback so routing exhausts iterations and sort blocks the cycle on its own.
 
 7. `foundry_stage_end({summary})` — describe what the human decided so sort can log it.
 
@@ -96,10 +96,9 @@ What human-appraise can NOT do:
   `{actioned, wont-fix}` — that is forge's lane (spec §5.1 rule 1) and
   the tools reject calls from any non-forge stage. If an open or rejected
   item needs work, sort will route to forge after this stage ends.
-- **No artefact status writes.** `foundry_artefacts_set_status` requires
-  no active stage; it refuses calls while human-appraise is open. Status
-  promotion to `done`/`blocked` is owned by sort/orchestrate based on
-  routing.
+- **No artefact status writes.** The repository no longer has a per-artefact
+  status tool or table. Status is owned by the cycle state machine through
+  sort and orchestrate routing.
 
 What human-appraise CAN do:
 

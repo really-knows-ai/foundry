@@ -40,9 +40,9 @@ Appraise makes **no disk writes**. Feedback output flows through `foundry_feedba
      >   3. Investigate and fix the root cause of the failure before restarting.
 
      Then return control to the user and stop.
-   - `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate this cycle's artefacts. Always pass the `cycle` filter; omitting it returns stale rows from prior sessions. Skip rows whose status is `done` or `blocked`.
-   - For each remaining row, gather its type-specific context:
-     - `foundry_config_laws` with the row's type — applicable laws (global + type-specific)
+   - `foundry_artefacts_list({})` — enumerate the current cycle's branch artefact changes as `[{ file, state }]` entries.
+   - For each artefact change, gather its type-specific context:
+     - `foundry_config_laws` with the cycle's output type — applicable laws (global + type-specific)
      - `foundry_config_artefact_type` with the type ID — the artefact type definition
      - `foundry_appraisers_select` with the type ID — selected appraiser personalities with their raw model IDs
 

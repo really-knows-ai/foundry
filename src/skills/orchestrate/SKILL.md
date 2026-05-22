@@ -87,21 +87,20 @@ When it returns, call `foundry_orchestrate({lastResult: {ok: true}})`.
 
 Payload: `{cycle, artefact_file, next_cycles}`.
 
-1. Call `foundry_artefacts_set_status({file: artefact_file, status: 'done'})`.
-2. Report to the user: "Cycle `<cycle>` complete. Output: `<artefact_file>`. Next cycles available: `<next_cycles>`."
-3. Return control to the flow skill.
+1. Report to the user: "Cycle `<cycle>` complete. Output: `<artefact_file>`. Next cycles available: `<next_cycles>`."
+2. Return control to the flow skill.
 
 ### `blocked`
 
 Payload: `{cycle, artefact_file, reason}`.
 
-Report to the user: "Cycle `<cycle>` blocked on `<artefact_file>`: `<reason>`." Return control to the flow skill. The artefact has already been marked blocked.
+Report to the user: "Cycle `<cycle>` blocked on `<artefact_file>`: `<reason>`." Return control to the flow skill. The cycle is blocked.
 
 ### `violation`
 
 Payload: `{details, affected_files}`.
 
-Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<affected_files>`." Return control to the flow skill. Affected artefacts have already been marked blocked.
+Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<affected_files>`." Return control to the flow skill. The cycle is halted by the violation; no per-artefact status is written.
 
 ## What you do NOT do
 

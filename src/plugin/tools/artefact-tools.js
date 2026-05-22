@@ -1,58 +1,49 @@
 import path from 'path';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
-import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
-import { parseArtefactsTable, setArtefactStatus } from '../../scripts/lib/artefacts.js';
-import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
-
-const gateNotFailed = notFailedGuard(makeIO);
+import { readFileSync, existsSync } from 'fs';
+import { getArtefactFiles } from '../../scripts/lib/artefacts.js';
+import { getCycleDefinition } from '../../scripts/lib/config.js';
+import { parseFrontmatter } from '../../scripts/lib/workfile.js';
+import { makeIO } from './helpers.js';
 
 function makeListTool(tool) {
   return tool({
-    description: 'List artefacts from the WORK.md table. Optionally filter by cycle — callers should always pass the current cycle to avoid picking up stale rows from prior sessions.',
-    args: {
-      cycle: tool.schema.string().optional().describe('Only return rows whose Cycle column matches this value'),
-    },
-    async execute(args, context) {
+    description: 'List artefact changes on the current work branch for the current cycle. Returns [{ file, state }] entries.',
+    args: {},
+    async execute(_args, context) {
+      const foundryDir = 'foundry';
+      const baseBranch = 'main';
       const workPath = path.join(context.worktree, 'WORK.md');
       if (!existsSync(workPath)) {
         return JSON.stringify({ error: 'WORK.md not found' });
       }
+
       const text = readFileSync(workPath, 'utf-8');
-      const rows = parseArtefactsTable(text);
-      const filtered = args.cycle ? rows.filter(r => r.cycle === args.cycle) : rows;
-      return JSON.stringify(filtered);
+      const frontmatter = parseFrontmatter(text);
+      const cycleId = frontmatter.cycle;
+      if (!cycleId) {
+        return JSON.stringify({ error: 'current cycle not found in WORK.md frontmatter' });
+      }
+
+      const io = makeIO(context.worktree);
+      let cfm;
+      try {
+        cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
+      } catch (error) {
+        return JSON.stringify({ error: error.message });
+      }
+      const outputType = cfm['output-type'];
+      if (!outputType) {
+        return JSON.stringify([]);
+      }
+
+      const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch });
+      return JSON.stringify(artefacts);
     },
   });
 }
 
 export function createArtefactTools({ tool }) {
   return {
-    // NOTE: `foundry_artefacts_add` was removed in v2.2.0. Artefacts are now
-    // registered automatically by the orchestrator's internal finalize step as drafts,
-    // then promoted to done|blocked via `foundry_artefacts_set_status`.
-    foundry_artefacts_set_status: tool({
-      description: 'Update the status of an artefact in WORK.md (done|blocked only)',
-      args: {
-        file: tool.schema.string().describe('Artefact file path'),
-        status: tool.schema.string().describe('New status (done|blocked)'),
-      },
-      execute: guarded('foundry_artefacts_set_status', [flowBranchGuard, gateNotFailed], async (args, context) => {
-        const io = makeIO(context.worktree);
-        const guard = requireNoActiveStage(io);
-        if (!guard.ok) return JSON.stringify({ error: `foundry_artefacts_set_status ${guard.error}` });
-        const workPath = path.join(context.worktree, 'WORK.md');
-        const text = readFileSync(workPath, 'utf-8');
-        try {
-          const updated = setArtefactStatus(text, args.file, args.status);
-          writeFileSync(workPath, updated, 'utf-8');
-          return JSON.stringify({ ok: true });
-        } catch (e) {
-          return JSON.stringify({ error: e.message });
-        }
-      }, { branchIo: branchIoFactory, io: asyncIoFactory }),
-    }),
-
     foundry_artefacts_list: makeListTool(tool),
   };
 }

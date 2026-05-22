@@ -39,14 +39,14 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
    >   3. Investigate and fix the root cause of the failure before restarting.
 
    Then return control to the user and stop.
-3. `foundry_artefacts_list({cycle: <current-cycle>})` — enumerate the artefacts produced by **this** cycle. Always pass the `cycle` filter; omitting it returns rows from prior sessions and validates stale files. Skip rows whose status is `done` or `blocked`.
-4. For each remaining row:
+3. `foundry_artefacts_list({})` — enumerate the current cycle's branch artefact changes as `[{ file, state }]` entries.
+4. For each artefact change:
     a. `foundry_validate_run({ typeId: '<type-id>' })` — executes all law-based validators for the artefact type. The tool returns `{ ok, validatorsRun, items, errors }`. `items` is the array of parsed feedback items; each entry carries `lawId`, `validatorId`, `file`, and `text` (plus optional `location` and `severity`). `errors` carries validator-level failures with `lawId`, `validatorId`, `type` (`parse` or `pattern-mismatch`), and `message`.
    b. For each entry in `items`: call `foundry_feedback_add` with `{ file: item.file, text: item.text, tag: 'law:' + item.lawId + ':' + item.validatorId }`. The tag uses the law ID and validator ID returned by the tool so operators reading `WORK.feedback.yaml` can identify exactly which validator produced each item.
    c. If `errors` is non-empty, the validators themselves misbehaved (malformed JSONL or files outside the artefact type's `file-patterns`). Report these to the user via `foundry_stage_end` summary; do not convert them to law-tagged feedback.
 5. Call `foundry_feedback_list`. For items whose `source` matches your stage id and whose state is `actioned` or `wont-fix`, use the validation results from step 4 to resolve them by id: approve when the relevant validation now passes or the deterministic issue is gone; reject with a reason when it still fails.
-6. If every command passes for every row, add no new feedback.
-7. If the artefact table has no rows for this cycle, `foundry_stage_end({summary: 'SKIP: no artefacts registered for this cycle'})` and stop.
+6. If every command passes for every artefact change, add no new feedback.
+7. If the artefact list is empty, `foundry_stage_end({summary: 'SKIP: no files'})` and stop.
 8. `foundry_stage_end({summary})`.
 
 ## Feedback handling
