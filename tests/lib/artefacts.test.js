@@ -1,137 +1,117 @@
-import { describe, it } from 'node:test';
+import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArtefactsTable, addArtefactRow, setArtefactStatus } from '../../src/scripts/lib/artefacts.js';
-import { createWorkfile } from '../../src/scripts/lib/workfile.js';
+import { resolveBranchBaseSha, getArtefactFiles } from '../../src/scripts/lib/artefacts.js';
 
 // ---------------------------------------------------------------------------
-// parseArtefactsTable
+// resolveBranchBaseSha
 // ---------------------------------------------------------------------------
 
-describe('parseArtefactsTable', () => {
-  it('parses a standard table', () => {
-    const text = [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| foo.md | doc | write | draft |',
-      '| bar.js | code | build | done |',
-    ].join('\n');
-    const result = parseArtefactsTable(text);
-    assert.equal(result.length, 2);
-    assert.deepEqual(result[0], { file: 'foo.md', type: 'doc', cycle: 'write', status: 'draft' });
-    assert.deepEqual(result[1], { file: 'bar.js', type: 'code', cycle: 'build', status: 'done' });
+describe('resolveBranchBaseSha', () => {
+  it('calls io.exec with correct git merge-base args', () => {
+    const exec = mock.fn(() => 'abc123\n');
+    const io = { exec };
+    const sha = resolveBranchBaseSha(io, 'main');
+    assert.equal(sha, 'abc123');
+    assert.equal(exec.mock.calls.length, 1);
+    assert.deepEqual(exec.mock.calls[0].arguments[0], ['git', 'merge-base', 'HEAD', 'main']);
   });
 
-  it('returns empty array when no table', () => {
-    assert.deepEqual(parseArtefactsTable('no table here'), []);
+  it('uses default baseBranch when not specified', () => {
+    const exec = mock.fn(() => 'def456\n');
+    const io = { exec };
+    const sha = resolveBranchBaseSha(io);
+    assert.equal(sha, 'def456');
+    assert.deepEqual(exec.mock.calls[0].arguments[0], ['git', 'merge-base', 'HEAD', 'main']);
   });
 
-  it('returns empty array for empty string', () => {
-    assert.deepEqual(parseArtefactsTable(''), []);
+  it('throws when io.exec is missing', () => {
+    assert.throws(() => resolveBranchBaseSha({}), /io\.exec is required/);
   });
 
-  it('stops parsing at table end', () => {
-    const text = [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| a.md | t | c | s |',
-      '',
-      'Some other content',
-      '| not | a | table | row |',
-    ].join('\n');
-    const result = parseArtefactsTable(text);
+  it('throws when merge-base returns empty string', () => {
+    const io = { exec: () => '' };
+    assert.throws(() => resolveBranchBaseSha(io), /Failed to resolve/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getArtefactFiles
+// ---------------------------------------------------------------------------
+
+describe('getArtefactFiles', () => {
+  it('returns empty array when type has no file-patterns', async () => {
+    const io = {
+      exec: () => '',
+      readFile: () => '---\nid: test\n---\n',
+      exists: () => true,
+    };
+    const result = await getArtefactFiles('/foundry', 'test', io);
+    assert.deepEqual(result, []);
+  });
+
+  it('returns filtered, sorted, deduplicated { file, state } entries', async () => {
+    const exec = mock.fn((args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('merge-base')) return 'basesha\n';
+      if (cmd.includes('..HEAD')) return 'M\tout/a.md\nA\tout/c.md\n';
+      if (cmd.includes('--cached')) return 'M\tout/b.md\n';
+      if (cmd.includes('ls-files')) return 'out/d.md\n';
+      return '';
+    });
+    const readFile = mock.fn((p) => {
+      if (p.endsWith('definition.md')) return '---\nid: test\nfile-patterns:\n  - "out/*.md"\n---\n';
+      return '';
+    });
+    const testIo = { exec, readFile, exists: mock.fn(() => true) };
+
+    const result = await getArtefactFiles('/foundry', 'test', testIo);
+
+    // a (new), b (modified), c (new), d (new) — sorted by file
+    assert.equal(result.length, 4);
+    assert.deepEqual(result[0], { file: 'out/a.md', state: 'modified' });
+    assert.deepEqual(result[1], { file: 'out/b.md', state: 'modified' });
+    assert.deepEqual(result[2], { file: 'out/c.md', state: 'new' });
+    assert.deepEqual(result[3], { file: 'out/d.md', state: 'new' });
+  });
+
+  it('includes deleted files with state: deleted', async () => {
+    const exec = mock.fn((args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('merge-base')) return 'basesha\n';
+      if (cmd.includes('ls-files')) return '';
+      // All diff commands except the committed one return empty
+      if (!cmd.includes('..HEAD')) return '';
+      return 'D\tout/old.md\n';
+    });
+    const readFile = mock.fn(() => '---\nid: test\nfile-patterns:\n  - "out/*.md"\n---\n');
+    const io = { exec, readFile, exists: () => true };
+
+    const result = await getArtefactFiles('/foundry', 'test', io);
     assert.equal(result.length, 1);
-    assert.equal(result[0].file, 'a.md');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// addArtefactRow
-// ---------------------------------------------------------------------------
-
-describe('addArtefactRow', () => {
-  it('adds row to empty table (header + separator only)', () => {
-    const text = [
-      '# Artefacts',
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '',
-      '# Other',
-    ].join('\n');
-    const result = addArtefactRow(text, { file: 'x.md', type: 'doc', cycle: 'c1', status: 'draft' });
-    assert.ok(result.includes('| x.md | doc | c1 | draft |'));
-    // Other content preserved
-    assert.ok(result.includes('# Other'));
+    assert.deepEqual(result[0], { file: 'out/old.md', state: 'deleted' });
   });
 
-  it('adds row after existing rows', () => {
-    const text = [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| a.md | t | c | s |',
-    ].join('\n');
-    const result = addArtefactRow(text, { file: 'b.md', type: 't2', cycle: 'c2', status: 'new' });
-    const lines = result.split('\n');
-    assert.equal(lines[2], '| a.md | t | c | s |');
-    assert.equal(lines[3], '| b.md | t2 | c2 | new |');
-  });
+  it('branchBaseSha option takes precedence over baseBranch', async () => {
+    let mergeBaseCalls = 0;
+    const exec = mock.fn((args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('merge-base')) {
+        mergeBaseCalls++;
+        return 'basesha\n';
+      }
+      if (cmd.includes('diff --name-status')) return '';
+      if (cmd.includes('ls-files')) return '';
+      return '';
+    });
+    const readFile = mock.fn(() => '---\nid: test\nfile-patterns:\n  - "out/*.md"\n---\n');
+    const io = { exec, readFile, exists: () => true };
 
-  it('preserves surrounding content', () => {
-    const text = [
-      'before',
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| a.md | t | c | s |',
-      'after',
-    ].join('\n');
-    const result = addArtefactRow(text, { file: 'b.md', type: 't', cycle: 'c', status: 's' });
-    assert.ok(result.startsWith('before'));
-    assert.ok(result.includes('after'));
-  });
+    await getArtefactFiles('/foundry', 'test', io, {
+      branchBaseSha: 'explicit-sha',
+      baseBranch: 'develop',
+    });
 
-  it('throws if no table found', () => {
-    assert.throws(() => addArtefactRow('no table', { file: 'x', type: 't', cycle: 'c', status: 's' }), /not found/);
-  });
-
-  it('works with createWorkfile output', () => {
-    const work = createWorkfile({ cycle: 'create-haiku' }, 'Write a haiku');
-    const result = addArtefactRow(work, { file: 'haikus/test.md', type: 'haiku', cycle: 'create-haiku', status: 'draft' });
-    assert.ok(result.includes('| haikus/test.md | haiku | create-haiku | draft |'));
-  });
-});
-
-// ---------------------------------------------------------------------------
-// setArtefactStatus
-// ---------------------------------------------------------------------------
-
-describe('setArtefactStatus', () => {
-  const table = [
-    '| File | Type | Cycle | Status |',
-    '|------|------|-------|--------|',
-    '| a.md | t1 | c1 | draft |',
-    '| b.md | t2 | c2 | pending |',
-  ].join('\n');
-
-  it('updates status for specific file', () => {
-    const result = setArtefactStatus(table, 'a.md', 'done');
-    const parsed = parseArtefactsTable(result);
-    assert.equal(parsed[0].status, 'done');
-  });
-
-  it('leaves other rows unchanged', () => {
-    const result = setArtefactStatus(table, 'a.md', 'done');
-    const parsed = parseArtefactsTable(result);
-    assert.equal(parsed[1].status, 'pending');
-  });
-
-  it('throws on missing file', () => {
-    assert.throws(() => setArtefactStatus(table, 'nope.md', 'done'), /not found/i);
-  });
-
-  it('rejects status "draft"', () => {
-    assert.throws(() => setArtefactStatus(table, 'a.md', 'draft'), /status draft not permitted/);
-  });
-
-  it('rejects unknown status', () => {
-    assert.throws(() => setArtefactStatus(table, 'a.md', 'foobar'), /invalid status: foobar/);
+    // merge-base should not be called because branchBaseSha was provided
+    assert.equal(mergeBaseCalls, 0);
   });
 });

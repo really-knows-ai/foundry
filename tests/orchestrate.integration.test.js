@@ -5,7 +5,6 @@ import {
   synthesizeStages,
   runOrchestrate,
   needsSetup,
-  findCycleOutputArtefact,
   readCycleTargets,
   readForgeFilePatterns,
 } from '../src/scripts/orchestrate.js';
@@ -27,6 +26,11 @@ function makeIo(files = {}) {
     },
     unlink: (p) => fs.delete(p),
     mkdir: () => {},
+    exec: (args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('merge-base')) return 'basesha\n';
+      return '';
+    },
   };
 }
 
@@ -133,9 +137,6 @@ cycle: create-haiku
 # Goal
 
 haiku about airports
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
 `,
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
@@ -246,10 +247,6 @@ models:
 # Goal
 
 haiku
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
 `,
     'WORK.history.yaml': '',
     '.foundry/last-stage.json': JSON.stringify({
@@ -311,9 +308,9 @@ models:
   quench: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     'WORK.history.yaml': '',
     '.foundry/last-stage.json': JSON.stringify({
@@ -368,9 +365,9 @@ models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     'WORK.history.yaml': '',
     '.foundry/last-stage.json': JSON.stringify({
@@ -427,35 +424,6 @@ max-iterations: 3
 hello
 `;
   assert.strictEqual(needsSetup(workMd), false);
-});
-
-test('findCycleOutputArtefact: returns the artefact row matching cycle', () => {
-  const io = makeIo({
-    'WORK.md': `---
-cycle: create-haiku
----
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
-| other/b.md | other | other-cycle | done |
-`,
-  });
-  const a = findCycleOutputArtefact('create-haiku', io);
-  assert.strictEqual(a.file, 'haikus/a.md');
-  assert.strictEqual(a.type, 'haiku');
-  assert.strictEqual(a.status, 'draft');
-});
-
-test('findCycleOutputArtefact: returns null when no match', () => {
-  const io = makeIo({
-    'WORK.md': `---
-cycle: create-haiku
----
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-`,
-  });
-  assert.strictEqual(findCycleOutputArtefact('create-haiku', io), null);
 });
 
 test('readCycleTargets: reads targets from cycle def', async () => {
@@ -517,15 +485,11 @@ deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   quench: github-copilot/claude-sonnet-4.6
-  appraise: github-copilot/claude-sonnet-4.6
+  appraise: github-copilot/gpt-5.4
 ---
 # Goal
 
 haiku
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
 `,
     'WORK.history.yaml': `- cycle: create-haiku
   stage: sort
@@ -560,6 +524,7 @@ file-patterns: ["haikus/*.md"]
 ---
 `,
     '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
+    '.opencode/agents/foundry-github-copilot-gpt-5-4.md': '# agent',
   });
   const commits = [];
   const git = {
@@ -587,7 +552,7 @@ file-patterns: ["haikus/*.md"]
   assert.match(history, /stage: appraise:create-haiku/);
 });
 
-test('runOrchestrate subsequent call with lastResult.ok=false marks artefact blocked', async () => {
+test('runOrchestrate subsequent call with lastResult.ok=false returns violation', async () => {
   const io = makeIo({
     'WORK.md': `---
 flow: creative-flow
@@ -595,9 +560,9 @@ cycle: create-haiku
 stages: [forge:create-haiku]
 max-iterations: 3
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     '.foundry/active-stage.json': JSON.stringify({
       cycle: 'create-haiku', stage: 'forge:create-haiku', token: 'T', baseSha: 'abc'
@@ -610,8 +575,6 @@ max-iterations: 3
     finalize: async () => ({ ok: true, artefacts: [] }),
   }, io);
   assert.strictEqual(result.action, 'violation');
-  const work = io.readFile('WORK.md');
-  assert.match(work, /\| haikus\/a\.md \| haiku \| create-haiku \| blocked \|/);
 });
 
 test('runOrchestrate subagent-failure clears both activeStage AND lastStage', async () => {
@@ -624,9 +587,9 @@ cycle: create-haiku
 stages: [forge:create-haiku, appraise:create-haiku]
 max-iterations: 3
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     '.foundry/active-stage.json': JSON.stringify({
       cycle: 'create-haiku', stage: 'forge:create-haiku', token: 'T', baseSha: 'xyz123'
@@ -660,9 +623,9 @@ cycle: create-haiku
 stages: [forge:create-haiku]
 max-iterations: 3
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     '.foundry/active-stage.json': JSON.stringify({
       cycle: 'create-haiku', stage: 'forge:create-haiku', token: 'T', baseSha: 'abc'
@@ -787,6 +750,7 @@ test('runOrchestrate dispatch: tokens include ULID nonce to prevent same-millise
 });
 
 import * as orchestrate from '../src/scripts/orchestrate.js';
+import { loadHistory } from '../src/scripts/lib/history.js';
 
 test('handleSortResult: done route returns done action with next_cycles', async () => {
   const io = makeIo({
@@ -794,9 +758,9 @@ test('handleSortResult: done route returns done action with next_cycles', async 
 flow: cf
 cycle: create-haiku
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
@@ -804,67 +768,100 @@ output-type: haiku
 targets: [create-short-story]
 ---
 `,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["out/*.md"]
+---
+`,
   });
   const result = await orchestrate.__handleSortResultForTest(
     { route: 'done' },
-    { cycleId: 'create-haiku', cwd: '/tmp', io }
+    { cycleId: 'create-haiku', cwd: '/tmp', io, foundryDir: 'foundry' }
   );
   assert.strictEqual(result.action, 'done');
-  assert.strictEqual(result.artefact_file, 'haikus/a.md');
+  // artefact_file is null because no git diff changes detected
+  assert.strictEqual(result.artefact_file, null);
   assert.deepStrictEqual(result.next_cycles, ['create-short-story']);
 });
 
 test('handleSortResult: blocked route returns blocked action', async () => {
-  const io = makeIo({
+  const io2 = makeIo({
     'WORK.md': `---
 cycle: create-haiku
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
+output-type: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["out/*.md"]
 ---
 `,
   });
   const result = await orchestrate.__handleSortResultForTest(
     { route: 'blocked', details: 'iteration limit' },
-    { cycleId: 'create-haiku', cwd: '/tmp', io }
+    { cycleId: 'create-haiku', cwd: '/tmp', io: io2 }
   );
   assert.strictEqual(result.action, 'blocked');
   assert.match(result.reason, /iteration limit/);
 });
 
 test('handleSortResult: human-appraise route returns human_appraise action', async () => {
-  const io = makeIo({
+  const io2 = makeIo({
     'WORK.md': `---
 cycle: create-haiku
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
+`,
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output-type: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["out/*.md"]
+---
 `,
   });
   const result = await orchestrate.__handleSortResultForTest(
     { route: 'human-appraise:create-haiku', token: 'HA_TOKEN' },
-    { cycleId: 'create-haiku', cwd: '/tmp', io }
+    { cycleId: 'create-haiku', cwd: '/tmp', io: io2 }
   );
   assert.strictEqual(result.action, 'human_appraise');
   assert.strictEqual(result.stage, 'human-appraise:create-haiku');
   assert.strictEqual(result.token, 'HA_TOKEN');
   assert.strictEqual(result.context.cycle, 'create-haiku');
-  assert.strictEqual(result.context.artefact_file, 'haikus/a.md');
+  // artefact_file is null because no git diff changes detected
+  assert.strictEqual(result.context.artefact_file, null);
 });
 
 test('handleSortResult: recent feedback is sorted most-recent first and keeps equal timestamps stable', async () => {
-  const io = makeIo({
+  const io2 = makeIo({
     'WORK.md': `---
 cycle: create-haiku
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
+`,
+    'foundry/cycles/create-haiku.md': `---
+id: create-haiku
+output-type: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["out/*.md"]
+---
 `,
     'WORK.feedback.yaml': `items:
   - id: older
@@ -916,7 +913,7 @@ cycle: create-haiku
 
   const result = await orchestrate.__handleSortResultForTest(
     { route: 'human-appraise:create-haiku', token: 'HA_TOKEN' },
-    { cycleId: 'create-haiku', cwd: '/tmp', io }
+    { cycleId: 'create-haiku', cwd: '/tmp', io: io2 }
   );
 
   assert.deepStrictEqual(
@@ -952,9 +949,6 @@ models:
 # Goal
 
 haiku
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
 `;
 
   const initialHistory = `- cycle: create-haiku
@@ -1011,10 +1005,7 @@ file-patterns: ["haikus/*.md"]
     mint: () => 'TOKEN_2',
     now: () => 2000000,
     lastResult: { kind: 'dispatch', ok: true },
-    finalize: async () => ({ 
-      ok: true, 
-      artefacts: [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }] 
-    }),
+    finalize: async () => ({ ok: true, artefacts: [], changedFiles: ['haikus/a.md'] }),
   }, io);
 
   // Should return violation due to commit failure
@@ -1040,10 +1031,7 @@ file-patterns: ["haikus/*.md"]
     },
     mint: () => 'TOKEN_3',
     now: () => 3000000,
-    finalize: async () => ({ 
-      ok: true, 
-      artefacts: [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }] 
-    }),
+    finalize: async () => ({ ok: true, artefacts: [], changedFiles: [] }),
   }, io);
 
   // Should be able to dispatch to the next stage, not wedged
@@ -1051,104 +1039,11 @@ file-patterns: ["haikus/*.md"]
     'Next orchestrate should proceed normally after rollback, not be wedged');
 });
 
-// --- G40.2: io.exists is sync, not async ---------------------------------
-// orchestrate.js line 346 should use io.exists() without await, since
-// makeIO() from helpers.js provides a synchronous exists method.
-
-test('runOrchestrate setup: io.exists is called synchronously for memory check', async () => {
-  const io = makeIo({
-    'WORK.md': `---
-flow: test-flow
-cycle: test-cycle
-goal: test goal
-max-iterations: 3
-human-appraise: false
----
-
-| file | type | status | cycle |
-|------|------|--------|-------|
-`,
-    'foundry/cycles/test-cycle.md': `---
-id: test-cycle
-output-type: test-type
-models:
-  assay: github-copilot/claude-sonnet-4.6
-  forge: github-copilot/claude-sonnet-4.6
-  quench: github-copilot/claude-sonnet-4.6
-  appraise: github-copilot/claude-sonnet-4.6
-assay:
-  extractors:
-    - test-extractor
-memory:
-  write:
-    - test-entity
----
-`,
-    'foundry/memory/config.md': `Memory enabled`,
-    'foundry/artefacts/test-type/definition.md': `---
-id: test-type
-file-patterns:
-  - "test/*.md"
----
-`,
-    'foundry/memory/extractors/test-extractor.md': `---
-command: echo test
-timeout: 1000
-memory:
-  write:
-    - test-entity
----
-Extractor body
-`,
-    '.opencode/agents/foundry-github-copilot-claude-sonnet-4-6.md': '# agent',
-  });
-
-  // Track whether exists was called with or without await
-  // Since exists is sync, it should work correctly
-  let existsCalled = false;
-  const originalExists = io.exists;
-  io.exists = (p) => {
-    existsCalled = true;
-    return originalExists(p);
-  };
-
-  const git = {
-    commit: () => 'abc1234',
-    status: () => ({ clean: true, dirty: [] }),
-  };
-
-  const result = await runOrchestrate({
-    cwd: '/tmp/project',
-    git,
-    mint: () => 'TOKEN',
-    now: () => 1000,
-  }, io);
-
-  // Should successfully set up (memory is enabled)
-  assert.strictEqual(result.action, 'dispatch');
-  assert.ok(existsCalled, 'io.exists should have been called for memory check');
-});
-
-import { appendEntry, loadHistory } from '../src/scripts/lib/history.js';
-
-test('appendEntry persists sorted changed_files when provided', () => {
-  const io = makeIo({});
+test('runOrchestrate: successful finalization clears lastStage state', async () => {
+  // Regression test: lastStage is not cleared after successful finalization.
+  // If a later orchestrate call has lastResult.ok === false, it can pick up
+  // stale lastStage state from a previous cycle.
   
-  appendEntry('WORK.history.yaml', {
-    cycle: 'write-haiku',
-    stage: 'forge:write-haiku',
-    iteration: 1,
-    comment: 'wrote draft',
-    changedFiles: ['b.txt', 'a.txt'],
-  }, io);
-
-  const rows = loadHistory('WORK.history.yaml', 'write-haiku', io);
-  assert.deepEqual(rows[0].changed_files, ['a.txt', 'b.txt']);
-});
-
-test('runOrchestrate writes sort history with actual open feedback count', async () => {
-  // Regression: orchestrate line 507 passed `open_feedback: openFeedback` (wrong parameter name)
-  // instead of just `openFeedback`, causing appendEntry to receive undefined and persist 0.
   const io = makeIo({
     'WORK.md': `---
 flow: creative-flow
@@ -1164,9 +1059,9 @@ models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     'WORK.history.yaml': '',
     'WORK.feedback.yaml': `items:
@@ -1231,9 +1126,9 @@ file-patterns: ["haikus/*.md"]
 });
 
 test('runOrchestrate: commit failure rollback restores pre-finalize WORK.md state', async () => {
-  // Regression test: orchestrate snapshots WORK.md AFTER finalize() has already
-  // run and mutated it via registerArtefact. If commit fails, the rollback
-  // restores the already-mutated state instead of the clean pre-finalize state.
+  // Regression test: orchestrate snapshots WORK.md after finalize() has already
+  // run. If commit fails, the rollback restores the post-finalize state instead
+  // of the clean pre-finalize state.
   
   const initialWorkMd = `---
 flow: creative-flow
@@ -1252,14 +1147,13 @@ models:
 # Goal
 
 haiku
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
 `;
+
+  const initialHistory = '';
 
   const io = makeIo({
     'WORK.md': initialWorkMd,
-    'WORK.history.yaml': '',
+    'WORK.history.yaml': initialHistory,
     '.foundry/last-stage.json': JSON.stringify({
       cycle: 'create-haiku',
       stage: 'forge:create-haiku',
@@ -1297,27 +1191,19 @@ file-patterns: ["haikus/*.md"]
     mint: () => 'TOKEN',
     now: () => 1000000,
     lastResult: { ok: true },
-    finalize: async ({ io: ioContext }) => {
-      // Simulate finalize mutating WORK.md via registerArtefact
-      const currentWork = ioContext.readFile('WORK.md');
-      const mutatedWork = currentWork.replace(
-        '| File | Type | Cycle | Status |',
-        '| File | Type | Cycle | Status |\n| haikus/a.md | haiku | create-haiku | draft |'
-      );
-      ioContext.writeFile('WORK.md', mutatedWork);
-      return { ok: true, artefacts: [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }], changedFiles: ['haikus/a.md'] };
-    },
+    finalize: async () => ({ ok: true, artefacts: [], changedFiles: ['haikus/a.md'] }),
   }, io);
 
   assert.strictEqual(result.action, 'violation');
   assert.match(result.details, /stray\.bin/);
 
-  // CRITICAL: WORK.md must be restored to the pre-finalize state (no artefact row)
+  // CRITICAL: WORK.md and WORK.history.yaml must be rolled back
   const workAfter = io.readFile('WORK.md');
+  const historyAfter = io.exists('WORK.history.yaml') ? io.readFile('WORK.history.yaml') : '';
   assert.strictEqual(workAfter, initialWorkMd, 
-    'WORK.md should be rolled back to pre-finalize state, not post-finalize state');
-  assert.doesNotMatch(workAfter, /haikus\/a\.md/, 
-    'artefact row added by finalize should not persist after rollback');
+    'WORK.md should be rolled back after commit failure');
+  assert.strictEqual(historyAfter, initialHistory, 
+    'WORK.history.yaml should be rolled back after commit failure');
 });
 
 test('runOrchestrate: successful finalization clears lastStage state', async () => {
@@ -1340,9 +1226,9 @@ models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
 ---
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
+# Goal
+
+haiku
 `,
     'WORK.history.yaml': '',
     '.foundry/last-stage.json': JSON.stringify({

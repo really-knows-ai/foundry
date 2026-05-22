@@ -33,7 +33,7 @@ function makeWorktree({ stage = 'appraise:w', cycle = 'write-haiku', flow = 'cre
   writeActiveStage(dir, { cycle, stage });
   writeFileSync(
     path.join(dir, 'WORK.md'),
-    `---\nflow: ${flow}\ncycle: ${cycle}\nstages:\n  - appraise:w\n  - forge:w\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`,
+    `---\nflow: ${flow}\ncycle: ${cycle}\nstages:\n  - appraise:w\n  - forge:w\n---\n\n# Goal\n\ngo\n`,
     'utf-8',
   );
   return dir;

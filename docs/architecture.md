@@ -238,7 +238,7 @@ Input artefacts (files matching an input type's `file-patterns`) are read-only. 
 When an unrecoverable error occurs (e.g. assay extractor abort, invalid JSONL, or memory-sync failure), the orchestrator marks `WORK.md` frontmatter with `status: failed` and a `reason`. The flow is then locked:
 
 - **Blocked tools.** All mutation tools refuse to run and return an error referencing the failure reason:
-  - **Lifecycle:** `foundry_stage_begin`, `foundry_orchestrate`, `foundry_workfile_create`, `foundry_artefacts_set_status`
+  - **Lifecycle:** `foundry_stage_begin`, `foundry_orchestrate`, `foundry_workfile_create`
   - **Stage work:** `foundry_assay_run`, `foundry_validate_run`
   - **Feedback writes:** `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, `foundry_feedback_resolve` (`foundry_feedback_list` remains callable)
   - **Appraiser selection:** `foundry_appraisers_select`

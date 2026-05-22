@@ -5,39 +5,37 @@ import { getCycleDefinition } from '../../scripts/lib/config.js';
 import { parseFrontmatter } from '../../scripts/lib/workfile.js';
 import { makeIO } from './helpers.js';
 
+function readWorkCycleId(worktree) {
+  const workPath = path.join(worktree, 'WORK.md');
+  if (!existsSync(workPath)) throw new Error('WORK.md not found');
+  const frontmatter = parseFrontmatter(readFileSync(workPath, 'utf-8'));
+  if (!frontmatter.cycle) throw new Error('current cycle not found in WORK.md frontmatter');
+  return frontmatter.cycle;
+}
+
+async function readOutputType(foundryDir, cycleId, io) {
+  let cd;
+  try {
+    cd = await getCycleDefinition(foundryDir, cycleId, io);
+  } catch { return null; }
+  return cd.frontmatter && cd.frontmatter['output-type'];
+}
+
 function makeListTool(tool) {
   return tool({
     description: 'List artefact changes on the current work branch for the current cycle. Returns [{ file, state }] entries.',
     args: {},
     async execute(_args, context) {
-      const foundryDir = 'foundry';
-      const baseBranch = 'main';
-      const workPath = path.join(context.worktree, 'WORK.md');
-      if (!existsSync(workPath)) {
-        return JSON.stringify({ error: 'WORK.md not found' });
-      }
-
-      const text = readFileSync(workPath, 'utf-8');
-      const frontmatter = parseFrontmatter(text);
-      const cycleId = frontmatter.cycle;
-      if (!cycleId) {
-        return JSON.stringify({ error: 'current cycle not found in WORK.md frontmatter' });
-      }
-
-      const io = makeIO(context.worktree);
-      let cfm;
       try {
-        cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
-      } catch (error) {
-        return JSON.stringify({ error: error.message });
+        const cycleId = readWorkCycleId(context.worktree);
+        const io = makeIO(context.worktree);
+        const outputType = await readOutputType('foundry', cycleId, io);
+        if (!outputType) return JSON.stringify([]);
+        const artefacts = await getArtefactFiles('foundry', outputType, io, { baseBranch: 'main' });
+        return JSON.stringify(artefacts);
+      } catch (err) {
+        return JSON.stringify({ error: err.message });
       }
-      const outputType = cfm['output-type'];
-      if (!outputType) {
-        return JSON.stringify([]);
-      }
-
-      const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch });
-      return JSON.stringify(artefacts);
     },
   });
 }

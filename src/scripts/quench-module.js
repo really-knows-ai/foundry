@@ -30,7 +30,12 @@ export async function runQuench(ctx) {
     return { ok: false, error: `Cycle ${ctx.cycleId} has no output-type` };
   }
 
-  const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch: 'main' });
+  let artefacts;
+  try {
+    artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch: 'main' });
+  } catch (err) {
+    return { ok: false, error: `Failed to discover artefacts: ${err.message}` };
+  }
 
   if (artefacts.length === 0) {
     return await handleNoArtefacts(ctx, activeStageRecord);

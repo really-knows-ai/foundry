@@ -275,7 +275,6 @@ export function runSort(args = {}, io = defaultIO) {
 // Exports (for testing) — keep main() private
 // ---------------------------------------------------------------------------
 
-export { parseArtefactsTable } from './lib/artefacts.js';
 export { loadHistory } from './lib/history.js';
 export { parseFrontmatter } from './lib/workfile.js';
 export {

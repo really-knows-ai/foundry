@@ -32,7 +32,11 @@ function makeIo(files = {}) {
     },
     unlink: (p) => fs.delete(p),
     mkdir: () => {},
-    exec: () => '',
+    exec: (args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('merge-base')) return 'basesha\n';
+      return '';
+    },
   };
 }
 
@@ -72,10 +76,11 @@ models:
   appraise: openai/gpt-4o
 ---
 # Test
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| out/a.md | haiku | test-cycle | draft |
+`,
+    'foundry/cycles/test-cycle.md': `---
+id: test-cycle
+output-type: haiku
+---
 `,
     'foundry/artefacts/haiku/definition.md': `---
 id: haiku
@@ -165,11 +170,17 @@ models:
   appraise: openai/gpt-4o
 ---
 # Test
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| out/a.md | haiku | test-cycle | done  |
-`,  // <-- artefact already done, no draft artefacts
+`,
+    'foundry/cycles/test-cycle.md': `---
+id: test-cycle
+output-type: haiku
+---
+`,
+    'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+file-patterns: ["out/*.md"]
+---
+`,
     '.opencode/agents/foundry-openai-gpt-4o.md': '# agent',
   });
 
@@ -269,10 +280,6 @@ models:
   appraise: openai/gpt-4o
 ---
 # Test
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| out/a.md | haiku | test-cycle | draft |
 `,
     'foundry/cycles/test-cycle.md': `---
 id: test-cycle
@@ -334,9 +341,9 @@ file-patterns: ["out/*.md"]
 // Quench with failing validation blocks artefact and returns violation
 // ---------------------------------------------------------------------------
 
-test('quench with all validators failing blocks artefact and returns violation', async () => {
+test('quench with all validators failing returns violation', async () => {
   // Set up a cycle where forge is complete, sort routes to quench, but the
-  // artefact type definition is missing so performValidation fails.
+  // artefact type definition is missing so getArtefactFiles fails.
   const io = makeIo({
     'WORK.md': `---
 flow: test-flow
@@ -355,14 +362,15 @@ models:
   appraise: openai/gpt-4o
 ---
 # Test
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| out/a.md | haiku | test-cycle | draft |
+`,
+    'foundry/cycles/test-cycle.md': `---
+id: test-cycle
+output-type: haiku
+---
 `,
     '.opencode/agents/foundry-openai-gpt-4o.md': '# agent',
     // NOTE: No foundry/artefacts/haiku/definition.md — this causes
-    // performValidation to fail with "artefact type not found"
+    // getArtefactFiles to fail with "artefact type not found"
   });
 
   const finalize = async () => ({ ok: true, artefacts: [] });
@@ -393,11 +401,7 @@ models:
     io
   );
 
-  // The artefact should be blocked and a violation returned
+  // The artefact should error and a violation returned
   assert.strictEqual(r2.action, 'violation');
-  assert.match(r2.details || '', /One or more artefacts failed validation/);
-
-  // Verify the artefact was marked blocked in WORK.md
-  const workAfter = io.readFile('WORK.md');
-  assert.match(workAfter, /\| out\/a\.md .* blocked \|/);
+  assert.match(r2.details || '', /failed to discover artefacts|artefact type .* not found/i);
 });

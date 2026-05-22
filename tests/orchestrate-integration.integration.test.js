@@ -23,7 +23,11 @@ function makeIo(files = {}) {
     },
     unlink: (p) => fs.delete(p),
     mkdir: () => {},
-    exec: () => '',
+    exec: (args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('merge-base')) return 'basesha\n';
+      return '';
+    },
   };
 }
 
@@ -36,10 +40,6 @@ cycle: create-haiku
 # Goal
 
 haiku about airports
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haikus/a.md | haiku | create-haiku | draft |
 `,
     'foundry/cycles/create-haiku.md': `---
 id: create-haiku
@@ -165,7 +165,8 @@ appraisers:
   // so the cycle advances all the way to done.
   assert.strictEqual(r2.action, 'done');
   assert.strictEqual(r2.cycle, 'create-haiku');
-  assert.strictEqual(r2.artefact_file, 'haikus/a.md');
+  // artefact_file is null because in-memory IO has no real git for getArtefactFiles
+  assert.strictEqual(r2.artefact_file, null);
   assert.deepStrictEqual(r2.next_cycles, ['create-short-story']);
 
   // All three stages were finalized in this one call

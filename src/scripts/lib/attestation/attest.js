@@ -20,8 +20,8 @@ function readWorkFiles(cwd, io) {
 
   return {
     workText: io.readFile(workPath),
-    historyText: io.fileExists(historyPath) ? io.readFile(historyPath) : '',
-    feedbackText: io.fileExists(feedbackPath) ? io.readFile(feedbackPath) : '',
+    historyText: io.exists(historyPath) ? io.readFile(historyPath) : '',
+    feedbackText: io.exists(feedbackPath) ? io.readFile(feedbackPath) : '',
   };
 }
 

@@ -16,19 +16,18 @@ import { sha256Text, sortPaths } from './hash.js';
 function defaultIo(cwd) {
   return {
     readFile: (filePath) => readFileSync(filePath, 'utf8'),
-    fileExists: (filePath) => existsSync(filePath),
     exists: (filePath) => existsSync(filePath),
     exec: (args) => execFileSync(args[0], args.slice(1), { cwd, encoding: 'utf8' }),
   };
 }
 
 function readWorkFiles(cwd, io) {
-  const { readFile, fileExists } = io ?? defaultIo(cwd);
+  const { readFile, exists } = io ?? defaultIo(cwd);
 
   return {
     workText: readFile(path.join(cwd, 'WORK.md')),
-    historyText: fileExists(path.join(cwd, 'WORK.history.yaml')) ? readFile(path.join(cwd, 'WORK.history.yaml')) : '',
-    feedbackText: fileExists(path.join(cwd, 'WORK.feedback.yaml')) ? readFile(path.join(cwd, 'WORK.feedback.yaml')) : '',
+    historyText: exists(path.join(cwd, 'WORK.history.yaml')) ? readFile(path.join(cwd, 'WORK.history.yaml')) : '',
+    feedbackText: exists(path.join(cwd, 'WORK.feedback.yaml')) ? readFile(path.join(cwd, 'WORK.feedback.yaml')) : '',
   };
 }
 
@@ -89,25 +88,31 @@ function buildGovernance(frontmatter, workText, historyText, feedbackText) {
   };
 }
 
-export async function buildAttestationPayload({ cwd, foundryDir, goalText, archiveBranch, archiveTipSha, baseBranch, branchBaseSha, io }) {
-  const resolvedIo = io ?? defaultIo(cwd);
+async function discoverCycleOutputs(resolvedFd, cycleId, resolvedIo, options) {
+  try {
+    const cfm = (await getCycleDefinition(resolvedFd, cycleId, resolvedIo)).frontmatter;
+    const outputType = cfm && cfm['output-type'];
+    if (outputType) return getArtefactFiles(resolvedFd, outputType, resolvedIo, options);
+  } catch {
+    // If cycle definition is missing, outputs remain empty
+  }
+  return [];
+}
+
+export async function buildAttestationPayload(
+  { cwd, foundryDir: fd, goalText, archiveBranch, archiveTipSha, baseBranch, branchBaseSha, io },
+) {
+  const resolvedIo = io || defaultIo(cwd);
+  const resolvedFd = fd || 'foundry';
   const { workText, historyText, feedbackText } = readWorkFiles(cwd, resolvedIo);
 
   const frontmatter = parseFrontmatter(workText);
 
   // Discover artefact outputs from branch changes
-  const cycleId = frontmatter.cycle;
   let outputs = [];
+  const cycleId = frontmatter.cycle;
   if (cycleId) {
-    try {
-      const cfm = (await getCycleDefinition(foundryDir ?? 'foundry', cycleId, resolvedIo)).frontmatter || {};
-      const outputType = cfm['output-type'];
-      if (outputType) {
-        outputs = await getArtefactFiles(foundryDir ?? 'foundry', outputType, resolvedIo, { baseBranch, branchBaseSha });
-      }
-    } catch {
-      // If cycle definition is missing, outputs remain empty
-    }
+    outputs = await discoverCycleOutputs(resolvedFd, cycleId, resolvedIo, { baseBranch, branchBaseSha });
   }
 
   const outputEntries = outputs.map(({ file, state }) => ({ path: file, state }));

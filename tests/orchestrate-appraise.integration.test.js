@@ -21,7 +21,7 @@ import { openFeedbackStore } from '../src/scripts/lib/feedback-store.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeIo(files = {}) {
+function makeIo(files = {}, { artefactFiles = [] } = {}) {
   const fs = new Map(Object.entries(files));
   const dirs = new Map();
   // Track directories implicitly via writeFile
@@ -61,7 +61,14 @@ function makeIo(files = {}) {
       }
       return [...new Set(entries)].sort();
     },
-    exec: () => '',
+    exec: (args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('merge-base')) return 'basesha\n';
+      if (cmd.includes('diff --name-status') || cmd.includes('ls-files')) {
+        return artefactFiles.map(f => `M\t${f}`).join('\n') + '\n';
+      }
+      return '';
+    },
   };
 }
 
@@ -104,10 +111,6 @@ models:
   appraise: openai/gpt-4o
 ---
 # Test
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| out/a.md | haiku | test-cycle | draft |
 `;
 
 const CYCLE_DEF = `---
@@ -145,7 +148,7 @@ test('AC5.1: appraise gather returns dispatch_multi with one task per appraiser'
     'foundry/appraisers/strict-reviewer.md': APPRAISER_FILE,
     '.opencode/agents/foundry-openai-gpt-4o.md': AGENT_FILE,
     'out/a.md': 'a haiku about code',
-  });
+  }, { artefactFiles: ['out/a.md'] });
 
   const { finalize } = makeFinalizeTracker();
   const args = makeArgs({ finalize });
@@ -480,7 +483,7 @@ test('AC5.7: full cycle forge → quench → appraise (dispatch_multi) → conso
     'foundry/appraisers/strict-reviewer.md': APPRAISER_FILE,
     '.opencode/agents/foundry-openai-gpt-4o.md': AGENT_FILE,
     'out/a.md': 'a haiku about code',
-  });
+  }, { artefactFiles: ['out/a.md'] });
 
   const commits = [];
   const git = {
@@ -584,10 +587,6 @@ models:
   appraise: openai/gpt-4o
 ---
 # Test
-
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| out/a.md | haiku | test-cycle | draft |
 `;
 
   const CYCLE_WITH_HUMAN = `---
@@ -604,7 +603,7 @@ human-appraise: true
     'foundry/appraisers/strict-reviewer.md': APPRAISER_FILE,
     '.opencode/agents/foundry-openai-gpt-4o.md': AGENT_FILE,
     'out/a.md': 'a haiku about code',
-  });
+  }, { artefactFiles: ['out/a.md'] });
 
   const { finalize } = makeFinalizeTracker();
   const args = makeArgs({ finalize });

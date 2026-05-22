@@ -38,12 +38,13 @@ export async function gatherAppraiseContext(ctx) {
     return violation('cycleId is required', []);
   }
 
-  const cfm = (await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io)).frontmatter || {};
-  const outputType = cfm['output-type'];
+  const cd = await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io);
+  const outputType = cd.frontmatter['output-type'];
   if (!outputType) {
     return violation(`cycle ${ctx.cycleId} missing output-type field`, []);
   }
-  const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch: ctx.baseBranch ?? 'main' });
+  const baseBranch = ctx.baseBranch || 'main';
+  const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch });
   if (artefacts.length === 0) {
     return emptyDispatch(ctx.cycleId);
   }

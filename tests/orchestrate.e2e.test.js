@@ -16,7 +16,6 @@ test('finalizeStage returns sorted changed files for forge output', () => {
   const baseSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoDir }).toString().trim();
 
   // Mock the minimal finalize context
-  const artefacts = [];
   const result = finalizeStage({
     cwd: repoDir,
     baseSha,
@@ -24,7 +23,6 @@ test('finalizeStage returns sorted changed files for forge output', () => {
     cycleDef: { outputArtefactType: 'haiku' },
     artefactTypes: { haiku: { filePatterns: ['out/*.md'] } },
     io: { exec: (argv) => execFileSync(argv[0], argv.slice(1), { cwd: repoDir, encoding: 'utf8', stdio: 'pipe' }) },
-    registerArtefact: (a) => artefacts.push(a),
   });
 
   // The worktree is clean at HEAD, so we expect ok: true with empty changedFiles
@@ -68,7 +66,6 @@ test('finalizeStage returns deterministic sorted changedFiles for controlled for
   writeFileSync(`${testDir}/out/apple.md`, 'a');
   writeFileSync(`${testDir}/out/mango.md`, 'm');
 
-  const artefacts = [];
   const result = finalizeStage({
     cwd: testDir,
     baseSha,
@@ -76,7 +73,6 @@ test('finalizeStage returns deterministic sorted changedFiles for controlled for
     cycleDef: { outputArtefactType: 'haiku' },
     artefactTypes: { haiku: { filePatterns: ['out/*.md'] } },
     io: { exec: (argv) => execFileSync(argv[0], argv.slice(1), { cwd: testDir, encoding: 'utf8', stdio: 'pipe' }) },
-    registerArtefact: (a) => artefacts.push(a),
   });
 
   assert.ok(result.ok, 'finalize should succeed');

@@ -11,8 +11,8 @@ import assert from 'node:assert/strict';
 // ---------------------------------------------------------------------------
 
 const mockReadActiveStage = mock.fn();
-const mockGetArtefactsForCycle = mock.fn();
-const mockSetArtefactStatus = mock.fn();
+const mockGetArtefactFiles = mock.fn();
+const mockGetCycleDefinition = mock.fn();
 const mockPerformValidation = mock.fn();
 
 mock.module('../src/scripts/lib/state.js', {
@@ -20,10 +20,11 @@ mock.module('../src/scripts/lib/state.js', {
 });
 
 mock.module('../src/scripts/lib/artefacts.js', {
-  exports: {
-    getArtefactsForCycle: mockGetArtefactsForCycle,
-    setArtefactStatus: mockSetArtefactStatus,
-  },
+  exports: { getArtefactFiles: mockGetArtefactFiles },
+});
+
+mock.module('../src/scripts/lib/config.js', {
+  exports: { getCycleDefinition: mockGetCycleDefinition },
 });
 
 mock.module('../src/scripts/lib/validation.js', {
@@ -35,8 +36,8 @@ let runQuench;
 
 beforeEach(async () => {
   mockReadActiveStage.mock.resetCalls();
-  mockGetArtefactsForCycle.mock.resetCalls();
-  mockSetArtefactStatus.mock.resetCalls();
+  mockGetArtefactFiles.mock.resetCalls();
+  mockGetCycleDefinition.mock.resetCalls();
   mockPerformValidation.mock.resetCalls();
 
   // Re-import to get fresh mocks for each test
@@ -91,23 +92,26 @@ function makeValidationResult(overrides = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// AC1.2: No artefacts → { ok: true, summary: 'SKIP: no artefacts' }
+// AC1.2: No artefacts → { ok: true, summary: 'SKIP: no files' }
 // ---------------------------------------------------------------------------
 
 describe('runQuench — no artefacts', () => {
   it('returns SKIP with ok true when no artefacts exist', async () => {
     mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
-    mockGetArtefactsForCycle.mock.mockImplementation(() => []);
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => []);
 
     const finalize = mock.fn();
     const ctx = createMockCtx({ finalize });
     const result = await runQuench(ctx);
 
     assert.equal(result.ok, true);
-    assert.equal(result.summary, 'SKIP: no artefacts');
+    assert.equal(result.summary, 'SKIP: no files');
     assert.equal(finalize.mock.calls.length, 1);
     assert.equal(finalize.mock.calls[0].arguments[0].lastStage.stage, 'quench:test-cycle');
-    assert.equal(finalize.mock.calls[0].arguments[0].lastStage.summary, 'SKIP: no artefacts');
+    assert.equal(finalize.mock.calls[0].arguments[0].lastStage.summary, 'SKIP: no files');
     assert.equal(finalize.mock.calls[0].arguments[0].lastStage.baseSha, BASE_SHA);
     assert.deepEqual(finalize.mock.calls[0].arguments[0].activeStage, { stage: {}, baseSha: BASE_SHA });
   });
@@ -138,10 +142,13 @@ describe('runQuench — basic interface', () => {
 // ---------------------------------------------------------------------------
 
 describe('runQuench — no validators configured', () => {
-  it('reports OK: no validators and does not post feedback or block', async () => {
+  it('reports OK: no validators and does not post feedback', async () => {
     mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      { file: 'haiku.md', type: 'haiku', cycle: 'test-cycle', status: 'draft' },
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'haiku.md', state: 'new' },
     ]);
     mockPerformValidation.mock.mockImplementation(() =>
       makeValidationResult({ ok: true, validatorsRun: 0, items: [], errors: [] })
@@ -156,7 +163,6 @@ describe('runQuench — no validators configured', () => {
     assert.equal(result.ok, true);
     assert.match(result.summary, /OK: no validators/);
     assert.equal(feedbackAdd.mock.calls.length, 0);
-    assert.equal(mockSetArtefactStatus.mock.calls.length, 0);
   });
 });
 
@@ -167,8 +173,11 @@ describe('runQuench — no validators configured', () => {
 describe('runQuench — happy path with passing validators', () => {
   it('posts feedback, resolves prior feedback, and finalises stage', async () => {
     mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      { file: 'haiku.md', type: 'haiku', cycle: 'test-cycle', status: 'draft' },
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'haiku.md', state: 'new' },
     ]);
     mockPerformValidation.mock.mockImplementation(() =>
       makeValidationResult({
@@ -224,8 +233,11 @@ describe('runQuench — happy path with passing validators', () => {
 
   it('resolves resolved-away issues as approved', async () => {
     mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      { file: 'haiku.md', type: 'haiku', cycle: 'test-cycle', status: 'draft' },
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'haiku.md', state: 'new' },
     ]);
     mockPerformValidation.mock.mockImplementation(() =>
       makeValidationResult({
@@ -259,14 +271,17 @@ describe('runQuench — happy path with passing validators', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC1.4: All validators fail → { ok: false, error, summary }, artefact blocked
+// AC1.4: All validators fail → { ok: false, error, summary } (no block)
 // ---------------------------------------------------------------------------
 
 describe('runQuench — all validators fail', () => {
-  it('blocks the artefact when all validators produce only errors', async () => {
+  it('returns error when all validators produce only errors', async () => {
     mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      { file: 'broken.md', type: 'code', cycle: 'test-cycle', status: 'draft' },
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'broken.md', state: 'new' },
     ]);
     mockPerformValidation.mock.mockImplementation(() =>
       makeValidationResult({
@@ -280,14 +295,8 @@ describe('runQuench — all validators fail', () => {
       })
     );
 
-    const ioReadFile = mock.fn(() => [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| broken.md | code | test-cycle | draft |',
-    ].join('\n'));
-    const ioWriteFile = mock.fn();
     const finalize = mock.fn();
-    const ctx = createMockCtx({ ioReadFile, ioWriteFile, finalize });
+    const ctx = createMockCtx({ finalize });
 
     const result = await runQuench(ctx);
 
@@ -296,25 +305,23 @@ describe('runQuench — all validators fail', () => {
     assert.match(result.summary, /validator crashed/);
     assert.match(result.summary, /validator not found/);
 
-    // Artefact was marked blocked
-    assert.equal(mockSetArtefactStatus.mock.calls.length, 1);
-    assert.equal(mockSetArtefactStatus.mock.calls[0].arguments[1], 'broken.md');
-    assert.equal(mockSetArtefactStatus.mock.calls[0].arguments[2], 'blocked');
+    // No artefact status setting: violation alone stops the cycle.
   });
 });
 
 // ---------------------------------------------------------------------------
 // Validator script crashes → recorded as error, continues to next validator
-// (Covered by the scenario where some validators produce items and
-//  some produce errors — mixed results)
 // ---------------------------------------------------------------------------
 
 describe('runQuench — mixed results across artefacts', () => {
   it('handles one passing and one failing artefact', async () => {
     mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      { file: 'good.md', type: 'haiku', cycle: 'test-cycle', status: 'draft' },
-      { file: 'bad.md', type: 'code', cycle: 'test-cycle', status: 'draft' },
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'good.md', state: 'new' },
+      { file: 'bad.md', state: 'new' },
     ]);
 
     const mockResults = [
@@ -335,16 +342,9 @@ describe('runQuench — mixed results across artefacts', () => {
     let callIndex = 0;
     mockPerformValidation.mock.mockImplementation(() => mockResults[callIndex++]);
 
-    const ioReadFile = mock.fn(() => [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| good.md | haiku | test-cycle | draft |',
-      '| bad.md | code | test-cycle | draft |',
-    ].join('\n'));
-    const ioWriteFile = mock.fn();
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
-    const ctx = createMockCtx({ ioReadFile, ioWriteFile, feedbackAdd, finalize });
+    const ctx = createMockCtx({ feedbackAdd, finalize });
 
     const result = await runQuench(ctx);
 
@@ -354,43 +354,34 @@ describe('runQuench — mixed results across artefacts', () => {
     assert.equal(feedbackAdd.mock.calls.length, 1);
     assert.equal(feedbackAdd.mock.calls[0].arguments[0].file, 'good.md');
 
-    // Only bad.md was blocked
-    assert.equal(mockSetArtefactStatus.mock.calls.length, 1);
-    assert.equal(mockSetArtefactStatus.mock.calls[0].arguments[1], 'bad.md');
+    // No artefact status setting — violation alone stops the cycle
   });
 });
 
 // ---------------------------------------------------------------------------
-// Validation error → artefact blocked
+// Validation error → error returned (no block)
 // ---------------------------------------------------------------------------
 
 describe('runQuench — validation returns error at module level', () => {
-  it('blocks the artefact when performValidation returns an error property', async () => {
+  it('returns error when performValidation returns an error property', async () => {
     mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      { file: 'error.md', type: 'haiku', cycle: 'test-cycle', status: 'draft' },
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'error.md', state: 'new' },
     ]);
     mockPerformValidation.mock.mockImplementation(() =>
       makeValidationResult({ ok: false, error: 'Artefact type not found: haiku' })
     );
 
-    const ioReadFile = mock.fn(() => [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| error.md | haiku | test-cycle | draft |',
-    ].join('\n'));
-    const ioWriteFile = mock.fn();
     const finalize = mock.fn();
-    const ctx = createMockCtx({ ioReadFile, ioWriteFile, finalize });
+    const ctx = createMockCtx({ finalize });
 
     const result = await runQuench(ctx);
 
     assert.equal(result.ok, false);
     assert.match(result.summary, /Artefact type not found/);
-
-    assert.equal(mockSetArtefactStatus.mock.calls.length, 1);
-    assert.equal(mockSetArtefactStatus.mock.calls[0].arguments[1], 'error.md');
-    assert.equal(mockSetArtefactStatus.mock.calls[0].arguments[2], 'blocked');
   });
 });
 
@@ -402,9 +393,12 @@ describe('runQuench — finalisation', () => {
   it('calls finalize with correct lastStage and activeStage', async () => {
     const activeStage = { stage: { id: 'quench:test-cycle', startedAt: 'now' }, baseSha: BASE_SHA };
     mockReadActiveStage.mock.mockImplementation(() => activeStage);
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      { file: 'a.md', type: 'haiku', cycle: 'test-cycle', status: 'draft' },
-      { file: 'b.md', type: 'haiku', cycle: 'test-cycle', status: 'draft' },
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'a.md', state: 'new' },
+      { file: 'b.md', state: 'new' },
     ]);
     mockPerformValidation.mock.mockImplementation(() =>
       makeValidationResult({

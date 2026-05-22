@@ -7,7 +7,6 @@ import {
   findFirst,
   nextInRoute,
   parseFrontmatter,
-  parseArtefactsTable,
   determineRoute,
   nextAfterQuench,
   nextAfterAppraise,
@@ -162,36 +161,7 @@ describe('parseFrontmatter', () => {
   });
 });
 
-describe('parseArtefactsTable', () => {
-  it('parses a markdown table', () => {
-    const text = [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| src/main.ts | code | build | draft |',
-      '| README.md | docs | build | done |',
-    ].join('\n');
-    const arts = parseArtefactsTable(text);
-    assert.equal(arts.length, 2);
-    assert.deepEqual(arts[0], { file: 'src/main.ts', type: 'code', cycle: 'build', status: 'draft' });
-    assert.deepEqual(arts[1], { file: 'README.md', type: 'docs', cycle: 'build', status: 'done' });
-  });
-  it('returns empty for no table', () => {
-    assert.deepEqual(parseArtefactsTable('no table here'), []);
-  });
-  it('stops parsing when table ends', () => {
-    const text = [
-      '| File | Type | Cycle | Status |',
-      '|------|------|-------|--------|',
-      '| a.ts | code | c1 | draft |',
-      '',
-      'Some other text',
-      '| not | a | table | row |',
-    ].join('\n');
-    const arts = parseArtefactsTable(text);
-    assert.equal(arts.length, 1);
-  });
 
-});
 
 // ---------------------------------------------------------------------------
 // Routing logic

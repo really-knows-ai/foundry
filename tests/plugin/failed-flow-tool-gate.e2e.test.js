@@ -32,7 +32,7 @@ function setupFailedWorktree({ branch = 'work/failed-gate' } = {}) {
   writeFileSync(join(root, 'foundry/cycles/observe.md'),
     `---\noutput-type: report\nmemory:\n  write: [finding]\n---\n\nCycle body.\n`);
   writeFileSync(join(root, 'WORK.md'),
-    `---\nflow: f\ncycle: observe\nstatus: failed\nreason: test\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`);
+    `---\nflow: f\ncycle: observe\nstatus: failed\nreason: test\n---\n\n# Goal\n\ngo\n`);
   // Branch policy:
   //   - flow-tier mutation tools require a work/<x> branch (default).
   //   - config-tier (memory schema admin) tools require a config/<x>
@@ -64,11 +64,6 @@ describe('failed-flow tool gate (flow-tier on work branch)', () => {
   it('workfile_create refuses under failed', async () => {
     expectFailedError(await plugin.tool.foundry_workfile_create.execute(
       { flow: 'f', cycle: 'observe', goal: 'g' }, ctx()), 'workfile_create');
-  });
-
-  it('artefacts_set_status refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_artefacts_set_status.execute(
-      { file: 'x.md', status: 'done' }, ctx()), 'artefacts_set_status');
   });
 
   it('feedback_add refuses under failed', async () => {

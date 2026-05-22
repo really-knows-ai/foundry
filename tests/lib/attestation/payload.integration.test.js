@@ -7,8 +7,8 @@ import { buildAttestationPayload } from '../../../src/scripts/lib/attestation/pa
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtureRepo = path.join(__dirname, 'fixtures', 'basic-repo');
 
-test('buildAttestationPayload emits deterministic top-level sections', () => {
-  const payload = buildAttestationPayload({
+test('buildAttestationPayload emits deterministic top-level sections', async () => {
+  const payload = await buildAttestationPayload({
     cwd: fixtureRepo,
     goalText: 'Write a haiku about rain.',
     archiveBranch: 'archive/work/make-haiku-demo-deadbee',
@@ -27,7 +27,7 @@ test('buildAttestationPayload emits deterministic top-level sections', () => {
   assert.equal(payload.work_branch_archive.name, 'archive/work/make-haiku-demo-deadbee');
 });
 
-test('buildAttestationPayload uses injected io instead of reading from disk', () => {
+test('buildAttestationPayload uses injected io instead of reading from disk', async () => {
   // Create an io object with synthetic file contents
   const mockIo = {
     readFile: (filePath) => {
@@ -42,11 +42,6 @@ config-commit: injected-sha
 
 # Goal
 Injected goal.
-
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| injected.txt | text | injected-cycle | created |
 `;
       }
       if (filePath.endsWith('WORK.history.yaml')) {
@@ -57,15 +52,17 @@ Injected goal.
       }
       throw new Error(`Unexpected file read: ${filePath}`);
     },
-    fileExists: (filePath) => {
-      return filePath.endsWith('WORK.md') || 
-             filePath.endsWith('WORK.history.yaml') || 
+    exists: (filePath) => {
+      return filePath.endsWith('WORK.md') ||
+             filePath.endsWith('WORK.history.yaml') ||
              filePath.endsWith('WORK.feedback.yaml');
     },
+    exec: () => '',
   };
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: fixtureRepo,
+    foundryDir: '/nonexistent',
     goalText: 'Injected goal text',
     archiveBranch: 'archive/work/injected-branch',
     archiveTipSha: 'cafecafecafecafecafecafecafecafecafecafe',
@@ -77,11 +74,10 @@ Injected goal.
   assert.equal(payload.contract.entry_cycle, 'injected-cycle');
   assert.deepEqual(payload.contract.required_stages, ['stage-a']);
   assert.equal(payload.governance.config_commit, 'injected-sha');
-  assert.equal(payload.outputs.length, 1);
-  assert.equal(payload.outputs[0].path, 'injected.txt');
+  assert.equal(payload.outputs.length, 0);
 });
 
-test('buildAttestationPayload contract section - C2 required fields present', () => {
+test('buildAttestationPayload contract section - C2 required fields present', async () => {
   const mockIo = {
     readFile: (filePath) => {
       if (filePath.endsWith('WORK.md')) {
@@ -106,10 +102,6 @@ required-human-gates: optional
 
 # Goal
 Test goal.
-
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
 `;
       }
       if (filePath.endsWith('WORK.history.yaml')) {
@@ -120,15 +112,17 @@ Test goal.
       }
       throw new Error(`Unexpected file read: ${filePath}`);
     },
-    fileExists: (filePath) => {
-      return filePath.endsWith('WORK.md') || 
-             filePath.endsWith('WORK.history.yaml') || 
+    exists: (filePath) => {
+      return filePath.endsWith('WORK.md') ||
+             filePath.endsWith('WORK.history.yaml') ||
              filePath.endsWith('WORK.feedback.yaml');
     },
+    exec: () => '',
   };
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test goal text',
     archiveBranch: 'archive/work/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -142,7 +136,7 @@ Test goal.
   assert.equal(payload.contract.required_human_gates, 'optional');
 });
 
-test('buildAttestationPayload contract section - C2 fields default when absent', () => {
+test('buildAttestationPayload contract section - C2 fields default when absent', async () => {
   const mockIo = {
     readFile: (filePath) => {
       if (filePath.endsWith('WORK.md')) {
@@ -156,10 +150,6 @@ config-commit: test-sha
 
 # Goal
 Test goal.
-
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
 `;
       }
       if (filePath.endsWith('WORK.history.yaml')) {
@@ -170,15 +160,17 @@ Test goal.
       }
       throw new Error(`Unexpected file read: ${filePath}`);
     },
-    fileExists: (filePath) => {
-      return filePath.endsWith('WORK.md') || 
-             filePath.endsWith('WORK.history.yaml') || 
+    exists: (filePath) => {
+      return filePath.endsWith('WORK.md') ||
+             filePath.endsWith('WORK.history.yaml') ||
              filePath.endsWith('WORK.feedback.yaml');
     },
+    exec: () => '',
   };
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test goal text',
     archiveBranch: 'archive/work/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -200,9 +192,6 @@ cycle: test-cycle
 ---
 # Goal
 Test goal.
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
 `;
   
   return {
@@ -212,16 +201,18 @@ Test goal.
       if (filePath.endsWith('WORK.feedback.yaml')) return feedbackText;
       throw new Error(`Unexpected file read: ${filePath}`);
     },
-    fileExists: (filePath) => 
+    exists: (filePath) => 
       filePath.endsWith('WORK.md') ||
       (historyText !== '' && filePath.endsWith('WORK.history.yaml')) ||
       (feedbackText !== '' && filePath.endsWith('WORK.feedback.yaml')),
+    exec: () => '',
   };
 }
 
-test('buildAttestationPayload process section - empty history', () => {
-  const payload = buildAttestationPayload({
+test('buildAttestationPayload process section - empty history', async () => {
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -233,7 +224,7 @@ test('buildAttestationPayload process section - empty history', () => {
   assert.equal(payload.process.stages.length, 0, 'empty history should yield empty stages array');
 });
 
-test('buildAttestationPayload process section - single entry without changed_files', () => {
+test('buildAttestationPayload process section - single entry without changed_files', async () => {
   const historyText = `- cycle: test-cycle
   stage: forge
   iteration: 1
@@ -243,8 +234,9 @@ test('buildAttestationPayload process section - single entry without changed_fil
   open_feedback: 0
 `;
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -268,7 +260,7 @@ test('buildAttestationPayload process section - single entry without changed_fil
   assert.equal('result' in stage, false, 'result field should not exist');
 });
 
-test('buildAttestationPayload process section - entry with unsorted changed_files', () => {
+test('buildAttestationPayload process section - entry with unsorted changed_files', async () => {
   const historyText = `- cycle: test-cycle
   stage: forge
   iteration: 1
@@ -281,8 +273,9 @@ test('buildAttestationPayload process section - entry with unsorted changed_file
     - a.txt
 `;
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abcd',
@@ -301,7 +294,7 @@ test('buildAttestationPayload process section - entry with unsorted changed_file
   assert.equal('route' in stage, false);
 });
 
-test('buildAttestationPayload process section - sort stage with route back', () => {
+test('buildAttestationPayload process section - sort stage with route back', async () => {
   const historyText = `- cycle: test-cycle
   stage: sort
   iteration: 1
@@ -312,8 +305,9 @@ test('buildAttestationPayload process section - sort stage with route back', () 
   route: back
 `;
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -332,7 +326,7 @@ test('buildAttestationPayload process section - sort stage with route back', () 
   assert.equal('result' in stage, false, 'result field should not exist');
 });
 
-test('buildAttestationPayload process section - sort stage with route forward', () => {
+test('buildAttestationPayload process section - sort stage with route forward', async () => {
   const historyText = `- cycle: test-cycle
   stage: sort
   iteration: 1
@@ -343,8 +337,9 @@ test('buildAttestationPayload process section - sort stage with route forward', 
   route: forward
 `;
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -363,7 +358,7 @@ test('buildAttestationPayload process section - sort stage with route forward', 
   assert.equal('result' in stage, false, 'result field should not exist');
 });
 
-test('buildAttestationPayload process section - multiple entries across cycles in seq order', () => {
+test('buildAttestationPayload process section - multiple entries across cycles in seq order', async () => {
   const historyText = `- cycle: cycle-1
   stage: forge
   iteration: 1
@@ -390,8 +385,9 @@ test('buildAttestationPayload process section - multiple entries across cycles i
     - a.txt
 `;
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -422,7 +418,7 @@ test('buildAttestationPayload process section - multiple entries across cycles i
   assert.equal('route' in payload.process.stages[2], false);
 });
 
-test('buildAttestationPayload process section - open_feedback defaults to 0 when absent', () => {
+test('buildAttestationPayload process section - open_feedback defaults to 0 when absent', async () => {
   const historyText = `- cycle: test-cycle
   stage: forge
   iteration: 1
@@ -431,8 +427,9 @@ test('buildAttestationPayload process section - open_feedback defaults to 0 when
   seq: 0
 `;
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -443,7 +440,7 @@ test('buildAttestationPayload process section - open_feedback defaults to 0 when
   assert.equal(payload.process.stages[0].open_feedback, 0, 'open_feedback should default to 0');
 });
 
-test('buildAttestationPayload process section - multi-iteration feedback trail', () => {
+test('buildAttestationPayload process section - multi-iteration feedback trail', async () => {
   const historyText = `- cycle: cycle-1
   stage: forge
   iteration: 1
@@ -492,8 +489,9 @@ test('buildAttestationPayload process section - multi-iteration feedback trail',
   route: forward
 `;
 
-  const payload = buildAttestationPayload({
+  const payload = await buildAttestationPayload({
     cwd: '/fake',
+    foundryDir: '/nonexistent',
     goalText: 'Test',
     archiveBranch: 'archive/test',
     archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -534,12 +532,13 @@ test('buildAttestationPayload process section - multi-iteration feedback trail',
   assert.deepEqual(payload.process.stages[3].changed_files, ['revised.txt']);
 });
 
-test('buildAttestationPayload throws on malformed WORK.history.yaml', () => {
+test('buildAttestationPayload throws on malformed WORK.history.yaml', async () => {
   const historyText = 'not: valid: yaml: [';
 
-  assert.throws(
+  await assert.rejects(
     () => buildAttestationPayload({
       cwd: '/fake',
+      foundryDir: '/nonexistent',
       goalText: 'Test',
       archiveBranch: 'archive/test',
       archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
@@ -550,9 +549,10 @@ test('buildAttestationPayload throws on malformed WORK.history.yaml', () => {
   );
 });
 
-test('does not include scope or verdict fields', () => {
-  const payload = buildAttestationPayload({
+test('does not include scope or verdict fields', async () => {
+  const payload = await buildAttestationPayload({
     cwd: fixtureRepo,
+    foundryDir: '/nonexistent',
     goalText: 'Write a haiku about rain.',
     archiveBranch: 'archive/work/make-haiku-demo-deadbee',
     archiveTipSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',

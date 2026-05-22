@@ -11,16 +11,18 @@ import assert from 'node:assert/strict';
 // Specifiers are relative to the test file (in tests/ directory).
 // ---------------------------------------------------------------------------
 
-const mockGetArtefactsForCycle = mock.fn();
+const mockGetArtefactFiles = mock.fn();
+const mockGetCycleDefinition = mock.fn();
 const mockSelectAppraisers = mock.fn();
 const mockGetLaws = mock.fn();
 
 mock.module('../src/scripts/lib/artefacts.js', {
-  exports: { getArtefactsForCycle: mockGetArtefactsForCycle },
+  exports: { getArtefactFiles: mockGetArtefactFiles },
 });
 
 mock.module('../src/scripts/lib/config.js', {
   exports: {
+    getCycleDefinition: mockGetCycleDefinition,
     selectAppraisers: mockSelectAppraisers,
     getLaws: mockGetLaws,
   },
@@ -31,7 +33,8 @@ let gatherAppraiseContext;
 let consolidateAppraise;
 
 beforeEach(async () => {
-  mockGetArtefactsForCycle.mock.resetCalls();
+  mockGetArtefactFiles.mock.resetCalls();
+  mockGetCycleDefinition.mock.resetCalls();
   mockSelectAppraisers.mock.resetCalls();
   mockGetLaws.mock.resetCalls();
 
@@ -91,9 +94,7 @@ function createConsolidateCtx(overrides = {}) {
 function makeArtefact(overrides = {}) {
   return {
     file: 'poem.md',
-    type: 'haiku',
-    cycle: 'haiku-cycle',
-    status: 'draft',
+    state: 'new',
     ...overrides,
   };
 }
@@ -146,7 +147,10 @@ describe('gatherAppraiseContext', () => {
 
   // AC2.3: no artefacts → empty tasks
   it('returns empty tasks when no artefacts exist for the cycle', async () => {
-    mockGetArtefactsForCycle.mock.mockImplementation(() => []);
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => []);
     const ctx = createGatherCtx();
 
     const result = await gatherAppraiseContext(ctx);
@@ -159,7 +163,10 @@ describe('gatherAppraiseContext', () => {
 
   // AC2.2: no appraisers available → empty tasks (not a violation)
   it('returns empty tasks when no appraisers are selected', async () => {
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
       makeArtefact(),
     ]);
     mockSelectAppraisers.mock.mockImplementation(() => []);
@@ -177,8 +184,11 @@ describe('gatherAppraiseContext', () => {
 
   // AC2.1: happy path — one artefact, one appraiser
   it('builds correct dispatch_multi with one task per (artefact, appraiser)', async () => {
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      makeArtefact({ file: 'poem.md', type: 'haiku' }),
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      makeArtefact({ file: 'poem.md' }),
     ]);
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'strict', personality: 'You are strict.', model: 'openai/gpt-4o' }),
@@ -211,20 +221,21 @@ describe('gatherAppraiseContext', () => {
 
   // AC2.1: multiple artefacts, multiple appraisers
   it('creates tasks for all artefact-appraiser pairs', async () => {
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      makeArtefact({ file: 'poem1.md', type: 'haiku' }),
-      makeArtefact({ file: 'poem2.md', type: 'sonnet' }),
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      makeArtefact({ file: 'poem1.md', state: 'new' }),
+      makeArtefact({ file: 'poem2.md', state: 'new' }),
     ]);
-    const callCount = { haiku: 0, sonnet: 0 };
+    const callCount = { haiku: 0 };
     mockSelectAppraisers.mock.mockImplementation(async (foundryDir, typeId) => {
-      callCount[typeId]++;
+      callCount[typeId] = (callCount[typeId] || 0) + 1;
       if (typeId === 'haiku') return [makeAppraiser({ id: 'strict', model: 'openai/gpt-4o' })];
-      if (typeId === 'sonnet') return [makeAppraiser({ id: 'kind', model: 'anthropic/claude' })];
       return [];
     });
     mockGetLaws.mock.mockImplementation(async (foundryDir, io, { typeId }) => {
       if (typeId === 'haiku') return [makeLaw({ id: 'dark' })];
-      if (typeId === 'sonnet') return [makeLaw({ id: 'form' })];
       return [];
     });
     const readCalls = { 'poem1.md': 'content 1', 'poem2.md': 'content 2' };
@@ -233,21 +244,24 @@ describe('gatherAppraiseContext', () => {
 
     const result = await gatherAppraiseContext(ctx);
 
+    // Both artefacts have type 'haiku' from the output-type, so only one type key
     assert.equal(result.tasks.length, 2);
     assert.equal(result.tasks[0].subagent_type, 'foundry-openai-gpt-4o');
     assert.match(result.tasks[0].prompt, /poem1\.md/);
-    assert.equal(result.tasks[1].subagent_type, 'foundry-anthropic-claude');
+    assert.equal(result.tasks[1].subagent_type, 'foundry-openai-gpt-4o');
     assert.match(result.tasks[1].prompt, /poem2\.md/);
 
-    // selectAppraisers and getLaws called once per unique type
+    // selectAppraisers called once per unique type
     assert.equal(callCount.haiku, 1);
-    assert.equal(callCount.sonnet, 1);
   });
 
   // Model name conversion: dots and slashes become hyphens
   it('converts model names to agent names correctly', async () => {
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      makeArtefact({ file: 'poem.md', type: 'haiku' }),
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      makeArtefact({ file: 'poem.md' }),
     ]);
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'custom', model: 'github-copilot/claude-sonnet-4.6' }),
@@ -263,8 +277,11 @@ describe('gatherAppraiseContext', () => {
 
   // Fallback to 'general' when neither model nor defaultModel is specified
   it('uses "general" subagent_type when no model is specified', async () => {
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      makeArtefact({ file: 'poem.md', type: 'haiku' }),
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      makeArtefact({ file: 'poem.md' }),
     ]);
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'basic', model: undefined }),
@@ -279,10 +296,13 @@ describe('gatherAppraiseContext', () => {
     assert.equal(result.tasks[0].subagent_type, 'general');
   });
 
-  // Artefact content is read from disk
+  // Artefact content is read from disk for non-deleted artefacts
   it('reads artefact content from disk via io', async () => {
-    mockGetArtefactsForCycle.mock.mockImplementation(() => [
-      makeArtefact({ file: 'unique-file.md', type: 'haiku' }),
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      makeArtefact({ file: 'unique-file.md', state: 'new' }),
     ]);
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'strict', model: 'openai/gpt-4o' }),
@@ -299,6 +319,30 @@ describe('gatherAppraiseContext', () => {
     assert.match(result.tasks[0].prompt, /the actual content/);
     assert.equal(ioReadFile.mock.calls.length, 1);
     assert.equal(ioReadFile.mock.calls[0].arguments[0], 'unique-file.md');
+  });
+
+  // Deleted artefacts do not attempt to read file content
+  it('does not read file content for deleted artefacts', async () => {
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      makeArtefact({ file: 'deleted.md', state: 'deleted' }),
+    ]);
+    mockSelectAppraisers.mock.mockImplementation(() => [
+      makeAppraiser({ id: 'strict', model: 'openai/gpt-4o' }),
+    ]);
+    mockGetLaws.mock.mockImplementation(() => [makeLaw()]);
+    const ioReadFile = mock.fn(() => 'should not be called');
+    const ctx = createGatherCtx({ ioReadFile });
+
+    const result = await gatherAppraiseContext(ctx);
+
+    assert.equal(result.tasks.length, 1);
+    // Content should not be read for deleted artefacts
+    assert.equal(ioReadFile.mock.calls.length, 0);
+    // The prompt should mention the file but not include content
+    assert.match(result.tasks[0].prompt, /deleted\.md/);
   });
 });
 

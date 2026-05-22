@@ -59,7 +59,6 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 
 **Artefacts**
 - [`foundry_artefacts_list`](#foundry_artefacts_list)
-- [`foundry_artefacts_set_status`](#foundry_artefacts_set_status)
 
 **Feedback**
 - [`foundry_feedback_add`](#foundry_feedback_add)
@@ -326,40 +325,18 @@ flow** (escape hatch).
 
 ### `foundry_artefacts_list`
 
-> List artefacts from the WORK.md table. Optional `cycle` filter —
-> callers should always pass the current cycle to avoid stale rows.
+> List artefact changes on the current work branch for the current cycle.
 
 **Args:**
-- `cycle` (string, optional).
+- none.
 
-**Returns:** array of `{file, type, cycle, status, ...}` rows. `{error:
-"WORK.md not found"}` if missing.
+**Returns:** array of `{file, state}` entries. `{error: "WORK.md not found"}`
+if `WORK.md` is missing, or `{error: "current cycle not found in WORK.md frontmatter"}`
+if `WORK.md` has no current cycle.
 
 **Stage requirements:** none.
 
 **Side effects:** none.
-
-### `foundry_artefacts_set_status`
-
-> Update the status of an artefact in `WORK.md` (`done` | `blocked`
-> only).
-
-**Args:**
-- `file` (string, required): Artefact file path.
-- `status` (string, required): New status (`done` | `blocked`).
-
-**Returns:** `{ ok: true }`. On invalid input: `{ error: <message> }`.
-
-**Stage requirements:** requires no active stage. Refuses on failed
-flow.
-
-**Failure modes:**
-- Invalid status, unknown file, malformed table → error from
-  `setArtefactStatus`.
-
-**Side effects:** rewrites `WORK.md`.
-
----
 
 ## Feedback
 

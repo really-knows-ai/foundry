@@ -30,7 +30,7 @@ describe('finalizeStage', () => {
     baseSha = git(dir, 'rev-parse HEAD');
   });
 
-  it('clean forge diff: matching file registers as draft', () => {
+  it('clean forge diff: matching file registers as artefact', () => {
     mkdirSync(join(dir, 'haikus'), { recursive: true });
     writeFileSync(join(dir, 'haikus/one.md'), '...');
     const res = finalizeStage({
@@ -39,10 +39,9 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, true);
-    assert.deepEqual(res.artefacts, [{ file: 'haikus/one.md', type: 'haiku', status: 'draft' }]);
+    assert.deepEqual(res.artefacts, [{ file: 'haikus/one.md', type: 'haiku' }]);
   });
 
   it('forge diff with stray file rejects', () => {
@@ -54,7 +53,6 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
     assert.equal(res.error, 'unexpected_files');
@@ -68,7 +66,6 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
     assert.deepEqual(res.files, ['x.md']);
@@ -80,7 +77,6 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, true);
     assert.deepEqual(res.artefacts, []);
@@ -96,7 +92,6 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, true);
   });
@@ -109,7 +104,6 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
     assert.equal(res.error, 'unexpected_files');
@@ -120,17 +114,14 @@ describe('finalizeStage', () => {
     mkdirSync(join(dir, 'haikus'), { recursive: true });
     writeFileSync(join(dir, 'haikus/staged.md'), '...');
     git(dir, 'add haikus/staged.md');
-    const registered = [];
     const res = finalizeStage({
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: a => registered.push(a),
     });
     assert.equal(res.ok, true);
-    assert.deepEqual(res.artefacts, [{ file: 'haikus/staged.md', type: 'haiku', status: 'draft' }]);
-    assert.deepEqual(registered, [{ file: 'haikus/staged.md', type: 'haiku', status: 'draft' }]);
+    assert.deepEqual(res.artefacts, [{ file: 'haikus/staged.md', type: 'haiku' }]);
   });
 
   it('detects staged deletion of unexpected file', () => {
@@ -144,7 +135,6 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
     assert.equal(res.error, 'unexpected_files');
@@ -161,7 +151,6 @@ describe('finalizeStage', () => {
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: () => {},
     });
     assert.equal(res.ok, false);
     assert.equal(res.error, 'unexpected_files');
@@ -175,13 +164,11 @@ describe('finalizeStage', () => {
     writeFileSync(join(dir, 'haikus/a.md'), 'staged');
     git(dir, 'add haikus/a.md');
     writeFileSync(join(dir, 'haikus/b.md'), 'unstaged'); // untracked
-    const registered = [];
     const res = finalizeStage({
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: a => registered.push(a),
     });
     assert.equal(res.ok, true);
     const files = res.artefacts.map(a => a.file).sort();
@@ -195,7 +182,6 @@ describe('finalizeStage', () => {
         cycleDef: { outputArtefactType: 'haiku' },
         artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
         io: makeTestIo(dir),
-      registerArtefact: () => {},
       });
     }
 
@@ -241,7 +227,6 @@ describe('finalizeStage', () => {
         cycleDef: { outputArtefactType: 'haiku' },
         artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
         io: makeTestIo(dir),
-      registerArtefact: () => {},
       });
       assert.equal(res.ok, true);
     });
@@ -253,7 +238,6 @@ describe('finalizeStage', () => {
         cycleDef: { outputArtefactType: 'haiku' },
         artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
         io: makeTestIo(dir),
-      registerArtefact: () => {},
       });
       assert.equal(res.ok, true);
     });
@@ -264,17 +248,14 @@ describe('finalizeStage', () => {
     mkdirSync(join(dir, 'haikus'), { recursive: true });
     writeFileSync(join(dir, 'haikus/a.md'), '...');
 
-    const registered = [];
     const res = finalizeStage({
       cwd: dir, baseSha, stageBase: 'forge',
       cycleDef: { outputArtefactType: 'haiku' },
       artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
       io: makeTestIo(dir),
-      registerArtefact: artefact => registered.push(artefact),
     });
 
     assert.equal(res.ok, true);
-    assert.deepEqual(res.artefacts, [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }]);
-    assert.deepEqual(registered, [{ file: 'haikus/a.md', type: 'haiku', status: 'draft' }]);
+    assert.deepEqual(res.artefacts, [{ file: 'haikus/a.md', type: 'haiku' }]);
   });
 });

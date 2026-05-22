@@ -25,35 +25,48 @@ import {
   renderDispatchPrompt,
 } from './orchestrate-cycle.js';
 
-async function doneAction(cycleId, io, foundryDir = 'foundry', baseBranch = 'main') {
-  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
-  const outputType = cfm['output-type'];
-  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
-  const artefactFile = artefacts.find(a => a.state !== 'deleted')?.file ?? null;
+async function findOutputArtefacts(cfm, io, foundryDir, baseBranch) {
+  const outputType = cfm ? cfm['output-type'] : undefined;
+  if (!outputType) return null;
+  const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch });
+  return artefacts.find(a => a.state !== 'deleted') || null;
+}
+
+async function doneAction(cycleId, io, foundryDir, baseBranch) {
+  const fd = foundryDir || 'foundry';
+  const base = baseBranch || 'main';
+  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
+  const artefact = await findOutputArtefacts(cfm, io, fd, base);
+  const artefactFile = artefact ? artefact.file : null;
   return { action: 'done', cycle: cycleId, artefact_file: artefactFile, next_cycles: await readCycleTargets(cycleId, io) };
 }
 
-async function blockedAction(cycleId, io, details, foundryDir = 'foundry', baseBranch = 'main') {
-  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
-  const outputType = cfm['output-type'];
-  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
-  const artefactFile = artefacts.find(a => a.state !== 'deleted')?.file ?? null;
-  return { action: 'blocked', cycle: cycleId, artefact_file: artefactFile, reason: details ?? 'iteration limit reached with unresolved feedback' };
+async function blockedAction(cycleId, io, details, foundryDir, baseBranch) {
+  const fd = foundryDir || 'foundry';
+  const base = baseBranch || 'main';
+  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
+  const artefact = await findOutputArtefacts(cfm, io, fd, base);
+  const artefactFile = artefact ? artefact.file : null;
+  const reason = details || 'iteration limit reached with unresolved feedback';
+  return { action: 'blocked', cycle: cycleId, artefact_file: artefactFile, reason };
 }
 
-async function humanAppraiseAction(route, token, cycleId, io, foundryDir = 'foundry', baseBranch = 'main') {
-  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
-  const outputType = cfm['output-type'];
-  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
-  const artefactFile = artefacts.find(a => a.state !== 'deleted')?.file ?? null;
+async function humanAppraiseAction(route, token, ctx) {
+  const { cycleId, io, baseBranch } = ctx;
+  const fd = ctx.foundryDir || 'foundry';
+  const base = baseBranch || 'main';
+  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
+  const artefact = await findOutputArtefacts(cfm, io, fd, base);
+  const artefactFile = artefact ? artefact.file : null;
   return { action: 'human_appraise', stage: route, token, context: { cycle: cycleId, artefact_file: artefactFile, recent_feedback: readRecentFeedback(io) } };
 }
 
-async function missingModelViolation(cycleId, route, io, foundryDir = 'foundry', baseBranch = 'main') {
-  const cfm = (await getCycleDefinition(foundryDir, cycleId, io)).frontmatter || {};
-  const outputType = cfm['output-type'];
-  const artefacts = outputType ? await getArtefactFiles(foundryDir, outputType, io, { baseBranch }) : [];
-  const affectedFiles = artefacts.filter(a => a.state !== 'deleted').map(a => a.file);
+async function missingModelViolation(cycleId, route, io, foundryDir, baseBranch) {
+  const fd = foundryDir || 'foundry';
+  const base = baseBranch || 'main';
+  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
+  const artefact = await findOutputArtefacts(cfm, io, fd, base);
+  const affectedFiles = artefact ? [artefact.file] : [];
   return violation(`cycle ${cycleId} stage ${route} has no model declared in cycle definition`, affectedFiles);
 }
 
@@ -73,26 +86,27 @@ export function routeDispatch(route) {
 }
 
 async function handleTerminalRoute(route, sortResult, ctx) {
-  if (route === 'done') return doneAction(ctx.cycleId, ctx.io, ctx.foundryDir, ctx.baseBranch ?? 'main');
-  if (route === 'blocked') return blockedAction(ctx.cycleId, ctx.io, sortResult.details, ctx.foundryDir, ctx.baseBranch ?? 'main');
-  return violation(sortResult.details ?? 'sort returned violation');
+  const baseBranch = ctx.baseBranch || 'main';
+  if (route === 'done') return doneAction(ctx.cycleId, ctx.io, ctx.foundryDir, baseBranch);
+  if (route === 'blocked') return blockedAction(ctx.cycleId, ctx.io, sortResult.details, ctx.foundryDir, baseBranch);
+  const details = sortResult.details || 'sort returned violation';
+  return violation(details);
 }
 
 function isTerminalRoute(route) {
   return route === 'done' || route === 'blocked' || route === 'violation';
 }
 
+function getRouteBase(route) {
+  return routeDispatch(route);
+}
+
 export async function handleSortResult(sortResult, ctx) {
   const { route, model, token } = sortResult;
-  if (isTerminalRoute(route)) {
-    return handleTerminalRoute(route, sortResult, ctx);
-  }
-  if (routeDispatch(route) === 'quench' || routeDispatch(route) === 'appraise') {
-    return violation(`${routeDispatch(route)} route reached handleSortResult — should have been handled upstream in orchestrate.js`);
-  }
-  if (routeDispatch(route) === 'human-appraise') {
-    return humanAppraiseAction(route, token, ctx.cycleId, ctx.io, ctx.foundryDir, ctx.baseBranch ?? 'main');
-  }
+  const routeBase = getRouteBase(route);
+  if (isTerminalRoute(route)) return handleTerminalRoute(route, sortResult, ctx);
+  if (routeBase === 'quench' || routeBase === 'appraise') return violation(routeBase + ' route reached handleSortResult');
+  if (routeBase === 'human-appraise') return humanAppraiseAction(route, token, ctx);
   return buildDispatchAction(route, model, token, ctx);
 }
 

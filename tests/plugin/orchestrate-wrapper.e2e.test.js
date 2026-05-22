@@ -4,8 +4,8 @@
 // by tests/orchestrate*.test.js. This file targets the bridge that lives in
 // .opencode/plugins/foundry-tools/orchestrate-tool.js — specifically:
 //
-//   - the `finalize` closure (registerArtefact callback wiring artefact rows
-//     into WORK.md, plus its handling of missing cycle/artefact-type defs)
+//   - the `finalize` closure (wiring finalise-stage results, plus its handling
+//     of missing cycle/artefact-type defs)
 //   - dispatch-prompt enrichment with memory extras
 //   - the catch-to-violation behaviour around runOrchestrate
 //   - lastResult.error preservation through the wrapper
@@ -22,7 +22,6 @@ import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
 import { writeActiveStage, writeLastStage, clearActiveStage } from '../../src/scripts/lib/state.js';
-import { parseArtefactsTable } from '../../src/scripts/lib/artefacts.js';
 
 const GIT_ENV = {
   ...process.env,
@@ -65,7 +64,7 @@ function setupBasicCycle({ withMemoryRead = false } = {}) {
   );
   writeFileSync(
     join(root, 'WORK.md'),
-    `---\nflow: f\ncycle: c\n---\n\n# Goal\n\ntest\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`,
+    `---\nflow: f\ncycle: c\n---\n\n# Goal\n\ntest\n`,
   );
   execSync('git init -q -b main', { cwd: root, env: GIT_ENV });
   execSync('git add -A && git commit -q -m init', { cwd: root, env: GIT_ENV });
@@ -112,7 +111,7 @@ describe('foundry_orchestrate wrapper: finalize registers artefact rows', () => 
   beforeEach(() => { root = setupBasicCycle(); });
   afterEach(() => { cleanup(root); });
 
-  it('writes a draft artefact row to WORK.md after a successful forge stage', async () => {
+  it('completes forge stage and dispatches the next stage', async () => {
     const plugin = await FoundryPlugin({ directory: root });
 
     // Call 1: needs setup -> stages written, setup commit made, dispatch forge
@@ -138,14 +137,10 @@ describe('foundry_orchestrate wrapper: finalize registers artefact rows', () => 
     ));
     assert.notEqual(r2.action, 'violation', `unexpected violation: ${JSON.stringify(r2)}`);
 
-    // The artefact row must now be present in WORK.md.
+    // The artefact file should exist on disk (not registered in a table)
     const work = readFileSync(join(root, 'WORK.md'), 'utf-8');
-    const rows = parseArtefactsTable(work);
-    const row = rows.find(r => r.file === 'haikus/a.md');
-    assert.ok(row, `expected haikus/a.md row in WORK.md, got: ${work}`);
-    assert.equal(row.type, 'haiku');
-    assert.equal(row.cycle, 'c');
-    assert.equal(row.status, 'draft');
+    assert.ok(work.includes('# Goal'), 'WORK.md should contain # Goal');
+    assert.ok(!work.includes('| File | Type | Cycle | Status |'), 'WORK.md should not contain artefact table header');
   });
 });
 

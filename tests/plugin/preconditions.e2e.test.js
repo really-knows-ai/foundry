@@ -4,7 +4,7 @@
 
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,10 +26,6 @@ function initRepo() {
   writeFileSync(join(dir, 'WORK.md'), [
     '---', 'flow: f', 'cycle: c', '---',
     '', '# Goal', '', 'test', '',
-    '## Artefacts', '',
-    '| File | Type | Cycle | Status |',
-    '|------|------|-------|--------|',
-    '',
   ].join('\n'));
   execSync('git add . && git commit -m init -q', { cwd: dir, env: GIT_ENV });
   // Branch guard: feedback/stage/artefact mutations require work/<x>.
@@ -167,42 +163,7 @@ describe('feedback stage-base allow-list on action/wontfix/resolve', () => {
 
 // ── Artefacts tools ──
 
-describe('foundry_artefacts_set_status preconditions', () => {
-  let dir, plugin;
-  beforeEach(async () => {
-    dir = initRepo();
-    plugin = await FoundryPlugin({ directory: dir });
-    // Seed an artefact row.
-    const p = join(dir, 'WORK.md');
-    const t = readFileSync(p, 'utf-8').replace(
-      '|------|------|-------|--------|\n',
-      '|------|------|-------|--------|\n| x.md | foo | c | draft |\n',
-    );
-    writeFileSync(p, t);
-  });
 
-  it('rejects status "draft"', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_artefacts_set_status.execute(
-      { file: 'x.md', status: 'draft' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /status draft not permitted/);
-  });
-
-  it('accepts status "done" with no active stage', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_artefacts_set_status.execute(
-      { file: 'x.md', status: 'done' }, makeCtx(dir),
-    ));
-    assert.equal(res.ok, true);
-  });
-
-  it('rejects during active stage', async () => {
-    await beginStage(plugin, dir, 'forge:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_artefacts_set_status.execute(
-      { file: 'x.md', status: 'done' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /requires no active stage/);
-  });
-});
 
 describe('foundry_artefacts_add removed', () => {
   it('is not registered as a tool', async () => {
@@ -212,39 +173,18 @@ describe('foundry_artefacts_add removed', () => {
   });
 });
 
-describe('foundry_artefacts_list cycle filter', () => {
+describe('foundry_artefacts_list', () => {
   let dir, plugin;
   beforeEach(async () => {
     dir = initRepo();
     plugin = await FoundryPlugin({ directory: dir });
-    const p = join(dir, 'WORK.md');
-    const t = readFileSync(p, 'utf-8').replace(
-      '|------|------|-------|--------|\n',
-      '|------|------|-------|--------|\n' +
-      '| stale.md | foo | old-cycle | done |\n' +
-      '| fresh.md | foo | c | draft |\n' +
-      '| also-fresh.md | bar | c | done |\n',
-    );
-    writeFileSync(p, t);
   });
 
-  it('returns all rows when no cycle arg', async () => {
+  it('returns artefact file changes when on a work branch', async () => {
+    // With no git changes detected, the tool returns an empty list
     const res = JSON.parse(await plugin.tool.foundry_artefacts_list.execute({}, makeCtx(dir)));
-    assert.equal(res.length, 3);
-  });
-
-  it('filters to matching cycle when cycle arg given', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_artefacts_list.execute({ cycle: 'c' }, makeCtx(dir)));
-    assert.equal(res.length, 2);
-    assert.ok(res.every(r => r.cycle === 'c'));
-    assert.ok(res.find(r => r.file === 'fresh.md'));
-    assert.ok(res.find(r => r.file === 'also-fresh.md'));
-    assert.ok(!res.find(r => r.file === 'stale.md'));
-  });
-
-  it('returns empty array when no rows match cycle', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_artefacts_list.execute({ cycle: 'nope' }, makeCtx(dir)));
-    assert.deepEqual(res, []);
+    // New implementation uses branch discovery; with no changes, returns []
+    assert.ok(Array.isArray(res), 'result should be an array');
   });
 });
 

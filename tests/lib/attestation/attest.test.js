@@ -14,11 +14,6 @@ config-commit: abc123
 
 # Goal
 Write a haiku.
-
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haiku.txt | text | forge | done |
 `;
 
 // WORK.history.yaml with both required stages present
@@ -81,25 +76,6 @@ const FEEDBACK_UNRESOLVED = `items:
         timestamp: 2025-01-01T00:00:00.000Z
 `;
 
-// WORK.md with a blocked artefact
-const WORK_MD_BLOCKED = `---
-flow: make-haiku
-cycle: forge
-stages:
-  - forge
-  - appraise
-config-commit: abc123
----
-
-# Goal
-Write a haiku.
-
-## Artefacts
-| File | Type | Cycle | Status |
-|------|------|-------|--------|
-| haiku.txt | text | forge | blocked |
-`;
-
 // WORK.history.yaml missing the appraise stage
 const HISTORY_MISSING_STAGE = `- cycle: forge
   stage: sort
@@ -126,7 +102,7 @@ function makeIo({ workMd = WORK_MD_VALID, history = HISTORY_VALID, feedback = FE
   };
   return {
     readFile: (p) => { if (files[p] === undefined) { throw new Error(`ENOENT: ${p}`); } return files[p]; },
-    fileExists: (p) => files[p] !== undefined,
+    exists: (p) => files[p] !== undefined,
   };
 }
 
@@ -134,7 +110,8 @@ function makeExecGit(overrides = {}) {
   return (argv) => {
     const cmd = argv.join(' ');
     if (cmd.startsWith('merge-base')) return 'basesha123\n';
-    if (cmd.startsWith('diff')) return Buffer.from('fake diff output');
+    if (cmd.startsWith('diff')) return Buffer.from('');
+    if (cmd.startsWith('ls-files')) return Buffer.from('');
     if (overrides[cmd] !== undefined) return overrides[cmd];
     throw new Error(`Unexpected git command: ${cmd}`);
   };
@@ -170,20 +147,6 @@ describe('buildAttestation', () => {
     });
     assert.equal(result.ok, false);
     assert.match(result.error, /missing.*stage|stage.*missing|appraise/i);
-  });
-
-  it('returns ok:false when an artefact is blocked', async () => {
-    const result = await buildAttestation({
-      cwd: '/repo',
-      baseBranch: 'main',
-      goalText: 'Write a haiku',
-      archiveBranch: 'archive/work/forge-abc1234',
-      archiveTipSha: 'abc1234',
-      io: makeIo({ workMd: WORK_MD_BLOCKED }),
-      execGit: makeExecGit(),
-    });
-    assert.equal(result.ok, false);
-    assert.match(result.error, /blocked/i);
   });
 
   it('returns ok:false when feedback items are unresolved', async () => {
@@ -245,8 +208,8 @@ describe('buildAttestation', () => {
 
   it('returns ok:false when WORK.history.yaml is absent (all required stages missing)', async () => {
     const io = makeIo();
-    const origFileExists = io.fileExists;
-    io.fileExists = (p) => p.endsWith('WORK.history.yaml') ? false : origFileExists(p);
+    const origExists = io.exists;
+    io.exists = (p) => p.endsWith('WORK.history.yaml') ? false : origExists(p);
     const result = await buildAttestation({
       cwd: '/repo',
       baseBranch: 'main',

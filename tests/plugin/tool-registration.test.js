@@ -11,7 +11,6 @@ import { FoundryPlugin } from '../../src/plugin/foundry.js';
 const EXPECTED_TOOLS = [
   'foundry_appraisers_select',
   'foundry_artefacts_list',
-  'foundry_artefacts_set_status',
   'foundry_assay_run',
   'foundry_attest',
   'foundry_attestation_show',

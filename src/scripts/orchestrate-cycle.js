@@ -38,7 +38,11 @@ export async function readForgeFilePatterns(cycleId, io) {
   }
   const output = extractOutputType(cd);
   if (!output) return null;
-  return fetchFilePatterns(output, io);
+  try {
+    return await fetchFilePatterns(output, io);
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -55,7 +55,7 @@ function setupWorktreeOnMain() {
   writeFileSync(join(root, 'foundry/artefacts/code/definition.md'),
     '---\nname: Code\n---\nCode artefact.\n');
   writeFileSync(join(root, 'WORK.md'),
-    `---\nflow: f\ncycle: observe\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`);
+    `---\nflow: f\ncycle: observe\n---\n\n# Goal\n\ngo\n`);
   return root;
 }
 
@@ -79,8 +79,6 @@ const FLOW_TIER_MUTATION_CASES = [
   // stage-tools.js
   ['foundry_stage_begin', { stage: 'forge:observe', cycle: 'observe', token: 'x' }],
   ['foundry_stage_end', { summary: 'done' }],
-  // artefact-tools.js
-  ['foundry_artefacts_set_status', { file: 'x.md', status: 'done' }],
   // memory-tools.js
   ['foundry_memory_put', { type: 'finding', name: 'x', value: 'v' }],
   ['foundry_memory_relate', {
