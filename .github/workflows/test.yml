@@ -14,12 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - node-label: current LTS
-            node-version: 'lts/*'
-          - node-label: latest stable
-            node-version: current
-          - node-label: latest development
-            node-version: nightly
+          - node-label: LTS 22
+            node-version: '22.x'
+          - node-label: LTS 24
+            node-version: '24.x'
+          - node-label: current 25
+            node-version: '25.x'
+          - node-label: current 26
+            node-version: '26.x'
 
     steps:
       - uses: actions/checkout@v6
