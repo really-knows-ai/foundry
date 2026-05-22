@@ -1,13 +1,15 @@
 /**
  * Quench module — deterministic validation run entirely within the orchestrator.
  *
- * The module runs validators for each draft artefact in the current cycle,
- * posts feedback for each validation item, resolves prior quench feedback,
- * and finalises the stage. No LLM involvement.
+ * The module discovers artefact changes via branch-based artefact discovery,
+ * runs validators for each artefact change, posts feedback for each validation
+ * item, resolves prior quench feedback, and finalises the stage. No LLM
+ * involvement.
  */
 
 import { readActiveStage } from './lib/state.js';
-import { getArtefactsForCycle, setArtefactStatus } from './lib/artefacts.js';
+import { getArtefactFiles } from './lib/artefacts.js';
+import { getCycleDefinition } from './lib/config.js';
 import { performValidation } from './lib/validation.js';
 
 /**
@@ -22,20 +24,26 @@ export async function runQuench(ctx) {
     return { ok: false, error: 'No active stage found' };
   }
 
-  const artefacts = getArtefactsForCycle(ctx.cycleId, ctx.io);
+  const cycleDef = await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io);
+  const outputType = cycleDef.frontmatter['output-type'];
+  if (!outputType) {
+    return { ok: false, error: `Cycle ${ctx.cycleId} has no output-type` };
+  }
+
+  const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch: 'main' });
 
   if (artefacts.length === 0) {
     return await handleNoArtefacts(ctx, activeStageRecord);
   }
 
-  return await processArtefacts(ctx, artefacts, activeStageRecord);
+  return await processArtefacts(ctx, artefacts, activeStageRecord, outputType);
 }
 
 /**
  * Handle the case where no artefacts exist for this cycle.
  */
 async function handleNoArtefacts(ctx, activeStageRecord) {
-  const summary = 'SKIP: no artefacts';
+  const summary = 'SKIP: no files';
   await ctx.finalize({
     lastStage: { stage: ctx.stageId, summary, baseSha: activeStageRecord.baseSha },
     activeStage: activeStageRecord,
@@ -46,16 +54,17 @@ async function handleNoArtefacts(ctx, activeStageRecord) {
 /**
  * Process each artefact: run validation, post feedback, handle errors.
  */
-async function processArtefacts(ctx, artefacts, activeStageRecord) {
+async function processArtefacts(ctx, artefacts, activeStageRecord, outputType) {
   const perArtefact = [];
   const currentFeedback = [];
   let allOk = true;
 
   for (const artefact of artefacts) {
     const result = await performValidation({
-      typeId: artefact.type,
+      typeId: outputType,
       io: ctx.io,
       foundryDir: ctx.foundryDir,
+      artefacts: [artefact],
     });
 
     const outcome = handleArtefactResult(ctx, artefact, result, currentFeedback);
@@ -89,12 +98,10 @@ function handleArtefactResult(ctx, artefact, result, currentFeedback) {
   }
 
   if (result.error) {
-    markArtefactBlocked(ctx.io, artefact.file);
     return { ok: false, text: `${artefact.file}: ${result.error}` };
   }
 
   if (isAllErrors(result)) {
-    markArtefactBlocked(ctx.io, artefact.file);
     const messages = result.errors.map(e => e.message).join('; ');
     return { ok: false, text: `${artefact.file}: ${messages}` };
   }
@@ -143,11 +150,4 @@ function resolvePriorFeedback(ctx, currentFeedback) {
   }
 }
 
-/**
- * Mark an artefact as blocked in the artefacts table.
- */
-function markArtefactBlocked(io, file) {
-  const workText = io.readFile('WORK.md');
-  const updated = setArtefactStatus(workText, file, 'blocked');
-  io.writeFile('WORK.md', updated);
-}
+

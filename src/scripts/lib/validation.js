@@ -76,12 +76,14 @@ export async function getValidationPatterns(foundryDir, typeId, io) {
  * Run validation commands for an artefact type deterministically.
  *
  * Accepts an IO interface and foundryDir directly (no plugin context
- * dependency). Returns a plain result object.
+ * dependency). When `artefacts` is provided, the `{files}` substitution
+ * uses non-deleted files from the artefact list instead of expanding
+ * patterns across the worktree.
  *
- * @param {{ typeId: string, io: object, foundryDir: string }} params
+ * @param {{ typeId: string, io: object, foundryDir: string, artefacts?: Array<{file: string, state: string}> }} params
  * @returns {Promise<{ ok: boolean, validatorsRun: number, items: Array, errors: Array }>}
  */
-export async function performValidation({ typeId, io, foundryDir }) {
+export async function performValidation({ typeId, io, foundryDir, artefacts }) {
   let patterns;
   try {
     patterns = await getValidationPatterns(foundryDir, typeId, io);
@@ -96,15 +98,27 @@ export async function performValidation({ typeId, io, foundryDir }) {
   if (!laws?.length) {
     return { ok: true, validatorsRun: 0, items: [], errors: [] };
   }
-  return runValidatorsAndReport(laws, patterns, foundryDir);
+  return runValidatorsAndReport(laws, patterns, foundryDir, artefacts);
 }
 
 /**
  * Run validators for a set of laws and build the aggregated result.
+ *
+ * When `artefacts` is provided, the `{files}` substitution uses non-deleted
+ * files from the artefact list. Otherwise patterns are expanded across the
+ * worktree (backwards compatibility for callers like `foundry_validate_run`).
  */
-export async function runValidatorsAndReport(laws, patterns, foundryDir) {
+export async function runValidatorsAndReport(laws, patterns, foundryDir, artefacts) {
   const worktree = dirname(foundryDir);
-  const expandedFiles = await expandPatterns(patterns, worktree);
+  let expandedFiles;
+  if (artefacts) {
+    expandedFiles = artefacts
+      .filter(({ state }) => state !== 'deleted')
+      .map(({ file }) => file)
+      .sort();
+  } else {
+    expandedFiles = await expandPatterns(patterns, worktree);
+  }
   const substitutions = {
     pattern: patterns.map(shellQuote).join(' '),
     files: expandedFiles.map(shellQuote).join(' '),
