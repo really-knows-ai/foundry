@@ -160,6 +160,7 @@ function buildQuenchContext(cycleId, args, io) {
   const stageId = `quench:${cycleId}`;
   return { cycleId, stageId, io, git: args.git, finalize: buildFinalizeWrapper(cycleId, args, io),
     now: args.now, ulid: args.ulid, mint: args.mint, foundryDir: 'foundry', defaultModel: args.defaultModel,
+    baseBranch: args.baseBranch ?? 'main',
     feedback: buildFeedback(cycleId, stageId, io) };
 }
 
@@ -167,6 +168,7 @@ function buildAppraiseCtx(cycleId, args, io) {
   const stageId = `appraise:${cycleId}`;
   return { cycleId, io, git: args.git, finalize: buildFinalizeWrapper(cycleId, args, io),
     foundryDir: 'foundry', defaultModel: args.defaultModel,
+    baseBranch: args.baseBranch ?? 'main',
     activeStage: readActiveStage(io), lastStage: readLastStage(io),
     feedback: buildFeedback(cycleId, stageId, io) };
 }

@@ -30,18 +30,24 @@ export async function runQuench(ctx) {
     return { ok: false, error: `Cycle ${ctx.cycleId} has no output-type` };
   }
 
-  let artefacts;
-  try {
-    artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch: 'main' });
-  } catch (err) {
-    return { ok: false, error: `Failed to discover artefacts: ${err.message}` };
-  }
+  const discovery = await discoverArtefacts(ctx, outputType);
+  if (!discovery.ok) return discovery;
+  const artefacts = discovery.artefacts;
 
   if (artefacts.length === 0) {
     return await handleNoArtefacts(ctx, activeStageRecord);
   }
 
   return await processArtefacts(ctx, artefacts, activeStageRecord, outputType);
+}
+
+async function discoverArtefacts(ctx, outputType) {
+  try {
+    const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch: ctx.baseBranch ?? 'main' });
+    return { ok: true, artefacts };
+  } catch (err) {
+    return { ok: false, error: `Failed to discover artefacts: ${err.message}` };
+  }
 }
 
 /**
@@ -154,5 +160,3 @@ function resolvePriorFeedback(ctx, currentFeedback) {
     ctx.feedback.resolve(prior.id, decision);
   }
 }
-
-

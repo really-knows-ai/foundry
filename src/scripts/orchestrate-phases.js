@@ -65,8 +65,9 @@ async function missingModelViolation(cycleId, route, io, foundryDir, baseBranch)
   const fd = foundryDir || 'foundry';
   const base = baseBranch || 'main';
   const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
-  const artefact = await findOutputArtefacts(cfm, io, fd, base);
-  const affectedFiles = artefact ? [artefact.file] : [];
+  const outputType = cfm ? cfm['output-type'] : undefined;
+  const artefacts = outputType ? await getArtefactFiles(fd, outputType, io, { baseBranch: base }) : [];
+  const affectedFiles = artefacts.filter(a => a.state !== 'deleted').map(a => a.file);
   return violation(`cycle ${cycleId} stage ${route} has no model declared in cycle definition`, affectedFiles);
 }
 
