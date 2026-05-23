@@ -36,7 +36,7 @@ import { createMemoryAdminTools } from './tools/memory-admin-tools.js';
 import { createSnapshotTools } from './tools/snapshot-tools.js';
 import { createAttestationTools } from './tools/attestation-tools.js';
 import { createRefreshAgentsTool } from './tools/refresh-agents-tool.js';
-import { resolveGit } from '../scripts/lib/tool-paths.js';
+import { resolveGit, resolvePnpm } from '../scripts/lib/tool-paths.js';
 
 function findPackageRoot(startDir) {
   let dir = startDir;
@@ -103,7 +103,17 @@ function initGitRepo(worktree) {
   }
 }
 
+function ensurePackageJson(worktree) {
+  if (existsSync(path.join(worktree, 'package.json'))) return;
+  try {
+    execFileSync(resolvePnpm(), ['init'], { cwd: worktree, stdio: 'pipe' });
+  } catch (err) {
+    console.error('Foundry pnpm init error:', err.message);
+  }
+}
+
 function runBootstrapSequence(worktree, pkgRoot) {
+  ensurePackageJson(worktree);
   bootstrapDirectories(worktree);
   bootstrapGitignore(worktree);
   refreshAgents(worktree);

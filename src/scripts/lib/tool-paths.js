@@ -18,4 +18,8 @@ function resolveOpenCode() {
   return process.env.FOUNDRY_OPENCODE_PATH || resolveFromPath('opencode');
 }
 
-export { resolveGit, resolveOpenCode };
+function resolvePnpm() {
+  return process.env.FOUNDRY_PNPM_PATH || resolveFromPath('pnpm');
+}
+
+export { resolveGit, resolveOpenCode, resolvePnpm };

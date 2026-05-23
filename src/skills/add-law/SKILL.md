@@ -66,7 +66,7 @@ Walk the user through which elements of the law can be validated deterministical
 >
 > Shall I add validators for the script-checkable elements?
 
-For each script-checkable element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Prefer Node.js built-ins and libraries already in the project; hand-rolled heuristics are fragile — use available packages instead of writing custom validation logic from scratch.
+For each script-checkable element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Use existing project dependencies and Node.js built‑ins. Hand‑rolled heuristics (custom syllable counters, regex parsers, manual character walks) are a last resort — they produce false positives, waste tokens on debugging, and break on edge cases. Install a library instead. Only write validation logic from scratch when no npm package exists for the task and the heuristic is trivially correct.
 
 **Validators**: Ask about `validators` (optional) — offer to create one or skip.
 
