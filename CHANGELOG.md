@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.2] - 2026-05-23
+
+### Fixed
+
+- Guide agents to omit empty `inputs` for source cycles and preserve stage-specific model overrides when creating cycles.
+
 ## [3.5.1] - 2026-05-22
 
 ### Fixed
