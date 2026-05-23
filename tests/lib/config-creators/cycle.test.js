@@ -47,6 +47,34 @@ test('cycle creator: happy path', async () => {
   assert.match(commit[2], /^config: add cycle draft\n\nvia foundry_config_create_cycle$/);
 });
 
+test('cycle creator: source cycle can omit inputs and keep stage models', async () => {
+  const io = makeAsyncMockIO({
+    'foundry/artefacts/haiku/definition.md': '',
+  });
+  const path = 'foundry/cycles/write-haiku.md';
+  const exec = makeFakeExecFile([path]);
+  const args = {
+    id: 'write-haiku',
+    name: 'Write Haiku',
+    outputType: 'haiku',
+    targets: [],
+    models: {
+      forge: 'opencode-go/deepseek-v4-flash',
+      appraise: 'opencode-go/qwen3.6-plus',
+    },
+    description: 'Generates prompt-directed haiku poems.',
+  };
+
+  const out = await create({ ...args, io, execFile: exec });
+
+  assert.equal(out.ok, true);
+  assert.equal(out.path, path);
+  assert.equal(io._get(path), assembleCycleMarkdown(args));
+  assert.equal(io._get(path).includes('inputs:'), false);
+  assert.equal(io._get(path).includes('models:\n  forge: opencode-go/deepseek-v4-flash\n'), true);
+  assert.equal(io._get(path).includes('  appraise: opencode-go/qwen3.6-plus\n'), true);
+});
+
 test('cycle creator: validator failure', async () => {
   const io = seed();
   const exec = makeFakeExecFile();

@@ -160,7 +160,7 @@ function cycleArgs(s) { return {
   inputs: s.object({
     type: s.enum(['any-of', 'all-of']).describe('Contract type: any-of (at least one) or all-of (all must exist)'),
     artefacts: s.array(s.string()).describe('Artefact type IDs this cycle reads'),
-  }).optional().describe('Input contract for this cycle'),
+  }).optional().describe('Input contract for this cycle. Omit for source cycles that start from the user goal; empty artefacts arrays are invalid.'),
   targets: s.array(s.string()).optional().describe('Downstream cycle IDs this cycle can route to'),
   humanAppraise: s.boolean().optional().describe('Include human-appraise in every iteration'),
   deadlockAppraise: s.boolean().optional().describe('Route to human-appraise on LLM appraiser deadlock'),
@@ -173,7 +173,7 @@ function cycleArgs(s) { return {
     read: s.array(s.string()).describe('Memory store keys this cycle can read'),
     write: s.array(s.string()).describe('Memory store keys this cycle can write'),
   }).optional().describe('Flow memory permissions'),
-  models: s.object({}).optional().describe('Per-stage model overrides (e.g. { forge: "openai/gpt-4o" })'),
+  models: s.object({}).optional().describe('Per-stage model overrides (e.g. { forge: "opencode-go/deepseek-v4-flash", appraise: "opencode-go/qwen3.6-plus" }). Preserve user-selected stage models.'),
   description: s.string().optional().describe('Prose description placed after frontmatter'),
 }; }
 

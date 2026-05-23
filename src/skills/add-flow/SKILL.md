@@ -69,7 +69,7 @@ Create missing dependencies in validation order:
 
 3. **Appraisers** (may reference models): For each new appraiser, gather `id`, `name`, `description`, and optional `model` preference. Context object: `{id, name, description, model?}`.
 
-4. **Cycles** (reference artefact types, laws, appraisers): For each new cycle, gather `id`, `name`, `outputType`, `description`, and any optional settings (inputs, targets, appraise, assay, memory, models). Context object: `{id, name, outputType, description, inputs?, targets?, humanAppraise?, deadlockAppraise?, deadlockIterations?, maxIterations?, assay?, memory?, models?}`.
+4. **Cycles** (reference artefact types, laws, appraisers): For each new cycle, gather `id`, `name`, `outputType`, `description`, and any optional settings (inputs, targets, appraise, assay, memory, models). Context object: `{id, name, outputType, description, inputs?, targets?, humanAppraise?, deadlockAppraise?, deadlockIterations?, maxIterations?, assay?, memory?, models?}`. For a source cycle that starts from the user's run goal and has no upstream artefact dependency, omit `inputs` entirely; never pass `inputs` with an empty `artefacts` array.
 
 For the haiku example, default to a `haiku` artefact type, `haikus/*.md` file pattern, laws for form, imagery, and mood, a deterministic syllable validator where project dependencies allow it, two or three distinct appraisers, one cycle, and one flow.
 
@@ -92,6 +92,7 @@ Flow: <id> — <name>
     · <id> — <description>
   Cycles:
     · <id> → <outputType> — <description>
+      inputs/models: <omitted or explicit settings>
 ```
 
 Ask "Proceed with this plan?" — do not build anything until the user confirms.
@@ -121,8 +122,10 @@ Build order (dependency order):
 
 4. **Cycles**: For each new cycle, invoke the `add-cycle` protocol with the captured context.
 
-   > Invoke the add-cycle protocol with context: `{id: "haiku-cycle", name: "Haiku Cycle", outputType: "haiku", description: "Generates haiku poems"}`.
+   > Invoke the add-cycle protocol with context: `{id: "haiku-cycle", name: "Haiku Cycle", outputType: "haiku", description: "Generates haiku poems", models: {forge: "opencode-go/deepseek-v4-flash", appraise: "opencode-go/qwen3.6-plus"}}`.
    > If all required fields are present, proceed directly to Build. Otherwise ask for missing required fields only.
+
+   Preserve every user-selected stage model in the cycle context. If the cycle has no upstream artefact input, leave `inputs` absent from the context.
 
 **Build-only mode**: When all required fields for a sub-skill are present in the context, the sub-skill skips Understand, Plan, and Confirm — proceeding directly to validate → create → commit. When only some required fields are present, the sub-skill enters its Understand phase to ask only for those missing required fields, then proceeds to Build (still skipping Plan and Confirm since the parent's combined plan already handled confirmation). Optional fields that are missing are silently skipped.
 
