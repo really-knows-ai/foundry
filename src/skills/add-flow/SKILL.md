@@ -69,7 +69,7 @@ Create missing dependencies in validation order:
 
 3. **Appraisers** (may reference models): For each new appraiser, gather `id`, `name`, `description`, and optional `model` preference. Context object: `{id, name, description, model?}`.
 
-4. **Cycles** (reference artefact types, laws, appraisers): For each new cycle, gather `id`, `name`, `outputType`, `description`, and any optional settings (inputs, targets, appraise, assay, memory, models). Context object: `{id, name, outputType, description, inputs?, targets?, alwaysHumanAppraise?, deadlockHumanAppraise?, deadlockIterations?, maxIterations?, assay?, memory?, models?}`. For a source cycle that starts from the user's run goal and has no upstream artefact dependency, omit `inputs` entirely; never pass `inputs` with an empty `artefacts` array.
+4. **Cycles** (reference artefact types, laws, appraisers): For each new cycle, gather `id`, `name`, `outputType`, `description`, and any optional settings (inputs, targets, appraise, assay, memory, models). Context object: `{id, name, outputType, description, inputs?, targets?, alwaysHumanAppraise?, deadlockHumanAppraise?, maxIterations?, assay?, memory?, models?}`. For a source cycle that starts from the user's run goal and has no upstream artefact dependency, omit `inputs` entirely; never pass `inputs` with an empty `artefacts` array.
 
 For the haiku example, default to a `haiku` artefact type, `haikus/*.md` file pattern, laws for form, imagery, and mood, a deterministic syllable validator where project dependencies allow it, two or three distinct appraisers, one cycle, and one flow.
 
