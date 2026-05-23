@@ -255,6 +255,8 @@ models:
   assert.strictEqual(typeof r1.prompt, 'string');
   assert.match(r1.prompt, /foundry_stage_begin/);
   assert.match(r1.prompt, /foundry_stage_end/);
+  assert.match(r1.reason, /starting cycle/);
+  assert.match(r1.reason, /routing to forge/);
 });
 
 // ---------------------------------------------------------------------------

@@ -193,17 +193,21 @@ async function handleQuenchRoute(sortResult, preCheck, args, io) {
   return dispatchByRoute(nextSort, args, preCheck, io);
 }
 
-async function handleAppraiseGatherRoute(sortResult, preCheck, args, io) {
-  writeStageRecord(io, preCheck.cycleId, sortResult.route);
-  const result = await gatherAppraiseContext(buildAppraiseCtx(preCheck.cycleId, args, io));
-  if (result.action === 'violation') { clearActiveStage(io); return result; }
+async function dispatchAppraiseOrConsolidate(sortResult, preCheck, args, io, result) {
   if (!result.tasks || result.tasks.length === 0) {
-    // No appraisers/artefacts — consolidate with empty results to advance
     return handleAppraiseConsolidateRoute(sortResult, preCheck, { ...args, lastResults: [] }, io);
   }
   const validationErr = validateDispatchMulti(result);
   if (validationErr) return validationErr;
+  if (sortResult.reason !== undefined) result.reason = sortResult.reason;
   return result;
+}
+
+async function handleAppraiseGatherRoute(sortResult, preCheck, args, io) {
+  writeStageRecord(io, preCheck.cycleId, sortResult.route);
+  const result = await gatherAppraiseContext(buildAppraiseCtx(preCheck.cycleId, args, io));
+  if (result.action === 'violation') { clearActiveStage(io); return result; }
+  return dispatchAppraiseOrConsolidate(sortResult, preCheck, args, io, result);
 }
 
 async function handleAppraiseConsolidateRoute(sortResult, preCheck, args, io) {

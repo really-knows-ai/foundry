@@ -1376,8 +1376,8 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
     assert.equal(res.route, 'blocked');
   });
 
-  it('uses default deadlock threshold of 5 when frontmatter omits deadlock-iterations', () => {
-    const workTextDefaultThreshold = makeWorkMd({ stages, deadlockIterations: undefined });
+  it('uses configured deadlock threshold from frontmatter', () => {
+    const workMd = makeWorkMd({ stages, deadlockIterations: 5, maxIterations: 100 });
     const fourStateHistory = [
       { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },
       { state: 'rejected', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:11:00Z', reason: 'still bad' },
@@ -1389,7 +1389,7 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
       { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:02:00Z' },
     ];
     const io = makeSortIO({
-      'WORK.md': workTextDefaultThreshold,
+      'WORK.md': workMd,
       'WORK.history.yaml': manyAppraiseRoundsHistory,
       'WORK.feedback.yaml': makeFeedbackYaml([
         { file: 'a.md', history: fourStateHistory },
@@ -1467,5 +1467,90 @@ describe('runSort — deadlock pass runs before routing (spec §6.1)', () => {
     // And the snapshot was written.
     const after = yaml.load(io._get('WORK.feedback.yaml'));
     assert.equal(after.items[0].history[0].state, 'deadlocked');
+  });
+});
+
+describe('runSort routing reasons', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+
+  it('includes reason for first forge dispatch', () => {
+    const io = makeSortIO({
+      'WORK.md': makeWorkMd({ stages, maxIterations: 3 }),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+    assert.match(res.reason, /starting cycle/);
+    assert.match(res.reason, /iteration 1 of 3/);
+  });
+
+  it('includes reason for forge revision after quench feedback', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { file: 'a.md', history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }] },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+    assert.match(res.reason, /unresolved feedback/);
+    assert.match(res.reason, /iteration 2 of 3/);
+  });
+
+  it('includes reason for appraise dispatch', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { file: 'a.md', history: [{ state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }] },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'appraise:check');
+    assert.match(res.reason, /routing to appraise/);
+  });
+
+  it('includes reason for blocked route', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 2 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' },
+        { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' },
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:03:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:04:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { file: 'a.md', history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:04:00Z' }] },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'blocked');
+    assert.match(res.reason, /max iterations/);
+    assert.match(res.reason, /unresolved feedback/);
+  });
+
+  it('includes reason for done route', () => {
+    const workText = makeWorkMd({ stages: ['forge:write', 'quench:review', 'appraise:check'], maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' },
+        { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'done');
+    assert.match(res.reason, /no unresolved feedback/);
   });
 });

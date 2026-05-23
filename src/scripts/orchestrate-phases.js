@@ -21,6 +21,7 @@ import {
   tryCommit,
   synthesizeStages,
   renderDispatchPrompt,
+  checkIterationLimits,
 } from './orchestrate-cycle.js';
 import {
   doneAction,
@@ -71,9 +72,15 @@ function getRouteBase(route) {
 }
 
 export async function handleSortResult(sortResult, ctx) {
-  const { route, model, token } = sortResult;
+  const { route, model, token, reason } = sortResult;
   const routeBase = getRouteBase(route);
-  if (isTerminalRoute(route)) return handleTerminalRoute(route, sortResult, ctx);
+  const result = await resolveRouteResult({ route, routeBase, model, token, ctx });
+  if (reason !== undefined) result.reason = reason;
+  return result;
+}
+
+async function resolveRouteResult({ route, routeBase, model, token, ctx }) {
+  if (isTerminalRoute(route)) return handleTerminalRoute(route, { route }, ctx);
   if (routeBase === 'quench' || routeBase === 'appraise') return violation(routeBase + ' route reached handleSortResult');
   if (routeBase === 'human-appraise') return humanAppraiseAction(route, token, ctx);
   return buildDispatchAction(route, model, token, ctx);
@@ -159,10 +166,11 @@ function resolveStages(cfm, cycleId, hasValidation, assayExtractors) {
 }
 
 function applyFmDefaults(newFm, cfm, assayExtractors) {
-  newFm['max-iterations'] = cfm['max-iterations'] ?? 3;
+  const maxIt = cfm['max-iterations'] ?? 3;
+  newFm['max-iterations'] = maxIt;
   newFm['human-appraise'] = cfm['human-appraise'] === true;
   newFm['deadlock-appraise'] = cfm['deadlock-appraise'] !== false;
-  newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? 5;
+  newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? maxIt;
   if (cfm.models) newFm.models = cfm.models;
   if (assayExtractors) newFm.assay = { extractors: assayExtractors };
 }
@@ -218,6 +226,8 @@ async function completeSetup(ctx) {
   const hasValidation = ctx.lawsWithValidators && ctx.lawsWithValidators.length > 0;
   const stagesResult = resolveStages(ctx.cfm, ctx.cycleId, hasValidation, ctx.assayResult.extractors);
   if (stagesResult.error) return stagesResult.error;
+  const validityErr = checkIterationLimits(ctx.cfm, ctx.cycleId);
+  if (validityErr) return validityErr;
   const newWork = buildNewFrontmatter(ctx.workContent, stagesResult, ctx.cfm, ctx.assayResult.extractors);
   ctx.io.writeFile('WORK.md', newWork);
   return trySetupCommit(ctx);

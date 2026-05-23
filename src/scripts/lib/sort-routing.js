@@ -11,6 +11,8 @@
 // state is neither 'resolved' nor 'deadlocked'.
 const isOpenItem = (f) => f.state !== 'resolved' && f.state !== 'deadlocked';
 
+export { isOpenItem };
+
 export function baseStage(stage) {
   return stage.split(':')[0];
 }

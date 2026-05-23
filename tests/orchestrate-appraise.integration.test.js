@@ -195,6 +195,7 @@ test('AC5.1: appraise gather returns dispatch_multi with one task per appraiser'
     assert.match(r2.tasks[i].prompt, /You are a strict reviewer/,
       `tasks[${i}].prompt should include appraiser personality`);
   }
+  assert.match(r2.reason, /routing to appraise/);
 });
 
 // ---------------------------------------------------------------------------
@@ -333,6 +334,7 @@ file-patterns: ["out/*.md"]
   // No appraisers → empty dispatch_multi → internal consolidate → done
   assert.strictEqual(r2.action, 'done',
     'no appraisers should lead to done');
+  assert.match(r2.reason, /no unresolved feedback/);
 });
 
 // ---------------------------------------------------------------------------

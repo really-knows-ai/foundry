@@ -85,7 +85,7 @@ If the parent flow or required artefact type is missing and the user's goal clea
 **Optional clusters** — After each cluster, ask whether the user wants to configure it; if not, skip:
 
 - **Routing**: `inputs` (input contract: `{type: "any-of"|"all-of", artefacts: string[]}`; omit for source cycles with no upstream artefact dependency), `targets` (cycle IDs to route to after completion), `maxIterations` (maximum iterations before forced progression)
-- **Human-appraise**: `humanAppraise` (boolean, default false) — human reviews every iteration; `deadlockAppraise` (boolean, default true) — human is pulled in when LLM appraisers deadlock; `deadlockIterations` (number, default 5) — deadlock threshold. Only applies when either appraise is enabled.
+- **Human-appraise**: `humanAppraise` (boolean, default false) — human reviews every iteration; `deadlockAppraise` (boolean, default true) — human is pulled in when LLM appraisers deadlock; `deadlockIterations` (number, defaults to `max-iterations` value) — deadlock threshold. Only applies when either appraise is enabled.
 - **Memory and models**: `assay` (assay configuration), `memory` (memory configuration), `models` (stage-specific model overrides, e.g. `{forge: "openai/gpt-4o", appraise: "openai/gpt-4o"}`). For models, offer each stage (forge, quench, appraise) individually. If the user has no preference, omit the `models` map and use the session defaults.
 
 ### 2. Plan

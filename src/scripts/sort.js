@@ -22,6 +22,7 @@ import {
   findFirst,
   determineRoute,
 } from './lib/sort-routing.js';
+import { reasonForRoute } from './lib/sort-reason.js';
 import {
   defaultIO,
   checkModifiedFiles,
@@ -85,11 +86,12 @@ function validateWorkMd(workPath, io) {
 }
 
 function extractFrontmatterDefaults(frontmatter) {
+  const maxIt = frontmatter['max-iterations'] ?? 3;
   return {
-    maxIterations: frontmatter['max-iterations'] ?? 3,
+    maxIterations: maxIt,
     humanAppraiseEnabled: frontmatter['human-appraise'] === true,
     deadlockAppraise: frontmatter['deadlock-appraise'] !== false,
-    deadlockIterations: frontmatter['deadlock-iterations'] ?? 5,
+    deadlockIterations: frontmatter['deadlock-iterations'] ?? maxIt,
   };
 }
 
@@ -184,8 +186,8 @@ function checkModel(route, frontmatter, agentsDir, io, defaultModel) {
   return { model: typeof modelResult === 'string' ? modelResult : null };
 }
 
-function mintToken({ route, model, mint, cycle, now, ulid }) {
-  const result = { route, ...(model ? { model } : {}) };
+function mintToken({ route, model, mint, cycle, now, ulid, reason }) {
+  const result = { route, ...(model ? { model } : {}), reason };
   if (mint && isDispatchableRoute(route)) {
     const token = mint({ route, cycle, exp: now + 10 * 60 * 1000, nonce: ulid(now) });
     if (token) result.token = token;
@@ -268,6 +270,7 @@ export function runSort(args = {}, io = defaultIO) {
 
   return mintToken({
     route, model: modelCheck.model, mint: opts.mint, cycle: prep.cycle, now: opts.now, ulid: opts.ulid,
+    reason: reasonForRoute(route, prep),
   });
 }
 
