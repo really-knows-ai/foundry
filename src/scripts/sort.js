@@ -89,8 +89,8 @@ function extractFrontmatterDefaults(frontmatter) {
   const maxIt = frontmatter['max-iterations'] ?? 3;
   return {
     maxIterations: maxIt,
-    humanAppraiseEnabled: frontmatter['human-appraise'] === true,
-    deadlockAppraise: frontmatter['deadlock-appraise'] !== false,
+    alwaysHumanAppraise: frontmatter['always-human-appraise'] === true,
+    deadlockHumanAppraise: frontmatter['deadlock-human-appraise'] !== false,
     deadlockIterations: frontmatter['deadlock-iterations'] ?? maxIt,
   };
 }
@@ -105,9 +105,9 @@ function checkDirtyFiles(history, io) {
     + `Re-run foundry_orchestrate or commit the listed files manually before retrying.`;
 }
 
-function loadFeedbackAndRunDeadlock(cycle, deadlockIterations, deadlockAppraise, io) {
+function loadFeedbackAndRunDeadlock(cycle, deadlockIterations, deadlockHumanAppraise, io) {
   const store = openFeedbackStore('WORK.feedback.yaml', io);
-  runDeadlockPass(store, { threshold: deadlockIterations, enabled: deadlockAppraise, cycle });
+  runDeadlockPass(store, { threshold: deadlockIterations, enabled: deadlockHumanAppraise, cycle });
   const feedback = store.list().map(item => ({
     id: item.id,
     file: item.file,
@@ -216,7 +216,7 @@ function preparePhases({ workPath, historyPath, foundryDir, cycleDef, io }) {
   const dirtyError = checkDirtyFiles(history, io);
   if (dirtyError) return { kind: 'violation', details: dirtyError };
   const { feedback, anyDeadlocked } = loadFeedbackAndRunDeadlock(
-    cycle, defaults.deadlockIterations, defaults.deadlockAppraise, io,
+    cycle, defaults.deadlockIterations, defaults.deadlockHumanAppraise, io,
   );
   const fileCheck = checkModifiedFilesAfterLastStage({
     history, foundryDir, cycleDef, cycle, frontmatter, io,

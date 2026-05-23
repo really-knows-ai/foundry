@@ -43,8 +43,8 @@ stages:
   - quench:test-cycle
   - appraise:test-cycle
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 5
 models:
   forge: openai/gpt-4o

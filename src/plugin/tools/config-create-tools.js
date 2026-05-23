@@ -162,8 +162,8 @@ function cycleArgs(s) { return {
     artefacts: s.array(s.string()).describe('Artefact type IDs this cycle reads'),
   }).optional().describe('Input contract for this cycle. Omit for source cycles that start from the user goal; empty artefacts arrays are invalid.'),
   targets: s.array(s.string()).optional().describe('Downstream cycle IDs this cycle can route to'),
-  humanAppraise: s.boolean().optional().describe('Include human-appraise in every iteration'),
-  deadlockAppraise: s.boolean().optional().describe('Route to human-appraise on LLM appraiser deadlock'),
+  alwaysHumanAppraise: s.boolean().optional().describe('Include human-appraise in every iteration'),
+  deadlockHumanAppraise: s.boolean().optional().describe('Route to human-appraise on LLM appraiser deadlock'),
   deadlockIterations: s.number().optional().describe('Iteration threshold for deadlock detection'),
   maxIterations: s.number().optional().describe('Maximum forge iterations before cycle blocks'),
   assay: s.object({

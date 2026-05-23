@@ -49,7 +49,7 @@ function makeWorkMd(options = {}) {
   ];
   appendOptional(lines, 'max-iterations', maxIterations);
   appendOptional(lines, 'deadlock-iterations', deadlockIterations);
-  appendOptional(lines, 'deadlock-appraise', options.deadlockAppraise);
+  appendOptional(lines, 'deadlock-human-appraise', options.deadlockHumanAppraise);
   lines.push('---', '');
   return lines.join('\n');
 }
@@ -1298,10 +1298,10 @@ describe('runSort — per-item deadlock (spec §6.1)', () => {
     assert.equal(res.route, 'human-appraise:review');
   });
 
-  it('when deadlock-appraise: false, no snapshot is written and route is not forced', () => {
+  it('when deadlock-human-appraise: false, no snapshot is written and route is not forced', () => {
     const workTextDisabled = makeWorkMd({
       stages: ['forge:write', 'quench:review', 'appraise:check'],
-      deadlockAppraise: false,
+      deadlockHumanAppraise: false,
     });
     const fiveStateHistory = [
       { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-04-24T10:14:00Z' },

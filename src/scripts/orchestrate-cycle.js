@@ -150,13 +150,13 @@ export function tryCommit(git, message, allowedPatterns, phase) {
 // Stage synthesis (pure utility, used by setupWorkfile and exported publicly).
 // ---------------------------------------------------------------------------
 
-export function synthesizeStages({ cycleId, hasValidation, humanAppraise, assay = false }) {
+export function synthesizeStages({ cycleId, hasValidation, alwaysHumanAppraise, assay = false }) {
   const stages = [];
   if (assay) stages.push(`assay:${cycleId}`);
   stages.push(`forge:${cycleId}`);
   if (hasValidation) stages.push(`quench:${cycleId}`);
   stages.push(`appraise:${cycleId}`);
-  if (humanAppraise) stages.push(`human-appraise:${cycleId}`);
+  if (alwaysHumanAppraise) stages.push(`human-appraise:${cycleId}`);
   return stages;
 }
 

@@ -297,12 +297,12 @@ test('assembleCycleMarkdown: with boolean flags', () => {
     id: 'draft',
     name: 'Draft',
     outputType: 'short-story',
-    humanAppraise: true,
-    deadlockAppraise: false,
+    alwaysHumanAppraise: true,
+    deadlockHumanAppraise: false,
   });
 
-  assert.match(result, /human-appraise: true/);
-  assert.match(result, /deadlock-appraise: false/);
+  assert.match(result, /always-human-appraise: true/);
+  assert.match(result, /deadlock-human-appraise: false/);
 });
 
 test('assembleCycleMarkdown: with numeric fields', () => {
@@ -361,8 +361,8 @@ test('assembleCycleMarkdown: all optional fields together', () => {
     outputType: 'article',
     inputs: { type: 'all-of', artefacts: ['brief', 'research'] },
     targets: ['review'],
-    humanAppraise: true,
-    deadlockAppraise: false,
+    alwaysHumanAppraise: true,
+    deadlockHumanAppraise: false,
     deadlockIterations: 5,
     maxIterations: 20,
     assay: { extractors: ['quality'] },
@@ -378,8 +378,8 @@ test('assembleCycleMarkdown: all optional fields together', () => {
   assert.match(result,
     /inputs:\n {2}type: all-of\n {2}artefacts:\n {4}- brief\n {4}- research/);
   assert.match(result, /targets:\n {2}- review/);
-  assert.match(result, /human-appraise: true/);
-  assert.match(result, /deadlock-appraise: false/);
+  assert.match(result, /always-human-appraise: true/);
+  assert.match(result, /deadlock-human-appraise: false/);
   assert.match(result, /deadlock-iterations: 5/);
   assert.match(result, /max-iterations: 20/);
   assert.match(result,
@@ -400,7 +400,7 @@ test('assembleCycleMarkdown: omits optional fields when not provided', () => {
 
   assert.doesNotMatch(result, /inputs/);
   assert.doesNotMatch(result, /targets/);
-  assert.doesNotMatch(result, /human-appraise/);
+  assert.doesNotMatch(result, /always-human-appraise/);
   assert.doesNotMatch(result, /deadlock/);
   assert.doesNotMatch(result, /assay/);
   assert.doesNotMatch(result, /memory/);
@@ -413,14 +413,14 @@ test('assembleCycleMarkdown: camelCase to kebab-case mapping', () => {
     id: 'mapping-test',
     name: 'Mapping Test',
     outputType: 'test',
-    humanAppraise: true,
-    deadlockAppraise: true,
+    alwaysHumanAppraise: true,
+    deadlockHumanAppraise: true,
     deadlockIterations: 3,
     maxIterations: 10,
   });
 
-  assert.match(result, /human-appraise/);
-  assert.match(result, /deadlock-appraise/);
+  assert.match(result, /always-human-appraise/);
+  assert.match(result, /deadlock-human-appraise/);
   assert.match(result, /deadlock-iterations/);
   assert.match(result, /max-iterations/);
 });

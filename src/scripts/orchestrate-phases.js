@@ -157,7 +157,7 @@ function stageTag(s, cycleId) {
 
 function resolveStages(cfm, cycleId, hasValidation, assayExtractors) {
   if (!Array.isArray(cfm.stages)) {
-    return synthesizeStages({ cycleId, hasValidation, humanAppraise: cfm['human-appraise'] === true, assay: !!assayExtractors });
+    return synthesizeStages({ cycleId, hasValidation, alwaysHumanAppraise: cfm['always-human-appraise'] === true, assay: !!assayExtractors });
   }
   if (cfm.stages.length === 0) {
     return { error: violation(`cycle ${cycleId} has no stages declared in cycle definition`, ['WORK.md']) };
@@ -168,8 +168,8 @@ function resolveStages(cfm, cycleId, hasValidation, assayExtractors) {
 function applyFmDefaults(newFm, cfm, assayExtractors) {
   const maxIt = cfm['max-iterations'] ?? 3;
   newFm['max-iterations'] = maxIt;
-  newFm['human-appraise'] = cfm['human-appraise'] === true;
-  newFm['deadlock-appraise'] = cfm['deadlock-appraise'] !== false;
+  newFm['always-human-appraise'] = cfm['always-human-appraise'] === true;
+  newFm['deadlock-human-appraise'] = cfm['deadlock-human-appraise'] !== false;
   newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? maxIt;
   if (cfm.models) newFm.models = cfm.models;
   if (assayExtractors) newFm.assay = { extractors: assayExtractors };

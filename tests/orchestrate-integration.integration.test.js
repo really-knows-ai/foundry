@@ -47,8 +47,8 @@ output-type: haiku
 inputs: []
 targets: [create-short-story]
 stages: [forge, quench, appraise]
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 max-iterations: 3
 models:

@@ -38,7 +38,7 @@ Do not tell the user to call branch tools directly.
 
 When invoked with pre-filled fields matching the `foundry_config_create_cycle` tool args, skip questions for provided fields. Missing fields trigger clarifying questions.
 
-Context fields: `{id, name, outputType, description, inputs?, targets?, humanAppraise?, deadlockAppraise?, deadlockIterations?, maxIterations?, assay?, memory?, models?}`
+Context fields: `{id, name, outputType, description, inputs?, targets?, alwaysHumanAppraise?, deadlockHumanAppraise?, deadlockIterations?, maxIterations?, assay?, memory?, models?}`
 
 `inputs` is optional. A source cycle that starts from the user's run goal and has no upstream artefact dependency omits `inputs` entirely. Empty input contracts are invalid: do not pass `inputs: {type: "any-of", artefacts: []}`.
 
@@ -85,12 +85,12 @@ If the parent flow or required artefact type is missing and the user's goal clea
 **Optional clusters** — After each cluster, ask whether the user wants to configure it; if not, skip:
 
 - **Routing**: `inputs` (input contract: `{type: "any-of"|"all-of", artefacts: string[]}`; omit for source cycles with no upstream artefact dependency), `targets` (cycle IDs to route to after completion), `maxIterations` (maximum iterations before forced progression)
-- **Human-appraise**: `humanAppraise` (boolean, default false) — human reviews every iteration; `deadlockAppraise` (boolean, default true) — human is pulled in when LLM appraisers deadlock; `deadlockIterations` (number, defaults to `max-iterations` value) — deadlock threshold. Only applies when either appraise is enabled.
+- **Human-appraise**: `alwaysHumanAppraise` (boolean, default false) — human reviews every iteration; `deadlockHumanAppraise` (boolean, default true) — human is pulled in when LLM appraisers deadlock; `deadlockIterations` (number, defaults to `max-iterations` value) — deadlock threshold. Only applies when either appraise is enabled.
 - **Memory and models**: `assay` (assay configuration), `memory` (memory configuration), `models` (stage-specific model overrides, e.g. `{forge: "openai/gpt-4o", appraise: "openai/gpt-4o"}`). For models, offer each stage (forge, quench, appraise) individually. If the user has no preference, omit the `models` map and use the session defaults.
 
 ### 2. Plan
 
-Present a structured summary of the cycle definition: id, name, outputType, description, and any configured optional fields (inputs, targets, humanAppraise, deadlockAppraise, deadlockIterations, maxIterations, assay, memory, models). Include only fields that have values.
+Present a structured summary of the cycle definition: id, name, outputType, description, and any configured optional fields (inputs, targets, alwaysHumanAppraise, deadlockHumanAppraise, deadlockIterations, maxIterations, assay, memory, models). Include only fields that have values.
 
 Ask: "Does this capture the cycle correctly?" Iterate until the user is satisfied.
 
@@ -102,7 +102,7 @@ Ask: "Proceed with this plan?" — wait for user answer before building. If the 
 
 1. **Validate**: Call `foundry_config_validate_cycle({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that do not exist yet.
 
-2. **Create**: Call `foundry_config_create_cycle({ id: "<id>", name: "<name>", outputType: "<type>", description: "<description>", targets: ..., humanAppraise: ..., deadlockAppraise: ..., deadlockIterations: ..., maxIterations: ..., assay: ..., memory: ..., models: ... })`. Include `inputs` only when the cycle reads upstream artefacts, and include `models` whenever the user selected stage-specific model overrides. The tool:
+2. **Create**: Call `foundry_config_create_cycle({ id: "<id>", name: "<name>", outputType: "<type>", description: "<description>", targets: ..., alwaysHumanAppraise: ..., deadlockHumanAppraise: ..., deadlockIterations: ..., maxIterations: ..., assay: ..., memory: ..., models: ... })`. Include `inputs` only when the cycle reads upstream artefacts, and include `models` whenever the user selected stage-specific model overrides. The tool:
    - re-validates the body (TOCTOU);
    - writes `foundry/cycles/<id>.md`;
    - produces one git commit on the current `config/*` branch.

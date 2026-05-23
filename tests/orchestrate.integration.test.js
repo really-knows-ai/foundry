@@ -67,7 +67,7 @@ test('synthesizeStages: forge + quench + appraise when validation exists', () =>
   const stages = synthesizeStages({
     cycleId: 'c1',
     hasValidation: true,
-    humanAppraise: false
+    alwaysHumanAppraise: false
   });
   assert.deepStrictEqual(stages, ['forge:c1', 'quench:c1', 'appraise:c1']);
 });
@@ -76,7 +76,7 @@ test('synthesizeStages: forge + appraise when no validation', () => {
   const stages = synthesizeStages({
     cycleId: 'c1',
     hasValidation: false,
-    humanAppraise: false
+    alwaysHumanAppraise: false
   });
   assert.deepStrictEqual(stages, ['forge:c1', 'appraise:c1']);
 });
@@ -85,7 +85,7 @@ test('synthesizeStages: appends human-appraise when flag true', () => {
   const stages = synthesizeStages({
     cycleId: 'c1',
     hasValidation: true,
-    humanAppraise: true
+    alwaysHumanAppraise: true
   });
   assert.deepStrictEqual(stages, [
     'forge:c1', 'quench:c1', 'appraise:c1', 'human-appraise:c1'
@@ -94,17 +94,17 @@ test('synthesizeStages: appends human-appraise when flag true', () => {
 
 describe('synthesizeStages with assay', () => {
   it('prepends assay:<cycleId> when assay is true', () => {
-    const out = synthesizeStages({ cycleId: 'c', hasValidation: true, humanAppraise: false, assay: true });
+    const out = synthesizeStages({ cycleId: 'c', hasValidation: true, alwaysHumanAppraise: false, assay: true });
     assert.deepEqual(out, ['assay:c', 'forge:c', 'quench:c', 'appraise:c']);
   });
 
   it('omits assay by default', () => {
-    const out = synthesizeStages({ cycleId: 'c', hasValidation: false, humanAppraise: false });
+    const out = synthesizeStages({ cycleId: 'c', hasValidation: false, alwaysHumanAppraise: false });
     assert.deepEqual(out, ['forge:c', 'appraise:c']);
   });
 
   it('works alongside human-appraise', () => {
-    const out = synthesizeStages({ cycleId: 'c', hasValidation: false, humanAppraise: true, assay: true });
+    const out = synthesizeStages({ cycleId: 'c', hasValidation: false, alwaysHumanAppraise: true, assay: true });
     assert.deepEqual(out, ['assay:c', 'forge:c', 'appraise:c', 'human-appraise:c']);
   });
 });
@@ -144,8 +144,8 @@ output-type: haiku
 inputs: []
 targets: []
 stages: [forge, quench, appraise]
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -237,8 +237,8 @@ stages:
   - forge:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -259,8 +259,8 @@ haiku
 id: create-haiku
 output-type: haiku
 stages: [forge, appraise]
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 ---
 `,
@@ -300,8 +300,8 @@ stages:
   - quench:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -358,8 +358,8 @@ stages:
   - forge:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -479,8 +479,8 @@ stages:
   - quench:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -509,8 +509,8 @@ haiku
 id: create-haiku
 output-type: haiku
 stages: [forge, quench, appraise]
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -939,8 +939,8 @@ stages:
   - forge:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -975,8 +975,8 @@ haiku
 id: create-haiku
 output-type: haiku
 stages: [forge, appraise]
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 ---
 `,
@@ -1052,8 +1052,8 @@ stages:
   - forge:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -1137,8 +1137,8 @@ stages:
   - forge:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
@@ -1219,8 +1219,8 @@ stages:
   - forge:create-haiku
   - appraise:create-haiku
 max-iterations: 3
-human-appraise: false
-deadlock-appraise: true
+always-human-appraise: false
+deadlock-human-appraise: true
 deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6

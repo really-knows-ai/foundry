@@ -52,11 +52,11 @@ function renderModels(models) {
 /** Render boolean and numeric flags (camelCase to kebab-case). */
 function renderFlags(args) {
   let fm = '';
-  if (args.humanAppraise !== undefined) {
-    fm += `human-appraise: ${args.humanAppraise}\n`;
+  if (args.alwaysHumanAppraise !== undefined) {
+    fm += `always-human-appraise: ${args.alwaysHumanAppraise}\n`;
   }
-  if (args.deadlockAppraise !== undefined) {
-    fm += `deadlock-appraise: ${args.deadlockAppraise}\n`;
+  if (args.deadlockHumanAppraise !== undefined) {
+    fm += `deadlock-human-appraise: ${args.deadlockHumanAppraise}\n`;
   }
   if (args.deadlockIterations !== undefined) {
     fm += `deadlock-iterations: ${args.deadlockIterations}\n`;
@@ -76,8 +76,8 @@ function renderFlags(args) {
  * @param {string} args.outputType       Artefact type ID this cycle produces.
  * @param {{ type: 'any-of'|'all-of', artefacts: string[] }} [args.inputs]  Input contract.
  * @param {string[]} [args.targets]      Downstream cycle IDs.
- * @param {boolean} [args.humanAppraise] Include human-appraise in every iteration.
- * @param {boolean} [args.deadlockAppraise] Route to human-appraise on deadlock.
+ * @param {boolean} [args.alwaysHumanAppraise] Include human-appraise in every iteration.
+ * @param {boolean} [args.deadlockHumanAppraise] Route to human-appraise on deadlock.
  * @param {number} [args.deadlockIterations] Iteration threshold for deadlock detection.
  * @param {number} [args.maxIterations]  Maximum forge iterations.
  * @param {{ extractors: string[] }} [args.assay]  Assay stage config.
