@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.5.8] - 2026-05-23
+
+### Added
+
+- Foundry bootstrap runs `pnpm init` on the project workspace when no `package.json` exists, so validators can install dependencies immediately.
+
+### Changed
+
+- Validator guidance in the add-law skill hardened from "prefer libraries" to "hand-rolled heuristics are a last resort."
+
 ## [3.5.7] - 2026-05-23
 
 ### Added
