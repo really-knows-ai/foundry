@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.5.6] - 2026-05-23
+
+### Fixed
+
+- `deadlock-iterations` default changed from hardcoded 5 to the resolved `max-iterations` value, and defaults are clamped so deadlock is never unreachable. Deadlock validation rejects cycles where `deadlock-iterations > max-iterations` at setup time and cycle creation time.
+
+### Added
+
+- Orchestrator routing responses now include a `reason` field explaining why sort chose the returned action (e.g. "found 1 unresolved feedback item(s) — routing to forge for revision (iteration 2 of 3)").
+
 ## [3.5.5] - 2026-05-23
 
 ### Fixed
