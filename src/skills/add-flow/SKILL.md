@@ -103,6 +103,8 @@ If the user rejects the plan, return to the Understand phase and adjust.
 
 For each dependency, invoke the sub-skill's protocol with the captured context object. The context object for each sub-skill matches the args of the corresponding `foundry_config_create_*` tool, with fields populated from the Understand and Gather phases.
 
+Each `foundry_config_create_*` tool commits every pending change under `foundry/`, not just the file it creates. If you edit a config file directly between tool calls (for example, to add appraiser configuration to an artefact type after those appraisers are created), the next `foundry_config_create_*` call picks it up. After the final tool call `git status` is always clean — no further checks are needed.
+
 Build order (dependency order):
 
 1. **Artefact types**: For each new artefact type, invoke the `add-artefact-type` protocol with the captured context. Example:

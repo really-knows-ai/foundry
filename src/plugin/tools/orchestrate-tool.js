@@ -87,18 +87,28 @@ async function injectDispatchPromptExtras(result, cwd) {
   result.prompt = `${result.prompt}\n\n${extras}`;
 }
 
+function buildOrchestrateArgs(tool) {
+  return {
+    lastResult: tool.schema.object({
+      ok: tool.schema.boolean(),
+      error: tool.schema.string().optional(),
+    }).optional().describe('Result of a single-subagent dispatch or human-appraise stage'),
+    lastResults: tool.schema.array(tool.schema.object({
+      ok: tool.schema.boolean(),
+      output: tool.schema.string().optional(),
+      error: tool.schema.string().optional(),
+    })).optional().describe('Results of a dispatch_multi (appraise) — one entry per completed appraiser task'),
+    cycleDef: tool.schema.string().optional().describe('Test-mode cycle definition override (path to cycle file)'),
+    baseBranch: tool.schema.string().optional().describe('Git base branch for artefact diff comparison (default "main")'),
+    defaultModel: tool.schema.string().optional().describe('Fallback model for stages with no explicit model in the cycle definition (e.g. "opencode-go/deepseek-v4-flash")'),
+  };
+}
+
 export function createOrchestrateTool({ tool, pending }) {
   return {
     foundry_orchestrate: tool({
-      description: 'Run the next step of the current cycle. Call with no args on first invocation; call with lastResult={ok,error?} after a dispatch/human_appraise completes. Returns {action, ...} describing what the caller should do next.',
-      args: {
-        lastResult: tool.schema.object({
-          ok: tool.schema.boolean(),
-          error: tool.schema.string().optional(),
-        }).optional(),
-        cycleDef: tool.schema.string().optional().describe('Test-mode cycle definition override (path to cycle file)'),
-        defaultModel: tool.schema.string().optional().describe('Fallback model for stages with no explicit model in the cycle definition (e.g. "opencode-go/deepseek-v4-flash")'),
-      },
+      description: 'Run the next step of the current cycle. Call with no args on first invocation. After a dispatch or human_appraise, pass lastResult={ok,error?}. After a dispatch_multi (appraise), pass lastResults as an array of {ok,output?,error?} — one entry per completed task. Returns {action, ...} describing what the caller should do next.',
+      args: buildOrchestrateArgs(tool),
 
       async execute(args, context) {
         const { runOrchestrate } = await import('../../scripts/orchestrate.js');
@@ -107,21 +117,9 @@ export function createOrchestrateTool({ tool, pending }) {
         const secret = readOrCreateSecret(context.worktree);
 
         try {
-          // Branch guard. Kept inline because the orchestrate tool surfaces all errors through its violation
-          // envelope (see comment on the failed-flow guard below). A
-          // wrong-branch refusal is a more fundamental error than failed
-          // flow, so it runs first.
           const branchGuard = requireOnFlowBranch({ exec: makeExec(cwd) });
           if (!branchGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${branchGuard.error}` });
 
-          // Failed-flow guard. Kept inline to preserve the violation envelope.
-          // because requireNotFailed parses WORK.md frontmatter, which throws
-          // on malformed YAML. The surrounding try/catch (line 30) converts
-          // that throw into a violation-shaped envelope per the contract
-          // exercised by tests/plugin/orchestrate-wrapper.test.js. A guarded()
-          // wrapper would let the throw escape to a plain { error } envelope
-          // and break that contract. orchestrate-tool is the one Phase 1.5
-          // exception to the inline-gate refactor.
           const failedGuard = requireNotFailed(io);
           if (!failedGuard.ok) return JSON.stringify({ error: `foundry_orchestrate: ${failedGuard.error}` });
 
@@ -132,7 +130,9 @@ export function createOrchestrateTool({ tool, pending }) {
           const result = await runOrchestrate({
             cwd, cycleDef: args.cycleDef, git, mint, finalize,
             now: () => Date.now(),
-            lastResult: args.lastResult ?? null,
+            lastResult: args.lastResult,
+            lastResults: args.lastResults,
+            baseBranch: args.baseBranch,
             defaultModel: args.defaultModel,
           }, io);
 
