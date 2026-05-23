@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.7] - 2026-05-23
+
+### Added
+
+- Artefact types can include an `example.md` alongside `definition.md`. When present, the forge skill treats its structure as normative — the forge agent follows the same format, preventing common formatting mistakes like unwanted title headings on haikus.
+
 ## [3.5.6] - 2026-05-23
 
 ### Fixed
