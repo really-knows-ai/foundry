@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.5.4] - 2026-05-23
+
+### Fixed
+
+- `lastResults` was handled by the orchestration engine but invisible to the tool interface — the schema, description, and execute bridge all omitted it, making the appraise consolidation path unreachable through `foundry_orchestrate`.
+- `baseBranch` was computed by the engine but dropped at the tool boundary.
+
+### Changed
+
+- Clarified the commit model in the add-flow skill so agents do not re-check whether config file edits were committed.
+
 ## [3.5.3] - 2026-05-23
 
 ### Added
