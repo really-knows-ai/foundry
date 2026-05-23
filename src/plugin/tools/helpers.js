@@ -3,6 +3,7 @@
 import path from 'path';
 import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, renameSync, rmSync, statSync } from 'fs';
 import { execFileSync } from 'child_process';
+import matter from 'gray-matter';
 import { getCycleDefinition } from '../../scripts/lib/config.js';
 import { getOrOpenStore, getContext } from '../../scripts/lib/memory/singleton.js';
 import { resolvePermissions } from '../../scripts/lib/memory/permissions.js';
@@ -13,49 +14,27 @@ import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 // Track flow files we've already warned about to avoid spamming stderr
 const warnedFlowFiles = new Set();
 
-// -- Frontmatter parsing helpers --
-
-function isFieldSeparator(char) {
-  return char === ' ' || char === '\t';
-}
-
-function parseFrontmatterField(fm, fieldName) {
-  const prefix = `${fieldName}:`;
-  for (const line of fm.split('\n')) {
-    if (!line.startsWith(prefix)) continue;
-    const rest = line.slice(prefix.length);
-    if (rest === '' || isFieldSeparator(rest[0])) {
-      return rest.trim();
-    }
-  }
-  return null;
-}
-
-function parseStartingCycles(fm) {
-  const lines = fm.split('\n');
-  const scIndex = lines.findIndex(line => line.trimEnd() === 'starting-cycles:');
-  if (scIndex < 0) return [];
-  const items = [];
-  for (let i = scIndex + 1; i < lines.length; i++) {
-    const trimmed = lines[i].trimStart();
-    if (trimmed.startsWith('-')) {
-      const content = trimmed.slice(1).trimStart();
-      if (content) items.push(content);
-    } else {
-      break;
-    }
-  }
-  return items;
-}
-
 function parseFlowFrontmatter(text, entry) {
-  const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return null;
-  const fm = fmMatch[1];
-  const id = parseFrontmatterField(fm, 'id') || entry.replace(/\.md$/, '');
-  const name = parseFrontmatterField(fm, 'name') || id;
-  const startingCycles = parseStartingCycles(fm);
-  return { id, name, startingCycles };
+  const fm = extractFrontmatter(text);
+  if (!fm) return null;
+  const id = fm.id || entry.replace(/\.md$/, '');
+  return {
+    id,
+    name: fm.name || id,
+    startingCycles: resolveStartingCycles(fm),
+  };
+}
+
+function extractFrontmatter(text) {
+  const parsed = matter(text);
+  return parsed.data && typeof parsed.data === 'object' && Object.keys(parsed.data).length > 0
+    ? parsed.data
+    : null;
+}
+
+function resolveStartingCycles(fm) {
+  const sc = fm['starting-cycles'];
+  return Array.isArray(sc) ? sc : [];
 }
 
 function parseFlowFile(entry, flowsDir) {

@@ -5,10 +5,10 @@ import { parseEdgeRows, serialiseEdgeRows, parseEntityRows, serialiseEntityRows 
 import { invalidateStore } from '../singleton.js';
 import { parseFrontmatter } from '../frontmatter.js';
 import { renderEdgeFrontmatter, composeMarkdown } from './helpers.js';
+import matter from 'gray-matter';
+import yaml from 'js-yaml';
 
 const IDENT = /^[a-z][a-z0-9_]*$/;
-const TYPE_LINE = /^type:\s*\S.*$/m;
-const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---/;
 
 function assertValidIdentifier(id) {
   if (!IDENT.test(id)) throw new Error(`invalid identifier: '${id}'`);
@@ -37,10 +37,10 @@ function validateRename(schema, from, to) {
 async function rewriteEntityTypeFile(from, to, p, io) {
   const oldFile = p.entityTypeFile(from);
   const text = await io.readFile(oldFile);
-  const newText = text.replace(FRONTMATTER_BLOCK, (_, fm) => {
-    const replaced = fm.replace(TYPE_LINE, `type: ${to}`);
-    return `---\n${replaced}\n---`;
-  });
+  const { data, content } = matter(text);
+  const fm = { ...data, type: to };
+  const fmBlock = `---\n${yaml.dump(fm, { lineWidth: -1, sortKeys: false }).trim()}\n---`;
+  const newText = content ? `${fmBlock}\n${content}` : fmBlock;
   await io.writeFile(p.entityTypeFile(to), newText);
   await io.unlink(oldFile);
 }

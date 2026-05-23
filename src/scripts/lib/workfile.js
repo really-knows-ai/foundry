@@ -3,23 +3,15 @@
  */
 
 import yaml from 'js-yaml';
+import matter from 'gray-matter';
 
 // ---------------------------------------------------------------------------
 // Frontmatter parsing
 // ---------------------------------------------------------------------------
 
-/**
- * Parse YAML frontmatter from a markdown document.
- * NOTE: Intentionally duplicates logic from memory/frontmatter.js for
- * different use cases. See memory/frontmatter.js for the canonical version
- * with full error handling and line-ending normalisation.
- */
 export function parseFrontmatter(text) {
-  const match = text.match(/^---\r?\n(.+?)\r?\n---/s);
-  if (!match) return {};
-  const fm = yaml.load(match[1]) || {};
-  // Normalize: on-disk canonical key is `max-iterations` (kebab).
-  // Tolerate legacy `maxIterations` (camel) by rewriting on read.
+  const { data } = matter(text);
+  const fm = { ...data };
   if (fm.maxIterations !== undefined) {
     if (fm['max-iterations'] === undefined) {
       fm['max-iterations'] = fm.maxIterations;
@@ -53,7 +45,7 @@ export function setFrontmatterField(text, key, value) {
   const fmBlock = writeFrontmatter(fm);
 
   // Strip existing frontmatter (if any) and prepend new one
-  const body = text.replace(/^---\r?\n.+?\r?\n---\r?\n?/s, '');
+  const body = matter(text).content;
   return body ? `${fmBlock}\n${body}` : fmBlock;
 }
 

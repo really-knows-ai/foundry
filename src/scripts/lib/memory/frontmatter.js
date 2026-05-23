@@ -1,31 +1,9 @@
+import matter from 'gray-matter';
 import yaml from 'js-yaml';
 
-/**
- * Safely parse a YAML string, rethrowing with a filename-prefixed message
- * on failure so errors are actionable.
- *
- * @param {string} yamlStr
- * @param {string} filename
- * @returns {unknown}
- */
-function safeYamlLoad(yamlStr, filename) {
-  try {
-    return yaml.load(yamlStr);
-  } catch (err) {
-    const msg = err?.message ?? String(err);
-    throw new Error(`${filename}: malformed YAML frontmatter: ${msg}`, { cause: err });
-  }
-}
-
-/**
- * Normalise a parsed YAML value into a frontmatter object.
- *
- * @param {unknown} parsed
- * @returns {object}
- */
 function normaliseFrontmatter(parsed) {
   if (parsed && typeof parsed === 'object') {
-    return /** @type {object} */ (parsed);
+    return { ...parsed };
   }
   return {};
 }
@@ -49,17 +27,37 @@ function normaliseFrontmatter(parsed) {
  * @param {{ filename?: string }} [opts]
  * @returns {{ frontmatter: object, body: string, hasFrontmatter: boolean }}
  */
-export function parseFrontmatter(text, { filename = '<unknown>' } = {}) {
-  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!m) {
+function hasData(d) {
+  return d && (typeof d === 'object' ? Object.keys(d).length > 0 : true);
+}
+
+export function parseFrontmatter(text, { filename } = {}) {
+  const result = tryMatter(text, filename);
+  if (!result) {
     return { frontmatter: {}, body: text, hasFrontmatter: false };
   }
-  const parsed = safeYamlLoad(m[1], filename);
+
+  if (!hasData(result.data)) {
+    return { frontmatter: {}, body: text, hasFrontmatter: false };
+  }
+
   return {
-    frontmatter: normaliseFrontmatter(parsed),
-    body: m[2] ?? '',
+    frontmatter: normaliseFrontmatter(result.data),
+    body: result.content,
     hasFrontmatter: true,
   };
+}
+
+function tryMatter(text, filename) {
+  try {
+    return matter(text);
+  } catch (err) {
+    if (filename) {
+      const msg = err?.message ?? String(err);
+      console.warn(`${filename}: malformed YAML frontmatter: ${msg}`);
+    }
+    return null;
+  }
 }
 
 /**

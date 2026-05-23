@@ -13,6 +13,7 @@
 
 import { getArtefactFiles } from './lib/artefacts.js';
 import { selectAppraisers, getLaws, getCycleDefinition } from './lib/config.js';
+import yaml from 'js-yaml';
 
 // ---------------------------------------------------------------------------
 // Public API — gather
@@ -296,9 +297,9 @@ function buildAppraiserPrompt({ appraiser, artefact, laws }) {
     '',
     'Return a list of issues. For each issue:',
     `- file: ${artefact.file}`,
-    '- law: <law-id>',
-    '- issue: <description>',
-    '- evidence: <quote from artefact>',
+    '  law: <law-id>',
+    '  issue: <description>',
+    '  evidence: <quote from artefact>',
     '',
     'If there are no issues, return an empty list.',
   ];
@@ -313,127 +314,87 @@ function buildAppraiserPrompt({ appraiser, artefact, laws }) {
 /**
  * Parse a structured issue list from an appraiser subagent output.
  *
- * Expected per-issue format (YAML list):
- *   - file: <path>
- *     law: <law-id>
- *     issue: <description>
- *     evidence: <quote>
+ * LLM output is free-form text that may contain a YAML list of issues.
+ * Tries js-yaml first; falls back to line-scanning when the output is
+ * not clean YAML (LLMs may include surrounding text, quotes in bare
+ * strings, or other quirks that trip up a strict YAML parser).
  *
- * Returns an array of { file, law, issue, evidence } objects. Entries that
- * lack a file, law, or issue field are silently skipped.
+ * Returns an array of { file, law, issue, evidence } objects.
  */
 function parseAppraiserOutput(output) {
-  // Split output into entries on boundaries where a new line starts a
-  // list entry ("- ").  Avoids regex to prevent sonarjs/slow-regex.
-  const entries = [];
-  let buffer = '';
+  const text = output || '';
+  const yamlBlock = extractYamlBlock(text);
+  const issues = tryYamlParse(yamlBlock);
+  if (issues) return issues;
 
-  for (const line of output.split('\n')) {
-    if (buffer && isListEntryStart(line)) {
-      entries.push(buffer);
-      buffer = line;
-      continue;
+  return parseFallback(text);
+}
+
+function extractYamlBlock(text) {
+  if (text.startsWith('- file:')) return text;
+  const afterNewline = text.indexOf('\n- file:');
+  if (afterNewline >= 0) return text.slice(afterNewline + 1);
+  return text;
+}
+
+function tryYamlParse(yamlBlock) {
+  try {
+    const parsed = yaml.load(yamlBlock);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter(e => e && typeof e === 'object' && e.file && e.law && e.issue)
+        .map(e => ({ file: e.file, law: e.law, issue: e.issue, evidence: e.evidence || '' }));
     }
-
-    buffer = concatLine(buffer, line);
-  }
-
-  if (buffer) entries.push(buffer);
-
-  return entries
-    .map(parseRawEntry)
-    .filter(e => e !== null);
-}
-
-/**
- * Append a line to the current buffer string.
- */
-function concatLine(buffer, line) {
-  if (!buffer) return line;
-  return `${buffer}\n${line}`;
-}
-
-/**
- * True when a line marks the start of a new YAML list entry (starts with
- * "- " after optional whitespace).
- */
-function isListEntryStart(line) {
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === ' ' || ch === '\t') continue;
-    return ch === '-' && line[i + 1] === ' ';
-  }
-  return false;
-}
-
-/**
- * Parse a single raw entry block into an issue object, or null when
- * required fields are missing.
- */
-function parseRawEntry(raw) {
-  const block = raw.trim();
-
-  const file = extractField(block, 'file');
-  const law = extractField(block, 'law');
-  const issue = extractField(block, 'issue');
-  const evidence = extractField(block, 'evidence');
-
-  if (!file || !law || !issue) return null;
-
-  return { file, law, issue, evidence: evidence || '' };
-}
-
-/**
- * Extract a YAML list item field value.
- *
- * Matches lines like:
- *   - file: value
- *     law: value
- *
- * The field name may be preceded by optional whitespace and/or a "- " list
- * marker. Returns the value portion, trimmed.
- */
-function extractField(text, key) {
-  // Walk lines to find "key: value" preceded only by whitespace or a "- "
-  // list marker.  Avoids regex quantifiers that trigger sonarjs/slow-regex.
-
-  for (const line of text.split('\n')) {
-    const trimmed = line.trim();
-    const value = tryExtractKey(trimmed, key);
-    if (value !== null) return value;
-  }
-
+  } catch { /* fall through to fallback */ }
   return null;
 }
 
-/**
- * Given a single trimmed line, try to extract the value for key.
- * Returns null if the pattern is not found.
- */
-function tryExtractKey(line, key) {
-  const needle = `${key}:`;
-  const idx = line.indexOf(needle);
-  if (idx < 0) return null;
+const FALLBACK_FIELDS = new Set(['law', 'issue', 'evidence']);
 
-  const before = line.slice(0, idx);
-  if (before.length > 0 && !isLegalPrefix(before)) return null;
-
-  const value = line.slice(idx + needle.length).trim();
-  return value || null;
+function isCompleteIssue(obj) {
+  return obj && obj.file && obj.law && obj.issue;
 }
 
-/**
- * True when the text before a key: on a line is either all whitespace or
- * the "- " list marker.
- */
-function isLegalPrefix(before) {
-  if (before === '- ') return true;
+function applyFallbackField(kv, entry, issues) {
+  if (kv.key === 'file') {
+    const e = { file: kv.value, law: '', issue: '', evidence: '' };
+    issues.push(e);
+    return e;
+  }
+  if (entry && FALLBACK_FIELDS.has(kv.key)) {
+    entry[kv.key] = kv.value;
+  }
+  return entry;
+}
 
-  for (let i = 0; i < before.length; i++) {
-    if (before[i] !== ' ' && before[i] !== '\t') return false;
+function parseFallback(text) {
+  const issues = [];
+  let entry = null;
+
+  for (const line of text.split('\n')) {
+    const kv = parseFallbackLine(line);
+    if (kv) entry = applyFallbackField(kv, entry, issues);
   }
 
-  return true;
+  return issues.filter(isCompleteIssue);
+}
+
+function parseFallbackLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  const colon = trimmed.indexOf(':');
+  if (colon < 1) return null;
+
+  const key = stripDash(trimmed.slice(0, colon));
+  return {
+    key: key.trim(),
+    value: trimmed.slice(colon + 1).trim(),
+  };
+}
+
+function stripDash(s) {
+  return s.startsWith('- ') ? s.slice(2) : s;
 }
 
 // ---------------------------------------------------------------------------

@@ -4,10 +4,11 @@
 
 import { join } from 'path';
 import { parseFrontmatter } from './workfile.js';
+import matter from 'gray-matter';
 
 function parseDoc(text) {
   const frontmatter = parseFrontmatter(text);
-  const body = text.replace(/^---\n.+?\n---\n?/s, '').trim();
+  const body = matter(text).content.trim();
   return { frontmatter, body };
 }
 

@@ -32,17 +32,18 @@ describe('parseFrontmatter', () => {
     assert.equal(out.hasFrontmatter, true);
   });
 
-  it('prefixes errors with the supplied filename on malformed YAML', () => {
+  it('handles malformed YAML gracefully (returns empty frontmatter)', () => {
     const bad = `---\nkey: [unclosed\n---\n`;
-    assert.throws(
-      () => parseFrontmatter(bad, { filename: 'foundry/memory/entities/class.md' }),
-      /foundry\/memory\/entities\/class\.md: malformed YAML frontmatter/,
-    );
+    const out = parseFrontmatter(bad, { filename: 'foundry/memory/entities/class.md' });
+    assert.deepEqual(out.frontmatter, {});
+    assert.equal(out.hasFrontmatter, false);
   });
 
-  it('uses <unknown> as the filename fallback', () => {
+  it('handles YAML errors gracefully without a filename', () => {
     const bad = `---\nkey: [unclosed\n---\n`;
-    assert.throws(() => parseFrontmatter(bad), /<unknown>: malformed YAML frontmatter/);
+    const out = parseFrontmatter(bad);
+    assert.deepEqual(out.frontmatter, {});
+    assert.equal(out.hasFrontmatter, false);
   });
 });
 

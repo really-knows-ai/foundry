@@ -7,6 +7,7 @@ import {
   getLawsForQuench,
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
+import matter from 'gray-matter';
 import { clearActiveStage, clearLastStage } from './lib/state.js';
 import { appendEntry, getIteration } from './lib/history.js';
 import { stageBaseOf } from './lib/stage-guard.js';
@@ -171,7 +172,7 @@ function buildNewFrontmatter(workContent, stages, cfm, assayExtractors) {
   const newFm = { ...fm };
   newFm.stages = stages;
   applyFmDefaults(newFm, cfm, assayExtractors);
-  const body = workContent.replace(/^---\n[\s\S]+?\n---\n?/, '');
+  const body = matter(workContent).content;
   const fmBlock = writeFrontmatter(newFm);
   return body ? `${fmBlock}\n${body}` : fmBlock;
 }

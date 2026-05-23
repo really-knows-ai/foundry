@@ -1,4 +1,5 @@
 import { parseFrontmatter } from '../workfile.js';
+import matter from 'gray-matter';
 
 /**
  * Shared helpers for config validators.
@@ -10,7 +11,8 @@ import { parseFrontmatter } from '../workfile.js';
  * @returns {{ok: true, fm: object} | {ok: false, errors: string[]}}
  */
 export function tryParseFrontmatter(body) {
-  if (!/^---\n[\s\S]*?\n---/.test(body)) {
+  const { data } = matter(body);
+  if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
     return { ok: false, errors: ['frontmatter is missing or unparseable'] };
   }
   try {
@@ -65,7 +67,7 @@ export function validateNameMatch(fm, name) {
  * @returns {string}
  */
 export function bodyAfterFrontmatter(body) {
-  return body.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+  return matter(body).content.trim();
 }
 
 /**

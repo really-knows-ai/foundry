@@ -28,6 +28,7 @@
  * is clean.
  */
 import { parseFrontmatter, setFrontmatterField, writeFrontmatter } from './workfile.js';
+import matter from 'gray-matter';
 
 const MAX_REASON_LEN = 500;
 
@@ -126,6 +127,6 @@ export function clearWorkfileFailed(io) {
   
   // Rebuild the file with cleaned frontmatter
   const fmBlock = writeFrontmatter(fm);
-  const body = text.replace(/^---\n.+?\n---\n?/s, '');
+  const body = matter(text).content;
   io.writeFile('WORK.md', body ? `${fmBlock}\n${body}` : fmBlock);
 }

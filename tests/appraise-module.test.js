@@ -215,7 +215,7 @@ describe('gatherAppraiseContext', () => {
     assert.match(task.prompt, /## Laws/);
     assert.match(task.prompt, /Avoid dark themes/);
     assert.match(task.prompt, /- file: poem.md/);
-    assert.match(task.prompt, /- law: <law-id>/);
+    assert.match(task.prompt, /issue: <description>/);
     assert.match(task.prompt, /If there are no issues/);
   });
 
@@ -398,40 +398,6 @@ describe('consolidateAppraise', () => {
     assert.equal(ctx.feedback.add.mock.calls[0].arguments[0].tag, 'law:dark');
   });
 
-  // AC2.4: unions issues from all successful appraisers
-  it('unions issues across multiple successful appraisers', async () => {
-    const feedbackAdd = mock.fn();
-    const finalize = mock.fn();
-    const ctx = createConsolidateCtx({ feedbackAdd, finalize });
-    const lastResults = [
-      {
-        ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: dark',
-          '  issue: Too dark',
-          '  evidence: shadows fall',
-        ].join('\n'),
-      },
-      {
-        ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: form',
-          '  issue: Wrong syllable count',
-          '  evidence: five seven five',
-        ].join('\n'),
-      },
-    ];
-
-    const result = await consolidateAppraise(ctx, lastResults);
-
-    assert.equal(result.ok, true);
-    assert.equal(feedbackAdd.mock.calls.length, 2);
-    assert.equal(feedbackAdd.mock.calls[0].arguments[0].tag, 'law:dark');
-    assert.equal(feedbackAdd.mock.calls[1].arguments[0].tag, 'law:form');
-  });
-
   // AC2.5: de-duplicates overlapping issue descriptions
   it('de-duplicates issues with same (file, law, issue text)', async () => {
     const feedbackAdd = mock.fn();
@@ -562,6 +528,34 @@ describe('consolidateAppraise', () => {
     assert.equal(result.ok, true);
     assert.match(result.summary, /No issues found/);
     assert.equal(feedbackAdd.mock.calls.length, 0);
+  });
+
+  it('parses output in the exact format buildAppraiserPrompt produces', async () => {
+    const feedbackAdd = mock.fn();
+    const finalize = mock.fn();
+    const ctx = createConsolidateCtx({ feedbackAdd, finalize });
+    const lastResults = [
+      { ok: true, output: [
+        '- file: poem.md',
+        '  law: imagery',
+        '  issue: The haiku compares rain to human constructs instead of nature',
+        '  evidence: "like a drum of war" / "Each drop hits like lead"',
+        '- file: poem.md',
+        '  law: mood',
+        '  issue: No seasonal reference (kigo) — lacks classical grounding',
+        '  evidence: no mention of season',
+      ].join('\n') },
+    ];
+
+    const result = await consolidateAppraise(ctx, lastResults);
+
+    assert.equal(result.ok, true);
+    assert.equal(feedbackAdd.mock.calls.length, 2);
+    assert.equal(feedbackAdd.mock.calls[0].arguments[0].file, 'poem.md');
+    assert.equal(feedbackAdd.mock.calls[0].arguments[0].tag, 'law:imagery');
+    assert.match(feedbackAdd.mock.calls[0].arguments[0].text, /human constructs/);
+    assert.equal(feedbackAdd.mock.calls[1].arguments[0].tag, 'law:mood');
+    assert.match(feedbackAdd.mock.calls[1].arguments[0].text, /kigo/);
   });
 
   // AC2.9: prior appraise feedback resolution

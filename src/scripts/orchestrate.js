@@ -4,6 +4,7 @@
 
 import { runSort } from './sort.js';
 import { parseFrontmatter } from './lib/workfile.js';
+import matter from 'gray-matter';
 import { readActiveStage, readLastStage, writeActiveStage, clearActiveStage } from './lib/state.js';
 import { stageBaseOf } from './lib/stage-guard.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
@@ -38,10 +39,8 @@ export { readCycleTargets, readForgeFilePatterns };
 export { handleSortResult as __handleSortResultForTest };
 
 export function needsSetup(workMdContent) {
-  const match = workMdContent.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return true;
-  const fm = match[1];
-  return !/^stages:/m.test(fm);
+  const { data } = matter(workMdContent);
+  return !data || !data.stages;
 }
 
 // ---------------------------------------------------------------------------
