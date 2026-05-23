@@ -25,8 +25,10 @@ function buildReasonData(route, prep) {
   const needingForge = feedback.filter(
     f => f.state === 'open' || f.state === 'rejected',
   ).length;
+  const alwaysHumanAppraise = prep.defaults.alwaysHumanAppraise;
+  const deadlockHumanAppraise = prep.defaults.deadlockHumanAppraise;
 
-  return { base, route, forgeCount, maxIt, openCount, needingForge };
+  return { base, route, forgeCount, maxIt, openCount, needingForge, alwaysHumanAppraise, deadlockHumanAppraise };
 }
 
 function forgeReason(d) {
@@ -39,7 +41,10 @@ function appraiseReason(d) {
 }
 
 function humanAppraiseReason(d) {
-  return `routing to human after ${d.forgeCount} forge iteration(s)`;
+  if (d.alwaysHumanAppraise) {
+    return `always-human-appraise enabled — routing to human after ${d.forgeCount} forge iteration(s)`;
+  }
+  return `max iterations (${d.maxIt}) reached after ${d.forgeCount} forge iteration(s) — routing to human for review`;
 }
 
 function blockedReason(d) {

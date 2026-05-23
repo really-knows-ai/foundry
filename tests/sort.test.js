@@ -47,6 +47,7 @@ function makeWorkMd(options = {}) {
     ...buildStageLines(stages),
   ];
   appendOptional(lines, 'max-iterations', maxIterations);
+  appendOptional(lines, 'always-human-appraise', options.alwaysHumanAppraise);
   appendOptional(lines, 'deadlock-human-appraise', options.deadlockHumanAppraise);
   lines.push('---', '');
   return lines.join('\n');
@@ -234,27 +235,27 @@ describe('nextAfterQuench', () => {
 
   it('loops back to forge on open feedback', () => {
     const feedback = [{ state: 'open' }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, 0, 3), 'forge:write');
+    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 0, maxIterations: 3 }), 'forge:write');
   });
 
   it('loops back to forge on rejected feedback', () => {
     const feedback = [{ state: 'rejected' }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, 0, 3), 'forge:write');
+    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 0, maxIterations: 3 }), 'forge:write');
   });
 
   it('blocks when max iterations reached with open feedback', () => {
     const feedback = [{ state: 'open' }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, 3, 3), 'blocked');
+    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 3, maxIterations: 3 }), 'blocked');
   });
 
   it('advances when all feedback resolved', () => {
     const feedback = [{ state: 'actioned', resolved: true }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, 1, 3), 'appraise:check');
+    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 1, maxIterations: 3 }), 'appraise:check');
   });
 
   it('returns done at end of route with resolved feedback', () => {
     const feedback = [{ state: 'actioned', resolved: true }];
-    assert.equal(nextAfterQuench(['forge:write', 'quench:review'], 'quench:review', feedback, 1, 3), 'done');
+    assert.equal(nextAfterQuench(['forge:write', 'quench:review'], 'quench:review', feedback, { forgeCount: 1, maxIterations: 3 }), 'done');
   });
 });
 
@@ -335,6 +336,134 @@ describe('nextAfterAppraise', () => {
         maxIterations: 3,
       }),
       'done',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Iteration cap routing
+// ---------------------------------------------------------------------------
+
+describe('nextAfterQuench — iteration cap routing', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+
+  it('routes to human-appraise when forgeCount >= maxIterations and deadlockHumanAppraise is true', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 3, maxIterations: 3, deadlockHumanAppraise: true, cycle: 'c1' }),
+      'human-appraise:c1',
+    );
+  });
+
+  it('routes to blocked when forgeCount >= maxIterations and deadlockHumanAppraise is false', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 3, maxIterations: 3, deadlockHumanAppraise: false, cycle: 'c1' }),
+      'blocked',
+    );
+  });
+
+  it('bypasses cap when alwaysHumanAppraise is true', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 10, maxIterations: 3, alwaysHumanAppraise: true, cycle: 'c1' }),
+      'forge:write',
+    );
+  });
+
+  it('bypasses cap when alwaysHumanAppraise is true even with deadlockHumanAppraise false', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 10, maxIterations: 3, alwaysHumanAppraise: true, deadlockHumanAppraise: false, cycle: 'c1' }),
+      'forge:write',
+    );
+  });
+});
+
+describe('nextAfterAppraise — iteration cap routing', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+
+  it('routes to human-appraise when forgeCount >= maxIterations and deadlockHumanAppraise is true', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 3, maxIterations: 3, alwaysHumanAppraise: false, deadlockHumanAppraise: true, cycle: 'c1' }),
+      'human-appraise:c1',
+    );
+  });
+
+  it('routes to blocked when forgeCount >= maxIterations and deadlockHumanAppraise is false', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 3, maxIterations: 3, alwaysHumanAppraise: false, deadlockHumanAppraise: false, cycle: 'c1' }),
+      'blocked',
+    );
+  });
+
+  it('routes to human-appraise when alwaysHumanAppraise is true and open items exist', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 0, maxIterations: 3, alwaysHumanAppraise: true, deadlockHumanAppraise: false, cycle: 'c1' }),
+      'human-appraise:review',
+    );
+  });
+
+  it('advances when alwaysHumanAppraise is true and no open items exist', () => {
+    const feedback = [{ state: 'resolved' }];
+    assert.equal(
+      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 0, maxIterations: 3, alwaysHumanAppraise: true, deadlockHumanAppraise: false, cycle: 'c1' }),
+      'human-appraise:review',
+    );
+  });
+});
+
+describe('determineRoute — iteration cap routing', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+
+  it('routes to human-appraise:c1 when forgeCount >= maxIterations and deadlockHumanAppraise is true', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      determineRoute(stages, history, feedback, 3, { deadlockHumanAppraise: true, cycle: 'c1' }),
+      'human-appraise:c1',
+    );
+  });
+
+  it('routes to blocked when forgeCount >= maxIterations and deadlockHumanAppraise is false', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      determineRoute(stages, history, feedback, 3, { deadlockHumanAppraise: false, cycle: 'c1' }),
+      'blocked',
+    );
+  });
+
+  it('bypasses cap when alwaysHumanAppraise is true', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true, cycle: 'c1' }),
+      'forge:write',
     );
   });
 });
@@ -998,7 +1127,69 @@ describe('runSort', () => {
     const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml', defaultModel: 'openai/gpt-4o' }, io);
     assert.equal(result.route, 'forge:write');
     // Stage-specific forge model wins over default, defaultModel, and first-available
-    assert.equal(result.model, 'foundry-opencode-deepseek-v4-flash');
+     assert.equal(result.model, 'foundry-opencode-deepseek-v4-flash');
+  });
+
+  // -------------------------------------------------------------------------
+  // Iteration cap routing — Phase 3
+  // -------------------------------------------------------------------------
+
+  it('routes to human-appraise when max-iterations hit and deadlock-human-appraise enabled', () => {
+    const workText = makeWorkMd({ maxIterations: 2, deadlockHumanAppraise: true });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:00:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:01:00Z' },
+        { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:02:00Z' },
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:03:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }] },
+      ]),
+    });
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(result.route.startsWith('human-appraise:'), true);
+  });
+
+  it('blocks at max-iterations when deadlock-human-appraise is false', () => {
+    const workText = makeWorkMd({ maxIterations: 2, deadlockHumanAppraise: false });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:00:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:01:00Z' },
+        { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:02:00Z' },
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:03:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }] },
+      ]),
+    });
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(result.route, 'blocked');
+  });
+
+  it('always-human-appraise bypasses max-iterations cap', () => {
+    const workText = makeWorkMd({ maxIterations: 2, alwaysHumanAppraise: true, deadlockHumanAppraise: false });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:00:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:01:00Z' },
+        { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:02:00Z' },
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:03:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' },
+        { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:05:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        { history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:05:00Z' }] },
+      ]),
+    });
+    const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(result.route.startsWith('human-appraise:'), true);
   });
 });
 
@@ -1229,7 +1420,7 @@ describe('runSort routing reasons', () => {
   });
 
   it('includes reason for blocked route', () => {
-    const workText = makeWorkMd({ stages, maxIterations: 2 });
+    const workText = makeWorkMd({ stages, maxIterations: 2, deadlockHumanAppraise: false });
     const io = makeSortIO({
       'WORK.md': workText,
       'WORK.history.yaml': yaml.dump([

@@ -103,7 +103,14 @@ function getCurrentNonSortStage(nonSortHistory) {
 }
 
 function resolveRoute(ctx) {
-  return determineRoute(ctx.stages, ctx.history, ctx.feedback, ctx.maxIterations);
+  return determineRoute(
+    ctx.stages, ctx.history, ctx.feedback, ctx.maxIterations,
+    {
+      alwaysHumanAppraise: ctx.alwaysHumanAppraise,
+      deadlockHumanAppraise: ctx.deadlockHumanAppraise,
+      cycle: ctx.cycle,
+    },
+  );
 }
 
 function firstModelValue(models) {
@@ -208,6 +215,8 @@ function buildRouteCtx(prep) {
     history: prep.history,
     feedback: prep.feedback,
     maxIterations: prep.defaults.maxIterations,
+    alwaysHumanAppraise: prep.defaults.alwaysHumanAppraise,
+    deadlockHumanAppraise: prep.defaults.deadlockHumanAppraise,
     cycle: prep.cycle,
     nonSortHistory: prep.nonSortHistory,
   };
