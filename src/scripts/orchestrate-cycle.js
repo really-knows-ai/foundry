@@ -39,7 +39,8 @@ export async function readForgeFilePatterns(cycleId, io) {
   const output = extractOutputType(cd);
   if (!output) return null;
   try {
-    return await fetchFilePatterns(output, io);
+    const patterns = await fetchFilePatterns(output, io);
+    return patterns ? { patterns, outputType: output } : null;
   } catch {
     return null;
   }
@@ -228,9 +229,28 @@ export function buildDispatchMultiResponse(tasks, stage, cycle) {
 // Dispatch prompt rendering (pure utility, used by handleSortResult and exported publicly).
 // ---------------------------------------------------------------------------
 
-export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns }) {
+function buildForgePromptLines({ cycle, outputType }) {
+  return [
+    ``,
+    `Before producing output you MUST call these tools to understand the context:`,
+    outputType
+      ? `  - foundry_config_cycle({ cycleId: "${cycle}" }) — to learn the cycle definition, including its output type "${outputType}"`
+      : `  - foundry_config_cycle({ cycleId: "${cycle}" }) — to learn the cycle definition`,
+    outputType
+      ? `  - foundry_config_artefact_type({ typeId: "${outputType}" }) — to learn the artefact type definition and file patterns`
+      : `  - foundry_config_artefact_type({ typeId: "<output type>" }) — to learn the artefact type definition and file patterns`,
+    outputType
+      ? `  - foundry_config_laws({ typeId: "${outputType}" }) — to learn all applicable quality laws`
+      : `  - foundry_config_laws({ typeId: "<output type>" }) — to learn all applicable quality laws`,
+    `  - foundry_workfile_get({}) — to learn the goal`,
+    `  - foundry_feedback_list({}) — to check for existing feedback from prior iterations`,
+  ];
+}
+
+export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, outputType }) {
+  const base = stage.split(':')[0];
   const lines = [
-    `You are a Foundry stage agent. Invoke the ${stage.split(':')[0]} skill and follow its instructions exactly.`,
+    `You are a Foundry stage agent. Invoke the ${base} skill and follow its instructions exactly.`,
     ``,
     `Stage: ${stage}`,
     `Cycle: ${cycle}`,
@@ -239,6 +259,9 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns })
   ];
   if (filePatterns && filePatterns.length) {
     lines.push(`File patterns (forge only): ${JSON.stringify(filePatterns)}`);
+  }
+  if (base === 'forge') {
+    lines.push(...buildForgePromptLines({ cycle, outputType }));
   }
   lines.push(
     ``,

@@ -302,6 +302,14 @@ export default [
     },
   },
 
+  // Build and release scripts: requires OS command execution via PATH
+  {
+    files: ['scripts/seal.js', 'scripts/verify-seal.js', 'scripts/build.js'],
+    rules: {
+      'sonarjs/no-os-command-from-path': 'off',
+    },
+  },
+
   // Ignore build output and dependencies
   {
     ignores: ['dist/', 'node_modules/', '.foundry/', '.snapshots/', '.worktrees/'],

@@ -465,7 +465,7 @@ cycle: create-haiku
   });
   assert.deepStrictEqual(
     await readForgeFilePatterns('create-haiku', io),
-    ['haikus/*.md', 'haikus/**/*.md']
+    { patterns: ['haikus/*.md', 'haikus/**/*.md'], outputType: 'haiku' }
   );
 });
 

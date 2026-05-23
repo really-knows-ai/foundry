@@ -4,6 +4,7 @@ import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 import { parseFrontmatter, createWorkfile, enrichStages, parseModelsValue } from '../../scripts/lib/workfile.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
+import { writeCall } from '../../scripts/lib/stage-calls.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
@@ -84,6 +85,7 @@ export function createWorkfileTools({ tool }) {
         const fm = parseFrontmatter(text);
         const goalMatch = text.match(/# Goal\n\n([\s\S]*?)(?=\n\||\n##|$)/);
         const goal = goalMatch ? goalMatch[1].trim() : '';
+        writeCall(makeIO(context.worktree), 'foundry_workfile_get');
         return JSON.stringify({ ...fm, goal });
       },
     }),

@@ -111,6 +111,53 @@ Run scripts via `pnpm run <script>`.
 Use `build:all` before publishing or opening a pull request to confirm
 the entire pipeline passes.
 
+## Module structure
+
+A source file serves one responsibility. When it grows beyond that, split
+it — the lint rules tell you when.
+
+### File size: `max-lines` (300)
+
+The limit counts non-blank, non-comment lines. A file that hits 300
+lines contains multiple concerns that each deserve their own module.
+
+When this fires:
+
+1. Identify the largest cohesive block of functions that could stand alone
+2. Extract it into a new file `src/<dir>/<name>.js`
+3. Update imports in the original file to pull from the new module
+4. The split is correct when both files sit comfortably below the limit
+
+Do not delete blank lines, inline functions, or compress formatting to
+stay under the limit. These address the symptom, not the cohesion
+problem.
+
+### Function size: `max-lines-per-function` (40) and `max-statements` (30)
+
+A function that exceeds 40 lines of code or 30 statements is doing more
+than one thing. Extract logical blocks into well-named helper functions
+at module scope. A helper named `buildSomething` or `checkSomething`
+immediately tells the reader what the extracted block does.
+
+### Branching: `complexity` (5)
+
+Each `if`, `for`, `while`, `catch`, and ternary adds a branch. A function
+with more than 5 paths has too many decisions. Extract conditional blocks
+into helper functions. A guard clause (`if (x) return early`) is
+preferable to nested conditionals.
+
+### Nesting: `max-depth` (4)
+
+More than 4 levels of nesting makes code hard to scan. Flatten with early
+returns, guard clauses, or by extracting inner blocks into helpers.
+
+### Parameters: `max-params` (5)
+
+A function that takes more than 5 parameters is asking for too many
+inputs. Group related parameters into an options object. A constructor
+or factory with many inputs is a signal that the concept being modelled
+should be split into smaller composable pieces.
+
 ## Git worktrees
 
 Git worktrees are stored in `.worktrees/` at the project root. Each

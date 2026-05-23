@@ -60,14 +60,22 @@ function cloneItem(it) {
   return { ...it, history: it.history.map(h => ({ ...h })) };
 }
 
+function resolveSystemItemsImpl({ items, stage, cycle, timestamp, persist }) {
+  const snapshot = { state: 'resolved', stage, cycle, timestamp: timestamp() };
+  const next = items.map(it =>
+    it.tag === 'system:missing-tool-calls' && it.history[0].state !== 'resolved'
+      ? { ...it, history: [snapshot, ...it.history] }
+      : it
+  );
+  persist(next);
+}
+
 export function openFeedbackStore(path, io) {
   let items = loadItems(path, io);
-
   function persist(nextItems) {
     saveItems(path, nextItems, io);
     items = nextItems;
   }
-
   return {
     list() { return items.map(cloneItem); },
     get(id) {
@@ -89,14 +97,13 @@ export function openFeedbackStore(path, io) {
       });
     },
     writeDeadlockedSnapshotForTest(params) {
-      return storeWriteDeadlockedSnapshot(params, items, {
-        timestamp: nowIso, persist,
-      });
+      return storeWriteDeadlockedSnapshot(params, items, { timestamp: nowIso, persist });
     },
     writeDeadlockedSnapshots(ids, reason, stage, cycle) {
-      return storeWriteDeadlockedSnapshots({ ids, reason, stage, cycle }, items, {
-        timestamp: nowIso, persist,
-      });
+      return storeWriteDeadlockedSnapshots({ ids, reason, stage, cycle }, items, { timestamp: nowIso, persist });
+    },
+    resolveSystemItems(stage, cycle) {
+      resolveSystemItemsImpl({ items, stage, cycle, timestamp: nowIso, persist });
     },
   };
 }

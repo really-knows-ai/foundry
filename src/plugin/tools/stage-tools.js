@@ -8,10 +8,31 @@ import { syncStore } from '../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 import { markWorkfileFailed, readFailedStatus, clearWorkfileFailed } from '../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+import { initForgeCallLog, verifyAndClearForgeCallLog } from '../../scripts/lib/stage-calls.js';
+import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
+
+const FORGE_REQUIRED_TOOLS = [
+  'foundry_config_cycle',
+  'foundry_workfile_get',
+  'foundry_config_artefact_type',
+  'foundry_config_laws',
+  'foundry_feedback_list',
+];
+
+function stageBase(stage) { return stage.split(':')[0]; }
 
 const gateNotFailed = notFailedGuard(makeIO);
 
-// -- Helpers for foundry_stage_begin --
+// -- Helpers for forge tool call verification --
+
+function verifyAndManageForgeTools(io, active) {
+  const verified = verifyAndClearForgeCallLog(io, FORGE_REQUIRED_TOOLS);
+  if (!verified.ok) {
+    postMissingToolsFeedback(io, active, verified.missing);
+    return;
+  }
+  resolveSystemFeedback(io, active);
+}
 
 function resolveBaseSha(worktree) {
   try {
@@ -59,7 +80,12 @@ async function executeStageBegin(args, context, pending) {
     startedAt: new Date().toISOString(),
   };
   writeActiveStage(io, active);
+  initForgeIfApplicable(io, active.stage);
   return JSON.stringify({ ok: true, active });
+}
+
+function initForgeIfApplicable(io, stage) {
+  if (stageBase(stage) === 'forge') initForgeCallLog(io);
 }
 
 // -- Helpers for foundry_stage_end --
@@ -82,6 +108,11 @@ async function executeStageEnd(args, context) {
   if (!active) {
     return JSON.stringify({ error: 'foundry_stage_end requires active stage; current: none' });
   }
+
+  if (stageBase(active.stage) === 'forge') {
+    verifyAndManageForgeTools(io, active);
+  }
+
   writeLastStage(io, {
     cycle: active.cycle,
     stage: active.stage,
@@ -99,6 +130,26 @@ async function executeStageEnd(args, context) {
     return JSON.stringify({ error: msg, flow_failed: true });
   }
   return JSON.stringify({ ok: true, summary: args.summary });
+}
+
+function postMissingToolsFeedback(io, active, missing) {
+  try {
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    store.add({
+      file: '(forge)',
+      tag: 'system:missing-tool-calls',
+      text: `Missing required forge tools: ${missing.join(', ')}`,
+      source: active.stage,
+      cycle: active.cycle,
+    });
+  } catch { /* feedback file not initialised yet; non-critical */ }
+}
+
+function resolveSystemFeedback(io, active) {
+  try {
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    store.resolveSystemItems(active.stage, active.cycle);
+  } catch { /* non-critical */ }
 }
 
 // -- Helpers for foundry_stage_retry --

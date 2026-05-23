@@ -3,6 +3,7 @@ import { parseFrontmatter } from '../../scripts/lib/workfile.js';
 import { requireActiveStage, stageBaseOf } from '../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
+import { writeCall } from '../../scripts/lib/stage-calls.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
 
@@ -170,6 +171,7 @@ async function executeFeedbackList(args, context) {
   }
   try {
     const store = openFeedbackStore('WORK.feedback.yaml', io);
+    writeCall(io, 'foundry_feedback_list');
     const items = store.list()
       .filter(it => !args.file || it.file === args.file)
       .map(it => {

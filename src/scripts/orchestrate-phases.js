@@ -2,8 +2,8 @@
 // Private phase functions used by runOrchestrate.
 
 import {
-  getCycleDefinition,
   getArtefactType,
+  getCycleDefinition,
   getLawsForQuench,
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
@@ -13,73 +13,40 @@ import { stageBaseOf } from './lib/stage-guard.js';
 import { allowedPatternsForStage } from './lib/git-policy.js';
 import { loadExtractor } from './lib/assay/loader.js';
 import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
-import { getArtefactFiles } from './lib/artefacts.js';
 import {
-  readCycleTargets,
   readForgeFilePatterns,
-  readRecentFeedback,
   computeOpenFeedback,
   violation,
   tryCommit,
   synthesizeStages,
   renderDispatchPrompt,
 } from './orchestrate-cycle.js';
+import {
+  doneAction,
+  blockedAction,
+  humanAppraiseAction,
+  missingModelViolation,
+} from './orchestrate-terminals.js';
 
-async function findOutputArtefacts(cfm, io, foundryDir, baseBranch) {
-  const outputType = cfm ? cfm['output-type'] : undefined;
-  if (!outputType) return null;
-  const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch });
-  return artefacts.find(a => a.state !== 'deleted') || null;
-}
-
-async function doneAction(cycleId, io, foundryDir, baseBranch) {
-  const fd = foundryDir || 'foundry';
-  const base = baseBranch || 'main';
-  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
-  const artefact = await findOutputArtefacts(cfm, io, fd, base);
-  const artefactFile = artefact ? artefact.file : null;
-  return { action: 'done', cycle: cycleId, artefact_file: artefactFile, next_cycles: await readCycleTargets(cycleId, io) };
-}
-
-async function blockedAction(cycleId, io, details, foundryDir, baseBranch) {
-  const fd = foundryDir || 'foundry';
-  const base = baseBranch || 'main';
-  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
-  const artefact = await findOutputArtefacts(cfm, io, fd, base);
-  const artefactFile = artefact ? artefact.file : null;
-  const reason = details || 'iteration limit reached with unresolved feedback';
-  return { action: 'blocked', cycle: cycleId, artefact_file: artefactFile, reason };
-}
-
-async function humanAppraiseAction(route, token, ctx) {
-  const { cycleId, io, baseBranch } = ctx;
-  const fd = ctx.foundryDir || 'foundry';
-  const base = baseBranch || 'main';
-  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
-  const artefact = await findOutputArtefacts(cfm, io, fd, base);
-  const artefactFile = artefact ? artefact.file : null;
-  return { action: 'human_appraise', stage: route, token, context: { cycle: cycleId, artefact_file: artefactFile, recent_feedback: readRecentFeedback(io) } };
-}
-
-async function missingModelViolation(cycleId, route, io, foundryDir, baseBranch) {
-  const fd = foundryDir || 'foundry';
-  const base = baseBranch || 'main';
-  const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
-  const outputType = cfm ? cfm['output-type'] : undefined;
-  const artefacts = outputType ? await getArtefactFiles(fd, outputType, io, { baseBranch: base }) : [];
-  const affectedFiles = artefacts.filter(a => a.state !== 'deleted').map(a => a.file);
-  return violation(`cycle ${cycleId} stage ${route} has no model declared in cycle definition`, affectedFiles);
-}
-
-function makeDispatchPayload(route, cycleId, token, cwd, filePatterns) {
-  return { stage: route, cycle: cycleId, token, cwd, filePatterns };
+function makeDispatchPayload({ route, cycleId, token, cwd, filePatterns, outputType }) {
+  return { stage: route, cycle: cycleId, token, cwd, filePatterns, outputType };
 }
 
 async function buildDispatchAction(route, model, token, ctx) {
   if (!model) return missingModelViolation(ctx.cycleId, route, ctx.io, ctx.foundryDir, ctx.baseBranch ?? 'main');
   const base = route.split(':')[0];
-  const filePatterns = base === 'forge' ? await readForgeFilePatterns(ctx.cycleId, ctx.io) : null;
-  return { action: 'dispatch', stage: route, subagent_type: model, prompt: renderDispatchPrompt(makeDispatchPayload(route, ctx.cycleId, token, ctx.cwd, filePatterns)) };
+  let filePatterns = null;
+  let outputType = null;
+  if (base === 'forge') {
+    const result = await readForgeFilePatterns(ctx.cycleId, ctx.io);
+    if (result) {
+      filePatterns = result.patterns;
+      outputType = result.outputType;
+    }
+  }
+  const payload = { route, cycleId: ctx.cycleId, token, cwd: ctx.cwd, filePatterns, outputType };
+  return { action: 'dispatch', stage: route, subagent_type: model,
+    prompt: renderDispatchPrompt(makeDispatchPayload(payload)) };
 }
 
 export function routeDispatch(route) {
@@ -282,7 +249,11 @@ function writeHistoryEntries(ctx) {
 
 async function computeAllowedPatterns(lastStage, cycleId, io) {
   const stageBase = stageBaseOf(lastStage.stage);
-  const forgeFilePatterns = stageBase === 'forge' ? (await readForgeFilePatterns(cycleId, io)) ?? [] : [];
+  let forgeFilePatterns = [];
+  if (stageBase === 'forge') {
+    const result = await readForgeFilePatterns(cycleId, io);
+    forgeFilePatterns = result ? result.patterns : [];
+  }
   return allowedPatternsForStage({ stageBase, forgeFilePatterns });
 }
 
