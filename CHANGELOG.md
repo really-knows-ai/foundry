@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.5.3] - 2026-05-23
+
+### Added
+
+- Forge tool-call verification: `stage_end` checks that required tools were called and posts system feedback if not, with automatic retry via the existing feedback loop.
+
+### Fixed
+
+- Forge dispatch prompts now include explicit required-tool instructions with the actual output type filled in.
+
+### Changed
+
+- `readForgeFilePatterns` returns `{ patterns, outputType }` instead of a bare array.
+- Build quality gate now writes a seal; `prepublishOnly` verifies the seal instead of re-running lint and tests.
+
 ## [3.5.2] - 2026-05-23
 
 ### Fixed
