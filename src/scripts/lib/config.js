@@ -22,12 +22,20 @@ export async function getCycleDefinition(foundryDir, cycleId, io) {
 }
 
 export async function getArtefactType(foundryDir, typeId, io) {
-  const path = join(foundryDir, 'artefacts', typeId, 'definition.md');
-  if (!(await io.exists(path))) {
+  const dir = join(foundryDir, 'artefacts', typeId);
+  const defPath = join(dir, 'definition.md');
+  if (!(await io.exists(defPath))) {
     throw new Error(`Artefact type not found: ${typeId}`);
   }
-  const text = await io.readFile(path);
-  return parseDoc(text);
+  const text = await io.readFile(defPath);
+  const result = parseDoc(text);
+
+  const examplePath = join(dir, 'example.md');
+  if (await io.exists(examplePath)) {
+    result.example = (await io.readFile(examplePath)).trim();
+  }
+
+  return result;
 }
 
 /**

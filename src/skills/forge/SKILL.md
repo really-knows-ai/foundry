@@ -40,7 +40,7 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
 
    Then return control to the user and stop.
 3. `foundry_config_cycle` — understand what to produce and what inputs are available.
-4. `foundry_config_artefact_type` with the output type ID — get the artefact type definition, especially its `file-patterns`.
+4. `foundry_config_artefact_type` with the output type ID — get the artefact type definition, `file-patterns`, and any example. When the response includes an `example` field, its structure is normative — your output must follow the same format (no extra headings, metadata blocks, or free-form prose that the example does not include).
 5. `foundry_config_laws` — get all applicable laws (global + type-specific).
 6. If the cycle declares `inputs`, discover input files by filesystem scan:
    - For each type listed in `inputs`, call `foundry_config_artefact_type` to get its `file-patterns`.
