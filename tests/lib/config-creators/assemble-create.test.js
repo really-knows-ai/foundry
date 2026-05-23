@@ -310,11 +310,9 @@ test('assembleCycleMarkdown: with numeric fields', () => {
     id: 'draft',
     name: 'Draft',
     outputType: 'short-story',
-    deadlockIterations: 3,
     maxIterations: 10,
   });
 
-  assert.match(result, /deadlock-iterations: 3/);
   assert.match(result, /max-iterations: 10/);
 });
 
@@ -363,7 +361,6 @@ test('assembleCycleMarkdown: all optional fields together', () => {
     targets: ['review'],
     alwaysHumanAppraise: true,
     deadlockHumanAppraise: false,
-    deadlockIterations: 5,
     maxIterations: 20,
     assay: { extractors: ['quality'] },
     memory: { read: ['global-context'], write: ['artefact'] },
@@ -380,7 +377,6 @@ test('assembleCycleMarkdown: all optional fields together', () => {
   assert.match(result, /targets:\n {2}- review/);
   assert.match(result, /always-human-appraise: true/);
   assert.match(result, /deadlock-human-appraise: false/);
-  assert.match(result, /deadlock-iterations: 5/);
   assert.match(result, /max-iterations: 20/);
   assert.match(result,
     /assay:\n {2}extractors:\n {4}- quality/);
@@ -415,12 +411,10 @@ test('assembleCycleMarkdown: camelCase to kebab-case mapping', () => {
     outputType: 'test',
     alwaysHumanAppraise: true,
     deadlockHumanAppraise: true,
-    deadlockIterations: 3,
     maxIterations: 10,
   });
 
   assert.match(result, /always-human-appraise/);
   assert.match(result, /deadlock-human-appraise/);
-  assert.match(result, /deadlock-iterations/);
   assert.match(result, /max-iterations/);
 });

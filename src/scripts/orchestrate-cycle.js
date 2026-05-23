@@ -273,14 +273,4 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, o
   return lines.join('\n');
 }
 
-export function checkIterationLimits(cfm, cycleId) {
-  const maxIt = cfm['max-iterations'];
-  const dlIt = cfm['deadlock-iterations'];
-  if (maxIt !== undefined && dlIt !== undefined && dlIt > maxIt) {
-    return violation(
-      `cycle ${cycleId}: deadlock-iterations (${dlIt}) cannot exceed max-iterations (${maxIt})`,
-      ['WORK.md'],
-    );
-  }
-  return null;
-}
+

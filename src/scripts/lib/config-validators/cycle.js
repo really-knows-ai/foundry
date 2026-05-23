@@ -29,7 +29,6 @@ export async function validate({ name, body, io }) {
     await checkOutputType(fm, io),
     ...await checkInputs(fm, io),
     ...await checkTargets(fm, io),
-    checkIterationLimits(fm),
   ].filter(Boolean);
 
   return errors.length ? { ok: false, errors } : { ok: true };
@@ -131,11 +130,4 @@ async function validateCycleRefs(targets, io) {
   return errors;
 }
 
-function checkIterationLimits(fm) {
-  const maxIt = fm['max-iterations'];
-  const dlIt = fm['deadlock-iterations'];
-  if (maxIt !== undefined && dlIt !== undefined && dlIt > maxIt) {
-    return `deadlock-iterations (${dlIt}) must be <= max-iterations (${maxIt}); deadlock would never trigger before the cycle blocks`;
-  }
-  return null;
-}
+

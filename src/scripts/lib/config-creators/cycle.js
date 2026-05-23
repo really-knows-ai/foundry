@@ -58,9 +58,6 @@ function renderFlags(args) {
   if (args.deadlockHumanAppraise !== undefined) {
     fm += `deadlock-human-appraise: ${args.deadlockHumanAppraise}\n`;
   }
-  if (args.deadlockIterations !== undefined) {
-    fm += `deadlock-iterations: ${args.deadlockIterations}\n`;
-  }
   if (args.maxIterations !== undefined) {
     fm += `max-iterations: ${args.maxIterations}\n`;
   }
@@ -77,8 +74,7 @@ function renderFlags(args) {
  * @param {{ type: 'any-of'|'all-of', artefacts: string[] }} [args.inputs]  Input contract.
  * @param {string[]} [args.targets]      Downstream cycle IDs.
  * @param {boolean} [args.alwaysHumanAppraise] Include human-appraise in every iteration.
- * @param {boolean} [args.deadlockHumanAppraise] Route to human-appraise on deadlock.
- * @param {number} [args.deadlockIterations] Iteration threshold for deadlock detection.
+ * @param {boolean} [args.deadlockHumanAppraise] Route to human-appraise when max-iterations is reached.
  * @param {number} [args.maxIterations]  Maximum forge iterations.
  * @param {{ extractors: string[] }} [args.assay]  Assay stage config.
  * @param {{ read: string[], write: string[] }} [args.memory]  Flow memory permissions.

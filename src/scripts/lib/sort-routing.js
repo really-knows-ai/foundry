@@ -6,9 +6,9 @@
  * configured `max-lines` limit and to lower per-function complexity.
  */
 
-// Spec §6.1: an item is "open" (still in flight) when its head state is
-// 'open', 'actioned', 'rejected', or 'wont-fix' — equivalently, when the
-// state is neither 'resolved' nor 'deadlocked'.
+// An item is "open" (still in flight) when its head state is not
+// 'resolved' or 'deadlocked'. The deadlocked check is retained for
+// backward compatibility with existing feedback files.
 const isOpenItem = (f) => f.state !== 'resolved' && f.state !== 'deadlocked';
 
 export { isOpenItem };
@@ -56,9 +56,6 @@ function appraiseForgeOrApproval(stages, openItems, forgeCount, maxIterations) {
 }
 
 export function nextAfterAppraise({ stages, current, feedback, forgeCount, maxIterations }) {
-  // Note: deadlock detection is handled by runDeadlockPass at the top of
-  // runSort (spec §6.1). This helper assumes routing has already been allowed
-  // to fall through (i.e., no item qualifies as deadlocked).
   const openItems = feedback.filter(isOpenItem);
   const decided = appraiseForgeOrApproval(stages, openItems, forgeCount, maxIterations);
   if (decided !== null) return decided;

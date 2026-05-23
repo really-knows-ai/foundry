@@ -146,7 +146,6 @@ targets: []
 stages: [forge, quench, appraise]
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   quench: github-copilot/claude-sonnet-4.6
@@ -239,7 +238,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
@@ -261,7 +259,6 @@ output-type: haiku
 stages: [forge, appraise]
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 ---
 `,
     'foundry/artefacts/haiku/definition.md': `---
@@ -302,7 +299,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   quench: github-copilot/claude-sonnet-4.6
@@ -360,7 +356,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
@@ -481,7 +476,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   quench: github-copilot/claude-sonnet-4.6
@@ -511,7 +505,6 @@ output-type: haiku
 stages: [forge, quench, appraise]
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   quench: github-copilot/claude-sonnet-4.6
@@ -941,7 +934,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
@@ -977,7 +969,6 @@ output-type: haiku
 stages: [forge, appraise]
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 ---
 `,
     'foundry/artefacts/haiku/definition.md': `---
@@ -1054,7 +1045,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
@@ -1139,7 +1129,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6
@@ -1221,7 +1210,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6
   appraise: github-copilot/claude-sonnet-4.6

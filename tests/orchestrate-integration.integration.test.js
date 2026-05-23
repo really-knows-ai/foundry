@@ -49,7 +49,6 @@ targets: [create-short-story]
 stages: [forge, quench, appraise]
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 3
 max-iterations: 3
 models:
   forge: github-copilot/claude-sonnet-4.6

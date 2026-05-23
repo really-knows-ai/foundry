@@ -21,7 +21,6 @@ import {
   tryCommit,
   synthesizeStages,
   renderDispatchPrompt,
-  checkIterationLimits,
 } from './orchestrate-cycle.js';
 import {
   doneAction,
@@ -170,7 +169,6 @@ function applyFmDefaults(newFm, cfm, assayExtractors) {
   newFm['max-iterations'] = maxIt;
   newFm['always-human-appraise'] = cfm['always-human-appraise'] === true;
   newFm['deadlock-human-appraise'] = cfm['deadlock-human-appraise'] !== false;
-  newFm['deadlock-iterations'] = cfm['deadlock-iterations'] ?? maxIt;
   if (cfm.models) newFm.models = cfm.models;
   if (assayExtractors) newFm.assay = { extractors: assayExtractors };
 }
@@ -226,8 +224,6 @@ async function completeSetup(ctx) {
   const hasValidation = ctx.lawsWithValidators && ctx.lawsWithValidators.length > 0;
   const stagesResult = resolveStages(ctx.cfm, ctx.cycleId, hasValidation, ctx.assayResult.extractors);
   if (stagesResult.error) return stagesResult.error;
-  const validityErr = checkIterationLimits(ctx.cfm, ctx.cycleId);
-  if (validityErr) return validityErr;
   const newWork = buildNewFrontmatter(ctx.workContent, stagesResult, ctx.cfm, ctx.assayResult.extractors);
   ctx.io.writeFile('WORK.md', newWork);
   return trySetupCommit(ctx);

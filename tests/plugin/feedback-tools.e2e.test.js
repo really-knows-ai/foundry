@@ -430,7 +430,7 @@ describe('foundry_feedback_resolve — deadlock override', () => {
     assert.equal(after.items[0].history[0].state, 'resolved');
   });
 
-  test('deadlock override requires a reason', async () => {
+  test('deadlocked item can be resolved without a reason', async () => {
     const id = await setupToActioned('appraise:write-check');
     const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
     const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
@@ -448,7 +448,7 @@ describe('foundry_feedback_resolve — deadlock override', () => {
       { id, resolution: 'approved' }, // no reason
       { worktree },
     ));
-    assert.match(res.error, /reason/);
+    assert.equal(res.ok, true);
   });
 
   test('appraise CANNOT override a deadlocked item even when source matches', async () => {

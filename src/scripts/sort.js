@@ -30,38 +30,6 @@ import {
 } from './lib/sort-fs-check.js';
 
 // ---------------------------------------------------------------------------
-// Top-level deadlock pass (spec §6.1)
-// ---------------------------------------------------------------------------
-
-/**
- * Walk the feedback store and write a `state=deadlocked` snapshot for every
- * non-resolved item whose history depth has reached the configured threshold.
- * One atomic batch write via `store.writeDeadlockedSnapshots(ids, ...)`.
- *
- * Sort is the only writer of `state=deadlocked` per spec §6.1.
- *
- * @returns {boolean} true iff at least one snapshot was written.
- */
-function runDeadlockPass(store, { threshold, enabled, cycle }) {
-  if (!enabled) return false;
-  const qualifying = store.list().filter(item => {
-    // history[0] is the most recent state per the feedback-store invariant
-    // (entries are prepended to keep newest at head).
-    const head = item.history[0];
-    if (head.state === 'resolved' || head.state === 'deadlocked') return false;
-    return item.history.length >= threshold;
-  });
-  if (qualifying.length === 0) return false;
-  store.writeDeadlockedSnapshots(
-    qualifying.map(it => it.id),
-    `depth >= threshold=${threshold}`,
-    'sort',
-    cycle,
-  );
-  return true;
-}
-
-// ---------------------------------------------------------------------------
 // runSort — structured result for programmatic use
 // ---------------------------------------------------------------------------
 
@@ -91,7 +59,6 @@ function extractFrontmatterDefaults(frontmatter) {
     maxIterations: maxIt,
     alwaysHumanAppraise: frontmatter['always-human-appraise'] === true,
     deadlockHumanAppraise: frontmatter['deadlock-human-appraise'] !== false,
-    deadlockIterations: frontmatter['deadlock-iterations'] ?? maxIt,
   };
 }
 
@@ -105,17 +72,14 @@ function checkDirtyFiles(history, io) {
     + `Re-run foundry_orchestrate or commit the listed files manually before retrying.`;
 }
 
-function loadFeedbackAndRunDeadlock(cycle, deadlockIterations, deadlockHumanAppraise, io) {
+function loadFeedback(io, cycle) {
   const store = openFeedbackStore('WORK.feedback.yaml', io);
-  runDeadlockPass(store, { threshold: deadlockIterations, enabled: deadlockHumanAppraise, cycle });
-  const feedback = store.list().map(item => ({
+  return store.list().map(item => ({
     id: item.id,
     file: item.file,
     state: item.history[0].state,
     depth: item.history.length,
   }));
-  const anyDeadlocked = feedback.some(f => f.state === 'deadlocked');
-  return { feedback, anyDeadlocked };
 }
 
 function resolveCycleDef(cycleDef, frontmatter, foundryDir, cycle) {
@@ -138,14 +102,7 @@ function getCurrentNonSortStage(nonSortHistory) {
   return nonSortHistory.length > 0 ? nonSortHistory[nonSortHistory.length - 1].stage : null;
 }
 
-function resolveDeadlockRoute(stages, nonSortHistory, cycle) {
-  const currentNonSort = getCurrentNonSortStage(nonSortHistory);
-  if (currentNonSort && baseStage(currentNonSort) === 'human-appraise') return 'blocked';
-  return findFirst(stages, 'human-appraise') || `human-appraise:${cycle}`;
-}
-
 function resolveRoute(ctx) {
-  if (ctx.anyDeadlocked) return resolveDeadlockRoute(ctx.stages, ctx.nonSortHistory, ctx.cycle);
   return determineRoute(ctx.stages, ctx.history, ctx.feedback, ctx.maxIterations);
 }
 
@@ -215,9 +172,7 @@ function preparePhases({ workPath, historyPath, foundryDir, cycleDef, io }) {
   const history = loadHistory(historyPath, cycle, io);
   const dirtyError = checkDirtyFiles(history, io);
   if (dirtyError) return { kind: 'violation', details: dirtyError };
-  const { feedback, anyDeadlocked } = loadFeedbackAndRunDeadlock(
-    cycle, defaults.deadlockIterations, defaults.deadlockHumanAppraise, io,
-  );
+  const feedback = loadFeedback(io, cycle);
   const fileCheck = checkModifiedFilesAfterLastStage({
     history, foundryDir, cycleDef, cycle, frontmatter, io,
   });
@@ -225,7 +180,7 @@ function preparePhases({ workPath, historyPath, foundryDir, cycleDef, io }) {
   if (violation) return { kind: 'violation', details: violation };
   return {
     kind: 'ok',
-    frontmatter, cycle, stages, defaults, history, feedback, anyDeadlocked,
+    frontmatter, cycle, stages, defaults, history, feedback,
     nonSortHistory: fileCheck.nonSortHistory,
   };
 }
@@ -254,7 +209,6 @@ function buildRouteCtx(prep) {
     feedback: prep.feedback,
     maxIterations: prep.defaults.maxIterations,
     cycle: prep.cycle,
-    anyDeadlocked: prep.anyDeadlocked,
     nonSortHistory: prep.nonSortHistory,
   };
 }

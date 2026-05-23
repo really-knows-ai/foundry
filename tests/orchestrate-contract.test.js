@@ -45,7 +45,6 @@ stages:
 max-iterations: 3
 always-human-appraise: false
 deadlock-human-appraise: true
-deadlock-iterations: 5
 models:
   forge: openai/gpt-4o
   quench: openai/gpt-4o

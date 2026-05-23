@@ -96,12 +96,6 @@ export function openFeedbackStore(path, io) {
         timestamp: nowIso, persist,
       });
     },
-    writeDeadlockedSnapshotForTest(params) {
-      return storeWriteDeadlockedSnapshot(params, items, { timestamp: nowIso, persist });
-    },
-    writeDeadlockedSnapshots(ids, reason, stage, cycle) {
-      return storeWriteDeadlockedSnapshots({ ids, reason, stage, cycle }, items, { timestamp: nowIso, persist });
-    },
     resolveSystemItems(stage, cycle) {
       resolveSystemItemsImpl({ items, stage, cycle, timestamp: nowIso, persist });
     },
@@ -153,7 +147,7 @@ function forgeWontFixError(item) {
 
 function reasonRequiredForTransition(target, current, reason) {
   const REASON_REQUIRED_TARGETS = new Set(['rejected', 'wont-fix']);
-  return (REASON_REQUIRED_TARGETS.has(target) || current === 'deadlocked')
+  return REASON_REQUIRED_TARGETS.has(target)
     && (!reason || !reason.trim());
 }
 
@@ -208,49 +202,4 @@ function storeTransition(params, items, deps) {
   return { ok: true };
 }
 
-function storeWriteDeadlockedSnapshot(params, items, deps) {
-  const { id, cycle, reason } = params;
-  const { timestamp, persist } = deps;
 
-  const item = items.find(x => x.id === id);
-  if (!item) return { ok: false, error: `feedback item not found: ${id}` };
-  if (!reason || !reason.trim()) {
-    return { ok: false, error: 'reason is required for deadlocked snapshot' };
-  }
-
-  const snapshot = { state: 'deadlocked', stage: 'sort', cycle, timestamp: timestamp(), reason };
-  persist(items.map(it =>
-    it.id === id ? { ...it, history: [snapshot, ...it.history] } : it
-  ));
-  return { ok: true };
-}
-
-function assertDeadlockedSnapshotArgs(ids, reason) {
-  if (!Array.isArray(ids)) return { ok: false, error: 'ids must be an array' };
-  if (ids.length === 0) return { ok: true };
-  if (!reason) return { ok: false, error: 'reason is required for deadlocked snapshot' };
-  return null;
-}
-
-function storeWriteDeadlockedSnapshots(params, items, deps) {
-  const { ids, reason, stage, cycle } = params;
-  const { timestamp, persist } = deps;
-
-  const precheck = assertDeadlockedSnapshotArgs(ids, reason);
-  if (precheck) return precheck;
-
-  const ts = timestamp();
-  const idSet = new Set(ids);
-  const nextItems = items.map(it => {
-    if (!idSet.has(it.id)) return it;
-    return { ...it, history: [{ state: 'deadlocked', stage, cycle, timestamp: ts, reason }, ...it.history] };
-  });
-  for (const id of ids) {
-    if (!items.some(it => it.id === id)) {
-      return { ok: false, error: `feedback item(s) not found: ${id}` };
-    }
-  }
-
-  persist(nextItems);
-  return { ok: true };
-}

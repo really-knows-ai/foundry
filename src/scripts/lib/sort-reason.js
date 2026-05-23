@@ -21,15 +21,12 @@ function buildReasonData(route, prep) {
   const forgeCount = prep.history.filter(e => baseStage(e.stage || '') === 'forge').length;
   const maxIt = prep.defaults.maxIterations;
   const feedback = prep.feedback || [];
-  const openCount = feedback.filter(
-    f => f.state !== 'resolved' && f.state !== 'deadlocked',
-  ).length;
-  const dlCount = feedback.filter(f => f.state === 'deadlocked').length;
+  const openCount = feedback.filter(f => f.state !== 'resolved').length;
   const needingForge = feedback.filter(
     f => f.state === 'open' || f.state === 'rejected',
   ).length;
 
-  return { base, route, forgeCount, maxIt, openCount, dlCount, needingForge, anyDeadlocked: prep.anyDeadlocked };
+  return { base, route, forgeCount, maxIt, openCount, needingForge };
 }
 
 function forgeReason(d) {
@@ -38,12 +35,11 @@ function forgeReason(d) {
 }
 
 function appraiseReason(d) {
-  if (d.anyDeadlocked) return `${d.dlCount} feedback item(s) deadlocked — routing to appraise for re-evaluation`;
   return `quench passed with ${d.openCount} open feedback item(s) — routing to appraise`;
 }
 
 function humanAppraiseReason(d) {
-  return `${d.dlCount} feedback item(s) deadlocked after ${d.forgeCount} forge iteration(s) — routing to human for override`;
+  return `routing to human after ${d.forgeCount} forge iteration(s)`;
 }
 
 function blockedReason(d) {
