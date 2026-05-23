@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.5.5] - 2026-05-23
+
+### Fixed
+
+- `buildAppraiserPrompt` output format aligned with the YAML parser — indented continuation fields instead of dash-prefixed. Previously, an appraiser reporting an issue with the exact prompt format would have every field split into separate entries and silently discarded.
+- Hand-rolled appraiser output parsing (120 lines) replaced with `js-yaml` plus a line-scanning fallback for non-clean LLM output.
+
+### Changed
+
+- All hand-rolled YAML frontmatter regex extraction (5 patterns across 10 sites in 8 files) replaced with `gray-matter`.
+- Flow frontmatter parsing in `helpers.js` switched from line-scanning to `gray-matter`.
+
 ## [3.5.4] - 2026-05-23
 
 ### Fixed
