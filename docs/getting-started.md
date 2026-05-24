@@ -44,7 +44,7 @@ assistant will read the Foundry bootstrap context and respond with guidance:
 - If Foundry is already set up: it will tell you to switch to the Foundry agent
   directly.
 
-switch to the **Foundry** agent before authoring flows. The Foundry agent
+Switch to the **Foundry** agent before authoring flows. The Foundry agent
 understands Foundry's authoring workflow and handles dependent setup such as
 artefact types, laws, validators, appraisers, cycles, and config branches.
 
@@ -58,6 +58,12 @@ created automatically on first plugin boot and added to `.gitignore`.
 Foundry's configuration is five things: artefact types, laws, appraisers, cycles, and flows. The Foundry agent handles branch setup, conflict checking, scaffolding, and validation for normal authoring.
 
 ### Author through the Foundry agent
+
+The Foundry agent walks through a four-phase wizard protocol — **Understand,
+Plan, Confirm, Build** — asking one question at a time. Configuration files are
+created only after you confirm the plan. This wizard eliminates hand-authoring
+of normal setup by using the structured config creation tools on a `config/*`
+branch.
 
 Ask the Foundry agent to author or modify any part of the configuration. For example:
 
@@ -77,11 +83,27 @@ These are the five pieces of a Foundry configuration, in dependency order:
 
 1. **Artefact types** — define the output of each cycle. Each type has an `id`, `name`, prose description, `file-patterns` (forge's write scope), appraiser config, and optional type-specific `laws.md`. Produces `foundry/artefacts/<id>/definition.md`.
 
-2. **Laws** — subjective pass/fail criteria evaluated by appraisers. Two scopes: global (`foundry/laws/*.md`, concatenated for every artefact) and type-specific (`foundry/artefacts/<type>/laws.md`). Each law is a `## heading` (its identifier, referenced as `law:<id>` in feedback) with a description, passing criteria, and failing criteria.
+2. **Laws** — rules or criteria evaluated by appraisers. Two scopes: global (`foundry/laws/*.md`, concatenated for every artefact) and type-specific (`foundry/artefacts/<type>/laws.md`). Each law is a `## heading` (its identifier, referenced as `law:<id>` in feedback) with a description, passing criteria, and failing criteria.
 
 3. **Appraisers** — independent evaluators with named personalities. Each may override the cycle-level appraise model via a `model` field. Artefact types pick which appraisers may evaluate them (`appraisers.allowed`).
 
-4. **Cycles** — produce one artefact type and declare `output-type`, `inputs` (a contract over other types), `targets` (reachable downstream cycles), human-gate config, and optional per-stage model overrides. Example:
+4. **Cycles** — produce one artefact type from a definition with these fields:
+
+   | Field | Purpose |
+   |-------|---------|
+   | `id` | Unique identifier |
+   | `name` | Human-readable label |
+   | `output-type` | The artefact type this cycle produces |
+   | `inputs` | Contract over upstream types (e.g. `any-of`, `all-of`) |
+   | `targets` | Reachable downstream cycles for flow routing |
+   | `always-human-appraise` | Bypass LLM appraisers on every iteration |
+   | `deadlock-human-appraise` | Escalate to human appraiser at iteration limit |
+   | `max-iterations` | Maximum forge iterations before deadlock |
+   | `assay` | Optional extractor config for pre-forge measurement |
+   | `memory` | Optional entity read/write permissions |
+   | `models` | Per-stage model overrides (e.g. `appraise`, `forge`) |
+
+   Example:
 
    ```markdown
    ---
@@ -93,9 +115,9 @@ These are the five pieces of a Foundry configuration, in dependency order:
      artefacts:
        - petition
    targets: []
-   human-appraise: false
-   deadlock-appraise: true
-   deadlock-iterations: 5
+   always-human-appraise: false
+   deadlock-human-appraise: true
+   max-iterations: 5
    models:
      appraise: openai/gpt-5
    ---
@@ -114,15 +136,15 @@ Users who prefer to write configuration files by hand open a config branch first
 To run a flow, ask the Foundry agent with your goal as the input (e.g. "Run the make-haiku flow to write a haiku about autumn rain"). The Foundry agent dispatches the `flow` skill, which:
 
 1. Checks prerequisites and picks a starting cycle — matching your prose to a cycle's output type. If the request is ambiguous, it prompts (defaulting to `starting-cycles`). If a cycle's input contract can't be satisfied from files on disk, it won't be chosen.
-2. Creates a work branch and scaffolds `WORK.md` with the goal.
-3. Hands off to `orchestrate`, which drives the cycle:
+2. Creates a work branch and scaffolds `WORK.md` with frontmatter (`flow`, `cycle`) and the `# Goal` section. No artefact table is stored in the workfile; artefacts are discovered from branch diffs.
+3. Hands off to `orchestrate`, which drives the cycle. Orchestrate setup fills the remaining frontmatter (`stages`, `max-iterations`, model overrides, `assay` config) from the cycle definition, then runs the loop:
    - **forge** writes the artefact.
-   - **quench** runs CLI validators (if configured).
-   - **appraise** dispatches parallel appraiser sub-agents and consolidates their `law:<id>` feedback.
-   - **human-appraise** (if configured, or on deadlock) asks you for input.
+   - **quench** runs deterministic validation inside the orchestrator, executing any validators attached to laws.
+   - **appraise** fans out parallel appraiser sub-agents via `dispatch_multi` and internally consolidates their `law:<id>` feedback.
+   - **human-appraise** (if configured, or at the iteration limit) asks you for input.
    - If any unresolved feedback remains, another forge iteration begins.
 4. When the cycle completes, the flow skill checks the cycle's `targets`. If a target's input contract is satisfied, it asks whether to proceed.
-5. When all desired cycles are done, the flow skill summarises the output and asks how to finish — squash-merge, PR, or leave the branch.
+5. When all desired cycles are complete, the flow skill asks you to attest the work via `foundry_attest({ confirm: true })`, which verifies cycle completion, writes and commits `ATTEST.md`. After attestation succeeds, you call `foundry_git_finish({ confirm: true })`, which squash-merges to the base branch with a signed attestation block, preserves the work branch as an archive, and creates the final signed commit. See [`docs/tools.md`](./tools.md#foundry_attest) for the attestation contract.
 
 Every stage ends with a micro-commit. Violations of the write invariant (writing to disallowed files) hard-stop the cycle.
 
@@ -154,7 +176,7 @@ never committed by foundry. See the `dry-run` skill for the full loop.
 
 While a flow is running, the state of the world is in four places:
 
-- `WORK.md` — current cycle, goal, and artefact table.
+- `WORK.md` — current cycle, goal, and frontmatter state. Artefacts are discovered from branch diffs against the current cycle output type; see `foundry_artefacts_list`.
 - `WORK.feedback.yaml` — feedback items and their lifecycle history.
 - `WORK.history.yaml` — append-only stage execution log.
 - `git log` — one commit per stage.
@@ -185,7 +207,7 @@ Use `foundry_stage_retry()` when the underlying problem is fixed and you want to
 
 ## Cleaning up
 
-When a flow completes, `foundry_git_finish` handles integration with audit guarantees. On `work/*` branches, it commits `WORK.*` cleanup, preserves the branch as `archive/work/<flow>-<desc>-<hash>` for immutable forensic history, squash-merges to the base branch, and creates a signed commit whose message embeds the canonical Foundry attestation block. See [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contract.
+When a flow completes, the flow skill asks you to attest the work via `foundry_attest({ confirm: true })`, which verifies cycle completion, writes `ATTEST.md` at `HEAD`, and commits it. After attestation succeeds, `foundry_git_finish({ confirm: true })` handles integration with audit guarantees: it commits `WORK.*` cleanup, preserves the branch as `archive/work/<flow>-<desc>-<hash>` for immutable forensic history, squash-merges to the base branch, and creates a signed commit whose message embeds the canonical Foundry attestation block. See [`docs/tools.md`](./tools.md#foundry_attest) and [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contracts.
 
 ---
 

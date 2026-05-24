@@ -32,7 +32,7 @@ the loop and records every step in git, so the path from draft to approved artef
 is auditable, repeatable, and defensible to auditors and stakeholders. You can show
 exactly how the output was made. Confidence is engineered; it is not hoped for.
 
-### The operating model: assay, then forge → quench → appraise
+### The operating model: assay, then forge → quench → appraise → attest → finish
 
 A codebase-aware cycle can begin with **assay**: a deterministic pre-forge stage
 that runs project-authored extractor scripts, parses the strict JSONL facts they
@@ -51,15 +51,19 @@ gates. Each loop has four distinct roles that turn a candidate into a verified o
   fast and non-negotiable, catching errors before they reach appraisers.
 
 - **Appraise** judges quality against written laws. Independent evaluators inspect
-  whether the work meets the subjective standards you define.
+  whether the work meets the rules or criteria you define.
 
-- **Human-appraise** provides direct judgement when the stakes require it or the loop
-  deadlocks. Offers human oversight at critical decision points.
+- **Human-appraise** provides direct judgement when the stakes require it or the
+  cycle reaches its iteration limit. Offers human oversight at critical
+  decision points.
 
 Every stage commits separately, so every step leaves a record. Every decision is
 timestamped. A single loop produces an **output** — a verified draft. A flow
-composes one or more such loops to produce an **outcome** — the final artefact that
-reaches your codebase or customers.
+composes one or more such loops to produce an **outcome** — the final artefact.
+
+When the loop clears, completing the work branch requires **attest** — a final
+verification that writes and commits `ATTEST.md` — followed by **finish**, which
+squash-merges the approved work to the base branch with a signed attestation block.
 
 ### What you describe, what Foundry enforces
 
@@ -174,7 +178,8 @@ quench    → 5/7/5 — passes                          [commit]
 appraise  → 2 appraisers, one flags weak imagery    [commit]
 forge     → revises                                 [commit]
 appraise  → clean                                   [commit]
-done      → squash-merged to main with attestation
+attest    → ATTEST.md committed                     [commit]
+finish    → squash-merged to main with attestation
 ```
 
 Every stage commits. Every decision is recorded. Every piece of feedback and every
@@ -191,12 +196,12 @@ declare the entity and edge vocabulary, add extractors, and opt a cycle into
 `assay.extractors`. See [Optional: flow memory](docs/getting-started.md#optional-flow-memory)
 and [Assay](docs/concepts.md#assay) for the configuration path.
 
-> **Note (3.0.0):** flow memory currently persists to `cozo-node`, which is
+> **Note:** flow memory currently persists to `cozo-node`, which is
 > unmaintained upstream. Installation produces six cosmetic deprecation warnings
 > from transitive dependencies (`pnpm audit` is clean). Foundry will migrate to
 > a maintained backend in a future release; the public `foundry_memory_*` tools
 > and on-disk vocabulary/NDJSON format are designed to survive that migration.
-> See `CHANGELOG.md` and [docs/memory-maintenance.md](docs/memory-maintenance.md#backend-status-as-of-300).
+> See `CHANGELOG.md` and [docs/memory-maintenance.md](docs/memory-maintenance.md#backend-status).
 
 ---
 
