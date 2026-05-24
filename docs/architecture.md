@@ -34,7 +34,7 @@ A forge sub-agent can decline subjective feedback with a justification, and an a
 
 ### Humans can step in at known points
 
-Human-in-the-loop gates are first-class stages. A cycle can declare `human-appraise: true` to run a human quality gate every iteration, or rely on `deadlock-appraise: true` (the default) to pull a human in only when LLM appraisers and forge ping-pong on the same items. Human feedback takes absolute priority and cannot be wont-fixed.
+Human-in-the-loop gates are first-class stages. A cycle can declare `always-human-appraise: true` to run a human quality gate every iteration, or rely on `deadlock-human-appraise: true` (the default) to pull a human in when the iteration count reaches `max-iterations`. Human feedback takes absolute priority and cannot be wont-fixed.
 
 ### Multi-model diversity
 
@@ -75,9 +75,10 @@ The following guarantees live in plugin code and are outside LLM control:
 The `orchestrate` skill is a thin driver around `foundry_orchestrate`. Its entire loop is:
 
 ```text
-call foundry_orchestrate({lastResult})
+call foundry_orchestrate({lastResult, lastResults, baseBranch, defaultModel})
 switch on action:
-  dispatch        → dispatch the requested subagent → report back
+  dispatch        → dispatch single subagent → report back
+  dispatch_multi  → dispatch parallel appraiser tasks → consolidate → report back
   human_appraise  → run human-appraise inline → report back
   done / blocked / violation → terminate the loop
 ```
@@ -91,6 +92,14 @@ switch on action:
 - **Violation handling** — returns terminal envelopes (`unexpected_files`, `blocked`, `done`) that the `orchestrate` skill translates into user-facing outcomes.
 
 Because the protocol lives in a plugin tool, the LLM cannot skip steps, reorder them, or silently drop a commit.
+
+### Internal quench execution
+
+Quench runs inside the orchestrator as `runQuench(ctx)` — a deterministic, non-LLM validation pass. It reads the active stage from `.foundry/active-stage.json`, discovers artefact changes via branch-based artefact discovery, runs validators for each applicable law, and posts feedback with tags in the format `law:<law-id>:<validator-id>`. It also resolves prior quench feedback: items whose issues remain are set to `rejected`; items no longer present are set to `approved` (transitioned to `resolved`). The quench module is available at `src/scripts/quench-module.js`.
+
+### Internal appraise execution
+
+Appraise uses `gatherAppraiseContext()` to build parallel subagent tasks, one per (artefact, appraiser) pair. It returns a `dispatch_multi` action containing the task list. The orchestrator's loop dispatches each task independently. After all appraisers report back, `consolidateAppraise()` processes the `lastResults` array: it parses each successful output for structured issues, de-duplicates across appraisers, posts feedback with `law:<law-id>` tags, and resolves prior appraise feedback items (resolves stale items, rejects items still present). The appraise module is available at `src/scripts/appraise-module.js`.
 
 ---
 
@@ -134,9 +143,9 @@ Foundry partitions mutation across three branch namespaces. The plugin enforces 
 
 | Namespace | Pattern | Owns | Created from | Finished by |
 |-----------|---------|------|--------------|-------------|
-| **config** | `config/<description>` | `foundry/` (schema and config) | `main` via `foundry_git_branch({ kind: "config", description })` | PR or direct merge to `main` |
-| **work** | `work/<flowId>-<description>` | `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, `foundry-memory/` (row data) | `main` via `foundry_git_branch({ kind: "work", flowId, description })` | `foundry_git_finish` (squash-merges to base, preserves forensic archive) |
-| **dry-run** | `dry-run/<parentConfig>/<flowId>-<description>` | Same as `work/*` | `config/*` via `foundry_git_branch({ kind: "dry-run", flowId, description })` | `foundry_git_finish` (captures snapshot, force-deletes branch) |
+| **config** | `config/<description>` | `foundry/` (schema and config) | `main` via `foundry_git_branch({ kind: "config", description })` | Squash-merge to base branch; no attestation required |
+| **work** | `work/<flowId>-<description>` | `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, `foundry-memory/` (row data) | `main` via `foundry_git_branch({ kind: "work", flowId, description })` | Requires `ATTEST.md` at HEAD (created by `foundry_attest({ confirm: true })`). `foundry_git_finish({ confirm: true })` verifies the attestation, preserves `archive/<work-branch>-<short-sha>`, squash-merges to base, creates a signed commit (`-S`), deletes the work branch |
+| **dry-run** | `dry-run/<parentConfig>/<flowId>-<description>` | Same as `work/*` | `config/*` via `foundry_git_branch({ kind: "dry-run", flowId, description })` | `foundry_git_finish` (captures snapshot to `.snapshots/<run-id>/`, force-deletes branch) |
 
 ### Guard implementation
 
@@ -150,7 +159,7 @@ Implementation: `src/scripts/lib/branch-guard.js`.
 
 ### Forensic branches and snapshots
 
-- **Work branches** are preserved as `archive/work/<flowId>-<description>-<hash>` when `foundry_git_finish` completes. The full stage micro-commit history, `WORK.*` files, and all intermediate artefact states remain intact. The signed squash commit on the base branch references the archive branch tip SHA in its attestation block.
+- **Work branches** require `ATTEST.md` at HEAD, created by `foundry_attest({ confirm: true })` before `foundry_git_finish({ confirm: true })` runs. The finish tool verifies the attestation, checks the diff SHA matches, preserves the branch as `archive/work/<flowId>-<description>-<hash>`, squash-merges to the base branch with a signed commit (`-S`), and deletes the work branch. The full stage micro-commit history, `WORK.*` files, and all intermediate artefact states remain intact. The signed squash commit on the base branch references the archive branch tip SHA in its attestation block.
 - **Dry-run branches** are force-deleted after `foundry_git_finish` captures a snapshot to `.snapshots/<runId>/` on the parent `config/*` working tree. Each snapshot includes `README.md` (metadata), `work/WORK*` (workfile triple), `diff.patch` (full diff), and `trace.jsonl` (tool-call trace).
 
 ---
@@ -233,6 +242,20 @@ Every stage runs inside a token-gated lifecycle. The sub-agent must call `foundr
 
 Input artefacts (files matching an input type's `file-patterns`) are read-only. Files outside any artefact type's patterns are read-only. Violations hard-stop the cycle with `{error: 'unexpected_files'}`.
 
+### Forge required-tool verification
+
+During `foundry_stage_end` for a forge stage, the plugin verifies that the forge sub-agent called five required context-reading tools:
+
+1. `foundry_config_cycle`
+2. `foundry_workfile_get`
+3. `foundry_config_artefact_type`
+4. `foundry_config_laws`
+5. `foundry_feedback_list`
+
+Tool calls are logged to `.foundry/.forge-tool-calls.jsonl` during stage execution. When `foundry_stage_end` runs, it checks the log against the required set. Missing required calls generate system feedback with the tag `system:missing-tool-calls` and the forge stage completes normally — the missing-tool feedback acts as a signal to the sort router. When all required tools are present, any prior `system:missing-tool-calls` feedback is resolved.
+
+Implementation: `src/plugin/tools/stage-tools.js` (`verifyAndManageForgeTools`) and `src/scripts/lib/stage-calls.js`.
+
 ### Failed flow state
 
 When an unrecoverable error occurs (e.g. assay extractor abort, invalid JSONL, or memory-sync failure), the orchestrator marks `WORK.md` frontmatter with `status: failed` and a `reason`. The flow is then locked:
@@ -258,10 +281,10 @@ All pipeline skills (`orchestrate`, `flow`, stage skills) check for this state a
 
 `src/scripts/sort.js` (exported as `runSort`) owns the routing engine. It reads `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml`, then decides which stage runs next based on:
 
-- **Unresolved feedback.** If `quench` or `appraise` feedback exists in a non-terminal state (`open`, `actioned`, `wont-fix`), the next stage is usually `forge` or the originating evaluation stage.
-- **Deadlock detection.** If the same feedback items ping-pong between forge and appraise for `deadlock-iterations` (default 5) iterations, sort marks them `deadlocked` and inserts a `human-appraise` stage (if `deadlock-appraise: true`, the default).
-- **Iteration limits.** If `max-iterations` is exceeded, the cycle is marked `blocked` and control returns to the user.
+- **Unresolved feedback.** If feedback exists in a non-terminal state (`open`, `actioned`, `wont-fix`), the next stage is `forge` (for items needing action) or the originating evaluation stage (for items pending approval).
+- **Iteration limits and deadlock routing.** When the forge iteration count reaches `max-iterations` with unresolved feedback, sort routes to `human-appraise` (if `deadlock-human-appraise: true`, the default) or marks the cycle `blocked` if human routing is disabled. Sort does not write per-item deadlocked state; deadlock is a routing decision, not a feedback item state.
 - **Clean state.** If all feedback is resolved and no new validation or appraisal failures exist, the cycle is `done`.
+- **Blocked.** If `max-iterations` is exceeded and `deadlock-human-appraise` is `false`, the cycle is marked `blocked` and control returns to the user.
 
 ### Feedback state machine
 
@@ -269,14 +292,14 @@ Feedback items live in `WORK.feedback.yaml` with a full transition history. Each
 
 - `id` — a ULID.
 - `source` — the stage that created it (e.g. `quench:check-syllables`, `appraise:pedantic`, `human-appraise:hitl`).
-- `state` — current state (`open`, `actioned`, `wont-fix`, `resolved`, `rejected`, `deadlocked`).
+- `state` — current state (`open`, `actioned`, `wont-fix`, `resolved`, `rejected`).
 - `history` — append-only log of state transitions with timestamps and metadata.
 
 Transitions are **source-based**:
 
 | Source stage | Forge can `wont-fix`? | Resolved by |
 |--------------|------------------------|-------------|
-| `quench` (CLI validation) | No — must `actioned` | the originating `quench` stage, or `human-appraise` override |
+| `quench` (deterministic validation) | No — must `actioned` | the originating `quench` stage, or `human-appraise` override |
 | `appraise` (subjective law) | Yes (with reason) | the originating `appraise` stage, or `human-appraise` override |
 | `human-appraise` (user instruction) | No — must `actioned` | the originating `human-appraise` stage |
 
@@ -290,24 +313,27 @@ Different stages can run on different models for cognitive diversity. Cycle defi
 
 ### Configuration
 
+- **Orchestrator argument.** `defaultModel` (optional) can be passed as an orchestrator argument. When set, it serves as the fallback for any stage or appraiser that does not declare a model.
 - **Cycle-level.** Declare a `models` map in the cycle frontmatter:
   ```yaml
   models:
+    default: anthropic/claude-sonnet-4
     forge: anthropic/claude-opus-4.7
     appraise: openai/gpt-5
   ```
-- **Appraiser-level.** Individual appraisers can declare a `model` field in their personality definition; this overrides the cycle-level appraise model on a per-appraiser basis.
+  `models.default` provides a cycle-level fallback when no per-stage override exists and no `defaultModel` is passed to the orchestrator.
+- **Appraiser-level.** Individual appraisers can declare a `model` field in their personality definition; this overrides the cycle-level appraise model and `models.default` on a per-appraiser basis.
 
 ### Agent files
 
 The user-facing `Foundry` agent is installed by the plugin's `config` hook as `.opencode/agents/foundry.md`. Users switch to this agent after restarting OpenCode. It guides authoring and flow execution while generated `foundry-*` stage agents remain hidden routing targets for specific models.
 
-`foundry_refresh_agents()` generates a `foundry-<slug>.md` agent file in `.opencode/agents/` for every model available in the session, where `<slug>` is the model ID with both `/` and `.` replaced by `-` (e.g. `anthropic-claude-opus-4-7.md`).
+`foundry_refresh_agents` generates a `foundry-<slug>.md` agent file in `.opencode/agents/` for every model available in the session, where `<slug>` is the model ID with both `/` and `.` replaced by `-` (e.g. `anthropic-claude-opus-4-7.md`). Call `foundry_refresh_agents()` in code examples when referring to the tool invocation.
 
 ### Dispatch behaviour
 
-- **Non-appraise stages** (forge, quench, assay): if the cycle declares `models.<stage>`, the orchestrator dispatches to `foundry-<slug>` and hard-fails if `.opencode/agents/foundry-<slug>.md` is missing. If `models.<stage>` is not set, the stage is dispatched with the `general` subagent (session default).
-- **Appraise stage**: each appraiser is dispatched independently by the `appraise` skill. If an appraiser has its own `model`, the skill dispatches to `foundry-<slug>` and hard-fails if that agent file is missing; otherwise the appraiser runs under the `general` subagent.
+- **Non-appraise stages** (forge, quench, assay): the orchestrator resolves the model by checking `models.<stage>`, then `defaultModel`, then `models.default`, then falls back to `general` (session default). If a specific model is resolved, the orchestrator dispatches to `foundry-<slug>` and hard-fails if `.opencode/agents/foundry-<slug>.md` is missing.
+- **Appraise stage**: each appraiser is dispatched independently by the appraise module. The model resolution order is: appraiser's own `model` field, then `defaultModel`, then `models.default`, then `general`. If a specific model is resolved, the task is dispatched to `foundry-<slug>` and the orchestrator hard-fails if that agent file is missing.
 
 Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `src/skills/appraise/SKILL.md`.
 
@@ -331,12 +357,13 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 │   │   ├── appraise/
 │   │   ├── human-appraise/
 │   │   ├── add-artefact-type/  # authoring
-│   │   ├── add-artefact-type/
 │   │   ├── add-law/
 │   │   ├── add-appraiser/
 │   │   ├── add-cycle/
 │   │   ├── add-flow/
 │   │   ├── add-extractor/
+│   │   ├── assay/              # deterministic extractor execution
+│   │   ├── dry-run/            # dry-run execution and snapshots
 │   │   ├── list-agents/        # utility
 │   │   ├── refresh-agents/       # utility (now backed by foundry_refresh_agents tool)
 │   │   ├── upgrade-foundry/
@@ -352,7 +379,7 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 │   └── scripts/
 │       ├── lib/                # shared libraries (injectable I/O)
 │       │   ├── workfile.js     # WORK.md frontmatter
-│       │   ├── artefacts.js    # artefact table operations
+│   │   ├── artefacts.js    # artefact discovery via branch diffs
 │       │   ├── history.js      # WORK.history.yaml operations
 │       │   ├── feedback-store.js
 │       │   ├── feedback-transitions.js
@@ -367,10 +394,18 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 │       │   ├── state.js
 │       │   ├── config.js       # foundry/ config readers
 │       │   ├── slug.js
+│       │   ├── tool-paths.js
+│       │   ├── stage-calls.js  # forge tool-call logging and verification
+│       │   ├── sort-routing.js
+│       │   ├── sort-reason.js
+│       │   ├── sort-fs-check.js
+│       │   ├── validation.js
 │       │   ├── ulid.js
 │       │   ├── tracing.js
 │       │   ├── failed-flow.js
 │       │   ├── git-bridge.js
+│       │   ├── git-finish/     # branch finishing logic
+│       │   ├── attestation/    # ATTEST.md generation and verification
 │       │   ├── git-policy.js
 │       │   ├── assay/
 │       │   ├── config-creators/
@@ -378,6 +413,11 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 │       │   ├── snapshot/
 │       │   └── memory/         # flow memory (Cozo 0.7)
 │       ├── orchestrate.js      # orchestration loop (exports runOrchestrate)
+│       ├── orchestrate-cycle.js
+│       ├── orchestrate-phases.js
+│       ├── orchestrate-terminals.js
+│       ├── quench-module.js    # deterministic validation (runQuench)
+│       ├── appraise-module.js  # appraise gather and consolidate
 │       └── sort.js             # routing engine (exports runSort)
 ├── scripts/
 │   └── build.js                # builds src/ into dist/
