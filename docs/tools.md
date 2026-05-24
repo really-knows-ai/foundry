@@ -1,8 +1,8 @@
 # Foundry Public Tool Reference
 
-Generated from the v3.0.x public plugin API. The authoritative tool set is
+Generated from the current public plugin API for Foundry 3.5.8. The authoritative tool set is
 enforced by `tests/plugin/tool-registration.test.js` — if that snapshot
-drifts, this doc must be updated. Total: **66 tools**.
+drifts, this doc must be updated. Total: **65 tools**.
 
 All tools accept arguments as a JSON object and return JSON-stringified
 results. Errors are returned as a stringified `{error: "..."}` object (not
@@ -39,12 +39,14 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 
   | Namespace | Applies to | Notes |
   |-----------|------------|-------|
-  | `config/<description>` | `foundry_config_create_*` (5), `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_*`, `foundry_memory_drop_*`, `foundry_memory_reset`, `foundry_memory_init`, `foundry_memory_change_embedding_model`, `foundry_extractor_create` | Config and schema mutation only. |
+  | `config/<description>` | `foundry_config_create_artefact_type`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle`, `foundry_config_add_law`, `foundry_config_edit_law`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_*`, `foundry_memory_drop_*`, `foundry_memory_reset`, `foundry_memory_init`, `foundry_memory_change_embedding_model`, `foundry_extractor_create` | Config and schema mutation only. |
   | `work/<flow>-<desc>` or `dry-run/<x>/<y>` | `foundry_orchestrate`, `foundry_stage_begin`, `foundry_stage_end`, `foundry_stage_retry`, `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`, `foundry_assay_run`, `foundry_validate_run`, `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate` | Flow-data mutation only. |
   | Any branch | `foundry_workfile_get`, `foundry_artefacts_list`, `foundry_feedback_list`, `foundry_history_list`, `foundry_config_*` read tools, `foundry_config_validate_*`, `foundry_appraisers_select`, `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, `foundry_memory_search`, `foundry_memory_dump`, `foundry_memory_validate`, `foundry_snapshot_*` | No branch guard and no failed-flow guard. |
   | Self-classifying | `foundry_git_branch`, `foundry_git_finish` | Each tool checks its own branch rules. Leaving the failed branch is the recovery path. |
 
   Off-namespace calls return a structured refusal envelope naming the required namespace and the current branch.
+
+> **Memory admin callability:** Schema-mutation and destructive memory admin tools (`foundry_memory_init`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type`, `foundry_memory_reset`, `foundry_memory_change_embedding_model`) require `config/*` branches and non-failed flow. Read-only diagnostics (`foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, `foundry_memory_search`, `foundry_memory_dump`, `foundry_memory_validate`) are broadly callable. `foundry_memory_vacuum` uses only the failed-flow guard and is not config-branch guarded.
 
 ## Tool index
 
@@ -238,12 +240,17 @@ frontmatter.
 **Args:**
 - `lastResult` (object, optional): `{ ok: boolean, error?: string }` — output of the
   prior action.
+- `lastResults` (array, optional): Output of prior `dispatch_multi` actions.
 - `cycleDef` (string, optional): Test-mode override path to a cycle file.
+- `baseBranch` (string, optional, default `main`): Base branch for diff and merge.
+- `defaultModel` (string, optional): Model override for all dispatch prompts.
 
 **Returns:** one of:
 - `{ action: "dispatch", stage, cycle, prompt, token, ... }` — caller
   should dispatch a subagent. The `prompt` field is augmented with cycle
   memory context (entity types, edge types, extractor briefs) when configured.
+- `{ action: "dispatch_multi", tasks: [...], ... }` — caller should
+  dispatch multiple subagents in parallel (used for parallel appraiser dispatch).
 - `{ action: "human_appraise", ... }` — surface to the user.
 - `{ action: "done", ... }` — cycle complete.
 - `{ action: "blocked", ... }` — cycle stalled.
@@ -261,6 +268,8 @@ failed flow.
 **Side effects:** mints/persists dispatch tokens (in-memory pending
 store); commits via `commitWithPolicy` when finalising stages (refuses
 on unexpected files); appends WORK.md artefact rows when finalising.
+Runs quench synchronously when laws contain validators; runs appraise
+via `gatherAppraiseContext` + `consolidateAppraise`.
 
 ### `foundry_workfile_create`
 
@@ -325,7 +334,7 @@ flow** (escape hatch).
 
 ### `foundry_artefacts_list`
 
-> List artefact changes on the current work branch for the current cycle.
+> List artefact changes on the current work branch for the current cycle. Artefacts are discovered from branch diff status (git diff against base branch), filtered by the current cycle's output-type file patterns.
 
 **Args:**
 - none.
@@ -359,7 +368,7 @@ existing equivalent item was returned). `{ error: ... }` otherwise.
 **Stage requirements:** requires active stage. Tag is gated by stage
 base:
 - `forge` → forbidden (forge stages do not add feedback).
-- `quench` → tag must be exactly `validation`.
+- `quench` → tag must start with `law:`.
 - `appraise` → tag must start with `law:`.
 - `human-appraise` → tag must be exactly `human`.
 - `assay` → forbidden. Extractor failures mark the workfile failed and end
@@ -542,7 +551,8 @@ that id is registered.
 `file-patterns`.
 
 **Stage requirements:** none (callable outside any stage; intended to be
-invoked by quench, but not enforced). Refused on a failed flow.
+invoked by quench, but not enforced). Requires a `work/*` or `dry-run/*`
+branch (flow-data mutation namespace). Refused on a failed flow.
 
 **Side effects:** spawns subprocesses via `execSync` in the worktree —
 external commands may have arbitrary side effects, which is why the tool
@@ -654,10 +664,12 @@ can branch away to recover.
 | current branch       | mode      | what happens                                                                                                                              |
 | -------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `work/<x>`                 | work      | commits `WORK.*` cleanup on the work branch, preserves the branch as `archive/work/<x>-<hash>`, squash-merges to `baseBranch`, creates a signed commit whose message embeds the canonical Foundry attestation block. |
-| `config/<x>`               | config    | squash-merges to `baseBranch`, force-deletes the config branch. No WORK cleanup.                                                          |
+| `config/<x>`               | config    | squash-merges to `baseBranch`, force-deletes the config branch. No WORK cleanup. |
 | `dry-run/<x>/<y>`          | dry-run   | writes `.snapshots/<run-id>/{README.md, work/WORK*, diff.patch, trace.jsonl}` on the parent `config/<x>` working tree; force-deletes the dry-run branch. No merge, no commit. |
 | base branch (`main` by default) | noop | `{ ok: true, noop: true, ... }`.                                                                                                           |
 | anything else              | refused   | `{ ok: false, error: "... nothing to finish ..." }`.                                                                                      |
+
+**Work-branch precondition (work mode):** `ATTEST.md` must exist at HEAD, created by a prior `foundry_attest({ confirm: true })` call. Without it, the work mode refuses.
 
 **Returns:**
 - Plan (when `confirm` is not true):
@@ -789,8 +801,7 @@ schema checks without writing. Laws use a different shape: `add_law`
 creates a new entry, `edit_law` updates an existing one, and
 `foundry_config_validate_law` covers schema validation for either.
 
-Common args across the `_create_*` tools: `name` (string), `body`
-(string, markdown). Common returns across the whole family:
+Common returns across the whole family:
 `{ ok: true, path, sha }` on success; `{ ok: false, errors: [...] }`
 on validation failure; `{ error, affected_files: [...] }` on
 commit-policy refusal (the worktree was dirty with files outside
@@ -805,9 +816,11 @@ to update an existing law in place.
 > `foundry/artefacts/<typeId>/`.
 
 **Args:**
-- `name` (string, required): typeId (kebab-case slug).
-- `body` (string, required): markdown body with frontmatter
-  (`file-patterns`, optional `description`, etc.).
+- `id` (string, required): Artefact type id (kebab-case slug).
+- `name` (string, required): Human-readable name.
+- `filePatterns` (string[], required): Glob patterns for matching artefacts.
+- `description` (string, required): Prose description of the artefact type.
+- `appraisers` (object, optional): `{ allowed: string[], count: number }` — appraiser pool and selection count.
 
 **Returns:** `{ ok: true, path, sha }` on success;
 `{ ok: false, errors: [...] }` on schema failure;
@@ -832,49 +845,53 @@ current `config/*` branch.
 
 ### `foundry_config_add_law`
 
-> Add a new law markdown entry. Locator depends on `target.kind`.
+> Add a new law entry.
 
 **Args:**
-- `name` (string, required): law id (kebab-case slug). Used in the
-  commit message.
-- `body` (string, required): markdown body for the law, starting with
-  a `## <law-id>` heading.
-- `target` (object, required):
-  - `{ kind: "global", file: "<name>.md" }` — appends or writes
-    `foundry/laws/<file>`.
-  - `{ kind: "type-specific", typeId: "<id>" }` — appends or writes
-    `foundry/artefacts/<typeId>/laws.md`.
+- `id` (string, required): Law id (kebab-case slug).
+- `name` (string, required): Human-readable name.
+- `description` (string, required): Prose description of the law.
+- `passing` (string, required): Feedback text when the law passes.
+- `failing` (string, required): Feedback text when the law fails.
+- `target` (object, required): `{ kind: "global"|"type-specific", file?: string, typeId?: string }` — locator for the law target.
+- `validators` (array, optional): Array of `{ name: string, command: string }` objects defining validator commands.
 
-**Returns / Stage requirements / Side effects:** as for
-`foundry_config_create_artefact_type`.
+**Returns:** `{ ok: true, path, sha }` on success;
+`{ ok: false, errors: [...] }` on validation failure;
+`{ error, affected_files }` on commit-policy refusal.
 
-**Failure modes:** as for `foundry_config_create_artefact_type`, plus
-`target` shape errors:
-- Missing or non-object `target` → `{ ok: false, errors: ["target
-  argument is required (object with kind + locator)"] }`.
-- Unknown `target.kind` → `{ ok: false, errors: ["unknown
-  target.kind: <kind>"] }`.
-- Missing `target.file` for `global` / missing `target.typeId` for
-  `type-specific` → `{ ok: false, errors: [...] }`.
-- Target file already exists →
-  `{ ok: false, errors: ["… already exists; use foundry_config_edit_law
-  to update an existing law in place"] }`.
+**Stage requirements:** none (no active stage); requires a
+`config/*` branch.
+
+**Failure modes:**
+- Off `config/*` branch → branch-guard refusal envelope.
+- Failed flow → tool-name-prefixed error.
+- Schema validation failure → `{ ok: false, errors: [...] }`.
+- Target file already exists → `{ ok: false, errors: ["… already
+  exists; use foundry_config_edit_law to update an existing law in place"] }`.
+- Worktree has changes outside `foundry/**` →
+  `{ error, affected_files }`.
+
+**Side effects:** writes the law file and commits it on the current
+`config/*` branch.
 
 ### `foundry_config_edit_law`
 
-> Replace the body of an existing law in place, preserving sibling
-> laws in the same file. Locates the law by id across both global laws
-> and per-type `laws.md` files.
+> Update an existing law's fields in place. Locates the law by id across
+> both global laws and per-type `laws.md` files.
 
 **Args:**
-- `id` (string, required): law id to edit.
-- `body` (string, required): full new markdown body for the law,
-  starting with a `## <law-id>` heading.
+- `id` (string, required): Law id to edit.
+- `name` (string, optional): New human-readable name.
+- `description` (string, optional): New prose description.
+- `passing` (string, optional): New passing feedback text.
+- `failing` (string, optional): New failing feedback text.
+- `validators` (array, optional): New validator list replacing the current one.
 
 **Returns:** `{ ok: true, id, path, source }` on success, where
 `source` is `"global"` or `"type:<typeId>"`. Returns
 `{ ok: false, errors: ["Law \"<id>\" not found"] }` when no law of
-that id exists, or `{ ok: false, errors: [...] }` when the new body
+that id exists, or `{ ok: false, errors: [...] }` when the update
 fails law schema validation.
 
 **Stage requirements:** none (no active stage); requires a `config/*`
@@ -888,48 +905,92 @@ the current `config/*` branch with message `config: edit law <id>`.
 > Create a new appraiser personality at `foundry/appraisers/<id>.md`.
 
 **Args:**
-- `name` (string, required): appraiser id.
-- `body` (string, required): markdown body with frontmatter
-  (`description`, optional `model`, …).
+- `id` (string, required): Appraiser id (kebab-case slug).
+- `name` (string, required): Human-readable name.
+- `description` (string, required): Prose description of the appraiser's role.
+- `model` (string, optional): Model override for this appraiser.
 
-**Returns / Stage requirements / Side effects:** as for
-`foundry_config_create_artefact_type`.
+**Returns:** `{ ok: true, path, sha }` on success;
+`{ ok: false, errors: [...] }` on schema failure;
+`{ error, affected_files }` on commit-policy refusal.
 
-**Failure modes:** as for `foundry_config_create_artefact_type`,
-applied to the appraiser schema (missing description, semantic overlap
-with an existing appraiser, …).
+**Stage requirements:** none (no active stage); requires a
+`config/*` branch.
+
+**Failure modes:**
+- Off `config/*` branch → branch-guard refusal envelope.
+- Failed flow → tool-name-prefixed error.
+- Schema validation failure (missing description, semantic overlap
+  with an existing appraiser, …) → `{ ok: false, errors: [...] }`.
+- Worktree has changes outside `foundry/**` →
+  `{ error, affected_files }`.
+
+**Side effects:** writes the appraiser file and commits it on the
+current `config/*` branch.
 
 ### `foundry_config_create_flow`
 
 > Create a new flow definition under `foundry/flows/<flowId>/`.
 
 **Args:**
-- `name` (string, required): flowId (kebab-case slug).
-- `body` (string, required): markdown body with frontmatter
-  (`description`, `cycles: [...]`).
+- `id` (string, required): Flow id (kebab-case slug).
+- `name` (string, required): Human-readable name.
+- `startingCycles` (string[], required): Ordered list of cycle ids for this flow.
+- `description` (string, required): Prose description of the flow.
 
-**Returns / Stage requirements / Side effects:** as for
-`foundry_config_create_artefact_type`.
+**Returns:** `{ ok: true, path, sha }` on success;
+`{ ok: false, errors: [...] }` on schema failure;
+`{ error, affected_files }` on commit-policy refusal.
 
-**Failure modes:** as for `foundry_config_create_artefact_type`,
-applied to the flow schema.
+**Stage requirements:** none (no active stage); requires a
+`config/*` branch.
+
+**Failure modes:**
+- Off `config/*` branch → branch-guard refusal envelope.
+- Failed flow → tool-name-prefixed error.
+- Schema validation failure → `{ ok: false, errors: [...] }`.
+- Worktree has changes outside `foundry/**` →
+  `{ error, affected_files }`.
+
+**Side effects:** writes the flow file and commits it on the
+current `config/*` branch.
 
 ### `foundry_config_create_cycle`
 
 > Create a new cycle markdown file under `foundry/cycles/<cycleId>.md`.
 
 **Args:**
-- `name` (string, required): cycleId (kebab-case slug).
-- `body` (string, required): markdown body with frontmatter
-  (`flowId`, `output`, optional `inputs`, `memory`, `models`, …).
+- `id` (string, required): Cycle id (kebab-case slug).
+- `name` (string, required): Human-readable name.
+- `outputType` (string, required): Artefact type id for this cycle's output.
+- `inputs` (object, optional): `{ type: "any-of"|"all-of", artefacts: string[] }` — input filtering rules.
+- `targets` (string[], optional): Target artefact file paths.
+- `alwaysHumanAppraise` (boolean, optional): Force human appraisal on every run.
+- `deadlockHumanAppraise` (boolean, optional): Fall back to human appraisal on deadlock.
+- `maxIterations` (number, optional): Maximum forge-quench-appraise iterations.
+- `assay` (object, optional): `{ extractors: string[] }` — extractors to run in the assay stage.
+- `memory` (object, optional): `{ read: string[], write: string[] }` — memory permissions.
+- `models` (object, optional): Per-stage model overrides.
+- `description` (string, optional): Prose description of the cycle.
 
-**Returns / Stage requirements / Side effects:** as for
-`foundry_config_create_artefact_type`.
+**Returns:** `{ ok: true, path, sha }` on success;
+`{ ok: false, errors: [...] }` on schema failure;
+`{ error, affected_files }` on commit-policy refusal.
 
-**Failure modes:** as for `foundry_config_create_artefact_type`,
-applied to the cycle schema (unknown `output` artefact-type, unknown
-`memory.read` / `memory.write` types, unknown referenced appraisers,
-…).
+**Stage requirements:** none (no active stage); requires a
+`config/*` branch.
+
+**Failure modes:**
+- Off `config/*` branch → branch-guard refusal envelope.
+- Failed flow → tool-name-prefixed error.
+- Schema validation failure (unknown `outputType`, unknown
+  `memory.read` / `memory.write` types, unknown referenced appraisers,
+  …) → `{ ok: false, errors: [...] }`.
+- Worktree has changes outside `foundry/**` →
+  `{ error, affected_files }`.
+
+**Side effects:** writes the cycle file and commits it on the
+current `config/*` branch.
 
 ---
 
@@ -1181,7 +1242,7 @@ read-disallowed.
 
 **Args:**
 - `type`, `name` (string, required).
-- `depth` (number, optional, default 1).
+- `depth` (number, optional, default 1, maximum 5).
 - `edge_types` (string[], optional): Restrict traversal to named edges;
   defaults to all known edges.
 
@@ -1211,7 +1272,7 @@ cycle cannot read; query contains a forbidden keyword.
 
 **Args:**
 - `query_text` (string, required).
-- `k` (number, optional, default 5).
+- `k` (number, optional, default 5, maximum 100).
 - `type_filter` (string[], optional): default = all readable entity
   types.
 

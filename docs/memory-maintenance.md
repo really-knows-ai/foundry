@@ -4,7 +4,7 @@ Contributor-facing notes. This file records the derived details from the
 Cozo docs / plugin surface that cost us time to establish. Add entries when a
 fix required non-trivial spelunking, so the next maintainer can reuse the result.
 
-## Backend status (as of 3.0.0)
+## Backend status
 
 The memory subsystem persists to `cozo-node@0.7.6`, which wraps the Rust
 `cozodb` engine. Both are effectively unmaintained:
@@ -23,7 +23,7 @@ property-graph with HNSW, Cypher dialect), **SurrealDB embedded**,
 **DuckDB + vss + PGQ**, and **SQLite + `sqlite-vec`** with hand-rolled
 graph traversal. The migration is structured so the public memory tool
 surface (`foundry_memory_*`) and the on-disk durable artefacts
-(`foundry-memory/entities/*.md`, `foundry-memory/edges/*.md`,
+(`foundry/memory/entities/*.md`, `foundry/memory/edges/*.md`,
 `foundry-memory/relations/*.ndjson`) remain stable; only the live
 in-process store changes.
 
@@ -126,7 +126,7 @@ Extractors are defined at `foundry/memory/extractors/<name>.md` with a `command`
 
 ## Memory layout: two trees
 
-Since Phase 2 (3.0.0), memory is split across two top-level trees:
+Memory is split across two top-level trees:
 
 - `foundry/memory/` — *config*. Holds `config.md`, `schema.json`,
   `entities/<name>.md`, `edges/<name>.md`, `extractors/<name>.md`,
