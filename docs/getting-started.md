@@ -26,7 +26,7 @@ directory structure, generates stage agents, and installs the Foundry guide
 agent automatically.
 
 After restart, type **hello foundry**. The assistant will tell you whether a
-further restart is needed and when to switch to the Foundry agent.
+further restart is needed and when to switch to the **Foundry** agent.
 
 Optionally, if you want the package available to your project's local node_modules (for editor tooling or scripts), run:
 
@@ -144,7 +144,7 @@ To run a flow, ask the Foundry agent with your goal as the input (e.g. "Run the 
    - **human-appraise** (if configured, or at the iteration limit) asks you for input.
    - If any unresolved feedback remains, another forge iteration begins.
 4. When the cycle completes, the flow skill checks the cycle's `targets`. If a target's input contract is satisfied, it asks whether to proceed.
-5. When all desired cycles are complete, the flow skill asks you to attest the work via `foundry_attest({ confirm: true })`, which verifies cycle completion, writes and commits `ATTEST.md`. After attestation succeeds, you call `foundry_git_finish({ confirm: true })`, which squash-merges to the base branch with a signed attestation block, preserves the work branch as an archive, and creates the final signed commit. See [`docs/tools.md`](./tools.md#foundry_attest) for the attestation contract.
+5. When all desired cycles are complete, the flow skill asks you to attest the work via `foundry_attest`, which verifies cycle completion, writes and commits `ATTEST.md`. After attestation succeeds, `foundry_git_finish` squash-merges to the base branch with a signed attestation block, preserves the work branch as an archive, and creates the final signed commit. See [`docs/tools.md`](./tools.md#foundry_attest) for the attestation contract.
 
 Every stage ends with a micro-commit. Violations of the write invariant (writing to disallowed files) hard-stop the cycle.
 
@@ -207,7 +207,7 @@ Use `foundry_stage_retry()` when the underlying problem is fixed and you want to
 
 ## Cleaning up
 
-When a flow completes, the flow skill asks you to attest the work via `foundry_attest({ confirm: true })`, which verifies cycle completion, writes `ATTEST.md` at `HEAD`, and commits it. After attestation succeeds, `foundry_git_finish({ confirm: true })` handles integration with audit guarantees: it commits `WORK.*` cleanup, preserves the branch as `archive/work/<flow>-<desc>-<hash>` for immutable forensic history, squash-merges to the base branch, and creates a signed commit whose message embeds the canonical Foundry attestation block. See [`docs/tools.md`](./tools.md#foundry_attest) and [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contracts.
+When a flow completes, the flow skill asks you to attest the work via `foundry_attest`, which verifies cycle completion, writes `ATTEST.md` at `HEAD`, and commits it. After attestation succeeds, `foundry_git_finish` handles integration with audit guarantees: it commits `WORK.*` cleanup, preserves the branch as `archive/work/<flow>-<desc>-<hash>` for immutable forensic history, squash-merges to the base branch, and creates a signed commit whose message embeds the canonical Foundry attestation block. See [`docs/tools.md`](./tools.md#foundry_attest) and [`docs/tools.md`](./tools.md#foundry_git_finish) for the full contracts.
 
 ---
 
