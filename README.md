@@ -238,7 +238,8 @@ reproducible.
   state live in tested plugin code, outside LLM control.
 
 - **Written quality criteria** — laws are markdown files; an appraiser panel scores
-  each artefact against them, so quality is objective.
+  each artefact against them, providing structured quality assessment from
+  multiple perspectives.
 
 - **Multi-model diversity** — forge on one model, appraise on another, every
   appraiser on a different model if you want. Different models catch different

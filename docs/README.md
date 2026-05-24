@@ -1,6 +1,6 @@
 # Foundry docs
 
-This directory contains the reference set behind the project README. Every document here serves a single purpose; use this index to find what you need.
+This directory contains the reference set behind the project README. Every document here serves a single purpose; use this index to find what you need. The `docs/superpowers/` directory is future-facing internal scaffolding and is not indexed as public documentation.
 
 **How to navigate:** Work through the sections in order: **Start here** establishes conceptual foundations, **Reference** provides detailed specifications for implementation, and **Contributors** covers subsystem maintenance and extensions.
 

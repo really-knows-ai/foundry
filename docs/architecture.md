@@ -300,7 +300,7 @@ Transitions are **source-based**:
 | Source stage | Forge can `wont-fix`? | Resolved by |
 |--------------|------------------------|-------------|
 | `quench` (deterministic validation) | No — must `actioned` | the originating `quench` stage, or `human-appraise` override |
-| `appraise` (subjective law) | Yes (with reason) | the originating `appraise` stage, or `human-appraise` override |
+| `appraise` (law evaluation) | Yes (with reason) | the originating `appraise` stage, or `human-appraise` override |
 | `human-appraise` (user instruction) | No — must `actioned` | the originating `human-appraise` stage |
 
 Implementation: `src/scripts/lib/feedback-transitions.js` and `src/scripts/lib/feedback-store.js`. See [work-spec.md](work-spec.md) for the full state machine table.

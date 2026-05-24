@@ -63,7 +63,7 @@ See also: [Extractor](#extractor).
 A definition of what is being produced. Lives in `foundry/artefacts/<type>/`:
 
 - `definition.md` — identity, file patterns, output directory, appraiser config, prose description.
-- `laws.md` *(optional)* — type-specific subjective criteria, with optional validators for deterministic checks.
+- `laws.md` *(optional)* — type-specific criteria, with optional validators for deterministic checks.
 
 File patterns must not overlap with any other artefact type's patterns — the write-invariant enforcer needs to know which type owns a given file.
 
