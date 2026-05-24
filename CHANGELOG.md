@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.5.9] - 2026-05-24
+
+### Changed
+
+- Cycle frontmatter keys renamed: `human-appraise` → `always-human-appraise`, `deadlock-appraise` → `deadlock-human-appraise`, `deadlock-iterations` replaced with `max-iterations`-based deadlock routing.
+- Deadlock routing replaced per-item deadlocked state with iteration-limit detection using `max-iterations` and `deadlock-human-appraise`.
+- Orchestration uses iteration cap routing instead of per-item deadlock history.
+- Skills and public documentation (`README.md`, `docs/*`) refreshed against the current 65-tool implementation: updated tool reference with structured config-creation arguments, corrected quench/appraise execution models, documented attestation-before-finish workflow, added Validator and ATTEST.md concepts, and fixed memory paths. All stale v3.0.x terminology removed.
+
+### Fixed
+
+- Guidance audit tests aligned with current user-facing documentation style (no direct `foundry_git_finish({)` call syntax in walkthrough).
+
 ## [3.5.8] - 2026-05-23
 
 ### Added
