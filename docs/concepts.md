@@ -20,9 +20,9 @@ An iterative unit that produces one artefact type and routes to later cycles thr
 - `output-type` — the artefact type it produces (read-write).
 - `inputs` — a contract (`any-of` / `all-of`) over other artefact types. Inputs are discovered on disk; they are read-only unless the output type's patterns happen to cover them.
 - `targets` — the cycle(s) that may run after this one. May be empty (terminal cycle).
-- `human-appraise` — whether a human quality gate runs every iteration (default: `false`).
-- `deadlock-appraise` — whether a human is pulled in when LLM appraisers deadlock (default: `true`).
-- `deadlock-iterations` — deadlock threshold (default: `5`).
+- `always-human-appraise` — whether a human quality gate runs every iteration (default: `false`).
+- `deadlock-human-appraise` — whether a human is pulled in when the deadlock threshold is reached (default: `true`).
+- `max-iterations` — maximum forge iterations (default: `3`).
 - `models` — optional per-stage model overrides.
 
 A cycle runs **assay** first when configured, then **forge → quench → appraise** (and optionally **human-appraise**), looping until all feedback is resolved or `max-iterations` is hit.
@@ -35,9 +35,9 @@ The stage names come from the foundry metaphor because the system treats AI outp
 
 - **assay** — opt-in pre-forge stage that populates flow memory by running project-authored extractor scripts (iteration 0 only). No artefact, no feedback, no output beyond memory writes. See the [Assay](#assay) and [Extractor](#extractor) entries below.
 - **forge** — produce or revise the artefact.
-- **quench** — run deterministic CLI checks declared in laws (via their optional `validators:` blocks).
-- **appraise** — subjective evaluation by multiple appraiser sub-agents.
-- **human-appraise** — human quality gate. Can run every iteration, only on deadlock, or both.
+- **quench** — deterministic validation run inside the orchestrator against laws that contain validators.
+- **appraise** — orchestrator-managed `dispatch_multi` fan-out to appraiser sub-agents, with internal consolidation.
+- **human-appraise** — human quality gate. Runs every iteration when `always-human-appraise` is true, or on deadlock when `deadlock-human-appraise` is true.
 
 Feedback is always *about an artefact* and flows backward to forge. Assay sits outside the artefact-feedback loop because it precedes the artefact and its only failure mode (a broken extractor under `foundry/memory/extractors/`) lives outside forge's `file-patterns`.
 
@@ -69,25 +69,29 @@ File patterns must not overlap with any other artefact type's patterns — the w
 
 ## Law
 
-A subjective pass/fail criterion. Two scopes:
+A rule or criterion that defines expectations for artefacts. Two scopes:
 
 - **Global** — `foundry/laws/*.md`, all files concatenated, applies to every artefact.
 - **Type-specific** — `foundry/artefacts/<type>/laws.md`.
 
-Each law is a `## heading` (its identifier, used in feedback tags as `law:<id>`) with a description, passing criteria, and failing criteria.
+Each law is a `## heading` (its identifier, used in feedback tags as `law:<id>`) with a description, passing criteria, and failing criteria. Laws may declare optional validators, which are deterministic scripts that verify the artefact programmatically.
+
+## Validator
+
+An optional deterministic script attached to a law. Declared in a law's `validators` field and run during the quench stage. Each validator produces feedback tagged `law:<law-id>:<validator-id>` when its check fails. Validators are the mechanism for automated, deterministic enforcement of law requirements.
 
 ## Appraiser
 
-An independent evaluator with a defined personality. Lives in `foundry/appraisers/*.md`. Appraisers may specify a `model` field to override the cycle-level appraise model. Each artefact type picks which appraisers may evaluate it (`appraisers.allowed`) and how many run per iteration (`appraisers.count`). Selection distributes evenly across allowed personalities.
+An evaluator that judges artefacts against laws through its personality or perspective. Lives in `foundry/appraisers/*.md`. Appraisers may specify a `model` field to override the cycle-level appraise model. Each artefact type picks which appraisers may evaluate it (`appraisers.allowed`) and how many run per iteration (`appraisers.count`). Selection distributes evenly across allowed personalities. Appraisers receive the artefact content and applicable laws; they do not receive validator metadata.
 
 ## WORK.md
 
-The transient shared state for a flow. Created on the work branch by the flow skill, it tracks:
+The transient shared state for a flow. Created on the work branch, it tracks:
 
 - Current position (flow, cycle, stage list, iteration limits) in frontmatter.
 - The goal (prose — written once).
-- An artefact registry (file, type, cycle, status).
-- Feedback state lives alongside it in `WORK.feedback.yaml`.
+
+Artefacts are discovered from branch changes against the current cycle's output-type file patterns, not stored as an artefact table in `WORK.md`. Feedback state lives alongside `WORK.md` in `WORK.feedback.yaml`.
 
 See [work-spec.md](work-spec.md) for the full spec.
 
@@ -100,12 +104,12 @@ Append-only log of every stage execution, sitting next to WORK.md. Used by sort 
 Feedback items live in `WORK.feedback.yaml` — a yaml file at the worktree
 root, alongside `WORK.md`. Every item has a ULID, a source stage, and a
 full history of state transitions (open → actioned → resolved, or variants
-including wont-fix / rejected / deadlocked).
+including wont-fix / rejected).
 
 Plugins read and write feedback through the `foundry_feedback_*` tools;
-skills never edit the yaml directly. Sort-side detection of deadlocked
-items (per-item history depth) replaces the earlier global-iteration
-counter.
+skills never edit the yaml directly. Sort routing uses the iteration count
+and `max-iterations` / `deadlock-human-appraise` settings to detect
+deadlock, not per-item deadlock history.
 
 See `docs/work-spec.md` for the full schema and state machine.
 
@@ -113,8 +117,8 @@ See `docs/work-spec.md` for the full schema and state machine.
 
 Human-in-the-loop checkpoint. A stage where Foundry pauses and asks a human for input. Two triggers:
 
-1. **Every-iteration** — the cycle declares `human-appraise: true`. The `human-appraise` stage runs after LLM appraise each iteration.
-2. **Deadlock** — the cycle declares `deadlock-appraise: true` (default). If forge and appraisers ping-pong on the same items for `deadlock-iterations` (default 5) iterations, sort inserts a `human-appraise` stage to break the tie.
+1. **Every-iteration** — the cycle declares `always-human-appraise: true`. The `human-appraise` stage runs after LLM appraise each iteration.
+2. **Deadlock** — the cycle declares `deadlock-human-appraise: true` (default). If the iteration count reaches `max-iterations`, sort inserts a `human-appraise` stage to break the tie.
 
 Human feedback is tagged `human` and takes priority over LLM feedback on the same topic.
 
@@ -194,6 +198,28 @@ The signed squash commit on the base branch references the archive
 branch tip SHA in its attestation block. Archive branches accumulate
 indefinitely — periodic manual pruning is outside the tool's scope.
 
+## Attestation
+
+A cryptographic claim that a work branch completed all required stages
+and all feedback was resolved. Created by `foundry_attest({ confirm: true })`,
+which writes and commits `ATTEST.md` at `HEAD` containing the cycle
+goal, a diff SHA-256 of the branch changes, and a canonical JSON payload
+with the flow contract, governance hashes, output artefact list, process
+log, and archive branch reference. Work-branch `foundry_git_finish`
+verifies the attestation before allowing the squash merge. Config and
+dry-run branches do not require attestation.
+
+## ATTEST.md
+
+The attestation document written by `foundry_attest` as the work-branch
+`HEAD` commit. Contains the goal prose, `diff-sha256` of the branch
+diff, and a signed attestation block between `-----BEGIN FOUNDRY
+ATTESTATION-----` and `-----END FOUNDRY ATTESTATION-----` delimiters.
+`foundry_git_finish` verifies `ATTEST.md` exists at `HEAD`, checks the
+`diff-sha256` matches the recomputed branch diff, uses the attestation
+payload in the signed final commit message, and preserves the archive
+branch reference.
+
 ## Stage token
 
 A single-use HMAC-signed string, minted by `foundry_orchestrate` when a stage is dispatched. The sub-agent must redeem the token via `foundry_stage_begin`; mutation tools then check the active stage matches their role. Keys live in `.foundry/.secret` (mode 0600, gitignored, one per worktree). This prevents out-of-band mutations, replayed stages, and sub-agents skipping the lifecycle.
@@ -266,6 +292,16 @@ All deterministic pipeline operations are exposed as custom tools by the Foundry
 ## Skill
 
 A self-contained workflow written as markdown with YAML frontmatter. Foundry ships a user-facing `Foundry` guide agent plus skills for pipeline execution, authoring, maintenance, and memory administration. The guide agent is the normal interface for users; skills and tools provide the internal workflows it uses to initialise projects, create artefact types, define laws, configure appraisers, build cycles and flows, and run governed artefact generation. Skills are either **atomic** (do one thing) or **composite** (orchestrate other skills).
+
+## Foundry agent wizard
+
+The interactive configuration process that runs when the user first
+interacts with the Foundry agent. The wizard walks through four phases
+— Understand, Plan, Confirm, Build — asking one question at a time.
+Configuration files are created only after the user confirms the plan.
+The wizard eliminates hand-authoring of normal setup by using the
+structured config creation tools (`foundry_config_create_*`) on a
+`config/*` branch.
 
 ---
 
