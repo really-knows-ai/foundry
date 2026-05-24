@@ -10,9 +10,9 @@ Getting oriented with Foundry means understanding both the concepts it uses and 
 
 **Reading order:** Work through them in order; [getting-started.md](getting-started.md) builds hands-on confidence, and [concepts.md](concepts.md) provides reference depth. Most implementers spend 1–2 hours on getting-started before moving to Reference materials.
 
-- **getting-started.md** — Complete end-to-end installation, auto-bootstrapping, and first flow walkthrough. Read this immediately after installing the plugin and before authoring any of your own configuration. 
+- **getting-started.md** — Complete end-to-end installation, bootstrap, Foundry agent wizard, and first flow walkthrough. Read this immediately after installing the plugin and before authoring any of your own configuration. 
 
-  It establishes the operating model, directory structure, and practical confidence in one pass. Includes hands-on guidance on authoring the five foundational concepts (artefact types, laws, appraisers, cycles, flows) with worked examples you can run against real code. Also covers the optional flow-memory path: initialise memory, declare vocabulary, add extractors, and opt a cycle into assay for codebase-aware flows.
+  It covers bootstrap states, the Understand–Plan–Confirm–Build wizard protocol, structured config authoring, current flow execution with quench and appraise, attestation and branch finishing, dry-run completion, and the optional flow-memory path (initialise memory, declare vocabulary, add extractors, opt a cycle into assay). Uses worked examples you can run against real code.
 
   Implementers must follow every step and complete the bootstrap; architects typically skim for structure before moving to [concepts.md](concepts.md) and [architecture.md](architecture.md) to reason about their designs.
 
@@ -28,19 +28,19 @@ These documents specify formats, tools, and design principles. Use them when imp
 
 **Key property:** These are sources of truth and normative references. Changes to Foundry flow formats or tool behaviour must be reflected here first. Use them together—cross-references appear throughout.
 
-- **work-spec.md** — Complete specification of the `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` file formats, including frontmatter fields, the artefact registry, and the full feedback state machine with all valid transitions and guards. 
+- **work-spec.md** — Complete specification of the `WORK.md`, `WORK.feedback.yaml`, and `WORK.history.yaml` file formats, including frontmatter fields, feedback and history state, and the full feedback state machine with all valid transitions and guards. Artefacts are discovered from branch diffs, not stored as an artefact table in the workfile.
 
   Use this when implementing tooling around work files, validating state transitions, or understanding what metadata flows carry through an execution. It is the authoritative source of truth for all transient work-branch structures, format validation rules, and field semantics. 
 
   Implementers and tool builders rely on this heavily; keep it updated immediately as formats evolve or new fields are added.
 
-- **tools.md** — Categorical index and reference documentation for all custom tools, organised by family (lifecycle, artefacts, feedback, config, memory, etc.) with complete signatures and permissions. 
+- **tools.md** — Complete 65-tool categorical index and reference, organised by family (lifecycle, artefacts, feedback, config, memory, etc.) with complete signatures and permissions. 
 
   Consult this when you need to understand what a specific tool does, its branch requirements, what stage locks apply, what arguments it accepts, and how it integrates with the overall system. Covers calling conventions, enforcement invariants, and the permission model for memory access. References `foundry_assay_run`, `foundry_extractor_create`, and memory data and admin tools.
 
   Tool authors and system integrators use this constantly; it is the comprehensive reference for all custom tools in the Foundry ecosystem.
 
-- **architecture.md** — The design and enforcement model covering token lifecycle, stage-locked mutations, write invariants, branch namespaces, multi-model routing, and core design principles. 
+- **architecture.md** — The design and enforcement model covering orchestration actions (`dispatch`, `dispatch_multi`, `human_appraise`, `done`, `blocked`, `violation`), internal quench and appraise execution, branch finish paths with attestation preconditions, token lifecycle, stage-locked mutations, write invariants, branch namespaces, multi-model routing with `defaultModel`, forge required-tool verification, and core design principles. 
 
   Read this when you need to understand how Foundry maintains safety (how tokens prevent replay, why stages lock mutations, how writes are validated), what guarantees it makes and where they live in the code, or why it is structured the way it is. Explains the memory layout, assay write boundary, and failed-flow behaviour that keep extractor-populated memory auditable.
 
