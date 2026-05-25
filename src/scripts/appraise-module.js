@@ -11,8 +11,9 @@
  * so the orchestrator can re-sort and determine the next action.
  */
 
-import { getArtefactFiles } from './lib/artefacts.js';
+import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { selectAppraisers, getLaws, getCycleDefinition } from './lib/config.js';
+import { openFeedbackStore } from './lib/feedback-store.js';
 import yaml from 'js-yaml';
 
 // ---------------------------------------------------------------------------
@@ -147,11 +148,48 @@ function emptyDispatch(cycleId) {
 // ---------------------------------------------------------------------------
 
 /**
- * Consolidate appraiser results after all subagents have run.
+ * Resolve stale feedback items whose artefact version does not match the
+ * current on-disk version. Items from this stage's source base with a
+ * mismatched artefact_version are auto-resolved as superseded.
+ */
+export function resolveStaleFeedback(items, currentVersion, stageBase, feedback, cycle) {
+  for (const item of items) {
+    if (shouldSkipStaleResolve(item, currentVersion, stageBase)) continue;
+    const reason = `superseded by forge revision ${currentVersion}`;
+    feedback.autoResolve({ id: item.id, reason, cycle });
+  }
+}
+
+function shouldSkipStaleResolve(item, currentVersion, stageBase) {
+  if (item.history[0].state === 'resolved') return true;
+  const itemBase = typeof item.source === 'string' ? item.source.split(':')[0] : '';
+  if (itemBase !== stageBase) return true;
+  if (item.artefact_version === currentVersion) return true;
+  return false;
+}
+
+/**
+ * Resolve stale appraise-sourced feedback. Gracefully skips when
+ * configuration is unavailable (e.g. in tests).
+ */
+async function resolveStaleAppraiseFeedback(ctx) {
+  try {
+    const cycleDef = await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io);
+    const outputType = cycleDef.frontmatter['output-type'];
+    if (outputType) {
+      const store = openFeedbackStore('WORK.feedback.yaml', ctx.io);
+      const currentVersion = await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io);
+      resolveStaleFeedback(store.list(), currentVersion, 'appraise', store, ctx.cycleId);
+    }
+  } catch { /* skip */ }
+}
+
+/**
+ * Consolidate appraiser results and finalise the appraise stage.
  *
- * Parses each successful output for structured issues, unions across
- * appraisers, de-duplicates by (file, law-id, issue text), posts feedback,
- * resolves stale prior appraise feedback, and finalises the stage.
+ * Called by orchestrator after all appraisers have completed. Parses results,
+ * posts combined feedback, resolves prior appraise feedback, and advances
+ * the cycle to the next stage via finalize.
  *
  * @param {object} ctx
  * @param {Array<{ok: boolean, output?: string, error?: string}>} lastResults
@@ -169,6 +207,8 @@ export async function consolidateAppraise(ctx, lastResults) {
   if (allAppraisersFailed(results, successful)) {
     return violation('All appraisers failed to evaluate the artefact', []);
   }
+
+  await resolveStaleAppraiseFeedback(ctx);
 
   const consolidated = parseConsolidated(successful);
   const stageId = `appraise:${ctx.cycleId}`;

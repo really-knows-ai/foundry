@@ -79,7 +79,9 @@ function itemSourceAndHistory(item) {
 }
 
 function buildFeedbackItem(item, i) {
-  return { id: `EXJ${String(i).padStart(23, '0')}`, ...itemDefaults(item, i), ...itemSourceAndHistory(item) };
+  const result = { id: `EXJ${String(i).padStart(23, '0')}`, ...itemDefaults(item, i), ...itemSourceAndHistory(item) };
+  if (item.artefact_version !== undefined) result.artefact_version = item.artefact_version;
+  return result;
 }
 
 function makeFeedbackYaml(items) {
@@ -1248,7 +1250,10 @@ describe('runSort', () => {
         { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' },
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
-        { history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }] },
+        {
+          artefact_version: 'a'.repeat(64),
+          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }],
+        },
       ]),
     });
     const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
@@ -1267,7 +1272,10 @@ describe('runSort', () => {
         { stage: 'quench:review', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' },
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
-        { history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }] },
+        {
+          artefact_version: 'a'.repeat(64),
+          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }],
+        },
       ]),
     });
     const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
@@ -1287,7 +1295,10 @@ describe('runSort', () => {
         { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:05:00Z' },
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
-        { history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:05:00Z' }] },
+        {
+          artefact_version: 'a'.repeat(64),
+          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:05:00Z' }],
+        },
       ]),
     });
     const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
@@ -1477,6 +1488,7 @@ describe('determineRoute with assay', () => {
 
 describe('runSort routing reasons', () => {
   const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+  const validSha = 'a'.repeat(64);
 
   it('includes reason for first forge dispatch', () => {
     const io = makeSortIO({
@@ -1497,7 +1509,10 @@ describe('runSort routing reasons', () => {
         { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' },
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
-        { file: 'a.md', history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }] },
+        {
+          file: 'a.md', artefact_version: validSha,
+          history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
       ]),
     });
     const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
@@ -1515,7 +1530,10 @@ describe('runSort routing reasons', () => {
         { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' },
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
-        { file: 'a.md', history: [{ state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }] },
+        {
+          file: 'a.md', artefact_version: validSha,
+          history: [{ state: 'actioned', stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
       ]),
     });
     const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
@@ -1535,7 +1553,10 @@ describe('runSort routing reasons', () => {
         { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:04:00Z' },
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
-        { file: 'a.md', history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:04:00Z' }] },
+        {
+          file: 'a.md', artefact_version: validSha,
+          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:04:00Z' }],
+        },
       ]),
     });
     const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
@@ -1566,6 +1587,8 @@ describe('runSort routing reasons', () => {
 
 describe('loadFeedback artefact_version', () => {
   const stages = ['forge:write', 'quench:review', 'appraise:check'];
+  const validShaA = 'a'.repeat(64);
+  const validShaB = 'b'.repeat(64);
 
   it('feedback item with artefact_version passes through runSort', () => {
     const workText = makeWorkMd({ stages, maxIterations: 3 });
@@ -1578,7 +1601,7 @@ describe('loadFeedback artefact_version', () => {
         {
           file: 'a.md', tag: 'law:x', text: 'issue',
           source: 'quench:review',
-          artefact_version: 'abc123def456',
+          artefact_version: validShaA,
           history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
         },
       ]),
@@ -1589,7 +1612,64 @@ describe('loadFeedback artefact_version', () => {
     assert.equal(res.route, 'forge:write');
   });
 
-  it('feedback item without artefact_version passes through runSort', () => {
+  it('feedback item with valid artefact_version passes through runSort', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const validSha = 'a'.repeat(64);
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        {
+          file: 'a.md', tag: 'law:x', text: 'issue',
+          source: 'quench:review',
+          artefact_version: validSha,
+          history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
+      ]),
+    });
+    // With unresolved items carrying a valid version, routes to forge.
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+
+  it('multiple items each carry their own artefact_version', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        {
+          file: 'a.md', tag: 'law:x', text: 'issue1',
+          source: 'quench:review',
+          artefact_version: validShaA,
+          history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
+        {
+          file: 'a.md', tag: 'law:y', text: 'issue2',
+          source: 'appraise:check',
+          artefact_version: validShaB,
+          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' }],
+        },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Legacy migration in loadFeedback (Phase 4)
+// ---------------------------------------------------------------------------
+
+describe('loadFeedback legacy migration', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check'];
+  const validSha = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+
+  it('item without artefact_version is auto-resolved and excluded from routing', () => {
     const workText = makeWorkMd({ stages, maxIterations: 3 });
     const io = makeSortIO({
       'WORK.md': workText,
@@ -1606,10 +1686,15 @@ describe('loadFeedback artefact_version', () => {
       ]),
     });
     const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
-    assert.equal(res.route, 'forge:write');
+    // No unresolved items → forward progression from quench:review → appraise:check
+    assert.equal(res.route, 'appraise:check');
+    // The legacy item should be resolved in the persisted store
+    const persisted = yaml.load(io._get('WORK.feedback.yaml'));
+    assert.equal(persisted.items[0].history[0].state, 'resolved');
+    assert.match(persisted.items[0].history[0].reason, /legacy, no artefact version/);
   });
 
-  it('multiple items each carry their own artefact_version', () => {
+  it('item with invalid artefact_version (non-hex) is auto-resolved and excluded', () => {
     const workText = makeWorkMd({ stages, maxIterations: 3 });
     const io = makeSortIO({
       'WORK.md': workText,
@@ -1618,20 +1703,71 @@ describe('loadFeedback artefact_version', () => {
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
         {
-          file: 'a.md', tag: 'law:x', text: 'issue1',
+          file: 'a.md', tag: 'law:x', text: 'issue',
           source: 'quench:review',
-          artefact_version: 'version-alpha',
+          artefact_version: 'not-a-valid-sha',
           history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
-        },
-        {
-          file: 'a.md', tag: 'law:y', text: 'issue2',
-          source: 'appraise:check',
-          artefact_version: 'version-beta',
-          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' }],
         },
       ]),
     });
     const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'appraise:check');
+    const persisted = yaml.load(io._get('WORK.feedback.yaml'));
+    assert.equal(persisted.items[0].history[0].state, 'resolved');
+  });
+
+  it('item with valid SHA-256 artefact_version passes through normally', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        {
+          file: 'a.md', tag: 'law:x', text: 'issue',
+          source: 'quench:review',
+          artefact_version: validSha,
+          history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    // Unresolved item with valid version → routes to forge
     assert.equal(res.route, 'forge:write');
+  });
+
+  it('mixed items — only the valid one routes (legacy resolved)', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+      ]),
+      'WORK.feedback.yaml': yaml.dump({
+        items: [
+          {
+            id: 'LEG00000000000000000000000',
+            file: 'a.md', tag: 'law:x', text: 'legacy-issue',
+            source: 'quench:review',
+            history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+          },
+          {
+            id: 'VALI0000000000000000000000',
+            file: 'b.md', tag: 'law:y', text: 'valid-issue',
+            source: 'quench:review',
+            artefact_version: validSha,
+            history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' }],
+          },
+        ],
+      }),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    // One unresolved item with valid version → routes to forge
+    assert.equal(res.route, 'forge:write');
+    // Legacy item should be resolved in the persisted store
+    const persisted = yaml.load(io._get('WORK.feedback.yaml'));
+    const legacy = persisted.items.find(i => i.id === 'LEG00000000000000000000000');
+    assert.equal(legacy.history[0].state, 'resolved');
   });
 });

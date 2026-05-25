@@ -15,9 +15,14 @@ const mockGetArtefactFiles = mock.fn();
 const mockGetCycleDefinition = mock.fn();
 const mockSelectAppraisers = mock.fn();
 const mockGetLaws = mock.fn();
+const mockComputeArtefactVersion = mock.fn();
+const mockOpenFeedbackStore = mock.fn();
 
 mock.module('../src/scripts/lib/artefacts.js', {
-  namedExports: { getArtefactFiles: mockGetArtefactFiles },
+  namedExports: {
+    getArtefactFiles: mockGetArtefactFiles,
+    computeArtefactVersion: mockComputeArtefactVersion,
+  },
 });
 
 mock.module('../src/scripts/lib/config.js', {
@@ -28,19 +33,34 @@ mock.module('../src/scripts/lib/config.js', {
   },
 });
 
+mock.module('../src/scripts/lib/feedback-store.js', {
+  namedExports: { openFeedbackStore: mockOpenFeedbackStore },
+});
+
 // Module under test — loaded dynamically in beforeEach after mocks reset
 let gatherAppraiseContext;
 let consolidateAppraise;
+let resolveStaleFeedback;
 
 beforeEach(async () => {
   mockGetArtefactFiles.mock.resetCalls();
   mockGetCycleDefinition.mock.resetCalls();
   mockSelectAppraisers.mock.resetCalls();
   mockGetLaws.mock.resetCalls();
+  mockComputeArtefactVersion.mock.resetCalls();
+  mockOpenFeedbackStore.mock.resetCalls();
+
+  // Default mocks so existing consolidate tests work without stale-specific setup
+  mockComputeArtefactVersion.mock.mockImplementation(() => Promise.resolve('v1'));
+  mockOpenFeedbackStore.mock.mockImplementation(() => ({
+    list: () => [],
+    autoResolve: mock.fn(),
+  }));
 
   const mod = await import('../src/scripts/appraise-module.js');
   gatherAppraiseContext = mod.gatherAppraiseContext;
   consolidateAppraise = mod.consolidateAppraise;
+  resolveStaleFeedback = mod.resolveStaleFeedback;
 });
 
 // ---------------------------------------------------------------------------
@@ -661,5 +681,60 @@ describe('consolidateAppraise', () => {
     assert.equal(result.ok, true);
     assert.match(result.summary, /No issues found/);
     assert.equal(feedbackAdd.mock.calls.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveStaleFeedback — stale feedback detection (Phase 4)
+// ---------------------------------------------------------------------------
+
+describe('resolveStaleFeedback (appraise)', () => {
+  function makeItem(overrides = {}) {
+    return {
+      id: 'item-1',
+      source: 'appraise:test-cycle',
+      artefact_version: 'old-version',
+      history: [{ state: 'open' }],
+      file: 'a.md',
+      tag: 'law:x',
+      ...overrides,
+    };
+  }
+
+  it('resolves items with mismatched version', () => {
+    const items = [makeItem({ artefact_version: 'v1' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'appraise', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 1);
+    assert.match(feedback.autoResolve.mock.calls[0].arguments[0].reason, /superseded by forge revision/);
+    assert.equal(feedback.autoResolve.mock.calls[0].arguments[0].cycle, 'cycle-1');
+  });
+
+  it('skips items with matching version', () => {
+    const items = [makeItem({ artefact_version: 'v1' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v1', 'appraise', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 0);
+  });
+
+  it('skips items from other source bases', () => {
+    const items = [makeItem({ source: 'quench:test-cycle' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'appraise', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 0);
+  });
+
+  it('skips already-resolved items', () => {
+    const items = [makeItem({ history: [{ state: 'resolved' }] })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'appraise', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 0);
+  });
+
+  it('passes cycle through to autoResolve', () => {
+    const items = [makeItem({ artefact_version: 'v1' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'appraise', feedback, 'my-cycle');
+    assert.equal(feedback.autoResolve.mock.calls[0].arguments[0].cycle, 'my-cycle');
   });
 });

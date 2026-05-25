@@ -72,16 +72,33 @@ function checkDirtyFiles(history, io) {
     + `Re-run foundry_orchestrate or commit the listed files manually before retrying.`;
 }
 
+const SHA256_RE = /^[0-9a-f]{64}$/;
+
+function isLegacyItem(item) {
+  return !item.artefact_version || !SHA256_RE.test(item.artefact_version);
+}
+
 function loadFeedback(io, cycle) {
   const store = openFeedbackStore('WORK.feedback.yaml', io);
-  return store.list().map(item => ({
-    id: item.id,
-    file: item.file,
-    state: item.history[0].state,
-    depth: item.history.length,
-    source: item.source,
-    artefact_version: item.artefact_version,
-  }));
+  const allItems = store.list();
+  const routed = [];
+
+  for (const item of allItems) {
+    if (isLegacyItem(item)) {
+      store.autoResolve({ id: item.id, reason: 'superseded (legacy, no artefact version)', cycle });
+      continue;
+    }
+    routed.push({
+      id: item.id,
+      file: item.file,
+      state: item.history[0].state,
+      depth: item.history.length,
+      source: item.source,
+      artefact_version: item.artefact_version,
+    });
+  }
+
+  return routed;
 }
 
 function resolveCycleDef(cycleDef, frontmatter, foundryDir, cycle) {

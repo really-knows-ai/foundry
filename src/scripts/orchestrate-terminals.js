@@ -1,6 +1,8 @@
 import { getCycleDefinition } from './lib/config.js';
-import { getArtefactFiles } from './lib/artefacts.js';
+import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { readCycleTargets, readRecentFeedback, violation } from './orchestrate-cycle.js';
+import { openFeedbackStore } from './lib/feedback-store.js';
+import { baseStage } from './lib/sort-routing.js';
 
 async function findOutputArtefacts(cfm, io, foundryDir, baseBranch) {
   const outputType = cfm ? cfm['output-type'] : undefined;
@@ -33,9 +35,40 @@ export async function humanAppraiseAction(route, token, ctx) {
   const fd = ctx.foundryDir || 'foundry';
   const base = baseBranch || 'main';
   const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
+
+  await resolveStaleHumanAppraiseFeedback(cfm, fd, io, cycleId);
+
   const artefact = await findOutputArtefacts(cfm, io, fd, base);
   const artefactFile = artefact ? artefact.file : null;
   return { action: 'human_appraise', stage: route, token, context: { cycle: cycleId, artefact_file: artefactFile, recent_feedback: readRecentFeedback(io) } };
+}
+
+/**
+ * Resolve stale human-appraise feedback. Gracefully skips when
+ * configuration is unavailable (e.g. in tests).
+ */
+async function resolveStaleHumanAppraiseFeedback(cfm, fd, io, cycleId) {
+  const outputType = cfm['output-type'];
+  if (!outputType) return;
+  try {
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const currentVersion = await computeArtefactVersion(fd, outputType, io);
+    for (const item of store.list()) {
+      if (shouldSkipHumanAppraiseResolve(item, currentVersion)) continue;
+      store.autoResolve({
+        id: item.id,
+        reason: `superseded by forge revision ${currentVersion}`,
+        cycle: cycleId,
+      });
+    }
+  } catch { /* skip */ }
+}
+
+function shouldSkipHumanAppraiseResolve(item, currentVersion) {
+  if (item.history[0].state === 'resolved') return true;
+  if (baseStage(item.source) !== 'human-appraise') return true;
+  if (item.artefact_version === currentVersion) return true;
+  return false;
 }
 
 export async function missingModelViolation(cycleId, route, io, foundryDir, baseBranch) {

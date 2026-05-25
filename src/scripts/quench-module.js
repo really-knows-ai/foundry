@@ -8,9 +8,43 @@
  */
 
 import { readActiveStage } from './lib/state.js';
-import { getArtefactFiles } from './lib/artefacts.js';
+import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { getCycleDefinition } from './lib/config.js';
 import { performValidation } from './lib/validation.js';
+import { openFeedbackStore } from './lib/feedback-store.js';
+
+/**
+ * Resolve stale feedback items whose artefact version does not match the
+ * current on-disk version. Items from this stage's source base with a
+ * mismatched artefact_version are auto-resolved as superseded.
+ */
+export async function resolveStaleFeedback(items, currentVersion, stageBase, feedback, cycle) {
+  for (const item of items) {
+    if (shouldSkipStaleResolve(item, currentVersion, stageBase)) continue;
+    const reason = `superseded by forge revision ${currentVersion}`;
+    feedback.autoResolve({ id: item.id, reason, cycle });
+  }
+}
+
+function shouldSkipStaleResolve(item, currentVersion, stageBase) {
+  if (item.history[0].state === 'resolved') return true;
+  const itemBase = typeof item.source === 'string' ? item.source.split(':')[0] : '';
+  if (itemBase !== stageBase) return true;
+  if (item.artefact_version === currentVersion) return true;
+  return false;
+}
+
+/**
+ * Resolve stale quench-sourced feedback. Gracefully skips when
+ * configuration is unavailable (e.g. in tests).
+ */
+async function resolveStaleQuenchFeedback(ctx, outputType) {
+  try {
+    const store = openFeedbackStore('WORK.feedback.yaml', ctx.io);
+    const currentVersion = await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io);
+    resolveStaleFeedback(store.list(), currentVersion, 'quench', store, ctx.cycleId);
+  } catch { /* skip */ }
+}
 
 /**
  * Run quench (deterministic validation) for a cycle.
@@ -29,6 +63,8 @@ export async function runQuench(ctx) {
   if (!outputType) {
     return { ok: false, error: `Cycle ${ctx.cycleId} has no output-type` };
   }
+
+  await resolveStaleQuenchFeedback(ctx, outputType);
 
   const discovery = await discoverArtefacts(ctx, outputType);
   if (!discovery.ok) return discovery;

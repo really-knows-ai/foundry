@@ -14,13 +14,18 @@ const mockReadActiveStage = mock.fn();
 const mockGetArtefactFiles = mock.fn();
 const mockGetCycleDefinition = mock.fn();
 const mockPerformValidation = mock.fn();
+const mockComputeArtefactVersion = mock.fn();
+const mockOpenFeedbackStore = mock.fn();
 
 mock.module('../src/scripts/lib/state.js', {
   namedExports: { readActiveStage: mockReadActiveStage },
 });
 
 mock.module('../src/scripts/lib/artefacts.js', {
-  namedExports: { getArtefactFiles: mockGetArtefactFiles },
+  namedExports: {
+    getArtefactFiles: mockGetArtefactFiles,
+    computeArtefactVersion: mockComputeArtefactVersion,
+  },
 });
 
 mock.module('../src/scripts/lib/config.js', {
@@ -31,18 +36,33 @@ mock.module('../src/scripts/lib/validation.js', {
   namedExports: { performValidation: mockPerformValidation },
 });
 
+mock.module('../src/scripts/lib/feedback-store.js', {
+  namedExports: { openFeedbackStore: mockOpenFeedbackStore },
+});
+
 // Module under test — loaded dynamically after mocks are in place
 let runQuench;
+let resolveStaleFeedback;
 
 beforeEach(async () => {
   mockReadActiveStage.mock.resetCalls();
   mockGetArtefactFiles.mock.resetCalls();
   mockGetCycleDefinition.mock.resetCalls();
   mockPerformValidation.mock.resetCalls();
+  mockComputeArtefactVersion.mock.resetCalls();
+  mockOpenFeedbackStore.mock.resetCalls();
+
+  // Default mocks so existing tests work without stale-specific setup
+  mockComputeArtefactVersion.mock.mockImplementation(() => Promise.resolve('v1'));
+  mockOpenFeedbackStore.mock.mockImplementation(() => ({
+    list: () => [],
+    autoResolve: mock.fn(),
+  }));
 
   // Re-import to get fresh mocks for each test
   const mod = await import('../src/scripts/quench-module.js');
   runQuench = mod.runQuench;
+  resolveStaleFeedback = mod.resolveStaleFeedback;
 });
 
 // ---------------------------------------------------------------------------
@@ -418,5 +438,61 @@ describe('runQuench — finalisation', () => {
     assert.equal(args.lastStage.stage, 'quench:test-cycle');
     assert.equal(args.lastStage.baseSha, BASE_SHA);
     assert.equal(args.activeStage, activeStage);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveStaleFeedback — stale feedback detection (Phase 4)
+// ---------------------------------------------------------------------------
+
+describe('resolveStaleFeedback (quench)', () => {
+  function makeItem(overrides = {}) {
+    return {
+      id: 'item-1',
+      source: 'quench:test-cycle',
+      artefact_version: 'old-version',
+      history: [{ state: 'open' }],
+      file: 'a.md',
+      tag: 'law:x',
+      ...overrides,
+    };
+  }
+
+  it('resolves items with mismatched version', () => {
+    const items = [makeItem({ artefact_version: 'v1' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'quench', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 1);
+    assert.equal(feedback.autoResolve.mock.calls[0].arguments[0].id, 'item-1');
+    assert.match(feedback.autoResolve.mock.calls[0].arguments[0].reason, /superseded by forge revision/);
+    assert.equal(feedback.autoResolve.mock.calls[0].arguments[0].cycle, 'cycle-1');
+  });
+
+  it('skips items with matching version', () => {
+    const items = [makeItem({ artefact_version: 'v1' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v1', 'quench', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 0);
+  });
+
+  it('skips items from other source bases', () => {
+    const items = [makeItem({ source: 'appraise:test-cycle' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'quench', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 0);
+  });
+
+  it('skips already-resolved items', () => {
+    const items = [makeItem({ artefact_version: 'v1', history: [{ state: 'resolved' }] })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'quench', feedback, 'cycle-1');
+    assert.equal(feedback.autoResolve.mock.calls.length, 0);
+  });
+
+  it('passes cycle through to autoResolve', () => {
+    const items = [makeItem({ artefact_version: 'v1' })];
+    const feedback = { autoResolve: mock.fn() };
+    resolveStaleFeedback(items, 'v2', 'quench', feedback, 'my-cycle');
+    assert.equal(feedback.autoResolve.mock.calls[0].arguments[0].cycle, 'my-cycle');
   });
 });

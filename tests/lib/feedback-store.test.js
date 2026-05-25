@@ -505,6 +505,98 @@ describe('store.add with artefact_version', () => {
   });
 });
 
+describe('store.autoResolve', () => {
+  test('is a function on the store', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    assert.equal(typeof store.autoResolve, 'function');
+  });
+
+  test('resolves an open item without error', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    const result = store.autoResolve({ id, reason: 'superseded by new version', cycle: 'c' });
+    assert.equal(result.ok, true);
+    const item = store.get(id);
+    assert.equal(item.history[0].state, 'resolved');
+  });
+
+  test('resolves an actioned item without error', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    const result = store.autoResolve({ id, reason: 'version superseded', cycle: 'c' });
+    assert.equal(result.ok, true);
+    assert.equal(store.get(id).history[0].state, 'resolved');
+  });
+
+  test('resolves a rejected item without error', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.transition({ id, target: 'actioned', stage: 'forge:write', cycle: 'c' });
+    store.transition({ id, target: 'rejected', stage: 'appraise:a', cycle: 'c', reason: 'still wrong' });
+    const result = store.autoResolve({ id, reason: 'version superseded', cycle: 'c' });
+    assert.equal(result.ok, true);
+    assert.equal(store.get(id).history[0].state, 'resolved');
+  });
+
+  test('resolves a wont-fix item without error', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.transition({ id, target: 'wont-fix', stage: 'forge:write', cycle: 'c', reason: 'out of scope' });
+    const result = store.autoResolve({ id, reason: 'version superseded', cycle: 'c' });
+    assert.equal(result.ok, true);
+    assert.equal(store.get(id).history[0].state, 'resolved');
+  });
+
+  test('records the reason on the history snapshot', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.autoResolve({ id, reason: 'superseded by abc123', cycle: 'c' });
+    assert.equal(store.get(id).history[0].reason, 'superseded by abc123');
+  });
+
+  test('records the cycle on the history snapshot', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.autoResolve({ id, reason: 'superseded', cycle: 'test-cycle' });
+    assert.equal(store.get(id).history[0].cycle, 'test-cycle');
+  });
+
+  test('applies stage system on the snapshot', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    store.autoResolve({ id, reason: 'superseded', cycle: 'c' });
+    assert.equal(store.get(id).history[0].stage, 'system');
+  });
+
+  test('returns error for unknown id', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const result = store.autoResolve({ id: 'DOES_NOT_EXIST', reason: 'test', cycle: 'c' });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /not found/);
+  });
+
+  test('persists through a fresh store load', () => {
+    const io = mockIO();
+    const s1 = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = s1.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'appraise:a', cycle: 'c' });
+    s1.autoResolve({ id, reason: 'persisted', cycle: 'c' });
+    const s2 = openFeedbackStore('WORK.feedback.yaml', io);
+    const item = s2.get(id);
+    assert.equal(item.history[0].state, 'resolved');
+    assert.equal(item.history[0].reason, 'persisted');
+  });
+});
+
 describe('store.add — atomicity', () => {
   test('rename failure leaves the live file unchanged AND in-memory list unchanged', () => {
     const io = mockIO({ 'WORK.feedback.yaml': yaml.dump({ items: [] }) });
