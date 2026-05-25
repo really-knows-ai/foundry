@@ -85,6 +85,7 @@ function checkBatchVersion(items, feedbackStore, cycleId, postVersion, preVersio
  * @returns {{ contractPassed: boolean }}
  */
 export function enforceForgeContract({ items, preVersion, postVersion, feedbackStore, cycleId }) {
+  if (items.length === 0) return { contractPassed: true };
   if (!checkPerItemResponse(items, feedbackStore, cycleId, postVersion)) {
     return { contractPassed: false };
   }

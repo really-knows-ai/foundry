@@ -307,7 +307,9 @@ export async function finaliseStage(args) {
   const iteration = getIteration(historyPath, cycleId, io);
   const openFeedback = computeOpenFeedback(io);
   writeHistoryEntries({
-    historyPath, cycleId, lastStage, iteration, openFeedback, io,
+    historyPath, cycleId,
+    lastStage: { ...lastStage, changedFiles: finalizeResult.changedFiles },
+    iteration, openFeedback, io,
     artefactVersion: postVersion, contractPassed,
   });
   const commitErr = await tryStageCommit(git, lastStage, cycleId, io);
