@@ -6,11 +6,12 @@ import {
   getCycleDefinition,
   getLawsForQuench,
 } from './lib/config.js';
-import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
+import { parseFrontmatter, writeFrontmatter, buildForgeHistoryEntry } from './lib/workfile.js';
 import matter from 'gray-matter';
 import { clearActiveStage, clearLastStage } from './lib/state.js';
 import { appendEntry, getIteration } from './lib/history.js';
 import { stageBaseOf } from './lib/stage-guard.js';
+import { baseStage } from './lib/sort-routing.js';
 import { allowedPatternsForStage } from './lib/git-policy.js';
 import { loadExtractor } from './lib/assay/loader.js';
 import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
@@ -66,13 +67,9 @@ function isTerminalRoute(route) {
   return route === 'done' || route === 'blocked' || route === 'violation';
 }
 
-function getRouteBase(route) {
-  return routeDispatch(route);
-}
-
 export async function handleSortResult(sortResult, ctx) {
   const { route, model, token, reason } = sortResult;
-  const routeBase = getRouteBase(route);
+  const routeBase = routeDispatch(route);
   const result = await resolveRouteResult({ route, routeBase, model, token, ctx });
   if (reason !== undefined) result.reason = reason;
   return result;
@@ -83,10 +80,6 @@ async function resolveRouteResult({ route, routeBase, model, token, ctx }) {
   if (routeBase === 'quench' || routeBase === 'appraise') return violation(routeBase + ' route reached handleSortResult');
   if (routeBase === 'human-appraise') return humanAppraiseAction(route, token, ctx);
   return buildDispatchAction(route, model, token, ctx);
-}
-
-async function fetchCycleDefinition(foundryDir, cycleId, io) {
-  try { return await getCycleDefinition(foundryDir, cycleId, io); } catch { return null; }
 }
 
 function checkOutputType(cfm, cycleId) {
@@ -103,7 +96,6 @@ async function checkArtefactType(foundryDir, outputType, io) {
   catch { return { error: violation(`artefact type not found: ${outputType}`, ['WORK.md']) }; }
 }
 
-function isAssayAbsent(assayBlock) { return assayBlock === undefined || assayBlock === null; }
 function isAssayInvalid(assayBlock) { return typeof assayBlock !== 'object' || Array.isArray(assayBlock); }
 
 function checkAssayExtractors(list, cycleId) {
@@ -115,20 +107,13 @@ function checkAssayExtractors(list, cycleId) {
 
 function checkAssayShape(cfm, cycleId) {
   const assayBlock = cfm.assay;
-  if (isAssayAbsent(assayBlock)) return { ok: true, extractors: null };
+  if (assayBlock === undefined || assayBlock === null) return { ok: true, extractors: null };
   if (isAssayInvalid(assayBlock)) {
     return { error: violation(`cycle ${cycleId}: 'assay' must be a mapping`, ['WORK.md']) };
   }
   const extErr = checkAssayExtractors(assayBlock.extractors, cycleId);
   if (extErr) return { error: extErr };
   return { ok: true, extractors: assayBlock.extractors };
-}
-
-function checkMemoryEnabled(io, cycleId) {
-  if (!io.exists('foundry/memory/config.md')) {
-    return violation(`cycle ${cycleId}: 'assay:' requires memory to be enabled (run the init-memory skill first)`, ['WORK.md']);
-  }
-  return null;
 }
 
 function checkCycleWriteDecl(cfm, cycleId) {
@@ -150,10 +135,6 @@ async function checkExtractors(foundryDir, cycleId, list, cycleWriteSet, io) {
   return null;
 }
 
-function stageTag(s, cycleId) {
-  return typeof s === 'string' && s.includes(':') ? s : `${s}:${cycleId}`;
-}
-
 function resolveStages(cfm, cycleId, hasValidation, assayExtractors) {
   if (!Array.isArray(cfm.stages)) {
     return synthesizeStages({ cycleId, hasValidation, alwaysHumanAppraise: cfm['always-human-appraise'] === true, assay: !!assayExtractors });
@@ -161,14 +142,14 @@ function resolveStages(cfm, cycleId, hasValidation, assayExtractors) {
   if (cfm.stages.length === 0) {
     return { error: violation(`cycle ${cycleId} has no stages declared in cycle definition`, ['WORK.md']) };
   }
-  return cfm.stages.map(s => stageTag(s, cycleId));
+  return cfm.stages.map(s => typeof s === 'string' && s.includes(':') ? s : `${s}:${cycleId}`);
 }
 
-function applyFmDefaults(newFm, cfm, assayExtractors) {
+export function applyFmDefaults(newFm, cfm, assayExtractors) {
   const maxIt = cfm['max-iterations'] ?? 3;
   newFm['max-iterations'] = maxIt;
   newFm['always-human-appraise'] = cfm['always-human-appraise'] === true;
-  newFm['deadlock-human-appraise'] = cfm['deadlock-human-appraise'] !== false;
+  newFm['deadlock-human-appraise'] = cfm['deadlock-human-appraise'] === true;
   if (cfm.models) newFm.models = cfm.models;
   if (assayExtractors) newFm.assay = { extractors: assayExtractors };
 }
@@ -184,8 +165,9 @@ function buildNewFrontmatter(workContent, stages, cfm, assayExtractors) {
 }
 
 async function checkAssayPrereqs(cfm, cycleId, io) {
-  const memErr = checkMemoryEnabled(io, cycleId);
-  if (memErr) return memErr;
+  if (!io.exists('foundry/memory/config.md')) {
+    return violation(`cycle ${cycleId}: 'assay:' requires memory to be enabled (run the init-memory skill first)`, ['WORK.md']);
+  }
   return checkCycleWriteDecl(cfm, cycleId);
 }
 
@@ -203,7 +185,7 @@ async function runAssayValidation(cfm, cycleId, io, foundryDir) {
 
 export async function setupWorkfile(args) {
   const { cycleId, workContent, io, git, foundryDir } = args;
-  const cycleDefDoc = await fetchCycleDefinition(foundryDir, cycleId, io);
+  const cycleDefDoc = await getCycleDefinition(foundryDir, cycleId, io).catch(() => null);
   if (!cycleDefDoc) return violation(`cycle definition not found for id: ${cycleId}`, ['WORK.md']);
   const cfm = cycleDefDoc.frontmatter || {};
   return runSetupPipeline({ cfm, cycleId, workContent, io, git, foundryDir });
@@ -238,10 +220,6 @@ async function trySetupCommit(ctx) {
   return { ok: true, workContent: ctx.io.readFile('WORK.md') };
 }
 
-function readOriginalState(io) {
-  return { workMd: io.readFile('WORK.md'), history: io.exists('WORK.history.yaml') ? io.readFile('WORK.history.yaml') : null };
-}
-
 function buildFinalizeViolation(finalizeResult) {
   if (finalizeResult.error === 'unexpected_files') {
     return violation(`unexpected files written by subagent: ${(finalizeResult.files || []).join(', ')}`, finalizeResult.files || []);
@@ -249,9 +227,32 @@ function buildFinalizeViolation(finalizeResult) {
   return violation(`stage_finalize error: ${finalizeResult.error}`, []);
 }
 
+function buildStageEntryBase(ctx) {
+  const summary = ctx.lastStage.summary || '(no summary)';
+  const changed = ctx.lastStage.changedFiles ?? [];
+  return { cycle: ctx.cycleId, stage: ctx.lastStage.stage,
+    iteration: ctx.iteration, comment: summary,
+    openFeedback: ctx.openFeedback, changedFiles: changed,
+    ...(baseStage(ctx.lastStage.stage || '') === 'forge'
+      ? buildForgeHistoryEntry({
+        cycle: ctx.cycleId, stage: ctx.lastStage.stage,
+        iteration: ctx.iteration, comment: summary,
+        artefactVersion: ctx.artefactVersion,
+        contractPassed: ctx.contractPassed,
+        changedFiles: changed,
+      })
+      : {}),
+  };
+}
+
 function writeHistoryEntries(ctx) {
-  appendEntry(ctx.historyPath, { cycle: ctx.cycleId, stage: 'sort', iteration: ctx.iteration, route: ctx.lastStage.stage, comment: `route ${ctx.lastStage.stage}`, openFeedback: ctx.openFeedback }, ctx.io);
-  appendEntry(ctx.historyPath, { cycle: ctx.cycleId, stage: ctx.lastStage.stage, iteration: ctx.iteration, comment: ctx.lastStage.summary || '(no summary)', openFeedback: ctx.openFeedback, changedFiles: ctx.lastStage.changedFiles ?? [] }, ctx.io);
+  appendEntry(ctx.historyPath, {
+    cycle: ctx.cycleId, stage: 'sort', iteration: ctx.iteration,
+    route: ctx.lastStage.stage,
+    comment: `route ${ctx.lastStage.stage}`,
+    openFeedback: ctx.openFeedback,
+  }, ctx.io);
+  appendEntry(ctx.historyPath, buildStageEntryBase(ctx), ctx.io);
 }
 
 async function computeAllowedPatterns(lastStage, cycleId, io) {
@@ -286,12 +287,18 @@ function clearStageState(activeStage, lastStage, io) {
 }
 
 export async function finaliseStage(args) {
-  const { lastStage, activeStage, cycleId, io, finalize, git } = args;
-  const original = readOriginalState(io);
+  const { lastStage, activeStage, cycleId, io, finalize, git, postVersion, contractPassed } = args;
+  const original = {
+    workMd: io.readFile('WORK.md'),
+    history: io.exists('WORK.history.yaml') ? io.readFile('WORK.history.yaml') : null,
+  };
   if (typeof finalize !== 'function') {
     return violation('orchestrate caller must inject a `finalize` function when providing lastResult; the plugin wires lib/finalize.finalizeStage; tests must pass a stub.', []);
   }
-  const finalizeResult = await finalize({ cycleId, stage: lastStage.stage, baseSha: lastStage.baseSha, io });
+  const finalizeResult = await finalize({
+    cycleId, stage: lastStage.stage, baseSha: lastStage.baseSha, io,
+    artefact_version: postVersion, contractPassed,
+  });
   if (!finalizeResult.ok) {
     clearStageState(activeStage, null, io);
     return buildFinalizeViolation(finalizeResult);
@@ -299,7 +306,10 @@ export async function finaliseStage(args) {
   const historyPath = 'WORK.history.yaml';
   const iteration = getIteration(historyPath, cycleId, io);
   const openFeedback = computeOpenFeedback(io);
-  writeHistoryEntries({ historyPath, cycleId, lastStage, iteration, openFeedback, io });
+  writeHistoryEntries({
+    historyPath, cycleId, lastStage, iteration, openFeedback, io,
+    artefactVersion: postVersion, contractPassed,
+  });
   const commitErr = await tryStageCommit(git, lastStage, cycleId, io);
   if (commitErr) {
     rollbackState(io, original);

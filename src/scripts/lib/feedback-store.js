@@ -5,11 +5,11 @@ import { validateTransition, hashText, canForgeWontFix } from './feedback-transi
 
 const YAML_OPTS = { lineWidth: -1 };
 
-const VALID_SOURCE_BASES = new Set(['forge', 'quench', 'appraise', 'human-appraise']);
+const VALID_SOURCE_BASES = new Set(['forge', 'quench', 'appraise', 'human-appraise', 'system']);
 
 function validateSourceBase(base) {
   if (!VALID_SOURCE_BASES.has(base)) {
-    throw new Error(`unknown source base: ${base} (expected one of: forge, quench, appraise, human-appraise)`);
+    throw new Error(`unknown source base: ${base} (expected one of: forge, quench, appraise, human-appraise, system)`);
   }
 }
 
@@ -96,6 +96,9 @@ export function openFeedbackStore(path, io) {
         timestamp: nowIso, persist,
       });
     },
+    forceState(id, state, cycle) {
+      return storeForceState({ id, state, cycle, items, persist });
+    },
     resolveSystemItems(stage, cycle) {
       resolveSystemItemsImpl({ items, stage, cycle, timestamp: nowIso, persist });
     },
@@ -109,10 +112,9 @@ function isDuplicate(item, file, tag, textHash, stateOf) {
     stateOf(item) !== 'resolved';
 }
 
-function assertAddParams(...params) {
-  for (const p of params) {
-    if (!p) throw new Error('add requires file, tag, text, source, cycle');
-  }
+function assertAddParams(file, tag, text, source, cycle) {
+  const missing = typeof file !== 'string' || [tag, text, source, cycle].some(v => !v);
+  if (missing) throw new Error('add requires file, tag, text, source, cycle');
 }
 
 function storeAdd(params, items, deps) {
@@ -203,6 +205,14 @@ function storeTransition(params, items, deps) {
   const snapshot = { state: target, stage, cycle, timestamp: timestamp() };
   if (hasNonEmptyReason(reason)) snapshot.reason = reason;
 
+  persist(applyTransition(items, id, snapshot));
+  return { ok: true };
+}
+
+function storeForceState({ id, state, cycle, items, persist }) {
+  const item = items.find(x => x.id === id);
+  if (!item) return { ok: false, error: `feedback item not found: ${id}` };
+  const snapshot = { state, stage: 'system:forge-contract-mismatch', cycle, timestamp: nowIso() };
   persist(applyTransition(items, id, snapshot));
   return { ok: true };
 }

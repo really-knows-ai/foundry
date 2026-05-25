@@ -110,7 +110,9 @@ function computeRoutingState(history, feedback) {
   const nonSort = history.filter(e => baseStage(e.stage || '') !== 'sort');
   const lastEntry = nonSort.length > 0 ? nonSort[nonSort.length - 1].stage : null;
   const lastStage = lastEntry !== null ? baseStage(lastEntry) : null;
-  const forgeCount = history.filter(e => baseStage(e.stage || '') === 'forge').length;
+  const forgeCount = history.filter(e =>
+    baseStage(e.stage || '') === 'forge' && e.contract_passed !== false,
+  ).length;
   const unresolvedItems = feedback.filter(f => f.state === 'open' || f.state === 'rejected');
   const addressedItems = feedback.filter(f => f.state === 'actioned' || f.state === 'wont-fix');
   return { lastEntry, lastStage, forgeCount, unresolvedItems, addressedItems };

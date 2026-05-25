@@ -18,7 +18,9 @@ export function reasonForRoute(route, prep) {
 
 function buildReasonData(route, prep) {
   const base = baseStage(route);
-  const forgeCount = prep.history.filter(e => baseStage(e.stage || '') === 'forge').length;
+  const forgeCount = prep.history.filter(e =>
+    baseStage(e.stage || '') === 'forge' && e.contract_passed !== false,
+  ).length;
   const maxIt = prep.defaults.maxIterations;
   const feedback = prep.feedback || [];
   const openCount = feedback.filter(f => f.state !== 'resolved').length;

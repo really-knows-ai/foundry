@@ -38,7 +38,7 @@ function createGitBridge(cwd) {
 }
 
 async function createFinalize(cwd, io) {
-  return async ({ cycleId, stage, baseSha }) => {
+  return async ({ cycleId, stage, baseSha, artefact_version, contractPassed }) => {
     let cycleDoc;
     try {
       cycleDoc = await getCycleDefinition('foundry', cycleId, io);
@@ -66,6 +66,8 @@ async function createFinalize(cwd, io) {
       cycleDef,
       artefactTypes,
       io,
+      artefact_version,
+      contractPassed,
     });
     return result;
   };
