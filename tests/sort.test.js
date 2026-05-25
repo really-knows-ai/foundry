@@ -1559,3 +1559,79 @@ describe('runSort routing reasons', () => {
     assert.match(res.reason, /no unresolved feedback/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// loadFeedback — artefact_version field
+// ---------------------------------------------------------------------------
+
+describe('loadFeedback artefact_version', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check'];
+
+  it('feedback item with artefact_version passes through runSort', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        {
+          file: 'a.md', tag: 'law:x', text: 'issue',
+          source: 'quench:review',
+          artefact_version: 'abc123def456',
+          history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
+      ]),
+    });
+    // With unresolved items, routes to forge. The item has artefact_version
+    // and should flow through without error.
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+
+  it('feedback item without artefact_version passes through runSort', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        {
+          file: 'a.md', tag: 'law:x', text: 'issue',
+          source: 'quench:review',
+          // No artefact_version — legacy item
+          history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+
+  it('multiple items each carry their own artefact_version', () => {
+    const workText = makeWorkMd({ stages, maxIterations: 3 });
+    const io = makeSortIO({
+      'WORK.md': workText,
+      'WORK.history.yaml': yaml.dump([
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:00:00Z' },
+      ]),
+      'WORK.feedback.yaml': makeFeedbackYaml([
+        {
+          file: 'a.md', tag: 'law:x', text: 'issue1',
+          source: 'quench:review',
+          artefact_version: 'version-alpha',
+          history: [{ state: 'open', stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:01:00Z' }],
+        },
+        {
+          file: 'a.md', tag: 'law:y', text: 'issue2',
+          source: 'appraise:check',
+          artefact_version: 'version-beta',
+          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' }],
+        },
+      ]),
+    });
+    const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
+    assert.equal(res.route, 'forge:write');
+  });
+});

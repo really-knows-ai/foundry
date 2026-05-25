@@ -78,7 +78,7 @@ function validateAppendArgs({ iteration, comment, route, stage }) {
   }
 }
 
-function buildEntry({ cycle, stage, iteration, comment, route, openFeedback, changedFiles }, seq) {
+function buildEntry({ cycle, stage, iteration, comment, route, openFeedback, changedFiles, ...rest }, seq) {
   const entry = {
     cycle,
     stage,
@@ -87,6 +87,7 @@ function buildEntry({ cycle, stage, iteration, comment, route, openFeedback, cha
     timestamp: new Date().toISOString(),
     seq,
     open_feedback: openFeedback ?? 0,
+    ...rest,
   };
   if (route !== undefined) entry.route = route;
   if (changedFiles !== undefined) {

@@ -6,8 +6,9 @@
  */
 
 import { minimatch } from 'minimatch';
-import { sortPaths } from './attestation/hash.js';
+import { sortPaths, sha256Text } from './attestation/hash.js';
 import { getArtefactType } from './config.js';
+import { expandPatterns } from './validation.js';
 
 // --- Shared branch artefact discovery ---
 
@@ -163,4 +164,46 @@ export async function getArtefactFiles(foundryDir, typeId, io, options = {}) {
   const result = [...matching].sort((a, b) => order.get(a.file) - order.get(b.file));
 
   return result;
+}
+
+/**
+ * Compute the artefact version hash for a given artefact type.
+ *
+ * Reads the artefact type definition, expands its file patterns across the
+ * worktree, and computes a SHA-256 hash over all matching files. Each file
+ * contributes `sha256(filePath + ":" + content)` and the per-file hashes are
+ * joined with "\n" before the final SHA-256.
+ *
+ * When no patterns are defined or no files match, returns the SHA-256 of an
+ * empty input (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855).
+ *
+ * @param {string} foundryDir - Path to the foundry directory
+ * @param {string} typeId - Artefact type identifier
+ * @param {object} io - IO interface with readFile(path, encoding)
+ * @returns {Promise<string>} SHA-256 hex string (64 characters)
+ * @throws {Error} On IO errors (unknown type, file read failure, glob error)
+ */
+export async function computeArtefactVersion(foundryDir, typeId, io) {
+  const def = await getArtefactType(foundryDir, typeId, io);
+  const patterns = Array.isArray(def.frontmatter && def.frontmatter['file-patterns'])
+    ? def.frontmatter['file-patterns']
+    : [];
+
+  if (patterns.length === 0) {
+    return sha256Text('');
+  }
+
+  const files = await expandPatterns(patterns, foundryDir);
+
+  if (files.length === 0) {
+    return sha256Text('');
+  }
+
+  const perFileHashes = await Promise.all(files.map(async file => {
+    const content = await io.readFile(file, 'utf-8');
+    return sha256Text(file + ':' + content);
+  }));
+
+  const joined = perFileHashes.join('\n');
+  return sha256Text(joined);
 }

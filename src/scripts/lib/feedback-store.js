@@ -116,13 +116,15 @@ function assertAddParams(...params) {
 }
 
 function storeAdd(params, items, deps) {
-  const { file, tag, text, source, cycle } = params;
+  const { file, tag, text, source, cycle, artefact_version } = params;
   const { hashFn, stateOf, validateSrc, persist, makeUlid, timestamp } = deps;
   assertAddParams(file, tag, text, source, cycle);
   validateSrc(source);
 
   const textHash = hashFn(text);
-  const existing = items.find(it => isDuplicate(it, file, tag, textHash, stateOf));
+  const existing = items.find(it =>
+    it.artefact_version === artefact_version && isDuplicate(it, file, tag, textHash, stateOf)
+  );
   if (existing) return { id: existing.id, deduped: true };
 
   const id = makeUlid();
@@ -130,6 +132,9 @@ function storeAdd(params, items, deps) {
     id, file, tag, text, source,
     history: [{ state: 'open', stage: source, cycle, timestamp: timestamp() }],
   };
+  if (artefact_version !== undefined) {
+    item.artefact_version = artefact_version;
+  }
   persist([...items, item]);
   return { id, deduped: false };
 }

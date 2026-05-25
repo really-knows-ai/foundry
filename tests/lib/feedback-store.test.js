@@ -402,6 +402,109 @@ describe('store.add — source format validation (RED target)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// artefact_version on add()
+// ---------------------------------------------------------------------------
+
+describe('store.add with artefact_version', () => {
+  test('adds artefact_version to the stored item when provided', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({
+      file: 'a.md', tag: 'law:x', text: 't',
+      source: 'appraise:a', cycle: 'c',
+      artefact_version: 'abc123def456',
+    });
+    const item = store.get(id);
+    assert.equal(item.artefact_version, 'abc123def456');
+  });
+
+  test('omits artefact_version from the stored item when not provided', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const { id } = store.add({
+      file: 'a.md', tag: 'law:x', text: 't',
+      source: 'appraise:a', cycle: 'c',
+    });
+    const item = store.get(id);
+    assert.equal(item.artefact_version, undefined);
+  });
+
+  test('persists artefact_version through a fresh store load', () => {
+    const io = mockIO();
+    const s1 = openFeedbackStore('WORK.feedback.yaml', io);
+    s1.add({
+      file: 'a.md', tag: 'law:x', text: 't',
+      source: 'appraise:a', cycle: 'c',
+      artefact_version: 'persist-version',
+    });
+    const s2 = openFeedbackStore('WORK.feedback.yaml', io);
+    const items = s2.list();
+    assert.equal(items.length, 1);
+    assert.equal(items[0].artefact_version, 'persist-version');
+  });
+
+  test('legacy items with undefined artefact_version dedupe against each other', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const first = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    const second = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    assert.equal(second.deduped, true);
+    assert.equal(second.id, first.id);
+    assert.equal(store.list().length, 1);
+  });
+
+  test('same artefact_version dedupes as before', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const first = store.add({
+      file: 'a.md', tag: 'law:x', text: 'same',
+      source: 'appraise:a', cycle: 'c',
+      artefact_version: 'v1',
+    });
+    const second = store.add({
+      file: 'a.md', tag: 'law:x', text: 'same',
+      source: 'appraise:a', cycle: 'c',
+      artefact_version: 'v1',
+    });
+    assert.equal(second.deduped, true);
+    assert.equal(second.id, first.id);
+    assert.equal(store.list().length, 1);
+  });
+
+  test('different artefact_version are distinct', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const first = store.add({
+      file: 'a.md', tag: 'law:x', text: 'same',
+      source: 'appraise:a', cycle: 'c',
+      artefact_version: 'v1',
+    });
+    const second = store.add({
+      file: 'a.md', tag: 'law:x', text: 'same',
+      source: 'appraise:a', cycle: 'c',
+      artefact_version: 'v2',
+    });
+    assert.equal(second.deduped, false);
+    assert.notEqual(second.id, first.id);
+    assert.equal(store.list().length, 2);
+  });
+
+  test('versioned item and legacy item are distinct', () => {
+    const io = mockIO();
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    const legacy = store.add({ file: 'a.md', tag: 'law:x', text: 'same', source: 'appraise:a', cycle: 'c' });
+    const versioned = store.add({
+      file: 'a.md', tag: 'law:x', text: 'same',
+      source: 'appraise:a', cycle: 'c',
+      artefact_version: 'abc',
+    });
+    assert.equal(versioned.deduped, false);
+    assert.notEqual(versioned.id, legacy.id);
+    assert.equal(store.list().length, 2);
+  });
+});
+
 describe('store.add — atomicity', () => {
   test('rename failure leaves the live file unchanged AND in-memory list unchanged', () => {
     const io = mockIO({ 'WORK.feedback.yaml': yaml.dump({ items: [] }) });

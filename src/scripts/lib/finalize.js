@@ -49,7 +49,7 @@ function classifyFiles(files, allowedPatterns) {
   return { matched, unexpected };
 }
 
-export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, io }) {
+export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes, io, artefact_version }) {
   if (!io?.exec) {
     throw new Error('finalizeStage: io.exec is required');
   }
@@ -66,5 +66,13 @@ export function finalizeStage({ cwd, baseSha, stageBase, cycleDef, artefactTypes
     file,
     type: cycleDef.outputArtefactType,
   }));
-  return { ok: true, artefacts, changedFiles: sortedFiles };
+  return forgeResult(artefacts, sortedFiles, artefact_version);
+}
+
+function forgeResult(artefacts, files, artefact_version) {
+  const result = { ok: true, artefacts, changedFiles: files };
+  if (artefact_version !== undefined) {
+    result.artefact_version = artefact_version;
+  }
+  return result;
 }

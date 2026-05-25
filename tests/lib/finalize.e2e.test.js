@@ -258,4 +258,35 @@ describe('finalizeStage', () => {
     assert.equal(res.ok, true);
     assert.deepEqual(res.artefacts, [{ file: 'haikus/a.md', type: 'haiku' }]);
   });
+
+  describe('artefact_version in finalizeStage', () => {
+    it('forge finalize with artefact_version returns it in result', () => {
+      mkdirSync(join(dir, 'haikus'), { recursive: true });
+      writeFileSync(join(dir, 'haikus/a.md'), '...');
+      const res = finalizeStage({
+        cwd: dir, baseSha,
+        stageBase: 'forge',
+        cycleDef: { outputArtefactType: 'haiku' },
+        artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+        io: makeTestIo(dir),
+        artefact_version: 'abc123def456',
+      });
+      assert.equal(res.ok, true);
+      assert.equal(res.artefact_version, 'abc123def456');
+    });
+
+    it('forge finalize without artefact_version omits it from result', () => {
+      mkdirSync(join(dir, 'haikus'), { recursive: true });
+      writeFileSync(join(dir, 'haikus/a.md'), '...');
+      const res = finalizeStage({
+        cwd: dir, baseSha,
+        stageBase: 'forge',
+        cycleDef: { outputArtefactType: 'haiku' },
+        artefactTypes: { haiku: { filePatterns: ['haikus/*.md'] } },
+        io: makeTestIo(dir),
+      });
+      assert.equal(res.ok, true);
+      assert.equal(res.artefact_version, undefined);
+    });
+  });
 });

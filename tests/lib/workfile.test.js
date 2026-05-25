@@ -9,6 +9,7 @@ import {
   enrichStages,
   parseStagesValue,
   parseModelsValue,
+  buildForgeHistoryEntry,
 } from '../../src/scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
@@ -292,5 +293,80 @@ describe('parseModelsValue', () => {
 
   it('returns empty object for empty string', () => {
     assert.deepEqual(parseModelsValue(''), {});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildForgeHistoryEntry
+// ---------------------------------------------------------------------------
+
+describe('buildForgeHistoryEntry', () => {
+  it('returns an object with all expected keys', () => {
+    const result = buildForgeHistoryEntry({
+      cycle: 'haiku-cycle',
+      stage: 'forge:haiku-cycle',
+      iteration: 2,
+      comment: 'Fixed line count',
+      artefactVersion: 'abc123',
+      contractPassed: true,
+      changedFiles: ['haikus/cat.md'],
+    });
+    assert.equal(result.cycle, 'haiku-cycle');
+    assert.equal(result.stage, 'forge:haiku-cycle');
+    assert.equal(result.iteration, 2);
+    assert.equal(result.comment, 'Fixed line count');
+    assert.equal(result.artefact_version, 'abc123');
+    assert.equal(result.contract_passed, true);
+    assert.deepEqual(result.changedFiles, ['haikus/cat.md']);
+  });
+
+  it('preserves artefact_version exactly', () => {
+    const result = buildForgeHistoryEntry({
+      cycle: 'c', stage: 'forge:c', iteration: 1, comment: 'x',
+      artefactVersion: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      contractPassed: true, changedFiles: [],
+    });
+    assert.equal(result.artefact_version, 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890');
+  });
+
+  it('preserves contract_passed when true', () => {
+    const result = buildForgeHistoryEntry({
+      cycle: 'c', stage: 'forge:c', iteration: 1, comment: 'x',
+      artefactVersion: 'v1', contractPassed: true, changedFiles: [],
+    });
+    assert.equal(result.contract_passed, true);
+  });
+
+  it('preserves contract_passed when false', () => {
+    const result = buildForgeHistoryEntry({
+      cycle: 'c', stage: 'forge:c', iteration: 1, comment: 'x',
+      artefactVersion: 'v1', contractPassed: false, changedFiles: [],
+    });
+    assert.equal(result.contract_passed, false);
+  });
+
+  it('passes through changedFiles unchanged (sorting is buildEntry responsibility)', () => {
+    const result = buildForgeHistoryEntry({
+      cycle: 'c', stage: 'forge:c', iteration: 1, comment: 'x',
+      artefactVersion: 'v1', contractPassed: true,
+      changedFiles: ['z.md', 'a.md'],
+    });
+    assert.deepEqual(result.changedFiles, ['z.md', 'a.md']);
+  });
+
+  it('does not set timestamp', () => {
+    const result = buildForgeHistoryEntry({
+      cycle: 'c', stage: 'forge:c', iteration: 1, comment: 'x',
+      artefactVersion: 'v1', contractPassed: true, changedFiles: [],
+    });
+    assert.equal(result.timestamp, undefined);
+  });
+
+  it('does not set seq', () => {
+    const result = buildForgeHistoryEntry({
+      cycle: 'c', stage: 'forge:c', iteration: 1, comment: 'x',
+      artefactVersion: 'v1', contractPassed: true, changedFiles: [],
+    });
+    assert.equal(result.seq, undefined);
   });
 });

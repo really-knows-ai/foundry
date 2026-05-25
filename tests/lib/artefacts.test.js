@@ -1,6 +1,9 @@
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBranchBaseSha, getArtefactFiles } from '../../src/scripts/lib/artefacts.js';
+import { mkdtempSync, writeFileSync, mkdirSync, accessSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { resolveBranchBaseSha, getArtefactFiles, computeArtefactVersion } from '../../src/scripts/lib/artefacts.js';
 
 // ---------------------------------------------------------------------------
 // resolveBranchBaseSha
@@ -113,5 +116,155 @@ describe('getArtefactFiles', () => {
 
     // merge-base should not be called because branchBaseSha was provided
     assert.equal(mergeBaseCalls, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeArtefactVersion
+// ---------------------------------------------------------------------------
+
+describe('computeArtefactVersion', () => {
+  const EMPTY_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+  function makeFoundryDir() {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-art-'));
+    mkdirSync(join(dir, 'out'), { recursive: true });
+    // Create an artefact definition file that getArtefactType reads
+    const defDir = join(dir, 'artefacts', 'haiku');
+    mkdirSync(defDir, { recursive: true });
+    return dir;
+  }
+
+  function makeTypeIo(foundryDir, definitionYaml, files = {}) {
+    const defPath = join(foundryDir, 'artefacts', 'haiku', 'definition.md');
+    writeFileSync(defPath, definitionYaml);
+    for (const [filePath, content] of Object.entries(files)) {
+      const full = join(foundryDir, filePath);
+      const parentDir = join(foundryDir, 'out');
+      mkdirSync(parentDir, { recursive: true });
+      writeFileSync(full, content);
+    }
+    return {
+      exists: mock.fn(async (p) => {
+        try {
+          const checkPath = p.startsWith('/') ? p : join(foundryDir, p);
+          accessSync(checkPath);
+          return true;
+        } catch {
+          return false;
+        }
+      }),
+      readFile: mock.fn(async (p, enc) => {
+        const fullPath = p.startsWith('/') ? p : join(foundryDir, p);
+        try {
+          return readFileSync(fullPath, enc || 'utf8');
+        } catch {
+          throw new Error(`ENOENT: ${p}`);
+        }
+      }),
+    };
+  }
+
+  it('returns empty-input SHA when no file patterns exist', async () => {
+    const dir = makeFoundryDir();
+    const io = makeTypeIo(dir, '---\nid: haiku\n---\n');
+    const result = await computeArtefactVersion(dir, 'haiku', io);
+    assert.equal(result, EMPTY_SHA);
+  });
+
+  it('returns empty-input SHA when no files match the patterns', async () => {
+    const dir = makeFoundryDir();
+    const io = makeTypeIo(dir, '---\nid: haiku\nfile-patterns:\n  - "nomatch/*.md"\n---\n');
+    const result = await computeArtefactVersion(dir, 'haiku', io);
+    assert.equal(result, EMPTY_SHA);
+  });
+
+  it('returns deterministic hash for a single file', async () => {
+    const dir = makeFoundryDir();
+    const io = makeTypeIo(dir, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/a.md': 'hello world',
+    });
+    const r1 = await computeArtefactVersion(dir, 'haiku', io);
+    const r2 = await computeArtefactVersion(dir, 'haiku', io);
+    assert.equal(r1, r2);
+    assert.equal(r1.length, 64);
+    assert.match(r1, /^[0-9a-f]{64}$/);
+  });
+
+  it('returns different hash for different file content', async () => {
+    const dirA = makeFoundryDir();
+    const ioA = makeTypeIo(dirA, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/a.md': 'content a',
+    });
+    const hashA = await computeArtefactVersion(dirA, 'haiku', ioA);
+
+    const dirB = makeFoundryDir();
+    const ioB = makeTypeIo(dirB, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/a.md': 'content b',
+    });
+    const hashB = await computeArtefactVersion(dirB, 'haiku', ioB);
+    assert.notEqual(hashA, hashB);
+  });
+
+  it('returns different hash for different file path', async () => {
+    const dirA = makeFoundryDir();
+    const ioA = makeTypeIo(dirA, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/a.md': 'same content',
+    });
+    const hashA = await computeArtefactVersion(dirA, 'haiku', ioA);
+
+    const dirB = makeFoundryDir();
+    const ioB = makeTypeIo(dirB, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/other.md': 'same content',
+    });
+    const hashB = await computeArtefactVersion(dirB, 'haiku', ioB);
+    assert.notEqual(hashA, hashB);
+  });
+
+  it('includes all matching files (two files produce different hash than one)', async () => {
+    const dirOne = makeFoundryDir();
+    const ioOne = makeTypeIo(dirOne, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/a.md': 'content a',
+      'out/b.md': 'content b',
+    });
+    const hashOne = await computeArtefactVersion(dirOne, 'haiku', ioOne);
+
+    const dirTwo = makeFoundryDir();
+    const ioTwo = makeTypeIo(dirTwo, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/a.md': 'content a',
+      'out/b.md': 'content b',
+      'out/c.md': 'content c',
+    });
+    const hashTwo = await computeArtefactVersion(dirTwo, 'haiku', ioTwo);
+    assert.notEqual(hashOne, hashTwo);
+  });
+
+  it('throws when artefact type is unknown', async () => {
+    const dir = makeFoundryDir();
+    const io = {
+      exists: mock.fn(async () => false),
+      readFile: mock.fn(async () => { throw new Error('ENOENT'); }),
+    };
+    await assert.rejects(
+      () => computeArtefactVersion(dir, 'nonexistent', io),
+      /Artefact type not found/,
+    );
+  });
+
+  it('throws on file read failure', async () => {
+    const dir = makeFoundryDir();
+    const io = makeTypeIo(dir, '---\nid: haiku\nfile-patterns:\n  - "out/*.md"\n---\n', {
+      'out/a.md': 'content a',
+    });
+    // Override readFile to fail on non-definition files
+    const realReadFile = io.readFile;
+    io.readFile = mock.fn(async (p, enc) => {
+      if (p.endsWith('definition.md')) return realReadFile(p, enc);
+      throw new Error('EACCES: permission denied');
+    });
+    await assert.rejects(
+      () => computeArtefactVersion(dir, 'haiku', io),
+      /EACCES/,
+    );
   });
 });

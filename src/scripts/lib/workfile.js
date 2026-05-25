@@ -121,3 +121,31 @@ export function createWorkfile(frontmatter, goal) {
 ${goal}
 `;
 }
+
+/**
+ * Build a forge history entry options object for appendEntry.
+ *
+ * The returned object includes changedFiles (camelCase), artefact_version,
+ * and contract_passed. appendEntry/buildEntry handle sorting changedFiles,
+ * converting to changed_files in YAML, and setting timestamp/seq.
+ *
+ * @param {{ cycle: string, stage: string, iteration: number, comment: string,
+ *   artefactVersion: string, contractPassed: boolean,
+ *   changedFiles: string[] }} params
+ * @returns {{ cycle: string, stage: string, iteration: number,
+ *   comment: string, changedFiles: string[], artefact_version: string,
+ *   contract_passed: boolean }}
+ */
+export function buildForgeHistoryEntry(
+  { cycle, stage, iteration, comment, artefactVersion, contractPassed, changedFiles },
+) {
+  return {
+    cycle,
+    stage,
+    iteration,
+    comment,
+    changedFiles,
+    artefact_version: artefactVersion,
+    contract_passed: contractPassed,
+  };
+}

@@ -80,6 +80,7 @@ function loadFeedback(io, cycle) {
     state: item.history[0].state,
     depth: item.history.length,
     source: item.source,
+    artefact_version: item.artefact_version,
   }));
 }
 
