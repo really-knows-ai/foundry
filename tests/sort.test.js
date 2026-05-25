@@ -5,11 +5,9 @@ import { makeMockIO } from './helpers/mock-io.js';
 import {
   baseStage,
   findFirst,
-  nextInRoute,
+  nextStageInChain,
   parseFrontmatter,
   determineRoute,
-  nextAfterQuench,
-  nextAfterAppraise,
   globMatch,
   loadHistory,
   getModifiedFiles,
@@ -17,7 +15,13 @@ import {
   checkModifiedFiles,
   getDirtyToolManagedFiles,
   runSort,
+  extractFrontmatterDefaults,
 } from '../src/scripts/sort.js';
+import {
+  first,
+  firstAfter,
+  hasStage,
+} from '../src/scripts/lib/sort-routing.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers — feedback-store fixtures
@@ -128,16 +132,16 @@ describe('findFirst', () => {
   });
 });
 
-describe('nextInRoute', () => {
+describe('nextStageInChain', () => {
   const stages = ['forge:a', 'quench:b', 'appraise:c'];
-  it('returns next stage', () => {
-    assert.equal(nextInRoute(stages, 'forge:a'), 'quench:b');
+  it('returns next stage after current in list', () => {
+    assert.equal(nextStageInChain(stages, 'forge:a'), 'quench:b');
   });
-  it('returns null at end of route', () => {
-    assert.equal(nextInRoute(stages, 'appraise:c'), null);
+  it('returns null at end of list', () => {
+    assert.equal(nextStageInChain(stages, 'appraise:c'), null);
   });
-  it('returns null for unknown stage', () => {
-    assert.equal(nextInRoute(stages, 'hitl:x'), null);
+  it('returns null for unknown current stage', () => {
+    assert.equal(nextStageInChain(stages, 'hitl:x'), null);
   });
 });
 
@@ -162,26 +166,346 @@ describe('parseFrontmatter', () => {
 
 
 
+
+
 // ---------------------------------------------------------------------------
-// Routing logic
+// New routing helpers
+// ---------------------------------------------------------------------------
+
+describe('first', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+
+  it('finds forge stage by base', () => {
+    assert.equal(first('forge', stages, 'c1'), 'forge:write');
+  });
+
+  it('finds quench stage by base', () => {
+    assert.equal(first('quench', stages, 'c1'), 'quench:review');
+  });
+
+  it('returns exact human-appraise stage when configured', () => {
+    assert.equal(first('human-appraise', stages, 'c1'), 'human-appraise:review');
+  });
+
+  it('falls back to human-appraise:<cycle> when no human-appraise stage configured', () => {
+    const noHuman = ['forge:write', 'quench:review', 'appraise:check'];
+    assert.equal(first('human-appraise', noHuman, 'custom-cycle'), 'human-appraise:custom-cycle');
+  });
+
+  it('returns null when base is not human-appraise and stage not found', () => {
+    assert.equal(first('nonexistent', stages, 'c1'), null);
+  });
+});
+
+describe('firstAfter', () => {
+  it('returns next stage after forge in full chain', () => {
+    const stages = ['forge:write', 'quench:review', 'appraise:check'];
+    assert.equal(firstAfter(stages, 'forge'), 'quench:review');
+  });
+
+  it('returns next stage after forge when quench is omitted', () => {
+    const stages = ['forge:write', 'appraise:check'];
+    assert.equal(firstAfter(stages, 'forge'), 'appraise:check');
+  });
+
+  it('returns null when base is not in canonical order', () => {
+    const stages = ['forge:write', 'quench:review'];
+    assert.equal(firstAfter(stages, 'unknown'), null);
+  });
+
+  it('returns null when no stages exist after base', () => {
+    const stages = ['forge:write'];
+    assert.equal(firstAfter(stages, 'forge'), null);
+  });
+});
+
+describe('hasStage', () => {
+  const stages = ['forge:write', 'quench:review', 'appraise:check'];
+
+  it('returns true when stage with matching base exists', () => {
+    assert.equal(hasStage(stages, 'quench'), true);
+  });
+
+  it('returns false when no stage matches', () => {
+    assert.equal(hasStage(stages, 'human-appraise'), false);
+  });
+
+  it('returns false for empty stages list', () => {
+    assert.equal(hasStage([], 'forge'), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// determineRoute — state-driven decision tree
 // ---------------------------------------------------------------------------
 
 describe('determineRoute', () => {
   const stages = ['forge:write', 'quench:review', 'appraise:check'];
+  const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
+
+  // ---- First run / empty history ----
 
   it('returns first stage when no history', () => {
     assert.equal(determineRoute(stages, [], [], 3), 'forge:write');
   });
 
-  it('advances after forge', () => {
+  it('returns blocked when stages list is empty', () => {
+    assert.equal(determineRoute([], [], [], 3), 'blocked');
+  });
+
+  it('returns assay as first stage when assay is first in list', () => {
+    const withAssay = ['assay:init', 'forge:write', 'quench:review'];
+    assert.equal(determineRoute(withAssay, [], [], 3), 'assay:init');
+  });
+
+  // ---- R4 — maxIterations validation ----
+
+  it('returns blocked when maxIterations is 0', () => {
+    assert.equal(determineRoute(stages, [{ stage: 'forge:write' }], [], 0), 'blocked');
+  });
+
+  it('returns blocked when maxIterations is negative', () => {
+    assert.equal(determineRoute(stages, [{ stage: 'forge:write' }], [], -1), 'blocked');
+  });
+
+  it('returns blocked when maxIterations is non-integer', () => {
+    assert.equal(determineRoute(stages, [{ stage: 'forge:write' }], [], 2.5), 'blocked');
+  });
+
+  // ---- R7 — forge just ran (last stage is forge) ----
+
+  it('routes to first evaluation stage after forge when clean', () => {
     const history = [{ stage: 'forge:write', cycle: 'c1' }];
     assert.equal(determineRoute(stages, history, [], 3), 'quench:review');
   });
 
-  it('returns done when forge is last stage and completes', () => {
+  it('returns done when forge is the only stage', () => {
     const history = [{ stage: 'forge:write', cycle: 'c1' }];
     assert.equal(determineRoute(['forge:write'], history, [], 3), 'done');
   });
+
+  it('routes back to forge when unresolved items exist after forge', () => {
+    const history = [{ stage: 'forge:write', cycle: 'c1' }];
+    const feedback = [{ state: 'open' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'forge:write');
+  });
+
+  it('routes to human-appraise (deadlock) when forge cap reached with unresolved and deadlockHumanAppraise', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    // stagesWithHuman includes human-appraise:review, so first() finds the
+    // configured stage rather than falling back to human-appraise:<cycle>
+    assert.equal(
+      determineRoute(stagesWithHuman, history, feedback, 3, { deadlockHumanAppraise: true, cycle: 'c1' }),
+      'human-appraise:review',
+    );
+  });
+
+  it('returns blocked when forge cap reached with unresolved and no deadlock gate', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
+  });
+
+  it('bypasses iteration cap when alwaysHumanAppraise is true after forge', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true }),
+      'forge:write',
+    );
+  });
+
+  it('routes to fallback human-appraise:<cycle> when forge cap reached and no human-appraise stage configured', () => {
+    const noHuman = ['forge:write', 'quench:review', 'appraise:check'];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      determineRoute(noHuman, history, feedback, 3, { deadlockHumanAppraise: true, cycle: 'fallback-cycle' }),
+      'human-appraise:fallback-cycle',
+    );
+  });
+
+  // ---- R1 — unresolved items (last stage is not forge) ----
+
+  it('routes to forge when unresolved open items exist', () => {
+    const history = [{ stage: 'quench:review', cycle: 'c1' }];
+    const feedback = [{ state: 'open' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'forge:write');
+  });
+
+  it('routes to forge when unresolved rejected items exist', () => {
+    const history = [{ stage: 'quench:review', cycle: 'c1' }];
+    const feedback = [{ state: 'rejected' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'forge:write');
+  });
+
+  it('routes to forge when both open and actioned items exist (unresolved priority)', () => {
+    const history = [{ stage: 'quench:review', cycle: 'c1' }];
+    const feedback = [{ state: 'open' }, { state: 'actioned' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'forge:write');
+  });
+
+  it('routes to human-appraise (deadlock) when cap reached with unresolved and deadlockHumanAppraise', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    // stagesWithHuman includes human-appraise:review, so first() finds the
+    // configured stage rather than falling back to human-appraise:<cycle>
+    assert.equal(
+      determineRoute(stagesWithHuman, history, feedback, 3, { deadlockHumanAppraise: true, cycle: 'c1' }),
+      'human-appraise:review',
+    );
+  });
+
+  it('returns blocked when cap reached with unresolved and no deadlock gate', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
+  });
+
+  it('bypasses iteration cap when alwaysHumanAppraise is true', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'open' }];
+    assert.equal(
+      determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true }),
+      'forge:write',
+    );
+  });
+
+  // ---- R1 — addressed items (no unresolved items) ----
+  // Use non-forge history so we don't hit R7 (forge just ran)
+
+  it('routes to quench when quench-sourced addressed items exist', () => {
+    const history = [{ stage: 'quench:review', cycle: 'c1' }];
+    const feedback = [{ state: 'actioned', source: 'quench:review' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'quench:review');
+  });
+
+  it('routes to appraise when appraise-sourced addressed items exist', () => {
+    const history = [{ stage: 'quench:review', cycle: 'c1' }];
+    const feedback = [{ state: 'actioned', source: 'appraise:check' }];
+    assert.equal(determineRoute(stages, history, feedback, 3), 'appraise:check');
+  });
+
+  it('routes to human-appraise when human-appraise-sourced addressed items exist', () => {
+    const history = [{ stage: 'quench:review', cycle: 'c1' }];
+    const feedback = [{ state: 'actioned', source: 'human-appraise:review' }];
+    assert.equal(
+      determineRoute(stagesWithHuman, history, feedback, 3, { cycle: 'c1' }),
+      'human-appraise:review',
+    );
+  });
+
+  it('routes to earliest source when multiple sources have addressed items', () => {
+    const history = [{ stage: 'quench:review', cycle: 'c1' }];
+    const feedback = [
+      { state: 'actioned', source: 'appraise:check' },
+      { state: 'actioned', source: 'quench:review' },
+    ];
+    // quench comes before appraise in the chain
+    assert.equal(determineRoute(stages, history, feedback, 3), 'quench:review');
+  });
+
+  it('falls through to forwardClean when no source stage appears in the configured stages list', () => {
+    const noAppraise = ['forge:write', 'quench:review'];
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+    ];
+    const feedback = [{ state: 'actioned', source: 'appraise:check' }];
+    assert.equal(determineRoute(noAppraise, history, feedback, 3), 'done');
+  });
+
+  // ---- R2 — forward progression (no unresolved or addressed items) ----
+
+  it('advances to next stage in chain', () => {
+    const history = [{ stage: 'forge:write', cycle: 'c1' }];
+    assert.equal(determineRoute(stages, history, [], 3), 'quench:review');
+  });
+
+  it('returns done at end of chain', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    assert.equal(determineRoute(stages, history, [], 3), 'done');
+  });
+
+  it('returns done when next stage is human-appraise and alwaysHumanAppraise is false', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    // stagesWithHuman has human-appraise, but alwaysHumanAppraise defaults to false
+    assert.equal(determineRoute(stagesWithHuman, history, [], 3), 'done');
+  });
+
+  it('routes to human-appraise when next stage is human-appraise and alwaysHumanAppraise is true', () => {
+    const history = [
+      { stage: 'forge:write', cycle: 'c1' },
+      { stage: 'quench:review', cycle: 'c1' },
+      { stage: 'appraise:check', cycle: 'c1' },
+    ];
+    assert.equal(
+      determineRoute(stagesWithHuman, history, [], 3, { alwaysHumanAppraise: true }),
+      'human-appraise:review',
+    );
+  });
+
+  it('advances forward even when lastStage base is assay', () => {
+    const withAssay = ['assay:init', 'forge:write', 'quench:review'];
+    const history = [{ stage: 'assay:init', cycle: 'c1' }];
+    assert.equal(determineRoute(withAssay, history, [], 3), 'forge:write');
+  });
+
+  // ---- History handling ----
 
   it('skips sort entries in history', () => {
     const history = [
@@ -191,34 +515,19 @@ describe('determineRoute', () => {
     assert.equal(determineRoute(stages, history, [], 3), 'quench:review');
   });
 
-  it('returns blocked for unknown last stage base', () => {
+  it('returns first stage when history empty (even with non-empty feedback)', () => {
+    const feedback = [{ state: 'open' }];
+    assert.equal(determineRoute(stages, [], feedback, 3), 'forge:write');
+  });
+
+  // ---- Updated behaviour from old tests ----
+
+  it('returns done for unknown last stage base', () => {
     const history = [{ stage: 'unknown:thing', cycle: 'c1' }];
-    assert.equal(determineRoute(stages, history, [], 3), 'blocked');
-  });
-
-  it('routes to human-appraise after appraise when enabled', () => {
-    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-    const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
-    ];
-    assert.equal(determineRoute(stagesWithHuman, history, [], 3), 'human-appraise:review');
-  });
-
-  it('advances to done after human-appraise', () => {
-    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-    const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'appraise:check', cycle: 'c1' },
-      { stage: 'human-appraise:review', cycle: 'c1' },
-    ];
-    assert.equal(determineRoute(stagesWithHuman, history, [], 3), 'done');
+    assert.equal(determineRoute(stages, history, [], 3), 'done');
   });
 
   it('loops back to forge when human-appraise adds feedback', () => {
-    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
     const history = [
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
@@ -230,241 +539,34 @@ describe('determineRoute', () => {
   });
 });
 
-describe('nextAfterQuench', () => {
-  const stages = ['forge:write', 'quench:review', 'appraise:check'];
-
-  it('loops back to forge on open feedback', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 0, maxIterations: 3 }), 'forge:write');
-  });
-
-  it('loops back to forge on rejected feedback', () => {
-    const feedback = [{ state: 'rejected' }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 0, maxIterations: 3 }), 'forge:write');
-  });
-
-  it('blocks when max iterations reached with open feedback', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 3, maxIterations: 3 }), 'blocked');
-  });
-
-  it('advances when all feedback resolved', () => {
-    const feedback = [{ state: 'actioned', resolved: true }];
-    assert.equal(nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 1, maxIterations: 3 }), 'appraise:check');
-  });
-
-  it('returns done at end of route with resolved feedback', () => {
-    const feedback = [{ state: 'actioned', resolved: true }];
-    assert.equal(nextAfterQuench(['forge:write', 'quench:review'], 'quench:review', feedback, { forgeCount: 1, maxIterations: 3 }), 'done');
-  });
-});
-
-describe('nextAfterAppraise', () => {
-  const stages = ['forge:write', 'quench:review', 'appraise:check'];
-
-  it('loops back to forge on open feedback', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 0, maxIterations: 3 }),
-      'forge:write',
-    );
-  });
-
-  it('blocks when max iterations reached', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 3, maxIterations: 3 }),
-      'blocked',
-    );
-  });
-
-  it('loops back to appraise when actioned but not approved', () => {
-    const feedback = [{ state: 'actioned', resolved: false }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 1, maxIterations: 3 }),
-      'appraise:check',
-    );
-  });
-
-  it('loops back to appraise when wont-fix but not approved', () => {
-    const feedback = [{ state: 'wont-fix', resolved: false }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 1, maxIterations: 3 }),
-      'appraise:check',
-    );
-  });
-
-  it('returns done when all resolved', () => {
-    const feedback = [{ state: 'resolved' }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 1, maxIterations: 3 }),
-      'done',
-    );
-  });
-
-  it('returns done with empty feedback', () => {
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback: [], forgeCount: 1, maxIterations: 3 }),
-      'done',
-    );
-  });
-
-  it('advances to next stage when all feedback resolved', () => {
-    const stagesWithHuman = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-    const feedback = [{ state: 'resolved' }];
-    assert.equal(
-      nextAfterAppraise({
-        stages: stagesWithHuman,
-        current: 'appraise:check',
-        feedback,
-        forgeCount: 0,
-        maxIterations: 3,
-      }),
-      'human-appraise:review',
-    );
-  });
-
-  it('returns done when appraise is last stage and all resolved', () => {
-    const stagesThree = ['forge:write', 'quench:review', 'appraise:check'];
-    const feedback = [{ state: 'resolved' }];
-    assert.equal(
-      nextAfterAppraise({
-        stages: stagesThree,
-        current: 'appraise:check',
-        feedback,
-        forgeCount: 0,
-        maxIterations: 3,
-      }),
-      'done',
-    );
-  });
-});
-
 // ---------------------------------------------------------------------------
-// Iteration cap routing
+// extractFrontmatterDefaults
 // ---------------------------------------------------------------------------
 
-describe('nextAfterQuench — iteration cap routing', () => {
-  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-
-  it('routes to human-appraise when forgeCount >= maxIterations and deadlockHumanAppraise is true', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 3, maxIterations: 3, deadlockHumanAppraise: true, cycle: 'c1' }),
-      'human-appraise:c1',
-    );
+describe('extractFrontmatterDefaults', () => {
+  it('deadlockHumanAppraise defaults to false when config field is absent', () => {
+    const result = extractFrontmatterDefaults({});
+    assert.equal(result.deadlockHumanAppraise, false);
   });
 
-  it('routes to blocked when forgeCount >= maxIterations and deadlockHumanAppraise is false', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 3, maxIterations: 3, deadlockHumanAppraise: false, cycle: 'c1' }),
-      'blocked',
-    );
+  it('deadlockHumanAppraise is true when explicitly set to true', () => {
+    const result = extractFrontmatterDefaults({ 'deadlock-human-appraise': true });
+    assert.equal(result.deadlockHumanAppraise, true);
   });
 
-  it('bypasses cap when alwaysHumanAppraise is true', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 10, maxIterations: 3, alwaysHumanAppraise: true, cycle: 'c1' }),
-      'forge:write',
-    );
+  it('deadlockHumanAppraise is false when explicitly set to false', () => {
+    const result = extractFrontmatterDefaults({ 'deadlock-human-appraise': false });
+    assert.equal(result.deadlockHumanAppraise, false);
   });
 
-  it('bypasses cap when alwaysHumanAppraise is true even with deadlockHumanAppraise false', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterQuench(stages, 'quench:review', feedback, { forgeCount: 10, maxIterations: 3, alwaysHumanAppraise: true, deadlockHumanAppraise: false, cycle: 'c1' }),
-      'forge:write',
-    );
-  });
-});
-
-describe('nextAfterAppraise — iteration cap routing', () => {
-  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-
-  it('routes to human-appraise when forgeCount >= maxIterations and deadlockHumanAppraise is true', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 3, maxIterations: 3, alwaysHumanAppraise: false, deadlockHumanAppraise: true, cycle: 'c1' }),
-      'human-appraise:c1',
-    );
+  it('alwaysHumanAppraise defaults to false', () => {
+    const result = extractFrontmatterDefaults({});
+    assert.equal(result.alwaysHumanAppraise, false);
   });
 
-  it('routes to blocked when forgeCount >= maxIterations and deadlockHumanAppraise is false', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 3, maxIterations: 3, alwaysHumanAppraise: false, deadlockHumanAppraise: false, cycle: 'c1' }),
-      'blocked',
-    );
-  });
-
-  it('routes to human-appraise when alwaysHumanAppraise is true and open items exist', () => {
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 0, maxIterations: 3, alwaysHumanAppraise: true, deadlockHumanAppraise: false, cycle: 'c1' }),
-      'human-appraise:review',
-    );
-  });
-
-  it('advances when alwaysHumanAppraise is true and no open items exist', () => {
-    const feedback = [{ state: 'resolved' }];
-    assert.equal(
-      nextAfterAppraise({ stages, current: 'appraise:check', feedback, forgeCount: 0, maxIterations: 3, alwaysHumanAppraise: true, deadlockHumanAppraise: false, cycle: 'c1' }),
-      'human-appraise:review',
-    );
-  });
-});
-
-describe('determineRoute — iteration cap routing', () => {
-  const stages = ['forge:write', 'quench:review', 'appraise:check', 'human-appraise:review'];
-
-  it('routes to human-appraise:c1 when forgeCount >= maxIterations and deadlockHumanAppraise is true', () => {
-    const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-    ];
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      determineRoute(stages, history, feedback, 3, { deadlockHumanAppraise: true, cycle: 'c1' }),
-      'human-appraise:c1',
-    );
-  });
-
-  it('routes to blocked when forgeCount >= maxIterations and deadlockHumanAppraise is false', () => {
-    const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-    ];
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      determineRoute(stages, history, feedback, 3, { deadlockHumanAppraise: false, cycle: 'c1' }),
-      'blocked',
-    );
-  });
-
-  it('bypasses cap when alwaysHumanAppraise is true', () => {
-    const history = [
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-      { stage: 'forge:write', cycle: 'c1' },
-      { stage: 'quench:review', cycle: 'c1' },
-    ];
-    const feedback = [{ state: 'open' }];
-    assert.equal(
-      determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true, cycle: 'c1' }),
-      'forge:write',
-    );
+  it('maxIterations defaults to 3 when absent', () => {
+    const result = extractFrontmatterDefaults({});
+    assert.equal(result.maxIterations, 3);
   });
 });
 
@@ -1189,7 +1291,9 @@ describe('runSort', () => {
       ]),
     });
     const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
-    assert.equal(result.route.startsWith('human-appraise:'), true);
+    // With alwaysHumanAppraise: true the iteration cap is bypassed and unresolved
+    // items route to forge instead of deadlock
+    assert.equal(result.route, 'forge:write');
   });
 });
 

@@ -53,12 +53,12 @@ function validateWorkMd(workPath, io) {
   return { frontmatter, cycle: frontmatter.cycle, stages: frontmatter.stages };
 }
 
-function extractFrontmatterDefaults(frontmatter) {
+export function extractFrontmatterDefaults(frontmatter) {
   const maxIt = frontmatter['max-iterations'] ?? 3;
   return {
     maxIterations: maxIt,
     alwaysHumanAppraise: frontmatter['always-human-appraise'] === true,
-    deadlockHumanAppraise: frontmatter['deadlock-human-appraise'] !== false,
+    deadlockHumanAppraise: frontmatter['deadlock-human-appraise'] === true,
   };
 }
 
@@ -79,6 +79,7 @@ function loadFeedback(io, cycle) {
     file: item.file,
     state: item.history[0].state,
     depth: item.history.length,
+    source: item.source,
   }));
 }
 
@@ -246,10 +247,8 @@ export { parseFrontmatter } from './lib/workfile.js';
 export {
   baseStage,
   findFirst,
-  nextInRoute,
+  nextStageInChain,
   determineRoute,
-  nextAfterQuench,
-  nextAfterAppraise,
 } from './lib/sort-routing.js';
 export {
   globMatch,
