@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.1] - 2026-05-25
+
+### Fixed
+
+- Forge contract enforcement now correctly handles the first forge run with no prior feedback items (empty batch). Previously the contract failed with "forge changed artefacts but did not mark any feedback as actioned", creating a system feedback item that cascaded into an infinite forge loop.
+- Forge history entries now include the actual list of changed files detected by git diff, instead of showing an empty `changed_files: []` for every entry.
+
 ## [3.6.0] - 2026-05-25
 
 ### Added
