@@ -27,37 +27,71 @@ plans/<project-name>/PHASE_XX.md
 
 If `PLAN.md` or `PHASE_XX.md` files already exist, ask whether to replace them or stop.
 
-### 3. Draft the plan with @implementer
+### 3. Propose phase breakdowns to the user
 
-Dispatch a subagent using the platform's subagent mechanism, such as `@implementer` or `subagent_type: "implementer"`, with this prompt:
+Analyse the spec and present the user with at least two distinct ways to break the work into phases. Each option must include:
+
+- Phase names with one-line descriptions
+- The reasoning behind the breakdown (why this structure fits the spec)
+- The dependency ordering this creates
+- A brief "execution narrative" — what the implementing session would build, in sequence
+
+**Common breakdown strategies to consider:**
+
+- **By architectural layer**: Schema and data layer first, then business logic, then UI or API surface. Suits projects where the data model is the backbone.
+- **By feature or user story**: Each phase delivers a complete, user-visible capability. Suits product-facing work where early feedback matters.
+- **By risk or complexity**: Foundational or risky work first, then progressively simpler layers. Suits projects with uncertain technical ground.
+- **By dependency chain**: The most depended-on module first, then consumers. Suits library or SDK work.
+- **Vertical slice**: Each phase crosses all layers for a narrow use case. Suits projects that need end-to-end validation early.
+
+These are starting points. The actual options must be tailored to the spec's content, not generic templates.
+
+Present the options clearly to the user, labelling them Option A, Option B, etc. Ask which breakdown they prefer, and whether they want any adjustments. Do not proceed until the user confirms a phase breakdown.
+
+### 4. Draft phases in parallel
+
+Once the user confirms a phase breakdown, dispatch one implementer subagent per phase, in parallel. Each implementer receives the full spec and their single phase's description. Use this prompt per implementer:
 
 ```
-You are drafting a phased implementation plan. Read the spec below and produce a PLAN.md and one PHASE_XX.md file per phase for the same project directory.
+You are drafting a single PHASE_XX.md file. Read the spec below and the phase description, then produce the phase file.
 
 **Spec:**
 [full spec content]
 
+**Phase number and title:**
+[phase number and name from the agreed breakdown]
+
+**Phase goal and description:**
+[the one-line description and any extra detail the user provided]
+
 **Requirements:**
-- Break the work into discrete phases. Each phase must be independently testable and reviewable.
-- Each phase produces concrete, verifiable deliverables — not vague milestones.
-- Order phases by dependency: foundational work first, downstream work later.
-- Name phases descriptively (e.g., PHASE_01_core_schema.md, PHASE_02_api_layer.md).
-- Each PHASE_XX.md must state: goal, deliverables, verification steps, and acceptance criteria.
-- PLAN.md must reference `SPEC.md`, list all phases in order, state the execution method (`execute-phased-plan`), and include a "How to Execute" section that instructs the executing session to use the `execute-phased-plan` skill on this project directory.
-- Do not omit handoff instructions between phases — state what the next phase depends on from the prior one.
+- The phase must be independently testable and reviewable.
+- Deliverables must be concrete and verifiable — not vague milestones.
+- State: goal, deliverables, verification steps, and acceptance criteria.
+- Include handoff instructions — state what this phase depends on from prior ones, and what subsequent phases depend on from this one.
 - Use British English spelling throughout.
 
 **Output format:**
-Return the full content of PLAN.md followed by each PHASE_XX.md, clearly separated by headings.
+Return the full content of the phase file, starting with a level-1 heading of the phase title.
 ```
 
-### 4. Write draft files
+Wait for all implementers to finish before proceeding.
 
-Write `PLAN.md` and each `PHASE_XX.md` to the project directory before review. Reviewers receive file paths, not pasted plan or spec content.
+### 5. Write PLAN.md and phase files
 
-Confirm the files are written by listing the directory contents.
+Write `PLAN.md` to the project directory. PLAN.md contains:
+- Plan title and `SPEC.md` reference
+- Execution method: `execute-phased-plan`
+- Ordered list of phases with one-line descriptions (from the agreed breakdown)
+- A "How to Execute" section instructing the executing session to load the `execute-phased-plan` skill and follow it
 
-### 5. Review each phase with @reviewer
+Write each `PHASE_XX.md` from the implementer outputs. Use the numbering from the agreed breakdown.
+
+Reviewers receive file paths, not pasted plan or spec content.
+
+Confirm all files are written by listing the directory contents.
+
+### 6. Review each phase with @reviewer
 
 Dispatch one reviewer subagent per phase, in parallel. Wait for all phase review results before proceeding. Each reviewer receives only the phase file path. Do not pass the spec to individual phase reviewers.
 
@@ -102,7 +136,7 @@ Respond with one of:
 - A numbered list of specific issues or clarifying questions to resolve
 ```
 
-### 6. Review the full plan with @reviewer
+### 7. Review the full plan with @reviewer
 
 This step MUST NOT run until every phase review has returned APPROVED. Confirm that zero phase reviews have outstanding issues before proceeding. Only then dispatch a holistic reviewer.
 
@@ -134,7 +168,7 @@ Respond with one of:
 - A numbered list of specific issues to fix
 ```
 
-### 7. Iterate or finalise
+### 8. Iterate or finalise
 
 If every phase reviewer and the holistic reviewer return "APPROVED", proceed to reporting.
 
@@ -157,11 +191,11 @@ Return the full revised content of the phase file.
 
 Wait for all parallel implementers to finish. Update each phase file with its revised content. If the holistic reviewer raised issues that are not specific to any single phase file, dispatch a single @implementer to fix the PLAN.md and affected phase files.
 
-After all implementers complete, re-review the affected phase files in parallel (repeat step 5 for those files only). If all phase re-reviews pass, proceed to the holistic review (step 6). If any phase re-review returns issues, repeat this iteration step.
+After all implementers complete, re-review the affected phase files in parallel (repeat step 6 for those files only). If all phase re-reviews pass, proceed to the holistic review (step 7). If any phase re-review returns issues, repeat this iteration step.
 
 Continue cycling until all phases pass review, or the user asks to stop.
 
-### 8. Report the result
+### 9. Report the result
 
 Confirm the final files exist by listing the directory contents.
 
