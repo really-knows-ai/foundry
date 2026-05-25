@@ -70,13 +70,17 @@ async function executeFeedbackAdd(args, context) {
 
   try {
     const store = openFeedbackStore('WORK.feedback.yaml', io);
-    const { id, deduped } = store.add({
+    const params = {
       file: args.file,
       tag: args.tag,
       text: args.text,
       source: activeStage,
       cycle,
-    });
+    };
+    if (args.artefact_version !== undefined) {
+      params.artefact_version = args.artefact_version;
+    }
+    const { id, deduped } = store.add(params);
     return JSON.stringify({ ok: true, id, deduped });
   } catch (err) {
     return JSON.stringify({ error: `foundry_feedback_add: ${err.message}` });
@@ -201,6 +205,7 @@ export function createFeedbackTools({ tool }) {
         file: tool.schema.string().describe('Artefact file path'),
         text: tool.schema.string().describe('Feedback text'),
         tag: tool.schema.string().describe('Tag for the feedback item'),
+        artefact_version: tool.schema.string().optional().describe('SHA-256 hash for version-aware sorting'),
       },
       execute: guarded('foundry_feedback_add', [flowBranchGuard, gateNotFailed], executeFeedbackAdd, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
@@ -218,7 +223,7 @@ export function createFeedbackTools({ tool }) {
       execute: guarded('foundry_feedback_wontfix', [flowBranchGuard, gateNotFailed], executeFeedbackWontfix, { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
     foundry_feedback_resolve: tool({
-      description: 'Resolve a feedback item (approved or rejected). In human-appraise stages, this tool can override deadlocked items by providing a reason.',
+      description: 'Resolve a feedback item (approved or rejected). Human-appraise stages can override deadlock with a reason.',
       args: {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
         resolution: tool.schema.enum(['approved', 'rejected']).describe('Resolution type'),
@@ -230,7 +235,6 @@ export function createFeedbackTools({ tool }) {
       args: {
         file: tool.schema.string().optional().describe('Filter by artefact file path'),
       },
-      execute: executeFeedbackList,
-    }),
+      execute: executeFeedbackList }),
   };
 }

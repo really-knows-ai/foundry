@@ -31,12 +31,16 @@ export async function blockedAction(cycleId, io, details, foundryDir, baseBranch
 }
 
 export async function humanAppraiseAction(route, token, ctx) {
-  const { cycleId, io, baseBranch } = ctx;
+  const { cycleId, io, baseBranch, cwd } = ctx;
   const fd = ctx.foundryDir || 'foundry';
   const base = baseBranch || 'main';
   const cfm = (await getCycleDefinition(fd, cycleId, io)).frontmatter;
 
-  await resolveStaleHumanAppraiseFeedback(cfm, fd, io, cycleId);
+  try {
+    await resolveStaleHumanAppraiseFeedback(cfm, fd, io, cycleId, cwd);
+  } catch (err) {
+    return { action: 'violation', details: `version check failed: ${err.message}`, recoverable: false, affected_files: [] };
+  }
 
   const artefact = await findOutputArtefacts(cfm, io, fd, base);
   const artefactFile = artefact ? artefact.file : null;
@@ -44,24 +48,22 @@ export async function humanAppraiseAction(route, token, ctx) {
 }
 
 /**
- * Resolve stale human-appraise feedback. Gracefully skips when
- * configuration is unavailable (e.g. in tests).
+ * Resolve stale human-appraise feedback. Errors propagate to the caller
+ * (humanAppraiseAction) which surfaces them as a violation.
  */
-async function resolveStaleHumanAppraiseFeedback(cfm, fd, io, cycleId) {
+async function resolveStaleHumanAppraiseFeedback(cfm, fd, io, cycleId, cwd) {
   const outputType = cfm['output-type'];
   if (!outputType) return;
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    const currentVersion = await computeArtefactVersion(fd, outputType, io);
-    for (const item of store.list()) {
-      if (shouldSkipHumanAppraiseResolve(item, currentVersion)) continue;
-      store.autoResolve({
-        id: item.id,
-        reason: `superseded by forge revision ${currentVersion}`,
-        cycle: cycleId,
-      });
-    }
-  } catch { /* skip */ }
+  const store = openFeedbackStore('WORK.feedback.yaml', io);
+  const currentVersion = await computeArtefactVersion(fd, outputType, io, cwd);
+  for (const item of store.list()) {
+    if (shouldSkipHumanAppraiseResolve(item, currentVersion)) continue;
+    store.autoResolve({
+      id: item.id,
+      reason: `superseded by forge revision ${currentVersion}`,
+      cycle: cycleId,
+    });
+  }
 }
 
 function shouldSkipHumanAppraiseResolve(item, currentVersion) {

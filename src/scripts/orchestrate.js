@@ -8,6 +8,9 @@ import matter from 'gray-matter';
 import { readActiveStage, readLastStage, writeActiveStage, clearActiveStage } from './lib/state.js';
 import { stageBaseOf } from './lib/stage-guard.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
+import { computeArtefactVersion } from './lib/artefacts.js';
+import { enforceForgeContract } from './lib/forge-contract.js';
+import { loadHistory } from './lib/history.js';
 import {
   readCycleTargets,
   readForgeFilePatterns,
@@ -138,7 +141,10 @@ function buildFeedback(cycleId, stageId, io) {
   return {
     add: (item) => {
       const store = openFeedbackStore('WORK.feedback.yaml', io);
-      return store.add({ file: item.file, tag: item.tag, text: item.text, source: stageId, cycle: cycleId });
+      return store.add({
+        file: item.file, tag: item.tag, text: item.text, source: stageId, cycle: cycleId,
+        artefact_version: item.artefact_version,
+      });
     },
     list: (query) => {
       const store = openFeedbackStore('WORK.feedback.yaml', io);
@@ -159,7 +165,7 @@ function buildQuenchContext(cycleId, args, io) {
   const stageId = `quench:${cycleId}`;
   return { cycleId, stageId, io, git: args.git, finalize: buildFinalizeWrapper(cycleId, args, io),
     now: args.now, ulid: args.ulid, mint: args.mint, foundryDir: 'foundry', defaultModel: args.defaultModel,
-    baseBranch: args.baseBranch ?? 'main',
+    baseBranch: args.baseBranch ?? 'main', cwd: args.cwd ?? process.cwd(),
     feedback: buildFeedback(cycleId, stageId, io) };
 }
 
@@ -167,7 +173,7 @@ function buildAppraiseCtx(cycleId, args, io) {
   const stageId = `appraise:${cycleId}`;
   return { cycleId, io, git: args.git, finalize: buildFinalizeWrapper(cycleId, args, io),
     foundryDir: 'foundry', defaultModel: args.defaultModel,
-    baseBranch: args.baseBranch ?? 'main',
+    baseBranch: args.baseBranch ?? 'main', cwd: args.cwd ?? process.cwd(),
     activeStage: readActiveStage(io), lastStage: readLastStage(io),
     feedback: buildFeedback(cycleId, stageId, io) };
 }
@@ -182,6 +188,42 @@ function resolveBaseSha(io) {
 
 function writeStageRecord(io, cycleId, route) {
   writeActiveStage(io, { cycle: cycleId, stage: `${route}`, token: null, baseSha: resolveBaseSha(io) });
+}
+
+const FORGE_CTX = '.foundry/forge-context.json';
+
+async function captureForgeContext(sortResult, args, preCheck, io) {
+  const fgResult = await readForgeFilePatterns(preCheck.cycleId, io);
+  if (!fgResult) return;
+  const preVersion = await computeArtefactVersion('foundry', fgResult.outputType, io, args.cwd);
+  const items = openFeedbackStore('WORK.feedback.yaml', io).list();
+  if (!io.exists('.foundry')) io.mkdir('.foundry');
+  io.writeFile(FORGE_CTX, JSON.stringify({ forgePreVersion: preVersion, forgeItems: items.map(i => ({ id: i.id })) }));
+}
+
+function countConsecutiveForgeFailures(io, cycleId) {
+  if (!io.exists('WORK.history.yaml')) return 0;
+  const entries = loadHistory('WORK.history.yaml', cycleId, io);
+  let count = 0;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (stageBaseOf(entries[i].stage) !== 'forge') break;
+    if (entries[i].contract_passed === false) count++;
+    else break;
+  }
+  return count;
+}
+
+async function enforceForgeStage(activeStage, fgResult, cycleId, io, cwd) {
+  const postVersion = await computeArtefactVersion('foundry', fgResult.outputType, io, cwd);
+  const feedbackStore = openFeedbackStore('WORK.feedback.yaml', io);
+  const { contractPassed } = enforceForgeContract({
+    items: activeStage.forgeItems, preVersion: activeStage.forgePreVersion,
+    postVersion, feedbackStore, cycleId,
+  });
+  if (!contractPassed && countConsecutiveForgeFailures(io, cycleId) + 1 >= 3) {
+    return { violation: 'forge contract failed 3 consecutive times — unable to satisfy feedback requirements' };
+  }
+  return { postVersion, contractPassed };
 }
 
 async function handleQuenchRoute(sortResult, preCheck, args, io) {
@@ -230,6 +272,7 @@ async function dispatchByRoute(sortResult, args, preCheck, io) {
       ? handleAppraiseConsolidateRoute(sortResult, preCheck, args, io)
       : handleAppraiseGatherRoute(sortResult, preCheck, args, io);
   }
+  if (base === 'forge') await captureForgeContext(sortResult, args, preCheck, io);
   return handleSortResult(sortResult, buildSortContext(preCheck.cycleId, args, io));
 }
 
@@ -278,12 +321,26 @@ async function runSetupIfNeeded(preCheck, args, io) {
   return err || setupWorkfile(buildSetupArgs(preCheck, args, io));
 }
 
+async function runForgePostDispatch(args, activeStage, lastStage, cycleId, io) {
+  const fgResult = await readForgeFilePatterns(cycleId, io);
+  const base = { lastStage, activeStage, cycleId, io, finalize: args.finalize, git: args.git };
+  if (!fgResult) return finaliseStage(base);
+  if (!io.exists(FORGE_CTX)) return finaliseStage(base);
+  const forgeCtx = JSON.parse(io.readFile(FORGE_CTX));
+  io.unlink(FORGE_CTX);
+  if (!forgeCtx.forgePreVersion) return finaliseStage(base);
+  const result = await enforceForgeStage(forgeCtx, fgResult, cycleId, io, args.cwd);
+  if (result.violation) return violation(result.violation, []);
+  return finaliseStage({ ...base, postVersion: result.postVersion, contractPassed: result.contractPassed });
+}
+
 async function runPostDispatch(args, activeStage, lastStage, cycleId, io) {
   if (!args.lastResult) return null;
   if (args.lastResult.ok === false) {
     return handleViolation({ lastResult: args.lastResult, activeStage, lastStage, cycleId, io });
   }
   const stageErr = guardMissingLastStage(lastStage);
-  const finaliseArgs = { lastStage, activeStage, cycleId, io, finalize: args.finalize ?? null, git: args.git };
-  return stageErr || finaliseStage(finaliseArgs);
+  if (stageErr) return stageErr;
+  if (stageBaseOf(lastStage.stage) === 'forge') return runForgePostDispatch(args, activeStage, lastStage, cycleId, io);
+  return finaliseStage({ lastStage, activeStage, cycleId, io, finalize: args.finalize, git: args.git });
 }

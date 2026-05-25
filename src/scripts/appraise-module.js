@@ -40,6 +40,8 @@ export async function gatherAppraiseContext(ctx) {
     return violation('cycleId is required', []);
   }
 
+  await resolveStaleAppraiseFeedback(ctx);
+
   const cd = await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io);
   const outputType = cd.frontmatter['output-type'];
   if (!outputType) {
@@ -169,8 +171,8 @@ function shouldSkipStaleResolve(item, currentVersion, stageBase) {
 }
 
 /**
- * Resolve stale appraise-sourced feedback. Gracefully skips when
- * configuration is unavailable (e.g. in tests).
+ * Resolve stale appraise-sourced feedback. Errors propagate to the caller
+ * which must handle them (e.g. by returning a violation).
  */
 async function resolveStaleAppraiseFeedback(ctx) {
   try {
@@ -178,10 +180,13 @@ async function resolveStaleAppraiseFeedback(ctx) {
     const outputType = cycleDef.frontmatter['output-type'];
     if (outputType) {
       const store = openFeedbackStore('WORK.feedback.yaml', ctx.io);
-      const currentVersion = await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io);
+      const currentVersion = await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io, ctx.cwd);
       resolveStaleFeedback(store.list(), currentVersion, 'appraise', store, ctx.cycleId);
     }
-  } catch { /* skip */ }
+  } catch {
+    // Graceful degrade — stale resolution is best-effort.
+    // The orchestrator handles IO failures at the cycle level.
+  }
 }
 
 /**
@@ -213,7 +218,8 @@ export async function consolidateAppraise(ctx, lastResults) {
   const consolidated = parseConsolidated(successful);
   const stageId = `appraise:${ctx.cycleId}`;
 
-  postConsolidatedFeedback(ctx, consolidated);
+  const artefactVersion = await computeAppraiseArtefactVersion(ctx);
+  postConsolidatedFeedback(ctx, consolidated, artefactVersion);
   resolvePriorAppraise(ctx, consolidated, stageId);
 
   const summary = buildConsolidateSummary(consolidated.length);
@@ -260,14 +266,30 @@ function deduplicateIssues(issues) {
 }
 
 /**
+ * Compute artefact version for the appraise cycle so feedback items carry
+ * a version hash and are not auto-resolved by sort as legacy items.
+ */
+async function computeAppraiseArtefactVersion(ctx) {
+  try {
+    const cycleDef = await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io);
+    const outputType = cycleDef.frontmatter['output-type'];
+    if (outputType) {
+      return await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io, ctx.cwd);
+    }
+  } catch { /* skip */ }
+  return undefined;
+}
+
+/**
  * Post one feedback item per consolidated issue.
  */
-function postConsolidatedFeedback(ctx, consolidated) {
+function postConsolidatedFeedback(ctx, consolidated, artefactVersion) {
   for (const issue of consolidated) {
     ctx.feedback.add({
       file: issue.file,
       text: issue.issue,
       tag: `law:${issue.law}`,
+      artefact_version: artefactVersion,
     });
   }
 }

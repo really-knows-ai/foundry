@@ -35,15 +35,18 @@ function shouldSkipStaleResolve(item, currentVersion, stageBase) {
 }
 
 /**
- * Resolve stale quench-sourced feedback. Gracefully skips when
- * configuration is unavailable (e.g. in tests).
+ * Resolve stale quench-sourced feedback. Errors propagate to the caller
+ * (runQuench) which surfaces them as a failure.
  */
 async function resolveStaleQuenchFeedback(ctx, outputType) {
   try {
     const store = openFeedbackStore('WORK.feedback.yaml', ctx.io);
-    const currentVersion = await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io);
+    const currentVersion = await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io, ctx.cwd);
     resolveStaleFeedback(store.list(), currentVersion, 'quench', store, ctx.cycleId);
-  } catch { /* skip */ }
+  } catch {
+    // Graceful degrade — stale resolution is best-effort.
+    // The orchestrator handles IO failures at the cycle level.
+  }
 }
 
 /**
@@ -64,17 +67,20 @@ export async function runQuench(ctx) {
     return { ok: false, error: `Cycle ${ctx.cycleId} has no output-type` };
   }
 
-  await resolveStaleQuenchFeedback(ctx, outputType);
+  return await runQuenchWithStale(ctx, activeStageRecord, outputType);
+}
 
+async function runQuenchWithStale(ctx, activeStageRecord, outputType) {
+  await resolveStaleQuenchFeedback(ctx, outputType);
+  const artefactVersion = await computeArtefactVersion(
+    ctx.foundryDir, outputType, ctx.io, ctx.cwd,
+  ).catch(() => undefined);
   const discovery = await discoverArtefacts(ctx, outputType);
   if (!discovery.ok) return discovery;
-  const artefacts = discovery.artefacts;
-
-  if (artefacts.length === 0) {
+  if (discovery.artefacts.length === 0) {
     return await handleNoArtefacts(ctx, activeStageRecord);
   }
-
-  return await processArtefacts(ctx, artefacts, activeStageRecord, outputType);
+  return await processArtefacts(ctx, discovery.artefacts, activeStageRecord, outputType, artefactVersion);
 }
 
 async function discoverArtefacts(ctx, outputType) {
@@ -101,7 +107,7 @@ async function handleNoArtefacts(ctx, activeStageRecord) {
 /**
  * Process each artefact: run validation, post feedback, handle errors.
  */
-async function processArtefacts(ctx, artefacts, activeStageRecord, outputType) {
+async function processArtefacts(ctx, artefacts, activeStageRecord, outputType, artefactVersion) {
   const perArtefact = [];
   const currentFeedback = [];
   let allOk = true;
@@ -114,7 +120,7 @@ async function processArtefacts(ctx, artefacts, activeStageRecord, outputType) {
       artefacts: [artefact],
     });
 
-    const outcome = handleArtefactResult(ctx, artefact, result, currentFeedback);
+    const outcome = handleArtefactResult(ctx, artefact, result, currentFeedback, artefactVersion);
     perArtefact.push(outcome.text);
     if (!outcome.ok) allOk = false;
   }
@@ -139,7 +145,7 @@ async function processArtefacts(ctx, artefacts, activeStageRecord, outputType) {
  * Returns { ok, text } where `ok` indicates whether the artefact passed
  * validation and `text` is the per-artefact summary line.
  */
-function handleArtefactResult(ctx, artefact, result, currentFeedback) {
+function handleArtefactResult(ctx, artefact, result, currentFeedback, artefactVersion) {
   if (isNoValidators(result)) {
     return { ok: true, text: `${artefact.file}: OK: no validators` };
   }
@@ -153,7 +159,7 @@ function handleArtefactResult(ctx, artefact, result, currentFeedback) {
     return { ok: false, text: `${artefact.file}: ${messages}` };
   }
 
-  postFeedbackItems(ctx, artefact, result, currentFeedback);
+  postFeedbackItems(ctx, artefact, result, currentFeedback, artefactVersion);
   return { ok: true, text: `${artefact.file}: ${result.items.length} issues found` };
 }
 
@@ -174,10 +180,10 @@ function isAllErrors(result) {
 /**
  * Post feedback items for validation results and track for resolution.
  */
-function postFeedbackItems(ctx, artefact, result, currentFeedback) {
+function postFeedbackItems(ctx, artefact, result, currentFeedback, artefactVersion) {
   for (const item of result.items) {
     const tag = `law:${item.lawId}:${item.validatorId}`;
-    ctx.feedback.add({ file: artefact.file, text: item.text, tag });
+    ctx.feedback.add({ file: artefact.file, text: item.text, tag, artefact_version: artefactVersion });
     currentFeedback.push({ file: artefact.file, tag });
   }
 }

@@ -177,23 +177,22 @@ export async function getArtefactFiles(foundryDir, typeId, io, options = {}) {
  * When no patterns are defined or no files match, returns the SHA-256 of an
  * empty input (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855).
  *
- * @param {string} foundryDir - Path to the foundry directory
+ * @param {string} foundryDir - Path to the foundry config directory
  * @param {string} typeId - Artefact type identifier
  * @param {object} io - IO interface with readFile(path, encoding)
+ * @param {string} [worktree] - Worktree root for pattern expansion (defaults to foundryDir)
  * @returns {Promise<string>} SHA-256 hex string (64 characters)
  * @throws {Error} On IO errors (unknown type, file read failure, glob error)
  */
-export async function computeArtefactVersion(foundryDir, typeId, io) {
+export async function computeArtefactVersion(foundryDir, typeId, io, worktree = foundryDir) {
   const def = await getArtefactType(foundryDir, typeId, io);
-  const patterns = Array.isArray(def.frontmatter && def.frontmatter['file-patterns'])
-    ? def.frontmatter['file-patterns']
-    : [];
+  const patterns = getFilePatterns(def);
 
   if (patterns.length === 0) {
     return sha256Text('');
   }
 
-  const files = await expandPatterns(patterns, foundryDir);
+  const files = await expandPatterns(patterns, worktree);
 
   if (files.length === 0) {
     return sha256Text('');
