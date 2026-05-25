@@ -76,16 +76,24 @@ function checkBatchVersion(items, feedbackStore, cycleId, postVersion, preVersio
 /**
  * Enforce the forge contract on a batch of items presented to forge.
  *
- * Two-level check:
+ * When `items` is not a non-empty array (null, undefined, or []), the
+ * contract passes immediately without side-effects. This covers the
+ * initial forge run where no feedback exists yet.
+ *
+ * Two-level check when items are present:
  * 1. Per-item: every item must end in 'actioned' or 'wont-fix'.
  * 2. Batch-level: artefact version semantics must be consistent.
  *
- * @param {{ items: Array<{id: string}>, preVersion: string, postVersion: string,
- *   feedbackStore: object, cycleId: string }} params
+ * @param {{ items?: Array<{id: string}> | null, preVersion: string,
+ *          postVersion: string, feedbackStore: object, cycleId: string }} params
  * @returns {{ contractPassed: boolean }}
  */
 export function enforceForgeContract({ items, preVersion, postVersion, feedbackStore, cycleId }) {
-  if (items.length === 0) return { contractPassed: true };
+  if (!Array.isArray(items) || items.length === 0) {
+    // Empty batch means forge had no prior feedback to respond to.
+    // This is the first forge run or all items were already resolved.
+    return { contractPassed: true };
+  }
   if (!checkPerItemResponse(items, feedbackStore, cycleId, postVersion)) {
     return { contractPassed: false };
   }

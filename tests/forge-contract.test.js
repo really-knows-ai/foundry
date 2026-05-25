@@ -299,6 +299,52 @@ describe('enforceForgeContract', () => {
     const sys3 = data3.items.find(it => it.source === 'system:forge-contract-mismatch');
     assert.match(sys3.text, /did not mark any feedback as actioned/);
   });
+
+  test('empty batch passes with no side-effects', () => {
+    const feedbackStore = {
+      get: () => null,
+      forceState: () => { throw new Error('forceState must not be called'); },
+      add: () => { throw new Error('add must not be called'); },
+    };
+
+    const result = enforceForgeContract({
+      items: [],
+      preVersion: 'abc',
+      postVersion: 'def',
+      feedbackStore,
+      cycleId: 'test',
+    });
+
+    assert.deepEqual(result, { contractPassed: true });
+  });
+
+  test('null batch passes with no side-effects', () => {
+    const feedbackStore = {
+      get: () => null,
+      forceState: () => { throw new Error('forceState must not be called'); },
+      add: () => { throw new Error('add must not be called'); },
+    };
+    const result = enforceForgeContract({
+      items: null,
+      preVersion: 'abc', postVersion: 'def',
+      feedbackStore, cycleId: 'test',
+    });
+    assert.deepEqual(result, { contractPassed: true });
+  });
+
+  test('undefined batch passes with no side-effects', () => {
+    const feedbackStore = {
+      get: () => null,
+      forceState: () => { throw new Error('forceState must not be called'); },
+      add: () => { throw new Error('add must not be called'); },
+    };
+    const result = enforceForgeContract({
+      items: undefined,
+      preVersion: 'abc', postVersion: 'def',
+      feedbackStore, cycleId: 'test',
+    });
+    assert.deepEqual(result, { contractPassed: true });
+  });
 });
 
 // ---------------------------------------------------------------------------
