@@ -3,7 +3,6 @@
 // into a single entry point the LLM drives via a 3-line loop.
 
 import { runSort } from './sort.js';
-import { parseFrontmatter } from './lib/workfile.js';
 import matter from 'gray-matter';
 import { readActiveStage, readLastStage, writeActiveStage, clearActiveStage } from './lib/state.js';
 import { stageBaseOf } from './lib/stage-guard.js';
@@ -32,6 +31,7 @@ import {
 import { runQuench } from './quench-module.js';
 import { gatherAppraiseContext, consolidateAppraise } from './appraise-module.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
+import { guardNoWorkMd, guardMissingCycleId, guardSetupInconsistent, guardOrphanedStage, guardMissingLastStage, guardLastResults } from './lib/orchestrate-guards.js';
 
 export {
   renderDispatchPrompt, synthesizeStages, computeOpenFeedback,
@@ -49,68 +49,6 @@ export function needsSetup(workMdContent) {
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
-
-function guardNoWorkMd(io) {
-  if (!io.exists('WORK.md')) return violation('no WORK.md; flow skill must create it first');
-  return null;
-}
-
-function guardMissingCycleId(io) {
-  const workContent = io.readFile('WORK.md');
-  const fm = parseFrontmatter(workContent);
-  if (!fm.cycle) return violation('WORK.md frontmatter missing cycle field', ['WORK.md']);
-  return { cycleId: fm.cycle, workContent };
-}
-
-function guardSetupInconsistent(lastResult) {
-  if (lastResult) return violation('inconsistent state: lastResult provided but WORK.md still needs setup', ['WORK.md']);
-  return null;
-}
-
-function guardOrphanedStage(activeStage, lastResult) {
-  if (activeStage && !lastResult) {
-    return violation(
-      `prior stage ${activeStage.stage} orphaned — no lastResult provided but active stage exists. ` +
-      `Likely cause: previous orchestrate call returned dispatch but caller did not follow up.`,
-      [],
-    );
-  }
-  return null;
-}
-
-function guardMissingLastStage(lastStage) {
-  if (!lastStage) return violation('lastResult provided but no last stage recorded — orphaned state');
-  return null;
-}
-
-function checkLastResultsConflict(args) {
-  if (args.lastResult !== undefined && args.lastResults !== undefined) return violation('lastResult and lastResults are mutually exclusive');
-  return null;
-}
-
-function checkLastResultsShape(args) {
-  if (args.lastResults === undefined) return null;
-  if (!Array.isArray(args.lastResults)) return violation('lastResults must be an array');
-  return null;
-}
-
-function isDuplicateConsolidation(lastStage, activeStage) {
-  return lastStage && lastStage.stage === activeStage.stage;
-}
-
-function checkLastResultsStageContext(args, activeStage, lastStage) {
-  if (args.lastResults === undefined) return null;
-  if (!activeStage) return violation('lastResults provided but no active stage exists');
-  if (stageBaseOf(activeStage.stage) !== 'appraise') return violation(`lastResults provided but active stage "${activeStage.stage}" is not an appraise stage`);
-  if (isDuplicateConsolidation(lastStage, activeStage)) return violation(`duplicate lastResults: consolidation already completed for this appraise stage "${activeStage.stage}"`);
-  return null;
-}
-
-function guardLastResults(args, activeStage, lastStage) {
-  return checkLastResultsConflict(args)
-    ?? checkLastResultsShape(args)
-    ?? checkLastResultsStageContext(args, activeStage, lastStage);
-}
 
 function buildSortArgs(args, now) {
   return {
@@ -196,9 +134,16 @@ async function captureForgeContext(sortResult, args, preCheck, io) {
   const fgResult = await readForgeFilePatterns(preCheck.cycleId, io);
   if (!fgResult) return;
   const preVersion = await computeArtefactVersion('foundry', fgResult.outputType, io, args.cwd);
-  const items = openFeedbackStore('WORK.feedback.yaml', io).list();
+  const allItems = openFeedbackStore('WORK.feedback.yaml', io).list();
+  // Only capture unresolved items (open/rejected) — resolved items are terminal
+  // and presenting them to forge causes the contract to fail and revert them.
+  const unresolvedItems = allItems.filter(item => {
+    const state = item.history?.[0]?.state ?? 'open';
+    return state === 'open' || state === 'rejected';
+  });
   if (!io.exists('.foundry')) io.mkdir('.foundry');
-  io.writeFile(FORGE_CTX, JSON.stringify({ forgePreVersion: preVersion, forgeItems: items.map(i => ({ id: i.id })) }));
+  const ctx = { forgePreVersion: preVersion, forgeItems: unresolvedItems.map(i => ({ id: i.id })) };
+  io.writeFile(FORGE_CTX, JSON.stringify(ctx));
 }
 
 function countConsecutiveForgeFailures(io, cycleId) {
