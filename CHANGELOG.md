@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.6.0] - 2026-05-25
+
+### Added
+
+- State-driven sort routing (R1–R4, R7): sort routes based on feedback item state (`unresolved` → forge, `addressed` → source stage) instead of stage position, with deadlock detection and iteration cap.
+- Artefact version tracking: `computeArtefactVersion` hashes all artefact files after each forge run; the version is recorded on every feedback item and forge history entry.
+- Forge contract enforcement (R8–R9): per-item response check and batch-level version consistency check. Contract violations revert items to `open` and post system feedback. Three consecutive contract failures block the cycle.
+- Stale feedback detection (R6): when quench, appraise, or human-appraise re-enters after a forge run, feedback items with a mismatched artefact version are auto-resolved as superseded.
+- Legacy feedback migration: items without a valid artefact version are auto-resolved on load and excluded from routing.
+- Integration test suite: 40 integration tests covering the routing decision tree, forge contract enforcement, and the spec's 10-step worked example.
+
+### Fixed
+
+- Forge contract enforcement wired into the orchestration post-dispatch path (previously it finalised without computing versions or checking the contract).
+- New feedback items from quench, appraise, and the plugin feedback tool now carry the current artefact version, preventing false legacy detection.
+- `computeArtefactVersion` scans the worktree root for file patterns (previously scanned the `foundry/` config directory).
+- Version computation failures during stale resolution are surfaced to the orchestrator instead of being silently swallowed.
+- Appraise stale feedback resolution runs during the gather phase (before appraiser dispatch), not only during consolidation.
+
+### Changed
+
+- Orchestration: forge post-dispatch extracts a dedicated `runForgePostDispatch` path that reads the forge context, computes versions, enforces the contract, and passes `contractPassed`/`postVersion` to `finaliseStage`.
+- Quench and appraise stale resolution helpers gracefully degrade when the artefact type is not configured (best-effort, not fatal).
+- Added `worktree` parameter to `computeArtefactVersion` for explicit worktree-root specification.
+
 ## [3.5.9] - 2026-05-24
 
 ### Changed
