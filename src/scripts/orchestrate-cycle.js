@@ -229,8 +229,8 @@ export function buildDispatchMultiResponse(tasks, stage, cycle) {
 // Dispatch prompt rendering (pure utility, used by handleSortResult and exported publicly).
 // ---------------------------------------------------------------------------
 
-function buildForgePromptLines({ cycle, outputType }) {
-  return [
+function buildForgePromptLines({ cycle, outputType, forgeItem }) {
+  const lines = [
     ``,
     `Before producing output you MUST call these tools to understand the context:`,
     outputType
@@ -243,19 +243,31 @@ function buildForgePromptLines({ cycle, outputType }) {
       ? `  - foundry_config_laws({ typeId: "${outputType}" }) — to learn all applicable quality laws`
       : `  - foundry_config_laws({ typeId: "<output type>" }) — to learn all applicable quality laws`,
     `  - foundry_workfile_get({}) — to learn the goal`,
-    `  - foundry_feedback_list({}) — to check for existing feedback from prior iterations`,
-    ``,
-    `FEEDBACK CONTRACT (forge must satisfy this):`,
-    `  For each item returned by foundry_feedback_list with state "open" or "rejected":`,
-    `    - If you fix the issue (change the artefact file): call foundry_feedback_action({ id })`,
-    `    - If you cannot fix an appraise-sourced item: call foundry_feedback_wontfix({ id, reason })`,
-    `  Batch rule: if ANY item is actioned, the artefact file MUST change.`,
-    `  Batch rule: if ALL items are wont-fix, the artefact file MUST NOT change.`,
-    `  You MUST handle every open or rejected item — the system enforces this.`,
   ];
+  if (forgeItem) {
+    lines.push(
+      ``,
+      `FEEDBACK ITEM TO ADDRESS:`,
+      ``,
+      `Source: ${forgeItem.source}`,
+      `File: ${forgeItem.file}`,
+      `Issue: ${forgeItem.text}`,
+      ``,
+      `You MUST either:`,
+      `  a) Fix the issue by changing the artefact file. The orchestrator`,
+      `     will record this as ACTIONED.`,
+      `  b) If this is an appraise-sourced item (subjective quality`,
+      `     feedback), you may respond with:`,
+      `     WONT-FIX: <justification for why you disagree>`,
+      ``,
+      `Quench-sourced items are deterministic validation failures —`,
+      `you MUST fix them. There is no wont-fix option.`,
+    );
+  }
+  return lines;
 }
 
-export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, outputType }) {
+export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, outputType, forgeItem }) {
   const base = stage.split(':')[0];
   const lines = [
     `You are a Foundry stage agent. Invoke the ${base} skill and follow its instructions exactly.`,
@@ -269,7 +281,7 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, o
     lines.push(`File patterns (forge only): ${JSON.stringify(filePatterns)}`);
   }
   if (base === 'forge') {
-    lines.push(...buildForgePromptLines({ cycle, outputType }));
+    lines.push(...buildForgePromptLines({ cycle, outputType, forgeItem }));
   }
   lines.push(
     ``,

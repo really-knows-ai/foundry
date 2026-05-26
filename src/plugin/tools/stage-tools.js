@@ -16,7 +16,6 @@ const FORGE_REQUIRED_TOOLS = [
   'foundry_workfile_get',
   'foundry_config_artefact_type',
   'foundry_config_laws',
-  'foundry_feedback_list',
 ];
 
 function stageBase(stage) { return stage.split(':')[0]; }

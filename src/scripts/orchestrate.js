@@ -40,6 +40,7 @@ export {
 export { gatherAppraiseContext, consolidateAppraise };
 export { readCycleTargets, readForgeFilePatterns };
 export { handleSortResult as __handleSortResultForTest };
+export { captureForgeContext as __captureForgeContextForTest };
 
 export function needsSetup(workMdContent) {
   const { data } = matter(workMdContent);
@@ -142,7 +143,16 @@ async function captureForgeContext(sortResult, args, preCheck, io) {
     return state === 'open' || state === 'rejected';
   });
   if (!io.exists('.foundry')) io.mkdir('.foundry');
-  const ctx = { forgePreVersion: preVersion, forgeItems: unresolvedItems.map(i => ({ id: i.id })) };
+  const forgeItem = unresolvedItems.length > 0
+    ? {
+      id: unresolvedItems[0].id,
+      file: unresolvedItems[0].file,
+      tag: unresolvedItems[0].tag,
+      text: unresolvedItems[0].text,
+      source: unresolvedItems[0].source,
+    }
+    : null;
+  const ctx = { forgePreVersion: preVersion, forgeItem };
   io.writeFile(FORGE_CTX, JSON.stringify(ctx));
 }
 
@@ -161,8 +171,9 @@ function countConsecutiveForgeFailures(io, cycleId) {
 async function enforceForgeStage(activeStage, fgResult, cycleId, io, cwd) {
   const postVersion = await computeArtefactVersion('foundry', fgResult.outputType, io, cwd);
   const feedbackStore = openFeedbackStore('WORK.feedback.yaml', io);
+  const items = activeStage.forgeItem ? [{ id: activeStage.forgeItem.id }] : [];
   const { contractPassed } = enforceForgeContract({
-    items: activeStage.forgeItems, preVersion: activeStage.forgePreVersion,
+    items, preVersion: activeStage.forgePreVersion,
     postVersion, feedbackStore, cycleId,
   });
   if (!contractPassed && countConsecutiveForgeFailures(io, cycleId) + 1 >= 3) {
