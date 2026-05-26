@@ -1,22 +1,21 @@
 /**
- * Forge contract enforcement — validates that forge responded to every
- * presented feedback item and that the batch-level artefact version
- * semantics are satisfied.
+ * Forge contract enforcement — validates that forge addressed the single
+ * presented feedback item according to the single-item dispatch contract.
  *
- * Per-item check: every item must end in 'actioned' or 'wont-fix'.
- * Batch-level check: if any item is actioned, version must change.
- * If no item is actioned, version must be unchanged.
+ * Rules (per spec R4):
+ *   - Version changed → transition item to `actioned`.
+ *   - Version unchanged + summary contains `WONT-FIX:` + source base is
+ *     `appraise` → transition item to `wont-fix` with the justification
+ *     as the reason.
+ *   - Version unchanged + summary contains `WONT-FIX:` + source base is
+ *     NOT `appraise` → contract violation.
+ *   - Version unchanged + no `WONT-FIX:` in summary → contract violation.
+ *   - No item (null/undefined) → no-op, contract passes.
  */
 
 function currentState(feedbackStore, id) {
   const item = feedbackStore.get(id);
   return item ? item.history[0].state : null;
-}
-
-function revertAll(items, feedbackStore, cycleId) {
-  for (const item of items) {
-    feedbackStore.forceState(item.id, 'open', cycleId);
-  }
 }
 
 function postSystemFeedback(feedbackStore, cycleId, postVersion, text) {
@@ -30,73 +29,77 @@ function postSystemFeedback(feedbackStore, cycleId, postVersion, text) {
   });
 }
 
-function checkPerItemResponse(items, feedbackStore, cycleId, postVersion) {
-  for (const item of items) {
-    const state = currentState(feedbackStore, item.id);
-    if (state !== 'actioned' && state !== 'wont-fix') {
-      revertAll(items, feedbackStore, cycleId);
-      postSystemFeedback(
-        feedbackStore, cycleId, postVersion,
-        'forge did not respond to every presented feedback item',
-      );
-      return false;
-    }
-  }
-  return true;
-}
-
-function hasActionedItem(items, feedbackStore) {
-  return items.some(item => currentState(feedbackStore, item.id) === 'actioned');
-}
-
-function checkBatchVersion(items, feedbackStore, cycleId, postVersion, preVersion) {
-  const hasActioned = hasActionedItem(items, feedbackStore);
-
-  if (hasActioned && preVersion === postVersion) {
-    revertAll(items, feedbackStore, cycleId);
-    postSystemFeedback(
-      feedbackStore, cycleId, postVersion,
-      'forge marked feedback as actioned without changing artefacts',
-    );
+function handleVersionChanged(item, feedbackStore, cycleId, postVersion) {
+  const result = feedbackStore.transition({
+    id: item.id,
+    target: 'actioned',
+    stage: 'forge:' + cycleId,
+    cycle: cycleId,
+  });
+  if (!result.ok) {
+    postSystemFeedback(feedbackStore, cycleId, postVersion, result.error || 'store transition failed');
+    feedbackStore.forceState(item.id, 'open', cycleId);
     return { contractPassed: false };
   }
-
-  if (!hasActioned && preVersion !== postVersion) {
-    revertAll(items, feedbackStore, cycleId);
-    postSystemFeedback(
-      feedbackStore, cycleId, postVersion,
-      'forge changed artefacts but did not mark any feedback as actioned',
-    );
-    return { contractPassed: false };
-  }
-
   return { contractPassed: true };
 }
 
+function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reason) {
+  const sourceBase = item.source.split(':')[0];
+  if (sourceBase === 'appraise') {
+    const result = feedbackStore.transition({
+      id: item.id,
+      target: 'wont-fix',
+      stage: 'forge:' + cycleId,
+      cycle: cycleId,
+      reason,
+    });
+    if (!result.ok) {
+      postSystemFeedback(feedbackStore, cycleId, postVersion, result.error || 'store transition failed');
+      feedbackStore.forceState(item.id, 'open', cycleId);
+    }
+    return { contractPassed: result.ok };
+  }
+  // quench or human-appraise — wont-fix not allowed
+  postSystemFeedback(
+    feedbackStore, cycleId, postVersion,
+    `wont-fix not allowed on ${sourceBase}-sourced item; wont-fix is only allowed for appraise-sourced items`,
+  );
+  feedbackStore.forceState(item.id, 'open', cycleId);
+  return { contractPassed: false };
+}
+
 /**
- * Enforce the forge contract on a batch of items presented to forge.
+ * Enforce the forge contract on a single feedback item.
  *
- * When `items` is not a non-empty array (null, undefined, or []), the
- * contract passes immediately without side-effects. This covers the
- * initial forge run where no feedback exists yet.
+ * When no item is provided (null/undefined), the contract passes without
+ * side-effects. This covers the initial forge run where no feedback
+ * exists yet and subsequent runs where all items were already resolved.
  *
- * Two-level check when items are present:
- * 1. Per-item: every item must end in 'actioned' or 'wont-fix'.
- * 2. Batch-level: artefact version semantics must be consistent.
- *
- * @param {{ items?: Array<{id: string}> | null, preVersion: string,
- *          postVersion: string, feedbackStore: object, cycleId: string }} params
+ * @param {{ item: object|null, preVersion: string, postVersion: string,
+ *           summary: string, feedbackStore: object, cycleId: string }} params
  * @returns {{ contractPassed: boolean }}
  */
-export function enforceForgeContract({ items, preVersion, postVersion, feedbackStore, cycleId }) {
-  if (!Array.isArray(items) || items.length === 0) {
-    // Empty batch means forge had no prior feedback to respond to.
-    // This is the first forge run or all items were already resolved.
-    return { contractPassed: true };
-  }
-  if (!checkPerItemResponse(items, feedbackStore, cycleId, postVersion)) {
-    return { contractPassed: false };
+export function enforceForgeContract({ item, preVersion, postVersion, summary, feedbackStore, cycleId }) {
+  // No item means forge had no prior feedback to respond to.
+  if (!item) return { contractPassed: true };
+
+  // Version changed → forge fixed the issue
+  if (preVersion !== postVersion) {
+    return handleVersionChanged(item, feedbackStore, cycleId, postVersion);
   }
 
-  return checkBatchVersion(items, feedbackStore, cycleId, postVersion, preVersion);
+  // Version unchanged — check for WONT-FIX justification
+  const wontFixMatch = summary.match(/WONT-FIX:\s*(.+)/);
+  if (wontFixMatch) {
+    return handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, wontFixMatch[1]);
+  }
+
+  // Version unchanged with no WONT-FIX — neither fix nor justification
+  postSystemFeedback(
+    feedbackStore, cycleId, postVersion,
+    'forge did not change artefacts and did not provide WONT-FIX justification',
+  );
+  feedbackStore.forceState(item.id, 'open', cycleId);
+  return { contractPassed: false };
 }

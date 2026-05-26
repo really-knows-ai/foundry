@@ -41,6 +41,7 @@ export { gatherAppraiseContext, consolidateAppraise };
 export { readCycleTargets, readForgeFilePatterns };
 export { handleSortResult as __handleSortResultForTest };
 export { captureForgeContext as __captureForgeContextForTest };
+export { enforceForgeStage as __enforceForgeStageForTest };
 
 export function needsSetup(workMdContent) {
   const { data } = matter(workMdContent);
@@ -168,15 +169,30 @@ function countConsecutiveForgeFailures(io, cycleId) {
   return count;
 }
 
-async function enforceForgeStage(activeStage, fgResult, cycleId, io, cwd) {
+function checkConsecutiveFailures(contractPassed, io, cycleId) {
+  if (!contractPassed) {
+    return countConsecutiveForgeFailures(io, cycleId) + 1 >= 3;
+  }
+  return false;
+}
+
+async function enforceForgeStage(forgeCtx, fgResult, cycleId, io, cwd) {
   const postVersion = await computeArtefactVersion('foundry', fgResult.outputType, io, cwd);
   const feedbackStore = openFeedbackStore('WORK.feedback.yaml', io);
-  const items = activeStage.forgeItem ? [{ id: activeStage.forgeItem.id }] : [];
+  const lastStage = readLastStage(io);
+  const summary = (lastStage && lastStage.summary) || '';
+  const item = forgeCtx.forgeItem || null;
+
   const { contractPassed } = enforceForgeContract({
-    items, preVersion: activeStage.forgePreVersion,
-    postVersion, feedbackStore, cycleId,
+    item,
+    preVersion: forgeCtx.forgePreVersion,
+    postVersion,
+    summary,
+    feedbackStore,
+    cycleId,
   });
-  if (!contractPassed && countConsecutiveForgeFailures(io, cycleId) + 1 >= 3) {
+
+  if (checkConsecutiveFailures(contractPassed, io, cycleId)) {
     return { violation: 'forge contract failed 3 consecutive times — unable to satisfy feedback requirements' };
   }
   return { postVersion, contractPassed };
@@ -284,7 +300,6 @@ async function runForgePostDispatch(args, activeStage, lastStage, cycleId, io) {
   if (!io.exists(FORGE_CTX)) return finaliseStage(base);
   const forgeCtx = JSON.parse(io.readFile(FORGE_CTX));
   io.unlink(FORGE_CTX);
-  if (!forgeCtx.forgePreVersion) return finaliseStage(base);
   const result = await enforceForgeStage(forgeCtx, fgResult, cycleId, io, args.cwd);
   if (result.violation) return violation(result.violation, []);
   return finaliseStage({ ...base, postVersion: result.postVersion, contractPassed: result.contractPassed });

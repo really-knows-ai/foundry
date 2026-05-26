@@ -64,169 +64,196 @@ function createStore(initialItems) {
 }
 
 // ---------------------------------------------------------------------------
-// enforceForgeContract
+// enforceForgeContract — single-item contract
 // ---------------------------------------------------------------------------
 
 describe('enforceForgeContract', () => {
-  test('item remains open — contract fails, batch reverted, system feedback posted', () => {
-    const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'open' }),
-    ]);
-    store.add = (params) => {
-      store._lastSystemFeedback = params;
+  // #1 — No item (null) passes
+  test('no item (null) — passes with no side-effects', () => {
+    const feedbackStore = {
+      get: () => null,
+      transition: () => { throw new Error('transition must not be called'); },
+      forceState: () => { throw new Error('forceState must not be called'); },
+      add: () => { throw new Error('add must not be called'); },
     };
-
-    // Use the real store.add logic by calling the openFeedbackStore
     const result = enforceForgeContract({
-      items: [{ id: 'item-1' }],
-      preVersion: 'v1',
-      postVersion: 'v1',
-      feedbackStore: store,
-      cycleId: 'test-cycle',
+      item: null,
+      preVersion: 'v1', postVersion: 'v2',
+      summary: 'did work',
+      feedbackStore, cycleId: 'test-cycle',
     });
-
-    assert.deepEqual(result, { contractPassed: false });
-
-    // Item should be reverted to 'open'
-    const item = store.get('item-1');
-    assert.equal(item.history[0].state, 'open');
-    assert.equal(item.history[0].stage, 'system:forge-contract-mismatch');
-  });
-
-  test('item remains rejected — contract fails', () => {
-    const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'rejected' }),
-    ]);
-
-    const result = enforceForgeContract({
-      items: [{ id: 'item-1' }],
-      preVersion: 'v1',
-      postVersion: 'v1',
-      feedbackStore: store,
-      cycleId: 'test-cycle',
-    });
-
-    assert.deepEqual(result, { contractPassed: false });
-    const item = store.get('item-1');
-    assert.equal(item.history[0].state, 'open');
-  });
-
-  test('all items actioned or wont-fix with matching version — passes', () => {
-    const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'wont-fix' }),
-    ]);
-
-    const result = enforceForgeContract({
-      items: [{ id: 'item-1' }],
-      preVersion: 'v1',
-      postVersion: 'v1',
-      feedbackStore: store,
-      cycleId: 'test-cycle',
-    });
-
     assert.deepEqual(result, { contractPassed: true });
   });
 
-  test('actioned + version unchanged — fails', () => {
-    const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'actioned' }),
-    ]);
-
+  // #2 — No item (undefined) passes
+  test('no item (undefined) — passes with no side-effects', () => {
+    const feedbackStore = {
+      get: () => null,
+      transition: () => { throw new Error('transition must not be called'); },
+      forceState: () => { throw new Error('forceState must not be called'); },
+      add: () => { throw new Error('add must not be called'); },
+    };
     const result = enforceForgeContract({
-      items: [{ id: 'item-1' }],
-      preVersion: 'v1',
-      postVersion: 'v1',
-      feedbackStore: store,
-      cycleId: 'test-cycle',
+      item: undefined,
+      preVersion: 'v1', postVersion: 'v2',
+      summary: 'did work',
+      feedbackStore, cycleId: 'test-cycle',
     });
-
-    assert.deepEqual(result, { contractPassed: false });
-    const item = store.get('item-1');
-    assert.equal(item.history[0].state, 'open');
+    assert.deepEqual(result, { contractPassed: true });
   });
 
-  test('no actioned + version changed — fails', () => {
+  // #3 — Version changed → actioned
+  test('version changed — transitions item to actioned', () => {
     const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'wont-fix' }),
+      buildItem({ id: 'item-1', state: 'open', source: 'quench:test-cycle' }),
     ]);
 
     const result = enforceForgeContract({
-      items: [{ id: 'item-1' }],
+      item: { id: 'item-1', source: 'quench:test-cycle' },
       preVersion: 'v1',
       postVersion: 'v2',
-      feedbackStore: store,
-      cycleId: 'test-cycle',
-    });
-
-    assert.deepEqual(result, { contractPassed: false });
-    const item = store.get('item-1');
-    assert.equal(item.history[0].state, 'open');
-  });
-
-  test('actioned + version changed — passes', () => {
-    const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'actioned' }),
-    ]);
-
-    const result = enforceForgeContract({
-      items: [{ id: 'item-1' }],
-      preVersion: 'v1',
-      postVersion: 'v2',
+      summary: 'fixed the issue',
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
 
     assert.deepEqual(result, { contractPassed: true });
+    const item = store.get('item-1');
+    assert.equal(item.history[0].state, 'actioned');
+    assert.equal(item.history[0].stage, 'forge:test-cycle');
   });
 
-  test('all wont-fix + version unchanged — passes', () => {
+  // #4 — Version unchanged + WONT-FIX + appraise source → wont-fix
+  test('version unchanged + WONT-FIX + appraise source — transitions to wont-fix with reason', () => {
     const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'wont-fix' }),
-      buildItem({ id: 'item-2', state: 'wont-fix' }),
+      buildItem({ id: 'item-1', state: 'open', source: 'appraise:test-cycle' }),
     ]);
 
     const result = enforceForgeContract({
-      items: [{ id: 'item-1' }, { id: 'item-2' }],
+      item: { id: 'item-1', source: 'appraise:test-cycle' },
       preVersion: 'v1',
       postVersion: 'v1',
+      summary: 'WONT-FIX: this is a subjective preference, not a bug',
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
 
     assert.deepEqual(result, { contractPassed: true });
+    const item = store.get('item-1');
+    assert.equal(item.history[0].state, 'wont-fix');
+    assert.equal(item.history[0].reason, 'this is a subjective preference, not a bug');
   });
 
-  test('mixed batch (actioned+change, wont-fix unchanged) — passes', () => {
-    const { store } = createStore([
-      buildItem({ id: 'item-1', state: 'actioned' }),
-      buildItem({ id: 'item-2', state: 'wont-fix' }),
-    ]);
-
-    const result = enforceForgeContract({
-      items: [{ id: 'item-1' }, { id: 'item-2' }],
-      preVersion: 'v1',
-      postVersion: 'v2',
-      feedbackStore: store,
-      cycleId: 'test-cycle',
-    });
-
-    assert.deepEqual(result, { contractPassed: true });
-  });
-
-  test('system feedback has correct metadata', () => {
+  // #5 — Version unchanged + WONT-FIX + quench source → violation
+  test('version unchanged + WONT-FIX + quench source — contract violation, item reverted', () => {
     const { store, io } = createStore([
-      buildItem({ id: 'item-1', state: 'open' }),
+      buildItem({ id: 'item-1', state: 'open', source: 'quench:test-cycle' }),
+    ]);
+
+    const result = enforceForgeContract({
+      item: { id: 'item-1', source: 'quench:test-cycle' },
+      preVersion: 'v1',
+      postVersion: 'v1',
+      summary: 'WONT-FIX: nope',
+      feedbackStore: store,
+      cycleId: 'test-cycle',
+    });
+
+    assert.deepEqual(result, { contractPassed: false });
+    const item = store.get('item-1');
+    assert.equal(item.history[0].state, 'open');
+    // System feedback should have been posted
+    const raw = io.readFile('WORK.feedback.yaml');
+    const data = yaml.load(raw);
+    const sysItems = data.items.filter(it => it.source === 'system:forge-contract-mismatch');
+    assert.equal(sysItems.length, 1);
+    assert.match(sysItems[0].text, /wont-fix not allowed on quench-sourced item/);
+  });
+
+  // #6 — Version unchanged + WONT-FIX + human-appraise source → violation
+  test('version unchanged + WONT-FIX + human-appraise source — contract violation', () => {
+    const { store, io } = createStore([
+      buildItem({ id: 'item-1', state: 'open', source: 'human-appraise:test-cycle' }),
+    ]);
+
+    const result = enforceForgeContract({
+      item: { id: 'item-1', source: 'human-appraise:test-cycle' },
+      preVersion: 'v1',
+      postVersion: 'v1',
+      summary: 'WONT-FIX: no',
+      feedbackStore: store,
+      cycleId: 'test-cycle',
+    });
+
+    assert.deepEqual(result, { contractPassed: false });
+    const raw = io.readFile('WORK.feedback.yaml');
+    const data = yaml.load(raw);
+    const sysItems = data.items.filter(it => it.source === 'system:forge-contract-mismatch');
+    assert.match(sysItems[0].text, /wont-fix not allowed on human-appraise-sourced item/);
+  });
+
+  // #7 — Version unchanged + no WONT-FIX → violation
+  test('version unchanged + no WONT-FIX — contract violation, item reverted', () => {
+    const { store, io } = createStore([
+      buildItem({ id: 'item-1', state: 'open', source: 'quench:test-cycle' }),
+    ]);
+
+    const result = enforceForgeContract({
+      item: { id: 'item-1', source: 'quench:test-cycle' },
+      preVersion: 'v1',
+      postVersion: 'v1',
+      summary: 'did some work but no change',
+      feedbackStore: store,
+      cycleId: 'test-cycle',
+    });
+
+    assert.deepEqual(result, { contractPassed: false });
+    const item = store.get('item-1');
+    assert.equal(item.history[0].state, 'open');
+    const raw = io.readFile('WORK.feedback.yaml');
+    const data = yaml.load(raw);
+    const sysItems = data.items.filter(it => it.source === 'system:forge-contract-mismatch');
+    assert.match(sysItems[0].text, /did not change artefacts and did not provide WONT-FIX/);
+  });
+
+  // #8 — Transition failure on store
+  test('transition failure — contract violation with system feedback', () => {
+    const { store } = createStore([
+      buildItem({ id: 'item-1', state: 'open', source: 'quench:test-cycle' }),
+    ]);
+    // Replace transition with a failing version
+    store.transition = () => ({ ok: false, error: 'store is locked' });
+
+    const result = enforceForgeContract({
+      item: { id: 'item-1', source: 'quench:test-cycle' },
+      preVersion: 'v1',
+      postVersion: 'v2',
+      summary: 'fixed',
+      feedbackStore: store,
+      cycleId: 'test-cycle',
+    });
+
+    assert.deepEqual(result, { contractPassed: false });
+    // Item should still be open after forceState
+    const item = store.get('item-1');
+    assert.equal(item.history[0].state, 'open');
+  });
+
+  // #9 — System feedback has correct metadata
+  test('system feedback has correct metadata on violation', () => {
+    const { store, io } = createStore([
+      buildItem({ id: 'item-1', state: 'open', source: 'quench:test-cycle' }),
     ]);
 
     enforceForgeContract({
-      items: [{ id: 'item-1' }],
+      item: { id: 'item-1', source: 'quench:test-cycle' },
       preVersion: 'v1',
-      postVersion: 'v2',
+      postVersion: 'v1',
+      summary: 'no change',
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
 
-    // Read the feedback store directly
     const raw = io.readFile('WORK.feedback.yaml');
     const data = yaml.load(raw);
     const systemItems = data.items.filter(it => it.source === 'system:forge-contract-mismatch');
@@ -234,116 +261,31 @@ describe('enforceForgeContract', () => {
     assert.equal(systemItems[0].file, '');
     assert.equal(systemItems[0].tag, 'system:forge-contract-mismatch');
     assert.equal(systemItems[0].source, 'system:forge-contract-mismatch');
-    assert.equal(systemItems[0].artefact_version, 'v2');
+    assert.equal(systemItems[0].artefact_version, 'v1');
     assert.equal(systemItems[0].history[0].state, 'open');
     assert.equal(systemItems[0].history[0].stage, 'system:forge-contract-mismatch');
   });
 
-  test('only batch items are reverted — other store items unaffected', () => {
+  // #10 — ForceState only affects the target item
+  test('forceState only affects the target item — other store items unchanged', () => {
     const { store } = createStore([
-      buildItem({ id: 'batch-1', state: 'actioned' }),
-      buildItem({ id: 'other-1', state: 'actioned' }),
+      buildItem({ id: 'target-1', state: 'actioned', source: 'quench:test-cycle' }),
+      buildItem({ id: 'other-1', state: 'actioned', source: 'quench:test-cycle' }),
     ]);
 
-    // Only batch-1 fails the version check (unchanged)
-    const result = enforceForgeContract({
-      items: [{ id: 'batch-1' }],
+    enforceForgeContract({
+      item: { id: 'target-1', source: 'quench:test-cycle' },
       preVersion: 'v1',
       postVersion: 'v1',
+      summary: 'no change',
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
 
-    assert.deepEqual(result, { contractPassed: false });
+    const targetItem = store.get('target-1');
+    assert.equal(targetItem.history[0].state, 'open');
     const otherItem = store.get('other-1');
-    assert.equal(otherItem.history[0].state, 'actioned', 'non-batch item should retain its state');
-  });
-
-  test('system feedback text differs per violation type', () => {
-    const { store: store1, io: io1 } = createStore([
-      buildItem({ id: 'item-1', state: 'open' }),
-    ]);
-    enforceForgeContract({
-      items: [{ id: 'item-1' }],
-      preVersion: 'v1', postVersion: 'v1',
-      feedbackStore: store1, cycleId: 'test-cycle',
-    });
-    const raw1 = io1.readFile('WORK.feedback.yaml');
-    const data1 = yaml.load(raw1);
-    const sys1 = data1.items.find(it => it.source === 'system:forge-contract-mismatch');
-    assert.match(sys1.text, /did not respond/);
-
-    const { store: store2, io: io2 } = createStore([
-      buildItem({ id: 'item-2', state: 'actioned' }),
-    ]);
-    enforceForgeContract({
-      items: [{ id: 'item-2' }],
-      preVersion: 'v1', postVersion: 'v1',
-      feedbackStore: store2, cycleId: 'test-cycle',
-    });
-    const raw2 = io2.readFile('WORK.feedback.yaml');
-    const data2 = yaml.load(raw2);
-    const sys2 = data2.items.find(it => it.source === 'system:forge-contract-mismatch');
-    assert.match(sys2.text, /without changing artefacts/);
-
-    const { store: store3, io: io3 } = createStore([
-      buildItem({ id: 'item-3', state: 'wont-fix' }),
-    ]);
-    enforceForgeContract({
-      items: [{ id: 'item-3' }],
-      preVersion: 'v1', postVersion: 'v2',
-      feedbackStore: store3, cycleId: 'test-cycle',
-    });
-    const raw3 = io3.readFile('WORK.feedback.yaml');
-    const data3 = yaml.load(raw3);
-    const sys3 = data3.items.find(it => it.source === 'system:forge-contract-mismatch');
-    assert.match(sys3.text, /did not mark any feedback as actioned/);
-  });
-
-  test('empty batch passes with no side-effects', () => {
-    const feedbackStore = {
-      get: () => null,
-      forceState: () => { throw new Error('forceState must not be called'); },
-      add: () => { throw new Error('add must not be called'); },
-    };
-
-    const result = enforceForgeContract({
-      items: [],
-      preVersion: 'abc',
-      postVersion: 'def',
-      feedbackStore,
-      cycleId: 'test',
-    });
-
-    assert.deepEqual(result, { contractPassed: true });
-  });
-
-  test('null batch passes with no side-effects', () => {
-    const feedbackStore = {
-      get: () => null,
-      forceState: () => { throw new Error('forceState must not be called'); },
-      add: () => { throw new Error('add must not be called'); },
-    };
-    const result = enforceForgeContract({
-      items: null,
-      preVersion: 'abc', postVersion: 'def',
-      feedbackStore, cycleId: 'test',
-    });
-    assert.deepEqual(result, { contractPassed: true });
-  });
-
-  test('undefined batch passes with no side-effects', () => {
-    const feedbackStore = {
-      get: () => null,
-      forceState: () => { throw new Error('forceState must not be called'); },
-      add: () => { throw new Error('add must not be called'); },
-    };
-    const result = enforceForgeContract({
-      items: undefined,
-      preVersion: 'abc', postVersion: 'def',
-      feedbackStore, cycleId: 'test',
-    });
-    assert.deepEqual(result, { contractPassed: true });
+    assert.equal(otherItem.history[0].state, 'actioned', 'non-target item should retain its state');
   });
 });
 

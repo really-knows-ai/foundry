@@ -1,5 +1,6 @@
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert';
+import yaml from 'js-yaml';
 import {
   renderDispatchPrompt,
   synthesizeStages,
@@ -61,6 +62,35 @@ test('renderDispatchPrompt omits file-patterns line for non-forge stages', () =>
     filePatterns: null
   });
   assert.doesNotMatch(prompt, /File patterns/);
+});
+
+test('renderDispatchPrompt includes forgeItem text when forgeItem is provided', () => {
+  const prompt = renderDispatchPrompt({
+    stage: 'forge:create-haiku',
+    cycle: 'create-haiku',
+    token: 'TOKEN',
+    cwd: '/tmp/work',
+    filePatterns: ['haikus/*.md'],
+    forgeItem: { id: 'fb1', file: 'haikus/a.md', tag: 'law:x', text: 'needs work', source: 'quench:test-cycle' },
+  });
+  assert.match(prompt, /FEEDBACK ITEM TO ADDRESS/);
+  assert.match(prompt, /Source: quench:test-cycle/);
+  assert.match(prompt, /File: haikus\/a\.md/);
+  assert.match(prompt, /Issue: needs work/);
+});
+
+test('renderDispatchPrompt omits feedback-tool references when forgeItem is provided', () => {
+  const prompt = renderDispatchPrompt({
+    stage: 'forge:create-haiku',
+    cycle: 'create-haiku',
+    token: 'T',
+    cwd: '/tmp',
+    filePatterns: ['haikus/*.md'],
+    forgeItem: { id: 'fb1', file: 'haikus/a.md', tag: 'law:x', text: 'fix it', source: 'quench:test-cycle' },
+  });
+  assert.doesNotMatch(prompt, /foundry_feedback_list/);
+  assert.doesNotMatch(prompt, /foundry_feedback_action/);
+  assert.doesNotMatch(prompt, /foundry_feedback_wontfix/);
 });
 
 test('synthesizeStages: forge + quench + appraise when validation exists', () => {
@@ -1259,4 +1289,195 @@ file-patterns: ["haikus/*.md"]
   // CRITICAL: lastStage must be cleared after successful finalization
   assert.strictEqual(io.exists('.foundry/last-stage.json'), false, 
     'lastStage should be cleared after successful finalization to prevent stale state corruption');
+});
+
+// ---------------------------------------------------------------------------
+// enforceForgeStage — single-item contract enforcement
+// ---------------------------------------------------------------------------
+
+describe('enforceForgeStage', () => {
+  const EMPTY_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+  function makeForgeIo(files = {}) {
+    const defaults = {
+      'foundry/artefacts/haiku/definition.md': `---
+id: haiku
+---`,
+    };
+    return makeIo({ ...defaults, ...files });
+  }
+
+  // #1 — No forgeItem -> no-op, passes
+  test('no forgeItem — no-op, passes', async () => {
+    const io = makeForgeIo({
+      '.foundry/last-stage.json': JSON.stringify({
+        cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'did work',
+      }),
+    });
+    const forgeCtx = { forgeItem: null, forgePreVersion: EMPTY_SHA };
+    const fgResult = { outputType: 'haiku' };
+    const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
+    assert.equal(result.contractPassed, true);
+    assert.equal(result.postVersion, EMPTY_SHA);
+  });
+
+  // #2 — Version changed -> passes, item actioned
+  test('version changed — passes, item actioned', async () => {
+    const io = makeForgeIo({
+      '.foundry/last-stage.json': JSON.stringify({
+        cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'fixed it',
+      }),
+      'WORK.feedback.yaml': `items:
+  - id: item-1
+    file: test.md
+    tag: law:test
+    text: test feedback
+    source: quench:test-cycle
+    history:
+      - state: open
+        stage: quench:test-cycle
+        cycle: test-cycle
+        timestamp: '2026-01-01T00:00:00.000Z'
+`,
+    });
+    const forgeCtx = {
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgePreVersion: 'v1-old',
+    };
+    const fgResult = { outputType: 'haiku' };
+    const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
+    assert.equal(result.contractPassed, true);
+    assert.equal(typeof result.postVersion, 'string');
+    assert.equal(result.postVersion.length, 64);
+    // Manually check item was actioned via raw YAML
+    const raw = yaml.load(io.readFile('WORK.feedback.yaml'));
+    const item = raw.items.find(i => i.id === 'item-1');
+    assert.equal(item.history[0].state, 'actioned');
+    assert.equal(item.history[0].stage, 'forge:test-cycle');
+  });
+
+  // #3 — Version unchanged + WONT-FIX appraise -> passes
+  test('version unchanged + WONT-FIX appraise — passes, item wont-fix', async () => {
+    const io = makeForgeIo({
+      '.foundry/last-stage.json': JSON.stringify({
+        cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'WONT-FIX: subjective preference',
+      }),
+      'WORK.feedback.yaml': `items:
+  - id: item-1
+    file: test.md
+    tag: law:test
+    text: test feedback
+    source: appraise:test-cycle
+    history:
+      - state: open
+        stage: appraise:test-cycle
+        cycle: test-cycle
+        timestamp: '2026-01-01T00:00:00.000Z'
+`,
+    });
+    const forgeCtx = {
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'appraise:test-cycle' },
+      forgePreVersion: EMPTY_SHA,
+    };
+    const fgResult = { outputType: 'haiku' };
+    const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
+    assert.equal(result.contractPassed, true);
+    const raw = yaml.load(io.readFile('WORK.feedback.yaml'));
+    const item = raw.items.find(i => i.id === 'item-1');
+    assert.equal(item.history[0].state, 'wont-fix');
+    assert.equal(item.history[0].reason, 'subjective preference');
+  });
+
+  // #4 — Version unchanged + WONT-FIX quench -> violation
+  test('version unchanged + WONT-FIX quench — violation', async () => {
+    const io = makeForgeIo({
+      '.foundry/last-stage.json': JSON.stringify({
+        cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'WONT-FIX: not a bug',
+      }),
+      'WORK.feedback.yaml': `items:
+  - id: item-1
+    file: test.md
+    tag: law:test
+    text: test feedback
+    source: quench:test-cycle
+    history:
+      - state: open
+        stage: quench:test-cycle
+        cycle: test-cycle
+        timestamp: '2026-01-01T00:00:00.000Z'
+`,
+    });
+    const forgeCtx = {
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgePreVersion: EMPTY_SHA,
+    };
+    const fgResult = { outputType: 'haiku' };
+    const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
+    assert.equal(result.contractPassed, false);
+  });
+
+  // #5 — Version unchanged + no WONT-FIX -> violation
+  test('version unchanged + no WONT-FIX — violation', async () => {
+    const io = makeForgeIo({
+      '.foundry/last-stage.json': JSON.stringify({
+        cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'did some work',
+      }),
+      'WORK.feedback.yaml': `items:
+  - id: item-1
+    file: test.md
+    tag: law:test
+    text: test feedback
+    source: quench:test-cycle
+    history:
+      - state: open
+        stage: quench:test-cycle
+        cycle: test-cycle
+        timestamp: '2026-01-01T00:00:00.000Z'
+`,
+    });
+    const forgeCtx = {
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgePreVersion: EMPTY_SHA,
+    };
+    const fgResult = { outputType: 'haiku' };
+    const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
+    assert.equal(result.contractPassed, false);
+  });
+
+  // #6 — 3 consecutive failures -> cycle violation
+  test('3 consecutive failures — cycle violation', async () => {
+    const io = makeForgeIo({
+      '.foundry/last-stage.json': JSON.stringify({
+        cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'did some work',
+      }),
+      'WORK.history.yaml': `- cycle: test-cycle
+  stage: forge:test-cycle
+  contract_passed: false
+  timestamp: '2026-01-01T00:00:00.000Z'
+- cycle: test-cycle
+  stage: forge:test-cycle
+  contract_passed: false
+  timestamp: '2026-01-01T00:01:00.000Z'
+`,
+      'WORK.feedback.yaml': `items:
+  - id: item-1
+    file: test.md
+    tag: law:test
+    text: test feedback
+    source: quench:test-cycle
+    history:
+      - state: open
+        stage: quench:test-cycle
+        cycle: test-cycle
+        timestamp: '2026-01-01T00:00:00.000Z'
+`,
+    });
+    const forgeCtx = {
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgePreVersion: EMPTY_SHA,
+    };
+    const fgResult = { outputType: 'haiku' };
+    const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
+    assert.equal(result.violation, 'forge contract failed 3 consecutive times — unable to satisfy feedback requirements');
+  });
 });
