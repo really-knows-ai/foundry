@@ -244,6 +244,14 @@ function buildForgePromptLines({ cycle, outputType }) {
       : `  - foundry_config_laws({ typeId: "<output type>" }) — to learn all applicable quality laws`,
     `  - foundry_workfile_get({}) — to learn the goal`,
     `  - foundry_feedback_list({}) — to check for existing feedback from prior iterations`,
+    ``,
+    `FEEDBACK CONTRACT (forge must satisfy this):`,
+    `  For each item returned by foundry_feedback_list with state "open" or "rejected":`,
+    `    - If you fix the issue (change the artefact file): call foundry_feedback_action({ id })`,
+    `    - If you cannot fix an appraise-sourced item: call foundry_feedback_wontfix({ id, reason })`,
+    `  Batch rule: if ANY item is actioned, the artefact file MUST change.`,
+    `  Batch rule: if ALL items are wont-fix, the artefact file MUST NOT change.`,
+    `  You MUST handle every open or rejected item — the system enforces this.`,
   ];
 }
 

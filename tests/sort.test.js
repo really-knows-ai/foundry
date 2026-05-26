@@ -321,7 +321,7 @@ describe('determineRoute', () => {
     assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
   });
 
-  it('bypasses iteration cap when alwaysHumanAppraise is true after forge', () => {
+  it('blocks when forge cap reached with alwaysHumanAppraise but no human-appraise stage configured', () => {
     const history = [
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
@@ -332,11 +332,11 @@ describe('determineRoute', () => {
     const feedback = [{ state: 'open' }];
     assert.equal(
       determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true }),
-      'forge:write',
+      'blocked',
     );
   });
 
-  it('routes to fallback human-appraise:<cycle> when forge cap reached and no human-appraise stage configured', () => {
+  it('blocks when forge cap reached with deadlockHumanAppraise but no human-appraise stage configured', () => {
     const noHuman = ['forge:write', 'quench:review', 'appraise:check'];
     const history = [
       { stage: 'forge:write', cycle: 'c1' },
@@ -348,7 +348,7 @@ describe('determineRoute', () => {
     const feedback = [{ state: 'open' }];
     assert.equal(
       determineRoute(noHuman, history, feedback, 3, { deadlockHumanAppraise: true, cycle: 'fallback-cycle' }),
-      'human-appraise:fallback-cycle',
+      'blocked',
     );
   });
 
@@ -403,7 +403,7 @@ describe('determineRoute', () => {
     assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
   });
 
-  it('bypasses iteration cap when alwaysHumanAppraise is true', () => {
+  it('blocks when forge cap reached with alwaysHumanAppraise but no human-appraise stage', () => {
     const history = [
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
@@ -415,7 +415,7 @@ describe('determineRoute', () => {
     const feedback = [{ state: 'open' }];
     assert.equal(
       determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true }),
-      'forge:write',
+      'blocked',
     );
   });
 
@@ -1282,7 +1282,7 @@ describe('runSort', () => {
     assert.equal(result.route, 'blocked');
   });
 
-  it('always-human-appraise bypasses max-iterations cap', () => {
+  it('always-human-appraise routes to human-appraise when max-iterations cap reached', () => {
     const workText = makeWorkMd({ maxIterations: 2, alwaysHumanAppraise: true, deadlockHumanAppraise: false });
     const io = makeSortIO({
       'WORK.md': workText,
@@ -1302,9 +1302,7 @@ describe('runSort', () => {
       ]),
     });
     const result = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
-    // With alwaysHumanAppraise: true the iteration cap is bypassed and unresolved
-    // items route to forge instead of deadlock
-    assert.equal(result.route, 'forge:write');
+    assert.equal(result.route, 'human-appraise:review');
   });
 });
 

@@ -12,6 +12,7 @@ import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { getCycleDefinition } from './lib/config.js';
 import { performValidation } from './lib/validation.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
+import { hashText } from './lib/feedback-transitions.js';
 
 /**
  * Resolve stale feedback items whose artefact version does not match the
@@ -111,6 +112,7 @@ async function processArtefacts(ctx, artefacts, activeStageRecord, outputType, a
   const perArtefact = [];
   const currentFeedback = [];
   let allOk = true;
+  ctx.store = openFeedbackStore('WORK.feedback.yaml', ctx.io);
 
   for (const artefact of artefacts) {
     const result = await performValidation({
@@ -179,10 +181,31 @@ function isAllErrors(result) {
 
 /**
  * Post feedback items for validation results and track for resolution.
+ *
+ * Skips items whose file:tag:text already exists in actioned or wont-fix
+ * state (from a previous forge response). This prevents the quench → forge
+ * feedback accumulation loop when validators produce the same message
+ * across forge revisions.
  */
 function postFeedbackItems(ctx, artefact, result, currentFeedback, artefactVersion) {
+  const store = ctx.store;
+
   for (const item of result.items) {
     const tag = `law:${item.lawId}:${item.validatorId}`;
+    const textHash = hashText(item.text);
+
+    const existing = store.list().find(it =>
+      it.file === artefact.file &&
+      it.tag === tag &&
+      hashText(it.text) === textHash &&
+      (it.history[0].state === 'actioned' || it.history[0].state === 'wont-fix')
+    );
+
+    if (existing) {
+      currentFeedback.push({ file: artefact.file, tag });
+      continue;
+    }
+
     ctx.feedback.add({ file: artefact.file, text: item.text, tag, artefact_version: artefactVersion });
     currentFeedback.push({ file: artefact.file, tag });
   }

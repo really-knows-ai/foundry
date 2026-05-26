@@ -124,12 +124,16 @@ function computeRoutingState(history, feedback) {
  * routes to human-appraise (if deadlockHumanAppraise) or 'blocked'.
  * Otherwise routes to forge via first('forge', stages).
  */
+function routeToHumanOrBlock(firstFn, stages, opts) {
+  if ((opts.deadlockHumanAppraise || opts.alwaysHumanAppraise) && hasStage(stages, 'human-appraise')) {
+    return firstFn('human-appraise', stages, opts.cycle);
+  }
+  return 'blocked';
+}
+
 function checkIterationAndRoute(firstFn, stages, forgeCount, maxIterations, opts) {
-  if (forgeCount >= maxIterations && !opts.alwaysHumanAppraise) {
-    if (opts.deadlockHumanAppraise) {
-      return firstFn('human-appraise', stages, opts.cycle);
-    }
-    return 'blocked';
+  if (forgeCount >= maxIterations) {
+    return routeToHumanOrBlock(firstFn, stages, opts);
   }
   if (!hasStage(stages, 'forge')) return 'blocked';
   return firstFn('forge', stages);

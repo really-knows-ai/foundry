@@ -183,23 +183,23 @@ describe('deadlock and iteration cap — R4', () => {
     assert.equal(result, 'blocked');
   });
 
-  // #16 — alwaysHumanAppraise: true bypasses iteration cap
-  it('bypasses iteration cap when alwaysHumanAppraise is true, routing to forge', () => {
+  // #16 — alwaysHumanAppraise: true + no human-appraise stage → blocked when cap reached
+  it('deadlocks when forge cap reached with alwaysHumanAppraise but no human-appraise stage', () => {
     const result = determineRoute(stagesNoHuman, deadlockHistory, unresolvedFeedback, 3, {
       ...opts,
       alwaysHumanAppraise: true,
     });
-    assert.equal(result, 'forge:haiku-cycle');
+    assert.equal(result, 'blocked');
   });
 
-  // #17 — alwaysHumanAppraise + deadlockHumanAppraise — alwaysHumanAppraise takes priority
-  it('alwaysHumanAppraise takes priority over deadlockHumanAppraise, routing to forge', () => {
+  // #17 — alwaysHumanAppraise + deadlockHumanAppraise routes to human-appraise when cap reached
+  it('routes to human-appraise when forge cap reached with alwaysHumanAppraise and human-appraise stage', () => {
     const result = determineRoute(stages, deadlockHistory, unresolvedFeedback, 3, {
       ...opts,
       alwaysHumanAppraise: true,
       deadlockHumanAppraise: true,
     });
-    assert.equal(result, 'forge:haiku-cycle');
+    assert.equal(result, 'human-appraise:haiku-cycle');
   });
 });
 
