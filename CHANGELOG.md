@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.2] - 2026-05-25
+
+### Fixed
+
+- `captureForgeContext` now only captures unresolved feedback items (`open`/`rejected`) instead of all items. Previously it captured resolved items too, causing `enforceForgeContract` to reject them and `revertAll` to force-reopen the entire batch — creating an infinite forge loop.
+- Extracted validation guard functions into `src/scripts/lib/orchestrate-guards.js` to stay within the `max-lines` limit.
+- Fixed a missing `isDuplicateConsolidation` function that was referenced but never defined.
+
 ## [3.6.1] - 2026-05-25
 
 ### Fixed
