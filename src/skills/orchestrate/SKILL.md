@@ -111,12 +111,12 @@ Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<af
 
 ## Feedback visibility
 
-Orchestrate's loop does not read, parse, or write feedback directly.
-Subagents invoked via `dispatch` use the `foundry_feedback_list` /
-`foundry_feedback_add` / `foundry_feedback_action` / `foundry_feedback_wontfix`
-/ `foundry_feedback_resolve` tools themselves; orchestrate does not stage
-feedback state between iterations. If you want to inspect feedback state
-between iterations for diagnostic purposes, call `foundry_feedback_list` —
-the response shape is `[{ id, file, tag, text, source, state, depth,
-reason? }]`. This is read-only and does not affect the loop's dispatch
-decisions.
+The orchestrator manages forge feedback transitions directly. After each
+forge subagent completes, `enforceForgeStage` inspects the outcome — a
+version change or a WONT-FIX in the stage-end summary — and transitions the
+feedback item to `actioned` or `wont-fix`. Forge subagents do not call
+`foundry_feedback_action` or `foundry_feedback_wontfix`; those are the
+orchestrator's responsibility. If you want to inspect feedback state for
+diagnostic purposes, call `foundry_feedback_list` — the response shape is
+`[{ id, file, tag, text, source, state, depth, reason? }]`. This is
+read-only and does not affect the loop's dispatch decisions.

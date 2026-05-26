@@ -342,3 +342,12 @@ test('add-law must not fall back to hand editing for collisions', () => {
     'add-law must not ask the user to rename and edit by hand'
   );
 });
+
+// --- forge skill must not delegate feedback tools ---
+
+test('forge skill does not instruct agents to use feedback action or wont-fix tools', () => {
+  const text = readSkill('forge');
+  assert.ok(!text.includes('foundry_feedback_action'), 'forge skill must not mention foundry_feedback_action');
+  assert.ok(!text.includes('foundry_feedback_wontfix'), 'forge skill must not mention foundry_feedback_wontfix');
+  assert.ok(!text.includes('call `foundry_feedback_list`'), 'forge skill must not instruct calling foundry_feedback_list');
+});
