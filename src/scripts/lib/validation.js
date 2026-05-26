@@ -198,6 +198,23 @@ export function collectValidatorResult(parseResult, lawId, validatorId, results)
 }
 
 /**
+ * If every line of output was unparseable, the validator script itself is
+ * broken (syntax error, runtime crash, etc.). Replace the noise of 20+
+ * individual "Invalid JSON" errors with a single actionable message.
+ */
+export function checkForValidatorCrash(result) {
+  if (result.items.length === 0 && result.parseErrors.length > 0) {
+    return {
+      ...result,
+      parseErrors: [
+        `Validator produced no valid output (${result.parseErrors.length} unparseable lines). Check the validator script for syntax errors.`,
+      ],
+    };
+  }
+  return result;
+}
+
+/**
  * Execute a validator command and parse its JSONL output.
  */
 export async function executeValidator(expanded, worktree, patterns) {
@@ -209,14 +226,18 @@ export async function executeValidator(expanded, worktree, patterns) {
     });
     const { Readable } = await import('stream');
     const stream = Readable.from([output]);
-    return await parseValidatorJsonl(stream, patterns);
+    return checkForValidatorCrash(
+      await parseValidatorJsonl(stream, patterns),
+    );
   } catch (err) {
     // Validator command failed — prefer stdout for JSONL
     // (tools like rg exit 1 with results on stdout)
     const output = (err.stdout || err.stderr || err.message || '').trim();
     const { Readable } = await import('stream');
     const stream = Readable.from([output]);
-    return await parseValidatorJsonl(stream, patterns);
+    return checkForValidatorCrash(
+      await parseValidatorJsonl(stream, patterns),
+    );
   }
 }
 
