@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.6.3] - 2026-05-26
+
+### Fixed
+
+- Validator script crashes now surface a single clear error ("Validator produced no valid output — check the script for syntax errors") instead of 20+ individual "Invalid JSON" parse errors from the stack trace.
+
 ## [3.6.2] - 2026-05-25
 
 ### Fixed
