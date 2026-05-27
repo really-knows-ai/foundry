@@ -318,7 +318,7 @@ function makeReadLawTool(tool) {
 function makeAddLawTool(tool) {
   return tool({
     description: 'Add a new law (config-tier; requires a config/* branch). ' +
-      'Fields: id, name, description, passing, failing, target ({kind, file|typeId}), validators ([{id, command, failureMeans?}]).',
+      'Args: id, name, description, passing, failing, target ({kind, file|typeId}), validators ([{id, command, failureMeans?}]). Every validator needs a companion test (TDD) before the law is created.',
     args: {
       id: tool.schema.string().describe('Law identifier. Becomes the ## <id> heading.'),
       name: tool.schema.string().describe('Human-readable name stored as prose after heading.'),
@@ -332,9 +332,9 @@ function makeAddLawTool(tool) {
       }).describe('Where to write the law'),
       validators: tool.schema.array(tool.schema.object({
         id: tool.schema.string().describe('Validator identifier'),
-        command: tool.schema.string().describe('CLI command with optional {pattern} / {files} placeholders. Prefer JavaScript (.mjs) scripts as separate files (e.g. "node foundry/artefacts/<type>/check.mjs {files}"). Stdout must be NDJSON: one JSON object per line with required fields "file" (relative path) and "text" (message). Optional: "location" (line:col), "severity" (error|warning). Exit code is ignored.'),
+        command: tool.schema.string().describe('CLI command with optional {pattern} / {files} placeholders. Prefer .mjs scripts (e.g. "node foundry/artefacts/<type>/check.mjs {files}") with a companion .test.js file (TDD). Stdout must be NDJSON: one JSON object per line with required fields "file" (relative path) and "text" (message). Optional: "location" (line:col), "severity" (error|warning). Exit code is ignored.'),
         failureMeans: tool.schema.string().optional().describe('Description of what failure means'),
-      })).optional().describe('Optional deterministic validators'),
+      })).optional().describe('Optional deterministic validators. Each requires a companion test file.'),
     },
     execute: guarded('foundry_config_add_law', CREATE_GUARDS, executeAddLaw, { branchIo: branchIoFactory, io: asyncIoFactory }),
   });

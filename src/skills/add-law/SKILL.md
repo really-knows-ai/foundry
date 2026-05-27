@@ -68,6 +68,8 @@ Walk the user through which elements of the law can be validated deterministical
 
 For each script-checkable element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Use existing project dependencies and Node.js built‑ins. Hand‑rolled heuristics (custom syllable counters, regex parsers, manual character walks) are a last resort — they produce false positives, waste tokens on debugging, and break on edge cases. Install a library instead. Only write validation logic from scratch when no npm package exists for the task and the heuristic is trivially correct.
 
+Every validator carries a companion test file alongside it (e.g. `check-line-count.test.js`). The test uses Node's built‑in test runner — `node --test check-line-count.test.js`. Follow TDD: write the test, confirm it fails against a current artefact, implement the validator, verify the test passes. The test feeds sample inputs to the validator script and asserts the correct JSONL output on stdout — it validates the JSONL contract, not just that the script runs.
+
 **Validators**: Ask about `validators` (optional) — offer to create one or skip.
 
 **Conflict check**: Read all existing laws that would apply to the same artefact types. Check for contradiction, duplication, or overlap. If any conflict is found, present it to the user:
@@ -85,7 +87,7 @@ For each script-checkable element, write a standalone `.mjs` script next to the 
 
 ### 2. Plan
 
-Present a structured summary: law id, name, description, passing/failing criteria, target (global or type-specific with typeId), and validators (which elements are checked deterministically). Ask: "Does this capture what you want, or should we adjust the wording?" Iterate until the user is satisfied.
+Present a structured summary: law id, name, description, passing/failing criteria, target (global or type-specific with typeId), validators (which elements are checked deterministically), and the companion test file for each validator. Ask: "Does this capture what you want, or should we adjust the wording?" Iterate until the user is satisfied.
 
 ### 3. Confirm
 
@@ -93,9 +95,15 @@ Ask: "Proceed with this plan?" — wait for user answer before building. If the 
 
 ### 4. Build
 
-1. **Validate**: Call `foundry_config_validate_law({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the `## <id>` heading format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types that do not exist yet.
+1. **Write validators with TDD**: For each validator declared in the plan:
 
-2. **Create**: Translate the scope into the `target` argument:
+   a. **Write the test first** — create a companion test file alongside the validator (e.g. `foundry/artefacts/<type>/check-line-count.test.js`). The test imports or spawns the validator script with sample inputs and asserts the correct JSONL output on stdout. Run `node --test` to confirm it fails.
+
+   b. **Implement the validator** — write the `.mjs` script. Run the test again to confirm it passes. Do not commit the validator without its passing test.
+
+2. **Validate**: Call `foundry_config_validate_law({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the `## <id>` heading format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types that do not exist yet.
+
+3. **Create**: Translate the scope into the `target` argument:
    - Global → `target: { kind: "global", file: "<file-name>.md" }`
    - Type-specific → `target: { kind: "type-specific", typeId: "<artefact-type>" }`
 
@@ -117,7 +125,7 @@ Ask: "Proceed with this plan?" — wait for user answer before building. If the 
 
    The tool appends to an existing `laws.md` automatically when the new law id is not already present. It only errors when a law with the same id is already in the file — in that case use `foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>" })` to modify the existing law in place.
 
-3. **Verify uniqueness**: After the file is created, confirm the law id is unique across all law files. If a collision exists, read the colliding law, present the conflict to the user, propose a rename or merge, ask one focused question about the user's preference, then write and commit the resolution.
+4. **Verify uniqueness**: After the file is created, confirm the law id is unique across all law files. If a collision exists, read the colliding law, present the conflict to the user, propose a rename or merge, ask one focused question about the user's preference, then write and commit the resolution.
 
 ### 5. Editing existing laws (prose or validators)
 
@@ -145,7 +153,7 @@ Then proceed with the update.
 
 > 🔍 **Drift check:** Verify that the changed validator still aligns with the law's prose. If the validator has narrowed or broadened, the prose may need a corresponding update.
 
-Then proceed with the update.
+After the validator implementation changes, update the companion test file. Run the tests to confirm they pass against the updated validator before committing.
 
 #### 5e. Apply the update
 
@@ -258,8 +266,46 @@ validators:
     failure-means: The artefact file does not contain exactly three non-empty lines.
 ~~~
 
+#### Companion test
+
+`foundry/artefacts/haiku/check-line-count.test.js`:
+
+~~~js
+import { describe, it } from 'node:test';
+import { execSync } from 'node:child_process';
+import assert from 'node:assert/strict';
+
+describe('check-line-count', () => {
+  it('passes for exactly three non-empty lines', () => {
+    const result = execSync(
+      `node foundry/artefacts/haiku/check-line-count.mjs tests/fixtures/haiku-valid.md`,
+      { encoding: 'utf8' },
+    );
+    assert.strictEqual(result.trim(), '');
+  });
+
+  it('reports an error for fewer than three lines', () => {
+    const result = execSync(
+      `node foundry/artefacts/haiku/check-line-count.mjs tests/fixtures/haiku-short.md`,
+      { encoding: 'utf8' },
+    );
+    assert.match(result, /Expected 3 non-empty lines/);
+  });
+
+  it('reports an error for more than three lines', () => {
+    const result = execSync(
+      `node foundry/artefacts/haiku/check-line-count.mjs tests/fixtures/haiku-long.md`,
+      { encoding: 'utf8' },
+    );
+    assert.match(result, /Expected 3 non-empty lines/);
+  });
+});
+~~~
+
 ## What you do NOT do
 
 - You do not skip the conflict check
 - You do not silently overwrite existing laws
 - You do not create artefact types unless the user's stated goal clearly requires it; ask one focused question when multiple designs are plausible
+- You do not write validators without companion tests
+- You do not accept test failures — fix the validator and retry until every test passes
