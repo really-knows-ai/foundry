@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.8.5] - 2026-05-27
+
+### Changed
+
+- Human-appraise skill redesigned with two distinct review modes:
+  - **Clean review** (no unresolved feedback): Shows `git diff --stat` filtered to artefact type file-patterns, not full file content. Uses the question tool to offer Approve or Provide feedback.
+  - **Feedback review** (unresolved feedback exists): Presents each item individually via the question tool. User picks Agree (keep open for forge), Disagree (resolve with approved override), or Comment (add human feedback).
+  - All user interaction now uses the question tool (structured options) instead of free-text prompts.
+
+- Appraise consolidation now propagates finalize violations instead of swallowing them. If `finaliseStage` returns a violation (e.g. commit rejected), `consolidateAppraise` surfaces it rather than returning `{ ok: true }`.
+
+### Fixed
+
+- Sort violation details are now passed through to the terminal handler. Previously, `handleSortResult` destructured `sortResult` but didn't forward the `details` field to `resolveRouteResult`, causing all sort violations to show the default "sort returned violation" message.
+
 ## [3.8.4] - 2026-05-27
 
 ### Added
