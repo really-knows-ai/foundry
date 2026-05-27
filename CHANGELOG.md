@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.7.1] - 2026-05-27
+
+### Fixed
+
+- `mock.module` calls in `quench-module.test.js` use the canonical `namedExports` key instead of the deprecated `exports` alias. Node 22 does not recognise the old key, causing tests to fail with "does not provide an export named `computeArtefactVersion`".
+
 ## [3.7.0] - 2026-05-27
 
 ### Added
