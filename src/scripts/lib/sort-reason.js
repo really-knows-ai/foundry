@@ -35,7 +35,7 @@ function forgeReason(d) {
   if (d.forgeCount === 0 && d.needingForge === 0) {
     return `starting cycle — routing to forge (iteration 1 of ${d.maxIt})`;
   }
-  return `found ${d.needingForge} unresolved feedback item(s) — routing to forge for revision (iteration ${d.forgeCount + 1} of ${d.maxIt})`;
+  return `found ${d.needingForge} unresolved feedback item(s) — dispatching one item at a time to forge (revision ${d.forgeCount + 1} of ${d.maxIt})`;
 }
 
 function appraiseReason(d) {

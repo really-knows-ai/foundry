@@ -45,11 +45,8 @@ task tool:
   description: "Run <stage> for <cycle>"
   prompt: <prompt-from-payload — pass verbatim>
 ```
-task tool:
-  subagent_type: <subagent_type-from-payload>
-  description: "Run <stage> for <cycle>"
-  prompt: <prompt-from-payload — pass verbatim>
-```
+
+**Critical for forge dispatch:** The orchestrator dispatches one feedback item per forge subagent call. The `prompt` already contains exactly one `FEEDBACK ITEM TO ADDRESS`. Pass the prompt verbatim — do NOT read quench output, do NOT add additional feedback items, do NOT inject validator results. The orchestrator will dispatch a separate `task()` call for each unresolved item.
 
 When the task returns, call `foundry_orchestrate({lastResult: {ok: true}})`. If the task tool itself errored or reported a subagent crash, pass `{ok: false, error: '<message>'}`.
 
@@ -114,6 +111,7 @@ Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<af
 - You do NOT mint, modify, or cache tokens. The `prompt` from orchestrate already contains the token verbatim.
 - `foundry_history_append`, `foundry_git_commit`, `foundry_stage_finalize`, and `foundry_sort` are not registered tools; orchestrate handles them internally via the loop.
 - You do NOT reorder the protocol. `foundry_orchestrate` returns, you act, you call back. Nothing else between.
+- You do NOT add extra feedback items to the forge dispatch prompt. The orchestrator dispatches one item at a time. Each prompt already contains exactly one `FEEDBACK ITEM TO ADDRESS`. Do not read quench output and inject additional items.
 
 ## Feedback visibility
 

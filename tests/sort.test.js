@@ -1528,7 +1528,7 @@ describe('runSort routing reasons', () => {
     const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
     assert.equal(res.route, 'forge:write');
     assert.match(res.reason, /unresolved feedback/);
-    assert.match(res.reason, /iteration 1 of 3/);
+    assert.match(res.reason, /revision 1 of 3/);
   });
 
   it('includes reason for appraise dispatch', () => {
