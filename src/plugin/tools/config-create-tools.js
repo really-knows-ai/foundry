@@ -133,6 +133,7 @@ function artefactTypeArgs(s) { return {
   name: s.string().describe('Human-readable display name (accepted at boundary, not persisted — id becomes frontmatter.name)'),
   filePatterns: s.array(s.string()).describe('Glob patterns defining forge write scope (written to frontmatter.file-patterns)'),
   description: s.string().describe('Prose description placed under ## Definition'),
+  example: s.string().optional().describe('Example artefact structure (markdown with code blocks). Written to example.md alongside definition.md. Guides forge agents on the expected output format.'),
   appraisers: s.object({
     count: s.number().optional().describe('Number of appraisers per cycle'),
     allowed: s.array(s.string()).optional().describe('Restrict to specific appraiser IDs'),

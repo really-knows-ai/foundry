@@ -50,7 +50,30 @@ const _create = makeCreator({
   validator: validate,
 });
 
+/**
+ * Assemble the markdown body for example.md from structured arguments.
+ *
+ * The example file is a structure document: markdown with code blocks showing
+ * the expected output format, plus documentation for the forge agent.
+ *
+ * @param {string} exampleContent - Raw markdown for example.md
+ * @returns {string} Trimmed content with trailing newline.
+ */
+export function assembleExampleMarkdown(exampleContent) {
+  return `${exampleContent.trim()}\n`;
+}
+
 export async function create(args) {
   const body = assembleArtefactTypeMarkdown(args);
+
+  if (args.example) {
+    const exampleDir = join('foundry', 'artefacts', args.id);
+    await args.io.mkdirp(exampleDir);
+    await args.io.writeFile(
+      join(exampleDir, 'example.md'),
+      assembleExampleMarkdown(args.example),
+    );
+  }
+
   return _create({ ...args, name: args.id, body });
 }

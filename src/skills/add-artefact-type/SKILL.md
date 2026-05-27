@@ -38,7 +38,7 @@ Do not tell the user to call branch tools directly.
 
 When invoked with pre-filled fields matching the `foundry_config_create_artefact_type` tool args, skip questions for provided fields. Missing fields trigger clarifying questions.
 
-Context fields: `{id, name, filePatterns, description, appraisers?}`
+Context fields: `{id, name, filePatterns, description, example?, appraisers?}`
 
 When invoked with a context:
 - If all required fields are present, skip the Understand phase and proceed to Plan → Confirm → Build.
@@ -47,6 +47,12 @@ When invoked with a context:
 ### 1. Understand
 
 Ask for each field one question at a time. Prefer multiple choice for `filePatterns`, deriving options from the artefact type name and common conventions (e.g. `haikus/*.md`, `haiku.md`, `output/haiku/*.md`). Ask about `appraisers` (optional) — either provide an existing appraiser ID or skip.
+
+After the core fields, ask about the example:
+
+> Would you like to provide an example artefact? An example shows forge agents the expected output structure — markdown with code blocks, plus any conventions, constraints, or required sections. Give a short example file that demonstrates what a valid output looks like.
+
+If the user provides an example, capture it verbatim. If the artefact type has no structured output (e.g. free-form prose with no required format), the user may skip this step.
 
 **Naming conflict check**: Read all existing artefact type definitions in `foundry/artefacts/*/definition.md`. Exact id match means a hard conflict — choose a different id. A semantically similar name or description triggers a warning:
 
@@ -74,6 +80,7 @@ Present the definition to the user with these structured fields:
 - `name` (string) — human-readable label.
 - `filePatterns` (string[]) — glob patterns for files this type produces.
 - `description` (string) — prose description of what this artefact type is.
+- `example` (string, optional) — example artefact to guide forge agents on the expected output structure.
 - `appraisers` ({ count?: number, allowed?: string[] }, optional) — appraiser configuration.
 
 Ask: does this capture the artefact type correctly? Iterate until the user is satisfied.
@@ -86,7 +93,7 @@ Ask: "Proceed with this plan?" — wait for user answer before building. If the 
 
 1. **Validate**: Call `foundry_config_validate_artefact_type({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or flows that do not exist yet.
 
-2. **Create**: Call `foundry_config_create_artefact_type({ id: "<id>", name: "<name>", filePatterns: ["<pattern>"], description: "<description>" })`. The tool re-validates the body (TOCTOU), writes `foundry/artefacts/<id>/definition.md`, and produces one git commit on the current `config/*` branch. Show the user the resulting commit hash.
+2. **Create**: Call `foundry_config_create_artefact_type({ id: "<id>", name: "<name>", filePatterns: ["<pattern>"], description: "<description>", example: "<example>" })`. Include `example` only when the user provided one. The tool re-validates the body (TOCTOU), writes `foundry/artefacts/<id>/definition.md` (and `example.md` if provided), and produces one git commit on the current `config/*` branch. Show the user the resulting commit hash.
 
    If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
 
