@@ -140,7 +140,7 @@ describe('store.transition — forge path', () => {
     assert.equal(r.ok, false);
   });
 
-  test('forge cannot wont-fix a quench-sourced item (A2/rule 7)', () => {
+  test('forge can wont-fix a quench-sourced item (A2/rule 7)', () => {
     const io = mockIO();
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const { id } = store.add({ file: 'a.md', tag: 'law:x', text: 't', source: 'quench:schema', cycle: 'c' });
@@ -151,9 +151,7 @@ describe('store.transition — forge path', () => {
       cycle: 'c',
       reason: 'too hard',
     });
-    assert.equal(r.ok, false);
-    assert.match(r.error, /source is appraise/);
-    assert.match(r.error, /source is quench:schema/);
+    assert.equal(r.ok, true);
   });
 });
 

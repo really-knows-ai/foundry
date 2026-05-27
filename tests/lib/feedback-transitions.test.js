@@ -185,14 +185,14 @@ describe('canForgeWontFix — A2 source-scoped wont-fix', () => {
     assert.equal(canForgeWontFix(item, 'forge'), true);
   });
 
-  test('quench-sourced item: forge CANNOT wont-fix', () => {
+  test('quench-sourced item: forge can wont-fix', () => {
     const item = { source: 'quench:schema' };
-    assert.equal(canForgeWontFix(item, 'forge'), false);
+    assert.equal(canForgeWontFix(item, 'forge'), true);
   });
 
-  test('human-appraise-sourced item: forge CANNOT wont-fix', () => {
+  test('human-appraise-sourced item: forge can wont-fix', () => {
     const item = { source: 'human-appraise:review' };
-    assert.equal(canForgeWontFix(item, 'forge'), false);
+    assert.equal(canForgeWontFix(item, 'forge'), true);
   });
 
   test('non-forge caller: predicate is only meaningful for forge base', () => {

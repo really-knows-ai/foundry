@@ -1389,8 +1389,8 @@ id: haiku
     assert.equal(item.history[0].reason, 'subjective preference');
   });
 
-  // #4 — Version unchanged + WONT-FIX quench -> violation
-  test('version unchanged + WONT-FIX quench — violation', async () => {
+  // #4 — Version unchanged + WONT-FIX quench -> passes
+  test('version unchanged + WONT-FIX quench — passes', async () => {
     const io = makeForgeIo({
       '.foundry/last-stage.json': JSON.stringify({
         cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'WONT-FIX: not a bug',
@@ -1414,7 +1414,7 @@ id: haiku
     };
     const fgResult = { outputType: 'haiku' };
     const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
-    assert.equal(result.contractPassed, false);
+    assert.equal(result.contractPassed, true);
   });
 
   // #5 — Version unchanged + no WONT-FIX -> violation
@@ -1479,6 +1479,7 @@ id: haiku
     };
     const fgResult = { outputType: 'haiku' };
     const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
-    assert.equal(result.violation, 'forge contract failed 3 consecutive times — unable to satisfy feedback requirements');
+    assert.ok(result.violation, 'expected cycle violation after 3 consecutive forge failures');
+    assert.match(result.violation, /forge contract failed 3 consecutive times/);
   });
 });

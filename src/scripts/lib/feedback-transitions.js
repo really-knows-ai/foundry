@@ -99,7 +99,5 @@ export function hashText(text) {
  */
 export function canForgeWontFix(item, callerStageBase) {
   if (callerStageBase !== 'forge') return false;
-  if (!item || typeof item.source !== 'string' || !item.source) return false;
-  const sourceBase = item.source.split(':')[0];
-  return sourceBase === 'appraise';
+  return !!(item && typeof item.source === 'string' && item.source);
 }

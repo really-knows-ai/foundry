@@ -8,7 +8,7 @@ import { syncStore } from '../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 import { markWorkfileFailed, readFailedStatus, clearWorkfileFailed } from '../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
-import { initForgeCallLog, verifyAndClearForgeCallLog } from '../../scripts/lib/stage-calls.js';
+import { initForgeCallLog, readForgeCallSet } from '../../scripts/lib/stage-calls.js';
 import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
 
 const FORGE_REQUIRED_TOOLS = [
@@ -18,6 +18,12 @@ const FORGE_REQUIRED_TOOLS = [
   'foundry_config_laws',
 ];
 
+const FORGE_FORBIDDEN_TOOLS = [
+  'foundry_feedback_action',
+  'foundry_feedback_wontfix',
+  'foundry_feedback_resolve',
+];
+
 function stageBase(stage) { return stage.split(':')[0]; }
 
 const gateNotFailed = notFailedGuard(makeIO);
@@ -25,9 +31,16 @@ const gateNotFailed = notFailedGuard(makeIO);
 // -- Helpers for forge tool call verification --
 
 function verifyAndManageForgeTools(io, active) {
-  const verified = verifyAndClearForgeCallLog(io, FORGE_REQUIRED_TOOLS);
-  if (!verified.ok) {
-    postMissingToolsFeedback(io, active, verified.missing);
+  const callSet = readForgeCallSet(io);
+  const forbidden = FORGE_FORBIDDEN_TOOLS.filter(t => callSet.has(t));
+  const missing = FORGE_REQUIRED_TOOLS.filter(t => !callSet.has(t));
+  io.unlink('.foundry/.forge-tool-calls.jsonl');
+  if (forbidden.length) {
+    postForbiddenToolsFeedback(io, active, forbidden);
+    return;
+  }
+  if (missing.length) {
+    postMissingToolsFeedback(io, active, missing);
     return;
   }
   resolveSystemFeedback(io, active);
@@ -142,6 +155,19 @@ async function executeStageEnd(args, context) {
     return JSON.stringify({ error: msg, flow_failed: true });
   }
   return JSON.stringify({ ok: true, summary: args.summary });
+}
+
+function postForbiddenToolsFeedback(io, active, forbidden) {
+  try {
+    const store = openFeedbackStore('WORK.feedback.yaml', io);
+    store.add({
+      file: '(forge)',
+      tag: 'system:forbidden-tool-calls',
+      text: `Forbidden forge tool calls: ${forbidden.join(', ')}. Forge subagents do not manage feedback — the orchestrator handles transitions.`,
+      source: active.stage,
+      cycle: active.cycle,
+    });
+  } catch { /* feedback file not initialised yet; non-critical */ }
 }
 
 function postMissingToolsFeedback(io, active, missing) {

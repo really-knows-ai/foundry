@@ -77,7 +77,8 @@ summary. The orchestrator records the item as wont-fix.
 
 Items whose source base is `quench` (objective validation failure) or
 `human-appraise` (direct user instruction) are deterministic failures that
-**must** be fixed. There is no wont-fix option for these.
+**must** be addressed. If the issue was already resolved by a prior forge
+iteration, respond with `WONT-FIX: already fixed in prior revision`.
 
 `foundry_feedback_add` (if you ever call it — forge normally does not)
 returns `{ ok, id, deduped }`. `deduped: true` means an existing

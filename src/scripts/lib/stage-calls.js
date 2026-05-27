@@ -29,6 +29,10 @@ function readCallSet(io) {
   return called;
 }
 
+export function readForgeCallSet(io) {
+  return readCallSet(io);
+}
+
 export function verifyAndClearForgeCallLog(io, expected) {
   const called = readCallSet(io);
   const missing = expected.filter(t => !called.has(t));

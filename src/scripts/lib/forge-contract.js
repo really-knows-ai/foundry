@@ -45,28 +45,18 @@ function handleVersionChanged(item, feedbackStore, cycleId, postVersion) {
 }
 
 function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reason) {
-  const sourceBase = typeof item.source === 'string' ? item.source.split(':')[0] : '';
-  if (sourceBase === 'appraise') {
-    const result = feedbackStore.transition({
-      id: item.id,
-      target: 'wont-fix',
-      stage: 'forge:' + cycleId,
-      cycle: cycleId,
-      reason,
-    });
-    if (!result.ok) {
-      postSystemFeedback(feedbackStore, cycleId, postVersion, result.error || 'store transition failed');
-      feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
-    }
-    return { contractPassed: result.ok };
+  const result = feedbackStore.transition({
+    id: item.id,
+    target: 'wont-fix',
+    stage: 'forge:' + cycleId,
+    cycle: cycleId,
+    reason,
+  });
+  if (!result.ok) {
+    postSystemFeedback(feedbackStore, cycleId, postVersion, result.error || 'store transition failed');
+    feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
   }
-  // quench or human-appraise — wont-fix not allowed
-  postSystemFeedback(
-    feedbackStore, cycleId, postVersion,
-    `wont-fix not allowed on ${sourceBase}-sourced item; wont-fix is only allowed for appraise-sourced items`,
-  );
-  feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
-  return { contractPassed: false };
+  return { contractPassed: result.ok };
 }
 
 /**

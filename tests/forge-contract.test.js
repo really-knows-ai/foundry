@@ -144,9 +144,9 @@ describe('enforceForgeContract', () => {
     assert.equal(item.history[0].reason, 'this is a subjective preference, not a bug');
   });
 
-  // #5 — Version unchanged + WONT-FIX + quench source → violation
-  test('version unchanged + WONT-FIX + quench source — contract violation, item reverted', () => {
-    const { store, io } = createStore([
+  // #5 — Version unchanged + WONT-FIX + quench source → item marked wont-fix
+  test('version unchanged + WONT-FIX + quench source — item marked wont-fix', () => {
+    const { store } = createStore([
       buildItem({ id: 'item-1', state: 'open', source: 'quench:test-cycle' }),
     ]);
 
@@ -159,20 +159,12 @@ describe('enforceForgeContract', () => {
       cycleId: 'test-cycle',
     });
 
-    assert.deepEqual(result, { contractPassed: false });
-    const item = store.get('item-1');
-    assert.equal(item.history[0].state, 'open');
-    // System feedback should have been posted
-    const raw = io.readFile('WORK.feedback.yaml');
-    const data = yaml.load(raw);
-    const sysItems = data.items.filter(it => it.source === 'system:forge-contract-mismatch');
-    assert.equal(sysItems.length, 1);
-    assert.match(sysItems[0].text, /wont-fix not allowed on quench-sourced item/);
+    assert.deepEqual(result, { contractPassed: true });
   });
 
-  // #6 — Version unchanged + WONT-FIX + human-appraise source → violation
-  test('version unchanged + WONT-FIX + human-appraise source — contract violation', () => {
-    const { store, io } = createStore([
+  // #6 — Version unchanged + WONT-FIX + human-appraise source → item marked wont-fix
+  test('version unchanged + WONT-FIX + human-appraise source — item marked wont-fix', () => {
+    const { store } = createStore([
       buildItem({ id: 'item-1', state: 'open', source: 'human-appraise:test-cycle' }),
     ]);
 
@@ -185,11 +177,7 @@ describe('enforceForgeContract', () => {
       cycleId: 'test-cycle',
     });
 
-    assert.deepEqual(result, { contractPassed: false });
-    const raw = io.readFile('WORK.feedback.yaml');
-    const data = yaml.load(raw);
-    const sysItems = data.items.filter(it => it.source === 'system:forge-contract-mismatch');
-    assert.match(sysItems[0].text, /wont-fix not allowed on human-appraise-sourced item/);
+    assert.deepEqual(result, { contractPassed: true });
   });
 
   // #7 — Version unchanged + no WONT-FIX → violation

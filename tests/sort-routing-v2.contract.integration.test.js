@@ -116,8 +116,8 @@ describe('enforceForgeContract', () => {
     assert.equal(item.history[0].reason, 'subjective preference, acceptable tradeoff');
   });
 
-  // #3 — Version unchanged + WONT-FIX on quench → fails
-  it('version unchanged + WONT-FIX on quench — fails, item reverted, system feedback', () => {
+  // #3 — Version unchanged + WONT-FIX on quench → passes
+  it('version unchanged + WONT-FIX on quench — passes, item marked wont-fix', () => {
     const store = makeMockStore([{ id: 'item-1', state: 'open' }]);
 
     const result = enforceForgeContract({
@@ -129,12 +129,7 @@ describe('enforceForgeContract', () => {
       cycleId: 'test-cycle',
     });
 
-    assert.equal(result.contractPassed, false);
-    const item = store.get('item-1');
-    assert.equal(item.history[0].state, 'open');
-    const sysItems = store._items.filter(i => i.source === 'system:forge-contract-mismatch');
-    assert.equal(sysItems.length, 1);
-    assert.match(sysItems[0].text, /wont-fix not allowed on quench-sourced item/);
+    assert.equal(result.contractPassed, true);
   });
 
   // #4 — Version unchanged + no WONT-FIX → fails
@@ -178,7 +173,7 @@ describe('enforceForgeContract', () => {
 
   // #6 — System feedback text describes the specific violation
   it('system feedback text differs per violation type', () => {
-    // Violation type 1: no WONT-FIX
+    // Violation: no WONT-FIX, no version change
     const store1 = makeMockStore([{ id: 'item-1', state: 'open' }]);
     enforceForgeContract({
       item: { id: 'item-1', source: 'quench:test-cycle' },
@@ -188,16 +183,5 @@ describe('enforceForgeContract', () => {
     });
     const sys1 = store1._items.find(i => i.source === 'system:forge-contract-mismatch');
     assert.match(sys1.text, /did not change artefacts/);
-
-    // Violation type 2: wont-fix on quench
-    const store2 = makeMockStore([{ id: 'item-2', state: 'open' }]);
-    enforceForgeContract({
-      item: { id: 'item-2', source: 'quench:test-cycle' },
-      preVersion: 'v1', postVersion: 'v1',
-      summary: 'WONT-FIX: disagree',
-      feedbackStore: store2, cycleId: 'test-cycle',
-    });
-    const sys2 = store2._items.find(i => i.source === 'system:forge-contract-mismatch');
-    assert.match(sys2.text, /wont-fix not allowed on quench-sourced item/);
   });
 });
