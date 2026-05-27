@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.8.1] - 2026-05-27
+
+### Fixed
+
+- Token agent binding now only blocks the main Foundry agent (`context.agent === "foundry"`) from using subagent-scoped tokens. Subagents always pass regardless of exact agent identifier format. The previous exact-match check caused legitimate forge subagents to fail with a "bad signature" error because OpenCode's internal agent identifier format differs from the token's `model` field.
+
 ## [3.8.0] - 2026-05-27
 
 ### Added
