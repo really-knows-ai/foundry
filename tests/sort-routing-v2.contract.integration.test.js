@@ -150,7 +150,7 @@ describe('enforceForgeContract', () => {
     assert.equal(item.history[0].state, 'open');
     const sysItems = store._items.filter(i => i.source === 'system:forge-contract-mismatch');
     assert.equal(sysItems.length, 1);
-    assert.match(sysItems[0].text, /did not change artefacts and did not provide WONT-FIX/);
+    assert.match(sysItems[0].text, /did not change artefacts and did not provide ACTIONED or WONT-FIX justification/);
   });
 
   // #5 — No item → passes

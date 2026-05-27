@@ -50,7 +50,6 @@ test('renderDispatchPrompt includes stage, cycle, token, cwd, file-patterns', ()
   assert.match(prompt, /File patterns \(forge only\): \["haikus\/\*\.md"\]/);
   assert.match(prompt, /foundry_stage_begin\({stage, cycle, token}\)/);
   assert.match(prompt, /foundry_stage_end\({summary}\)/);
-  assert.match(prompt, /Do NOT call foundry_history_append/);
 });
 
 test('renderDispatchPrompt omits file-patterns line for non-forge stages', () => {

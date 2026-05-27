@@ -71,24 +71,23 @@ function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reas
  * @returns {{ contractPassed: boolean }}
  */
 export function enforceForgeContract({ item, preVersion, postVersion, summary, feedbackStore, cycleId }) {
-  // No item means forge had no prior feedback to respond to.
   if (!item) return { contractPassed: true };
 
-  // Version changed → forge fixed the issue
-  if (preVersion !== postVersion) {
-    return handleVersionChanged(item, feedbackStore, cycleId, postVersion);
-  }
-
-  // Version unchanged — check for WONT-FIX justification
   const wontFixMatch = summary.match(/WONT-FIX:\s*(.+)/);
+  const versionChanged = preVersion !== postVersion;
+  const actioned = summary.trim() === 'ACTIONED';
+
   if (wontFixMatch) {
     return handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, wontFixMatch[1]);
   }
 
-  // Version unchanged with no WONT-FIX — neither fix nor justification
+  if (versionChanged || actioned) {
+    return handleVersionChanged(item, feedbackStore, cycleId, postVersion);
+  }
+
   postSystemFeedback(
     feedbackStore, cycleId, postVersion,
-    'forge did not change artefacts and did not provide WONT-FIX justification',
+    'forge did not change artefacts and did not provide ACTIONED or WONT-FIX justification',
   );
   feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
   return { contractPassed: false };

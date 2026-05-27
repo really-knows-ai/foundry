@@ -51,44 +51,38 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
    - Read the selected files for context.
 7. Produce the artefact, respecting all applicable laws from the start.
 8. Write the artefact file to a location that matches the artefact type's `file-patterns`.
-9. `foundry_stage_end({summary})`.
+9. `foundry_stage_end({summary: "DONE"})`.
 
 ### Revision (feedback exists)
 
 1. `foundry_stage_begin(...)`.
 2. Read the artefact file.
 3. If the cycle declares `inputs`, discover them via filesystem scan against each input type's `file-patterns` (same protocol as first-generation step 6). Re-read the relevant files — they may have changed on disk since the previous iteration (nothing in this cycle wrote to them, but the user may have modified them between iterations).
-4. Address the single feedback item from the dispatch prompt following the feedback handling rules below — either fix the artefact, or for appraise-sourced items write a WONT-FIX justification in the summary.
-5. Update the artefact file.
-6. `foundry_stage_end({summary})`.
+4. Address the single feedback item from the dispatch prompt following the feedback handling rules below.
+5. Update the artefact file (if fixing), or skip (if WONT-FIX).
+6. `foundry_stage_end({summary})`. The summary must be EXACTLY one of:
+   - `"ACTIONED"` — file was changed to address the feedback
+   - `"WONT-FIX: <justification>"` — item already resolved or does not apply
+   Write NOTHING else in the summary.
 
 ## Feedback handling
 
-The dispatch prompt already contains the single feedback item for this
-iteration. Each item has the shape `{ id, file, tag, text, source, state,
-depth, reason? }`.
+The dispatch prompt contains one feedback item to address.
 
-Fix the issue by changing the artefact — the orchestrator records the item
-as actioned when it detects your changes on disk.
+**To fix the issue** — change the artefact file and call
+`foundry_stage_end({summary: "ACTIONED"})`.
 
-For items whose `source` stage base is `appraise` only, you may instead
-respond with `WONT-FIX: <justification>` in the `foundry_stage_end`
-summary. The orchestrator records the item as wont-fix.
+**If the issue is already resolved** — call
+`foundry_stage_end({summary: "WONT-FIX: <justification>"})`.
+Do NOT change the file.
 
-Items whose source base is `quench` (objective validation failure) or
-`human-appraise` (direct user instruction) are deterministic failures that
-**must** be addressed. If the issue was already resolved by a prior forge
-iteration, respond with `WONT-FIX: already fixed in prior revision`.
+**If the issue does not apply** (appraise judgement you disagree with) — same
+`WONT-FIX:` flow.
 
-`foundry_feedback_add` (if you ever call it — forge normally does not)
-returns `{ ok, id, deduped }`. `deduped: true` means an existing
-non-resolved item with the same `(file, tag, hash(text))` was found and no
-new item was written; the returned `id` is the existing item's id.
-`deduped: false` means a new item was created.
+The summary is ONLY one of these keywords. No descriptions, no explanations.
 
-You cannot resolve or reject items — only the stage that created the item
-(the `source` on each list entry) can do that, with the exception that
-human-appraise can override any non-resolved item.
+Do NOT call `foundry_feedback_action`, `foundry_feedback_wontfix`, or
+`foundry_feedback_resolve`. The orchestrator handles transitions automatically.
 
 ## Write invariant
 

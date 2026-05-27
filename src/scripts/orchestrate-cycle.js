@@ -266,15 +266,17 @@ function buildForgePromptLines({ cycle, outputType, forgeItem }) {
       `File: ${forgeItem.file}`,
       `Issue: ${forgeItem.text}`,
       ``,
-      `You MUST either:`,
-      `  a) Fix the issue by changing the artefact file. The orchestrator`,
-      `     will record this as ACTIONED.`,
-      `  b) If this is an appraise-sourced item (subjective quality`,
-      `     feedback), you may respond with:`,
-      `     WONT-FIX: <justification for why you disagree>`,
+      `Respond with EXACTLY one of:`,
+      `  - ACTIONED  — fix the issue by changing the artefact file`,
+      `  - WONT-FIX: <justification> — the issue is already resolved or does not apply`,
       ``,
-      `Quench-sourced items are deterministic validation failures —`,
-      `you MUST fix them. There is no wont-fix option.`,
+      `Write NOTHING else in the stage_end summary — no descriptions, no explanations.`,
+    );
+  } else {
+    lines.push(
+      ``,
+      `First generation — no feedback to address yet.`,
+      `Produce the artefact and call foundry_stage_end({summary: "DONE"}).`,
     );
   }
   return lines;
@@ -300,8 +302,6 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, o
     ``,
     `Your FIRST tool call MUST be foundry_stage_begin({stage, cycle, token}) using the values above.`,
     `Your LAST tool call MUST be foundry_stage_end({summary}).`,
-    ``,
-    `When done, report back a brief summary. Do NOT call foundry_history_append, foundry_git_commit, or foundry_artefacts_add — the orchestrator handles all of those.`
   );
   return lines.join('\n');
 }

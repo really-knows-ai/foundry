@@ -274,10 +274,11 @@ describe('renderDispatchPrompt with forgeItem', () => {
       },
     });
 
-    assert.match(prompt, /you MUST fix them/i);
+    assert.match(prompt, /ACTIONED/);
+    assert.match(prompt, /WONT-FIX/);
   });
 
-  test('does not include WONT-FIX option alongside quench rule', () => {
+  test('includes ACTIONED and WONT-FIX options for quench-sourced items', () => {
     const prompt = renderDispatchPrompt({
       stage: 'forge:test-cycle',
       cycle: 'test-cycle',
@@ -289,9 +290,10 @@ describe('renderDispatchPrompt with forgeItem', () => {
       },
     });
 
-    // The prompt has a general WONT-FIX option section but the quench rule
-    // states there is no wont-fix option. Verify the quench override exists.
-    assert.match(prompt, /no wont-fix option/i);
+    // The prompt shows the same feedback handling for all sources:
+    // ACTIONED to fix and WONT-FIX when the issue does not apply.
+    assert.match(prompt, /ACTIONED/);
+    assert.match(prompt, /WONT-FIX/);
   });
 
   // ---------------------------------------------------------------------------
@@ -449,7 +451,6 @@ describe('existing renderDispatchPrompt behaviour preserved', () => {
     assert.match(prompt, /File patterns \(forge only\)/);
     assert.match(prompt, /foundry_stage_begin/);
     assert.match(prompt, /foundry_stage_end/);
-    assert.match(prompt, /Do NOT call foundry_history_append/);
   });
 
   test('omits file-patterns line for non-forge stages', () => {

@@ -201,7 +201,7 @@ describe('enforceForgeContract', () => {
     const raw = io.readFile('WORK.feedback.yaml');
     const data = yaml.load(raw);
     const sysItems = data.items.filter(it => it.source === 'system:forge-contract-mismatch');
-    assert.match(sysItems[0].text, /did not change artefacts and did not provide WONT-FIX/);
+    assert.match(sysItems[0].text, /did not change artefacts and did not provide ACTIONED or WONT-FIX justification/);
   });
 
   // #8 — Transition failure on store
