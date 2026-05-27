@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.7.0] - 2026-05-27
+
+### Added
+
+- Single-item forge dispatch: the forge stage dispatches one artefact at a time, producing focused, incremental edits instead of batch rewrites.
+
+- Single-item contract enforcement: forge contract checks validate per-item responses and artefact version consistency at the single-artefact level, matching the new dispatch model.
+
+### Fixed
+
+- Max-iterations cap now triggers `alwaysHumanAppraise` when the cycle exceeds its limit, and quench no longer files redundant duplicate feedback items for the same violation.
+
+- Forge dispatch review findings addressed: tightened guard logic and cleaned up stale inline comments from the initial single-item implementation.
+
+### Changed
+
+- Forge and orchestrate skill guidance aligned with the single-item dispatch model.
+
 ## [3.6.3] - 2026-05-26
 
 ### Fixed
