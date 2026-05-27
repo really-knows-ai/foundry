@@ -51,8 +51,16 @@ function verifyStageToken(token, secret, stage, cycle, agent) {
 }
 
 function checkTokenAgentBinding(payload, agent) {
-  if (!payload.model || !agent || payload.model === agent) return { payload };
-  return { error: `foundry_stage_begin: token is scoped to subagent '${payload.model}', not '${agent}'. Dispatch forge via task(), not inline.` };
+  // Token has no model scope — allow (legacy or test tokens)
+  if (!payload.model) return { payload };
+  // Unknown agent — allow (test environments, edge cases)
+  if (!agent) return { payload };
+  // Main Foundry agent cannot use subagent-scoped tokens
+  if (agent === 'foundry') {
+    return { error: `foundry_stage_begin: token is scoped to subagent '${payload.model}'. Dispatch forge via task(), not inline.` };
+  }
+  // Subagent — allow (model-specific or default foundry-forge/foundry-appraise)
+  return { payload };
 }
 
 async function executeStageBegin(args, context, pending) {
