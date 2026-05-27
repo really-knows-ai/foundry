@@ -4,8 +4,7 @@ import { existsSync, unlinkSync, writeFileSync, readFileSync } from 'fs';
 import { slugify } from '../../scripts/lib/slug.js';
 import { CONFIG_RE, DRY_RUN_RE } from '../../scripts/lib/branch-guard.js';
 import { finishWorkBranchWithArchive } from '../../scripts/lib/git-finish/work-finish.js';
-import { finishDryRun } from '../../scripts/lib/snapshot/finish.js';
-import { asyncIoFactory } from './helpers.js';
+import { checkConfigBranchFiles } from '../../scripts/lib/git-policy.js';
 
 const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];
 
@@ -233,13 +232,33 @@ export function finishBranchCommon({ branchName, branchType, base, cwd, args }) 
   const opts = { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
   const planned = computeFinishPlan({ branchName, branchType, base, args, cwd });
   if (args.confirm !== true) return makeConfirmRefusal(planned);
-  const dirty = dirtyTrackedFiles(cwd);
-  if (dirty.length) return makeDirtyRefusal(dirty);
-  if (branchType === 'work') deleteWorkFilesAndCommit(planned.filesToDelete, cwd, branchName);
+  const guardErr = runPreMergeGuards({ branchName, branchType, base, cwd, opts, planned });
+  if (guardErr) return guardErr;
   const mergeErr = squashMergeIntoBase(base, branchName, branchType, opts);
   if (mergeErr) return mergeErr;
   const { hash } = commitAndDeleteBranch(args.message, branchName, opts);
   return JSON.stringify({ ok: true, hash, branch: base });
+}
+
+function runPreMergeGuards({ branchName, branchType, base, cwd, opts, planned }) {
+  const dirty = dirtyTrackedFiles(cwd);
+  if (dirty.length) return makeDirtyRefusal(dirty);
+  if (branchType === 'work') {
+    deleteWorkFilesAndCommit(planned.filesToDelete, cwd, branchName);
+    return null;
+  }
+  if (branchType !== 'config') return null;
+  const diff = execFileSync('git', ['diff', '--name-only', `${base}..${branchName}`],
+    { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+  const result = checkConfigBranchFiles(diff);
+  if (result) {
+    return JSON.stringify({
+      ok: false,
+      error: 'Config branches may only change files inside foundry/. Outside files detected:',
+      outside: result.files,
+    });
+  }
+  return null;
 }
 
 // -- finishWorkBranch helpers --
@@ -321,34 +340,3 @@ export function finishConfigBranch({ configBranch, base, cwd, args }) {
   });
 }
 
-// -- finishDryRunBranch --
-
-export async function finishDryRunBranch({ branch, args, cwd }) {
-  const io = asyncIoFactory({ worktree: cwd });
-  const exec = (argv) => execFileSync('git', argv,
-    { cwd, encoding: 'utf8', stdio: 'pipe' });
-
-  if (args.confirm !== true) {
-    return JSON.stringify({
-      ok: false,
-      error: 'foundry_git_finish requires {confirm: true} to perform destructive operations. Re-invoke with confirm:true to apply the plan.',
-      planned: {
-        branch,
-        action: 'snapshot + discard (dry-run finish)',
-        snapshotPath: '.snapshots/<runId> (computed at apply time)',
-      },
-    });
-  }
-
-  try {
-    const out = await finishDryRun({
-      message: args.message, branch, io, execFile: exec,
-    });
-    return JSON.stringify(out);
-  } catch (err) {
-    return JSON.stringify({
-      ok: false,
-      error: `foundry_git_finish: dry-run finish failed: ${err.message ?? String(err)}`,
-    });
-  }
-}

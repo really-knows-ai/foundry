@@ -99,3 +99,21 @@ export function allowedPatternsForStage({ stageBase, forgeFilePatterns = [] } = 
   if (stageBase === 'assay') return ['foundry-memory/**'];
   return [];
 }
+
+/**
+ * Check that every file changed on a config branch lives inside foundry/ or
+ * is tool-managed. Returns null when clean, or { files: [...] } when outside
+ * files are detected.
+ *
+ * @param {string} diffOut - Raw `git diff --name-only base..branch` output
+ * @returns {null|{files: string[]}}
+ */
+export function checkConfigBranchFiles(diffOut) {
+  if (!diffOut) return null;
+  const toolManaged = new Set(TOOL_MANAGED);
+  const outside = diffOut.split('\n')
+    .map(f => f.trim())
+    .filter(f => f.length > 0 && !toolManaged.has(f) && !f.startsWith('foundry/'))
+    .filter(f => !TOOL_MANAGED_PREFIX.some(p => f.startsWith(p)));
+  return outside.length ? { files: outside } : null;
+}

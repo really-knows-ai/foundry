@@ -68,6 +68,8 @@ Walk the user through which elements of the law can be validated deterministical
 
 For each script-checkable element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Use existing project dependencies and Node.js built‑ins. Hand‑rolled heuristics (custom syllable counters, regex parsers, manual character walks) are a last resort — they produce false positives, waste tokens on debugging, and break on edge cases. Install a library instead. Only write validation logic from scratch when no npm package exists for the task and the heuristic is trivially correct.
 
+All flow artefacts — validator scripts, tests, test fixtures — live inside `foundry/`. Never place artefacts outside `foundry/`. Test fixtures colocate with the validator's test file under `foundry/artefacts/<type>/test/fixtures/`. When test fixtures match an artefact type's `file-patterns:`, they trigger false-positive quench feedback during flow runs. Keeping them inside `foundry/` prevents this.
+
 Every validator carries a companion test file alongside it (e.g. `check-line-count.test.js`). The test uses Node's built‑in test runner — `node --test check-line-count.test.js`. Follow TDD: write the test, confirm it fails against a current artefact, implement the validator, verify the test passes. The test feeds sample inputs to the validator script and asserts the correct JSONL output on stdout — it validates the JSONL contract, not just that the script runs.
 
 **Validators**: Ask about `validators` (optional) — offer to create one or skip.
@@ -278,7 +280,7 @@ import assert from 'node:assert/strict';
 describe('check-line-count', () => {
   it('passes for exactly three non-empty lines', () => {
     const result = execSync(
-      `node foundry/artefacts/haiku/check-line-count.mjs tests/fixtures/haiku-valid.md`,
+      `node foundry/artefacts/haiku/check-line-count.mjs foundry/artefacts/haiku/test/fixtures/haiku-valid.md`,
       { encoding: 'utf8' },
     );
     assert.strictEqual(result.trim(), '');
@@ -286,7 +288,7 @@ describe('check-line-count', () => {
 
   it('reports an error for fewer than three lines', () => {
     const result = execSync(
-      `node foundry/artefacts/haiku/check-line-count.mjs tests/fixtures/haiku-short.md`,
+      `node foundry/artefacts/haiku/check-line-count.mjs foundry/artefacts/haiku/test/fixtures/haiku-short.md`,
       { encoding: 'utf8' },
     );
     assert.match(result, /Expected 3 non-empty lines/);
@@ -294,7 +296,7 @@ describe('check-line-count', () => {
 
   it('reports an error for more than three lines', () => {
     const result = execSync(
-      `node foundry/artefacts/haiku/check-line-count.mjs tests/fixtures/haiku-long.md`,
+      `node foundry/artefacts/haiku/check-line-count.mjs foundry/artefacts/haiku/test/fixtures/haiku-long.md`,
       { encoding: 'utf8' },
     );
     assert.match(result, /Expected 3 non-empty lines/);
@@ -308,4 +310,5 @@ describe('check-line-count', () => {
 - You do not silently overwrite existing laws
 - You do not create artefact types unless the user's stated goal clearly requires it; ask one focused question when multiple designs are plausible
 - You do not write validators without companion tests
+- You do not place flow artefacts or test fixtures outside `foundry/`
 - You do not accept test failures — fix the validator and retry until every test passes

@@ -6,7 +6,6 @@ import {
   classifyBranch,
   finishWorkBranch,
   finishConfigBranch,
-  finishDryRunBranch,
   KIND_DRY_RUN,
   KINDS,
 } from './git-helpers.js';
@@ -14,6 +13,7 @@ import { makeIO, makeExec, asyncIoFactory } from './helpers.js';
 import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
 import { currentBranch } from '../../scripts/lib/branch-guard.js';
 import { truncateTrace } from '../../scripts/lib/tracing.js';
+import { finishDryRun } from '../../scripts/lib/snapshot/finish.js';
 
 function refuse(error) { return JSON.stringify({ error }); }
 
@@ -105,6 +105,36 @@ function refuseUnknownFinishBranch(branch) {
   return refuse(
     `foundry_git_finish: nothing to finish on '${branch || 'detached HEAD'}' ` +
     `(expected work/<x>, config/<x>, or dry-run/<x>/<y>).`);
+}
+
+async function finishDryRunBranch({ branch, args, cwd }) {
+  const io = asyncIoFactory({ worktree: cwd });
+  const exec = (argv) => execFileSync('git', argv,
+    { cwd, encoding: 'utf8', stdio: 'pipe' });
+
+  if (args.confirm !== true) {
+    return JSON.stringify({
+      ok: false,
+      error: 'foundry_git_finish requires {confirm: true} to perform destructive operations. Re-invoke with confirm:true to apply the plan.',
+      planned: {
+        branch,
+        action: 'snapshot + discard (dry-run finish)',
+        snapshotPath: '.snapshots/<runId> (computed at apply time)',
+      },
+    });
+  }
+
+  try {
+    const out = await finishDryRun({
+      message: args.message, branch, io, execFile: exec,
+    });
+    return JSON.stringify(out);
+  } catch (err) {
+    return JSON.stringify({
+      ok: false,
+      error: `foundry_git_finish: dry-run finish failed: ${err.message ?? String(err)}`,
+    });
+  }
 }
 
 function routeDryRunFinish(branch, args, cwd) {

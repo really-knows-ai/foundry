@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, existsSync, rmSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,7 +39,8 @@ test('foundry_git_finish on config/foo: squash-merges to main and deletes branch
   const dir = initRepo();
   try {
     execSync('git checkout -b config/add-rule -q', { cwd: dir, env: GIT_ENV });
-    writeFileSync(join(dir, 'rules.md'), '# rules\n');
+    mkdirSync(join(dir, 'foundry', 'laws'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'laws', 'rules.md'), '# rules\n');
     execSync('git add . && git commit -m "config: add rule" -q', { cwd: dir, env: GIT_ENV });
 
     // Preview without confirm.
@@ -62,7 +63,7 @@ test('foundry_git_finish on config/foo: squash-merges to main and deletes branch
     assert.match(log, /add rule/);
 
     // The rule file should be on main.
-    assert.equal(existsSync(join(dir, 'rules.md')), true);
+    assert.equal(existsSync(join(dir, 'foundry', 'laws', 'rules.md')), true);
   } finally {
     cleanup(dir);
   }
@@ -72,10 +73,11 @@ test('foundry_git_finish on config/foo: refuses dirty tree even with confirm', a
   const dir = initRepo();
   try {
     execSync('git checkout -b config/x -q', { cwd: dir, env: GIT_ENV });
-    writeFileSync(join(dir, 'rules.md'), '# r\n');
+    mkdirSync(join(dir, 'foundry'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'r.md'), '# r\n');
     execSync('git add . && git commit -m "config: add r" -q', { cwd: dir, env: GIT_ENV });
     // Dirty a tracked file.
-    writeFileSync(join(dir, 'rules.md'), '# r\nmore\n');
+    writeFileSync(join(dir, 'foundry', 'r.md'), '# r\nmore\n');
 
     const r = await callFinish(dir, { message: 'x', confirm: true });
     assert.equal(r.ok, false);
@@ -154,11 +156,13 @@ test('foundry_git_finish on config/foo: squash-merge conflict preserves branch',
   const dir = initRepo();
   try {
     // Create conflicting change on main.
-    writeFileSync(join(dir, 'shared.txt'), 'main version\n');
+    mkdirSync(join(dir, 'foundry'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'shared.txt'), 'main version\n');
     execSync('git add . && git commit -m main-change -q', { cwd: dir, env: GIT_ENV });
     // Branch from earlier and add a conflicting change.
     execSync('git checkout -b config/x HEAD~1 -q', { cwd: dir, env: GIT_ENV });
-    writeFileSync(join(dir, 'shared.txt'), 'config version\n');
+    mkdirSync(join(dir, 'foundry'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'shared.txt'), 'config version\n');
     execSync('git add . && git commit -m config-change -q', { cwd: dir, env: GIT_ENV });
 
     const r = await callFinish(dir, { message: 'finish config', confirm: true });
@@ -182,7 +186,8 @@ test('foundry_git_finish on config/foo: succeeds even when repo signing is broke
     execSync('git config user.signingkey 0000000000000000', { cwd: dir, env: GIT_ENV });
 
     execSync('git checkout -b config/add-rule -q', { cwd: dir, env: GIT_ENV });
-    writeFileSync(join(dir, 'rules.md'), '# rules\n');
+    mkdirSync(join(dir, 'foundry', 'laws'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'laws', 'rules.md'), '# rules\n');
     execSync('git add . && git commit -m "config: add rule" --no-gpg-sign -q',
       { cwd: dir, env: GIT_ENV });
 
