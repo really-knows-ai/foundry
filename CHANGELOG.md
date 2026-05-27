@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.7.2] - 2026-05-27
+
+### Changed
+
+- Every validator now requires a companion test file written with TDD. The `add-law` skill walks through TDD (test first, confirm failure, implement, verify pass), produces a `.test.js` file alongside each validator, and refuses to create validators without passing tests. The `foundry_config_add_law` tool description surfaces the requirement.
+
 ## [3.7.1] - 2026-05-27
 
 ### Fixed
