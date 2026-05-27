@@ -41,13 +41,18 @@ function resolveBaseSha(worktree) {
   }
 }
 
-function verifyStageToken(token, secret, stage, cycle) {
+function verifyStageToken(token, secret, stage, cycle, agent) {
   const v = verifyToken(token, secret);
   if (!v.ok) return { error: `foundry_stage_begin: token ${v.reason}` };
   if (v.payload.route !== stage || v.payload.cycle !== cycle) {
     return { error: `foundry_stage_begin: token payload mismatch (route=${v.payload.route}, cycle=${v.payload.cycle})` };
   }
-  return { payload: v.payload };
+  return checkTokenAgentBinding(v.payload, agent);
+}
+
+function checkTokenAgentBinding(payload, agent) {
+  if (!payload.model || !agent || payload.model === agent) return { payload };
+  return { error: `foundry_stage_begin: token is scoped to subagent '${payload.model}', not '${agent}'. Dispatch forge via task(), not inline.` };
 }
 
 async function executeStageBegin(args, context, pending) {
@@ -59,7 +64,7 @@ async function executeStageBegin(args, context, pending) {
     return JSON.stringify({ error: `foundry_stage_begin requires no active stage; current: ${current.stage}` });
   }
 
-  const tokenResult = verifyStageToken(args.token, secret, args.stage, args.cycle);
+  const tokenResult = verifyStageToken(args.token, secret, args.stage, args.cycle, context.agent);
   if (tokenResult.error) return JSON.stringify({ error: tokenResult.error });
 
   const baseSha = resolveBaseSha(context.worktree);

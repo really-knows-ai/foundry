@@ -194,7 +194,7 @@ function checkModel(route, frontmatter, agentsDir, io, defaultModel) {
 function mintToken({ route, model, mint, cycle, now, ulid, reason }) {
   const result = { route, ...(model ? { model } : {}), reason };
   if (mint && isDispatchableRoute(route)) {
-    const token = mint({ route, cycle, exp: now + 10 * 60 * 1000, nonce: ulid(now) });
+    const token = mint({ route, cycle, exp: now + 10 * 60 * 1000, nonce: ulid(now), model });
     if (token) result.token = token;
   }
   return result;

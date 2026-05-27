@@ -11,9 +11,9 @@ import { requireNotFailed } from '../../scripts/lib/failed-flow.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 
 function createMint(secret, pending) {
-  return ({ route, cycle, exp }) => {
+  return ({ route, cycle, exp, model }) => {
     const nonce = randomUUID();
-    const payload = { route, cycle, nonce, exp };
+    const payload = model ? { route, cycle, nonce, exp, model } : { route, cycle, nonce, exp };
     pending.add(nonce, payload);
     return signToken(payload, secret);
   };
