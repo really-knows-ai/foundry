@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.7.3] - 2026-05-27
+
+### Added
+
+- Config branch file enforcement: `foundry_git_finish` on a `config/*` branch now validates that every changed file lives inside `foundry/` or is tool-managed. Files outside `foundry/` are rejected with a clear list of offending paths. This prevents test fixtures, artefact output, or other non-config files from accidentally landing on config branches.
+
+### Changed
+
+- The `add-law` skill clarifies that all flow artefacts — validator scripts, tests, and test fixtures — must live inside `foundry/`. Test fixtures colocate under `foundry/artefacts/<type>/test/fixtures/`. The worked example and "what you do NOT do" list updated accordingly.
+
 ## [3.7.2] - 2026-05-27
 
 ### Changed
