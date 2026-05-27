@@ -1138,7 +1138,7 @@ describe('runSort', () => {
     assert.equal(result.model, 'foundry-openai-gpt-4o');
   });
 
-  it('does not fail-fast when cycle has no models map', () => {
+  it('falls back to default foundry-forge when cycle has no models map', () => {
     const workText = [
       '---',
       'cycle: c1',
@@ -1154,7 +1154,7 @@ describe('runSort', () => {
     };
     const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
     assert.equal(result.route, 'forge:write');
-    assert.equal(result.model, undefined);
+    assert.equal(result.model, 'foundry-forge');
   });
 
   it('falls back to first available model when current stage has no entry', () => {

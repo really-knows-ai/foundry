@@ -46,10 +46,13 @@ function deleteStaleAgents(agentsDir) {
     existing = [];
   }
   for (const entry of existing) {
-    if (entry.startsWith('foundry-') && entry.endsWith('.md')) {
-      unlinkSync(path.join(agentsDir, entry));
-    }
+    if (isModelledAgent(entry)) unlinkSync(path.join(agentsDir, entry));
   }
+}
+
+function isModelledAgent(entry) {
+  return entry.startsWith('foundry-') && entry.endsWith('.md')
+    && entry !== 'foundry-forge.md' && entry !== 'foundry-appraise.md';
 }
 
 function writeAgentFiles(agentsDir, models) {
@@ -57,6 +60,23 @@ function writeAgentFiles(agentsDir, models) {
     const slug = makeSlug(modelId);
     const filePath = path.join(agentsDir, `foundry-${slug}.md`);
     writeFileSync(filePath, buildAgentContent(modelId), 'utf8');
+  }
+}
+
+const DEFAULT_AGENT = `---
+description: "Default Foundry STAGE stage agent"
+mode: subagent
+hidden: true
+---
+You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
+`;
+
+function writeDefaultAgents(agentsDir) {
+  for (const stage of ['forge', 'appraise']) {
+    const filePath = path.join(agentsDir, `foundry-${stage}.md`);
+    if (!existsSync(filePath)) {
+      writeFileSync(filePath, DEFAULT_AGENT.replace('STAGE', stage), 'utf8');
+    }
   }
 }
 
@@ -110,6 +130,7 @@ export function refreshAgents(worktree) {
     mkdirSync(agentsDir, { recursive: true });
     deleteStaleAgents(agentsDir);
     writeAgentFiles(agentsDir, models);
+    writeDefaultAgents(agentsDir);
 
     return { ok: true, count: models.length };
   } catch (err) {
@@ -155,18 +176,23 @@ function resolveGuideSource(packageRoot) {
 export function writeFoundryGuideAgent(worktree, packageRoot) {
   const targetDir = path.join(worktree, '.opencode', 'agents');
   const targetPath = path.join(targetDir, 'foundry.md');
+  let written = false;
 
-  if (existsSync(targetPath)) return { ok: true, written: false };
-
-  const sourcePath = resolveGuideSource(packageRoot);
-  try {
-    const content = readFileSync(sourcePath, 'utf8');
-    mkdirSync(targetDir, { recursive: true });
-    writeFileSync(targetPath, content, 'utf8');
-    return { ok: true, written: true };
-  } catch (err) {
-    return { ok: false, error: `Failed to write guide agent: ${err.message ?? String(err)}` };
+  if (!existsSync(targetPath)) {
+    const sourcePath = resolveGuideSource(packageRoot);
+    try {
+      const content = readFileSync(sourcePath, 'utf8');
+      mkdirSync(targetDir, { recursive: true });
+      writeFileSync(targetPath, content, 'utf8');
+      written = true;
+    } catch (err) {
+      return { ok: false, error: `Failed to write guide agent: ${err.message ?? String(err)}` };
+    }
   }
+
+  writeDefaultAgents(targetDir);
+
+  return { ok: true, written };
 }
 
 function resolveSkillsSource(packageRoot) {

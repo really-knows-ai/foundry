@@ -134,6 +134,17 @@ You are a Foundry stage agent. Follow the skill instructions provided in your ta
 `;
     writeFileSync(join(agentsDir, `foundry-${slug}.md`), content, 'utf8');
 
+    // Pre-seed default stage agents
+    const defaultAgent = `---
+description: "Default Foundry forge stage agent"
+mode: subagent
+hidden: true
+---
+You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
+`;
+    writeFileSync(join(agentsDir, 'foundry-forge.md'), defaultAgent, 'utf8');
+    writeFileSync(join(agentsDir, 'foundry-appraise.md'), defaultAgent.replace('forge', 'appraise'), 'utf8');
+
     installFakeOpencode(binDir, models);
     withFakePath();
 

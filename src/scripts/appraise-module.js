@@ -127,9 +127,8 @@ function addTasksForArtefact(tasks, artefact, entry, ctx) {
  * Map an appraiser's model to a subagent type string.
  */
 function resolveSubagentType(appraiser, ctx) {
-  const name = appraiser.model || ctx.defaultModel || 'general';
-  if (name === 'general') return 'general';
-
+  const name = appraiser.model || ctx.defaultModel || 'appraise';
+  if (name === 'appraise') return 'foundry-appraise';
   return `foundry-${name.replace(/[/.]/g, '-')}`;
 }
 

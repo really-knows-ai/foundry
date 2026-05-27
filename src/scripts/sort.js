@@ -165,9 +165,15 @@ function resolveModelId(routeBase, models, defaultModel) {
 }
 
 function pickModelId(route, frontmatter, defaultModel) {
-  const models = frontmatter.models;
-  if (!models) return defaultModel || null;
-  return resolveModelId(baseStage(route), models, defaultModel) || null;
+  const routeBase = baseStage(route);
+  const resolved = frontmatter.models ? resolveModelId(routeBase, frontmatter.models, defaultModel) : null;
+  return resolved || defaultModel || defaultForStage(routeBase);
+}
+
+function defaultForStage(routeBase) {
+  if (routeBase === 'forge') return 'forge';
+  if (routeBase === 'appraise') return 'appraise';
+  return null;
 }
 
 function resolveModel(route, frontmatter, agentsDir, io, defaultModel) {
@@ -177,6 +183,7 @@ function resolveModel(route, frontmatter, agentsDir, io, defaultModel) {
   const model = `foundry-${modelId.replace(/[/.]/g, '-')}`;
   const agentPath = `${agentsDir}/${model}.md`;
   if (!io.exists(agentPath)) {
+    if (modelId === 'forge' || modelId === 'appraise') return model;
     return {
       error: `Missing required subagent: ${model}.md is not present in ${agentsDir}/. `
         + `Call foundry_refresh_agents() to regenerate agent files, then restart.`,

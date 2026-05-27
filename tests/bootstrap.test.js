@@ -131,6 +131,17 @@ You are the Foundry agent.
 `;
     writeFileSync(join(agentsDir, 'foundry.md'), guideAgentContent, 'utf8');
 
+    // Pre-seed default stage agents so bootstrap doesn't create them as changes
+    const defaultAgent = `---
+description: "Default Foundry forge stage agent"
+mode: subagent
+hidden: true
+---
+You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
+`;
+    writeFileSync(join(agentsDir, 'foundry-forge.md'), defaultAgent.replace('forge', 'forge'), 'utf8');
+    writeFileSync(join(agentsDir, 'foundry-appraise.md'), defaultAgent.replace('forge', 'appraise'), 'utf8');
+
     const plugin = await runConfigHook(dir, binDir, [modelId]);
 
     // foundry/ should NOT have been re-created (no subdirectories from bootstrap)

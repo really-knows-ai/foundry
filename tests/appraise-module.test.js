@@ -295,8 +295,8 @@ describe('gatherAppraiseContext', () => {
     assert.equal(result.tasks[0].subagent_type, 'foundry-github-copilot-claude-sonnet-4-6');
   });
 
-  // Fallback to 'general' when neither model nor defaultModel is specified
-  it('uses "general" subagent_type when no model is specified', async () => {
+  // Fallback to foundry-appraise when neither model nor defaultModel is specified
+  it('uses foundry-appraise subagent_type when no model is specified', async () => {
     mockGetCycleDefinition.mock.mockImplementation(() => ({
       frontmatter: { 'output-type': 'haiku' },
     }));
@@ -308,12 +308,11 @@ describe('gatherAppraiseContext', () => {
     ]);
     mockGetLaws.mock.mockImplementation(() => [makeLaw()]);
     const ioReadFile = mock.fn(() => 'content');
-    // No defaultModel set — module falls back to 'general'
     const ctx = createGatherCtx({ ioReadFile, defaultModel: undefined });
 
     const result = await gatherAppraiseContext(ctx);
 
-    assert.equal(result.tasks[0].subagent_type, 'general');
+    assert.equal(result.tasks[0].subagent_type, 'foundry-appraise');
   });
 
   // Artefact content is read from disk for non-deleted artefacts
