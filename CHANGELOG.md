@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.8.0] - 2026-05-27
+
+### Added
+
+- Default `foundry-forge` and `foundry-appraise` subagents: hidden, model-less stage agents created during bootstrap and preserved across model refreshes. When a cycle has no model overrides, these agents handle forge and appraise dispatch, ensuring tokens are always scoped to a known subagent type.
+
+- Stage token agent binding: `foundry_stage_begin` now verifies the calling agent matches the token's scoped subagent. The main Foundry agent cannot use tokens issued for `foundry-forge` or `foundry-opencode-*` — it must dispatch via `task()`. This enforces the subagent dispatch model at the protocol level.
+
+### Fixed
+
+- Cycle-level `models.appraise` now correctly flows into appraise dispatch as the default model when individual appraisers lack an explicit `model` field. Previously the value was read for agent-file validation but discarded before dispatch, causing all appraisers to run on the session default.
+
+- Forge and orchestrate skill guidance clarify that stage skills are subagent-only and must not be run inline. The `forge` SKILL.md opens with an explicit "This skill is subagent-only" warning.
+
 ## [3.7.3] - 2026-05-27
 
 ### Added
