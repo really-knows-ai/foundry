@@ -19,22 +19,22 @@ const mockOpenFeedbackStore = mock.fn();
 
 // Mock the required modules
 mock.module('../src/scripts/lib/state.js', {
-  exports: { readActiveStage: mockReadActiveStage },
+  namedExports: { readActiveStage: mockReadActiveStage },
 });
 mock.module('../src/scripts/lib/artefacts.js', {
-  exports: {
+  namedExports: {
     getArtefactFiles: mockGetArtefactFiles,
     computeArtefactVersion: mockComputeArtefactVersion,
   },
 });
 mock.module('../src/scripts/lib/config.js', {
-  exports: { getCycleDefinition: mockGetCycleDefinition },
+  namedExports: { getCycleDefinition: mockGetCycleDefinition },
 });
 mock.module('../src/scripts/lib/validation.js', {
-  exports: { performValidation: mockPerformValidation },
+  namedExports: { performValidation: mockPerformValidation },
 });
 mock.module('../src/scripts/lib/feedback-store.js', {
-  exports: { openFeedbackStore: mockOpenFeedbackStore },
+  namedExports: { openFeedbackStore: mockOpenFeedbackStore },
 });
 
 
