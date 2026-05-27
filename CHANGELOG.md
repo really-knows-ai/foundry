@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.8.2] - 2026-05-27
+
+### Changed
+
+- Forge subagent protocol simplified to three keywords: `DONE` (first generation), `ACTIONED` (file changed), `WONT-FIX: <justification>` (no changes needed). The `foundry_stage_end` summary must be exactly one of these — no descriptions, no explanations. The forge contract recognises `ACTIONED` even without a version change.
+
+- WONT-FIX is now allowed for all feedback source types (quench, appraise, human-appraise), not just appraise. The `WONT-FIX:` keyword in the summary transitions the item regardless of source.
+
+### Fixed
+
+- Forge subagents are blocked from calling `foundry_feedback_action`, `foundry_feedback_wontfix`, or `foundry_feedback_resolve` — `foundry_stage_end` checks the call log and posts `system:forbidden-tool-calls` feedback if any were called.
+
+- Single-item dispatch prompts clarified: the orchestrator dispatches one feedback item per forge call. The orchestrate skill instructs the LLM to pass the prompt verbatim without injecting extra items from quench output.
+
 ## [3.8.1] - 2026-05-27
 
 ### Fixed
