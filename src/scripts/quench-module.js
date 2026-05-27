@@ -18,12 +18,18 @@ import { hashText } from './lib/feedback-transitions.js';
  * Resolve stale feedback items whose artefact version does not match the
  * current on-disk version. Items from this stage's source base with a
  * mismatched artefact_version are auto-resolved as superseded.
+ *
+ * @param {object[]} items - Feedback items to check
+ * @param {string} currentVersion - Current on-disk artefact version
+ * @param {string} stageBase - Stage base name (e.g. 'quench') to filter by source
+ * @param {object} store - Feedback store instance with autoResolve method
+ * @param {string} cycle - Current cycle identifier
  */
-export async function resolveStaleFeedback(items, currentVersion, stageBase, feedback, cycle) {
+export async function resolveStaleFeedback(items, currentVersion, stageBase, store, cycle) {
   for (const item of items) {
     if (shouldSkipStaleResolve(item, currentVersion, stageBase)) continue;
     const reason = `superseded by forge revision ${currentVersion}`;
-    feedback.autoResolve({ id: item.id, reason, cycle });
+    store.autoResolve({ id: item.id, reason, cycle });
   }
 }
 
@@ -36,14 +42,17 @@ function shouldSkipStaleResolve(item, currentVersion, stageBase) {
 }
 
 /**
- * Resolve stale quench-sourced feedback. Errors propagate to the caller
- * (runQuench) which surfaces them as a failure.
+ * Resolve stale quench-sourced feedback using the given store.
+ * Errors are silently caught — stale resolution is best-effort.
+ *
+ * @param {object} ctx - Orchestration context
+ * @param {string|undefined} currentVersion - Current artefact version, or undefined
+ * @param {object} store - Feedback store instance
  */
-async function resolveStaleQuenchFeedback(ctx, outputType) {
+async function resolveStaleQuenchFeedback(ctx, currentVersion, store) {
   try {
-    const store = openFeedbackStore('WORK.feedback.yaml', ctx.io);
-    const currentVersion = await computeArtefactVersion(ctx.foundryDir, outputType, ctx.io, ctx.cwd);
-    resolveStaleFeedback(store.list(), currentVersion, 'quench', store, ctx.cycleId);
+    if (currentVersion === undefined || currentVersion === null) return;
+    await resolveStaleFeedback(store.list(), currentVersion, 'quench', store, ctx.cycleId);
   } catch {
     // Graceful degrade — stale resolution is best-effort.
     // The orchestrator handles IO failures at the cycle level.
@@ -72,7 +81,6 @@ export async function runQuench(ctx) {
 }
 
 async function runQuenchWithStale(ctx, activeStageRecord, outputType) {
-  await resolveStaleQuenchFeedback(ctx, outputType);
   const artefactVersion = await computeArtefactVersion(
     ctx.foundryDir, outputType, ctx.io, ctx.cwd,
   ).catch(() => undefined);
@@ -113,6 +121,7 @@ async function processArtefacts(ctx, artefacts, activeStageRecord, outputType, a
   const currentFeedback = [];
   let allOk = true;
   ctx.store = openFeedbackStore('WORK.feedback.yaml', ctx.io);
+  await resolveStaleQuenchFeedback(ctx, artefactVersion, ctx.store);
 
   for (const artefact of artefacts) {
     const result = await performValidation({
@@ -180,25 +189,49 @@ function isAllErrors(result) {
 }
 
 /**
+ * True when the candidate feedback item is a duplicate of an existing item
+ * that has already been addressed in the current or prior cycle iteration.
+ *
+ * actioned and wont-fix items are always treated as duplicates. resolved
+ * items are duplicates only when their artefact version matches the current
+ * version — a resolved item from a prior version should generate fresh
+ * feedback.
+ *
+ * NOTE: Uses `history[0]` as the most recent state. The feedback store
+ * must prepend new entries (not append) so that index 0 always holds the
+ * latest state. If the store implementation changes to append, this check
+ * and all consumers of `history[0]` will break.
+ */
+function isDuplicateFeedback(existing, artefactVersion) {
+  const state = existing.history[0].state;
+  if (state === 'actioned' || state === 'wont-fix') return true;
+  if (state === 'resolved' && existing.artefact_version === artefactVersion) return true;
+  return false;
+}
+
+/**
  * Post feedback items for validation results and track for resolution.
  *
- * Skips items whose file:tag:text already exists in actioned or wont-fix
- * state (from a previous forge response). This prevents the quench → forge
- * feedback accumulation loop when validators produce the same message
- * across forge revisions.
+ * Skips items whose file:tag:text already exists in actioned, wont-fix,
+ * or resolved state (with matching artefact version). This covers both
+ * the direct case (items the user has actioned or wont-fixed) and the
+ * stale-resolution case where items were advanced to resolved before
+ * validation runs. Prevents the quench → forge feedback accumulation
+ * loop when validators produce the same message across forge revisions.
  */
 function postFeedbackItems(ctx, artefact, result, currentFeedback, artefactVersion) {
   const store = ctx.store;
+  const allItems = store.list();
 
   for (const item of result.items) {
     const tag = `law:${item.lawId}:${item.validatorId}`;
     const textHash = hashText(item.text);
 
-    const existing = store.list().find(it =>
+    const existing = allItems.find(it =>
       it.file === artefact.file &&
       it.tag === tag &&
       hashText(it.text) === textHash &&
-      (it.history[0].state === 'actioned' || it.history[0].state === 'wont-fix')
+      isDuplicateFeedback(it, artefactVersion)
     );
 
     if (existing) {

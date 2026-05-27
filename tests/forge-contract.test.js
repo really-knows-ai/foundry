@@ -109,7 +109,7 @@ describe('enforceForgeContract', () => {
     ]);
 
     const result = enforceForgeContract({
-      item: { id: 'item-1', source: 'quench:test-cycle' },
+      item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v2',
       summary: 'fixed the issue',
@@ -130,7 +130,7 @@ describe('enforceForgeContract', () => {
     ]);
 
     const result = enforceForgeContract({
-      item: { id: 'item-1', source: 'appraise:test-cycle' },
+      item: { id: 'item-1', source: 'appraise' },
       preVersion: 'v1',
       postVersion: 'v1',
       summary: 'WONT-FIX: this is a subjective preference, not a bug',
@@ -151,7 +151,7 @@ describe('enforceForgeContract', () => {
     ]);
 
     const result = enforceForgeContract({
-      item: { id: 'item-1', source: 'quench:test-cycle' },
+      item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
       summary: 'WONT-FIX: nope',
@@ -177,7 +177,7 @@ describe('enforceForgeContract', () => {
     ]);
 
     const result = enforceForgeContract({
-      item: { id: 'item-1', source: 'human-appraise:test-cycle' },
+      item: { id: 'item-1', source: 'human-appraise' },
       preVersion: 'v1',
       postVersion: 'v1',
       summary: 'WONT-FIX: no',
@@ -199,7 +199,7 @@ describe('enforceForgeContract', () => {
     ]);
 
     const result = enforceForgeContract({
-      item: { id: 'item-1', source: 'quench:test-cycle' },
+      item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
       summary: 'did some work but no change',
@@ -225,7 +225,7 @@ describe('enforceForgeContract', () => {
     store.transition = () => ({ ok: false, error: 'store is locked' });
 
     const result = enforceForgeContract({
-      item: { id: 'item-1', source: 'quench:test-cycle' },
+      item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v2',
       summary: 'fixed',
@@ -246,7 +246,7 @@ describe('enforceForgeContract', () => {
     ]);
 
     enforceForgeContract({
-      item: { id: 'item-1', source: 'quench:test-cycle' },
+      item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
       summary: 'no change',
@@ -274,7 +274,7 @@ describe('enforceForgeContract', () => {
     ]);
 
     enforceForgeContract({
-      item: { id: 'target-1', source: 'quench:test-cycle' },
+      item: { id: 'target-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
       summary: 'no change',

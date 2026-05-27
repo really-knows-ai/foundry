@@ -99,8 +99,8 @@ export function openFeedbackStore(path, io) {
     autoResolve({ id, reason, cycle }) {
       return storeAutoResolve({ id, reason, cycle, items, persist, timestamp: nowIso });
     },
-    forceState(id, state, cycle) {
-      return storeForceState({ id, state, cycle, items, persist });
+    forceState(id, state, cycle, stage) {
+      return storeForceState({ id, state, cycle, items, persist, stage });
     },
     resolveSystemItems(stage, cycle) {
       resolveSystemItemsImpl({ items, stage, cycle, timestamp: nowIso, persist });
@@ -212,10 +212,10 @@ function storeTransition(params, items, deps) {
   return { ok: true };
 }
 
-function storeForceState({ id, state, cycle, items, persist }) {
+function storeForceState({ id, state, cycle, items, persist, stage }) {
   const item = items.find(x => x.id === id);
   if (!item) return { ok: false, error: `feedback item not found: ${id}` };
-  const snapshot = { state, stage: 'system:forge-contract-mismatch', cycle, timestamp: nowIso() };
+  const snapshot = { state, stage: stage || 'system:forge-contract-mismatch', cycle, timestamp: nowIso() };
   persist(applyTransition(items, id, snapshot));
   return { ok: true };
 }

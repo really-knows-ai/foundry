@@ -6,6 +6,7 @@ import {
   getArtefactType,
 } from './lib/config.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
+import { baseStage } from './lib/sort-routing.js';
 
 // ---------------------------------------------------------------------------
 // Public helpers (re-exported by orchestrate.js for tests).
@@ -229,6 +230,18 @@ export function buildDispatchMultiResponse(tasks, stage, cycle) {
 // Dispatch prompt rendering (pure utility, used by handleSortResult and exported publicly).
 // ---------------------------------------------------------------------------
 
+/**
+ * Extract the base part of a source alias string (everything before the
+ * first colon). Returns an empty string when the source is not a string.
+ * Example: 'quench:abc123' -> 'quench'
+ *
+ * Reuses the exported `baseStage` from sort-routing.js to avoid
+ * duplicating the split logic.
+ */
+function sourceBase(source) {
+  return typeof source === 'string' ? baseStage(source) : '';
+}
+
 function buildForgePromptLines({ cycle, outputType, forgeItem }) {
   const lines = [
     ``,
@@ -249,7 +262,7 @@ function buildForgePromptLines({ cycle, outputType, forgeItem }) {
       ``,
       `FEEDBACK ITEM TO ADDRESS:`,
       ``,
-      `Source: ${forgeItem.source}`,
+      `Source: ${sourceBase(forgeItem.source)}`,
       `File: ${forgeItem.file}`,
       `Issue: ${forgeItem.text}`,
       ``,

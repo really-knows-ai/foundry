@@ -71,10 +71,11 @@ test('renderDispatchPrompt includes forgeItem text when forgeItem is provided', 
     token: 'TOKEN',
     cwd: '/tmp/work',
     filePatterns: ['haikus/*.md'],
-    forgeItem: { id: 'fb1', file: 'haikus/a.md', tag: 'law:x', text: 'needs work', source: 'quench:test-cycle' },
+    forgeItem: { id: 'fb1', file: 'haikus/a.md', tag: 'law:x', text: 'needs work', source: 'quench' },
   });
   assert.match(prompt, /FEEDBACK ITEM TO ADDRESS/);
-  assert.match(prompt, /Source: quench:test-cycle/);
+  assert.match(prompt, /Source: quench\b/);
+  assert.doesNotMatch(prompt, /Source: quench:test-cycle/);
   assert.match(prompt, /File: haikus\/a\.md/);
   assert.match(prompt, /Issue: needs work/);
 });
@@ -86,7 +87,7 @@ test('renderDispatchPrompt omits feedback-tool references when forgeItem is prov
     token: 'T',
     cwd: '/tmp',
     filePatterns: ['haikus/*.md'],
-    forgeItem: { id: 'fb1', file: 'haikus/a.md', tag: 'law:x', text: 'fix it', source: 'quench:test-cycle' },
+    forgeItem: { id: 'fb1', file: 'haikus/a.md', tag: 'law:x', text: 'fix it', source: 'quench' },
   });
   assert.doesNotMatch(prompt, /foundry_feedback_list/);
   assert.doesNotMatch(prompt, /foundry_feedback_action/);
@@ -1341,7 +1342,7 @@ id: haiku
 `,
     });
     const forgeCtx = {
-      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: 'v1-old',
     };
     const fgResult = { outputType: 'haiku' };
@@ -1408,7 +1409,7 @@ id: haiku
 `,
     });
     const forgeCtx = {
-      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: EMPTY_SHA,
     };
     const fgResult = { outputType: 'haiku' };
@@ -1436,7 +1437,7 @@ id: haiku
 `,
     });
     const forgeCtx = {
-      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: EMPTY_SHA,
     };
     const fgResult = { outputType: 'haiku' };
@@ -1473,7 +1474,7 @@ id: haiku
 `,
     });
     const forgeCtx = {
-      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench:test-cycle' },
+      forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: EMPTY_SHA,
     };
     const fgResult = { outputType: 'haiku' };

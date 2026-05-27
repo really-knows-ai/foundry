@@ -78,6 +78,25 @@ function isLegacyItem(item) {
   return !item.artefact_version || !SHA256_RE.test(item.artefact_version);
 }
 
+/**
+ * Counts how many forge runs this feedback item has actually consumed
+ * by scanning its history for forge-stage entries.
+ *
+ * Only entries whose stage base is 'forge' are counted — this covers
+ * successful forge transitions (actioned/wont-fix) as well as contract
+ * failures, which are now recorded with a `forge:<cycle>` stage.
+ *
+ * History entries that lack a `stage` field are silently ignored. Such
+ * entries originate from a different tracking subsystem and do not
+ * represent forge attempts against this item.
+ */
+function countForgeAttempts(item) {
+  return item.history.filter(e => {
+    const entryStage = e.stage || '';
+    return baseStage(entryStage) === 'forge';
+  }).length;
+}
+
 function loadFeedback(io, cycle) {
   const store = openFeedbackStore('WORK.feedback.yaml', io);
   const allItems = store.list();
@@ -95,6 +114,9 @@ function loadFeedback(io, cycle) {
       depth: item.history.length,
       source: item.source,
       artefact_version: item.artefact_version,
+      /** Number of forge runs this item has already consumed. Used by the
+       *  routing decision to enforce the max-iterations cap per item (SPEC R7). */
+      forge_count: countForgeAttempts(item),
     });
   }
 

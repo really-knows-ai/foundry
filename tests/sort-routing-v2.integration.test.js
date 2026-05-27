@@ -162,7 +162,7 @@ describe('deadlock and iteration cap — R4', () => {
     { stage: 'quench:haiku-cycle', cycle: 'haiku-cycle' },
   ];
 
-  const unresolvedFeedback = [makeFeedbackWithVersion({ state: 'open' })];
+  const unresolvedFeedback = [makeFeedbackWithVersion({ state: 'open', forge_count: 3 })];
   const opts = { cycle: 'haiku-cycle' };
 
   // #14 — forgeCount >= maxIterations, unresolved, deadlockHumanAppraise: true → human-appraise
@@ -200,6 +200,171 @@ describe('deadlock and iteration cap — R4', () => {
       deadlockHumanAppraise: true,
     });
     assert.equal(result, 'human-appraise:haiku-cycle');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 17.5: Per-item max-iterations (SPEC R7 fix)
+// ---------------------------------------------------------------------------
+
+describe('per-item max-iterations — R7 fix', () => {
+  const stages = ['forge:haiku-cycle', 'quench:haiku-cycle', 'appraise:haiku-cycle', 'human-appraise:haiku-cycle'];
+  const opts = { cycle: 'haiku-cycle', deadlockHumanAppraise: true };
+
+  it('item B deadlocks after 3 own forge runs when item A consumed only 1 (not full maxIterations)', () => {
+    // History: 4 forge runs — run 1 targeted item A, runs 2-4 targeted item B
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+    ];
+
+    // Item A was actioned after 1 forge run. Item B has had 3 forge runs.
+    const feedback = [
+      makeFeedbackWithVersion({ id: 'item-a', state: 'actioned', source: 'quench:haiku-cycle', forge_count: 1 }),
+      makeFeedbackWithVersion({ id: 'item-b', state: 'open', source: 'quench:haiku-cycle', forge_count: 3 }),
+    ];
+
+    // Item B has 3 attempts (>= maxIterations=3) → should deadlock
+    const result = determineRoute(stages, history, feedback, 3, { ...opts, deadlockHumanAppraise: false });
+    assert.equal(result, 'blocked');
+  });
+
+  it('second unresolved item gets its own forge attempts after first consumed the cap', () => {
+    // History: 3 forge runs + 3 quench runs targeting item A
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+    ];
+
+    // Item A was resolved (actioned), Item B is now the only unresolved item
+    const feedback = [
+      makeFeedbackWithVersion({ id: 'item-a', state: 'actioned', source: 'quench:haiku-cycle', forge_count: 3 }),
+      makeFeedbackWithVersion({ id: 'item-b', state: 'open', source: 'quench:haiku-cycle', forge_count: 0 }),
+    ];
+
+    // Item B should still route to forge (has 0 attempts), not deadlock
+    const result = determineRoute(stages, history, feedback, 3, opts);
+    assert.equal(result, 'forge:haiku-cycle');
+  });
+
+  // -------------------------------------------------------------------------
+  // Contract-failure counting (SPEC R7: "forge has run" = any forge run)
+  // -------------------------------------------------------------------------
+
+  it('contract-failed forge runs count toward max-iterations — 1 success + 1 failure deadlocks at maxIterations=2', () => {
+    // Per SPEC R7, "forge has run" means any forge run regardless of contract
+    // outcome. Contract-failed runs consume a slot in the max-iterations budget
+    // just like successful ones. The three-consecutive-failure guard (R6) is
+    // a separate mechanism that fires on the 3rd consecutive failure.
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: false },
+      { stage: 'quench:haiku-cycle' },
+    ];
+    const feedback = [
+      makeFeedbackWithVersion({ state: 'open', forge_count: 2 }),
+    ];
+    // forge_count=2 >= maxIterations=2 → cap reached → blocked
+    const result = determineRoute(stages, history, feedback, 2, { ...opts, deadlockHumanAppraise: false });
+    assert.equal(result, 'blocked');
+  });
+
+  it('two contract-failed forge runs alone reach maxIterations=2 cap', () => {
+    // Even when every forge run fails the contract, each one is a real forge
+    // run that counts toward the per-item max-iterations cap.
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: false },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: false },
+    ];
+    const feedback = [
+      makeFeedbackWithVersion({ state: 'open', forge_count: 2 }),
+    ];
+    const result = determineRoute(stages, history, feedback, 2, { ...opts, deadlockHumanAppraise: false });
+    assert.equal(result, 'blocked');
+  });
+
+  it('contract-failed runs and success runs stack together for the cap', () => {
+    // Mixed: 1 success + 2 failures = 3 total forge runs, hitting maxIterations=3
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: false },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: false },
+    ];
+    const feedback = [
+      makeFeedbackWithVersion({ state: 'open', forge_count: 3 }),
+    ];
+    const result = determineRoute(stages, history, feedback, 3, { ...opts, deadlockHumanAppraise: false });
+    assert.equal(result, 'blocked');
+  });
+
+  // -------------------------------------------------------------------------
+  // Max forge_count across multiple unresolved items (issues 1 + 6)
+  // -------------------------------------------------------------------------
+
+  it('one item at cap blocks route even when another has remaining budget', () => {
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+    ];
+    // Two unresolved items: one at cap (3), one with remaining budget (0)
+    const feedback = [
+      makeFeedbackWithVersion({ id: 'item-a', state: 'open', forge_count: 3 }),
+      makeFeedbackWithVersion({ id: 'item-b', state: 'open', forge_count: 0 }),
+    ];
+    // Max forge_count = 3 >= maxIterations=3 → should block
+    const result = determineRoute(stages, history, feedback, 3, { ...opts, deadlockHumanAppraise: false });
+    assert.equal(result, 'blocked');
+  });
+
+  it('routes to forge when no unresolved item has reached the cap (max used)', () => {
+    const stagesShort = ['forge:haiku-cycle', 'quench:haiku-cycle', 'appraise:haiku-cycle'];
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+    ];
+    const feedback = [
+      makeFeedbackWithVersion({ id: 'item-a', state: 'open', forge_count: 1 }),
+      makeFeedbackWithVersion({ id: 'item-b', state: 'open', forge_count: 2 }),
+    ];
+    // Max forge_count = 2 < maxIterations=3 → should route to forge
+    const result = determineRoute(stagesShort, history, feedback, 3, { cycle: 'haiku-cycle' });
+    assert.equal(result, 'forge:haiku-cycle');
+  });
+
+  it('the first unresolved item is not privileged — second item with high count also blocks', () => {
+    const history = [
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+      { stage: 'forge:haiku-cycle', contract_passed: true },
+      { stage: 'quench:haiku-cycle' },
+    ];
+    // First item has low count, second has hit cap — max is used
+    const feedback = [
+      makeFeedbackWithVersion({ id: 'item-a', state: 'open', forge_count: 0 }),
+      makeFeedbackWithVersion({ id: 'item-b', state: 'open', forge_count: 3 }),
+    ];
+    const result = determineRoute(stages, history, feedback, 3, { ...opts, deadlockHumanAppraise: false });
+    assert.equal(result, 'blocked');
   });
 });
 
@@ -275,6 +440,19 @@ describe('edge cases and validation', () => {
     const feedback = [makeFeedbackWithVersion({ state: 'actioned', source: 'human-appraise:haiku-cycle' })];
     const result = determineRoute(stages, history, feedback, 3, { cycle: 'haiku-cycle' });
     // No source stage matches → forwardClean → done (end of chain)
+    assert.equal(result, 'done');
+  });
+
+  // #25 — Addressed item with missing source field does not crash
+  it('handles addressed item with no source field gracefully', () => {
+    const history = [
+      { stage: 'forge:haiku-cycle', cycle: 'haiku-cycle' },
+      { stage: 'quench:haiku-cycle', cycle: 'haiku-cycle' },
+      { stage: 'appraise:haiku-cycle', cycle: 'haiku-cycle' },
+    ];
+    const feedback = [makeFeedbackWithVersion({ state: 'actioned', source: undefined })];
+    const result = determineRoute(stages, history, feedback, 3, { cycle: 'haiku-cycle' });
+    // No source to match → forwardClean → done (end of chain)
     assert.equal(result, 'done');
   });
 });

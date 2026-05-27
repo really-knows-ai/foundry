@@ -300,7 +300,7 @@ describe('determineRoute', () => {
       { stage: 'quench:review', cycle: 'c1' },
       { stage: 'forge:write', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'open' }];
+    const feedback = [{ state: 'open', forge_count: 3 }];
     // stagesWithHuman includes human-appraise:review, so first() finds the
     // configured stage rather than falling back to human-appraise:<cycle>
     assert.equal(
@@ -317,7 +317,7 @@ describe('determineRoute', () => {
       { stage: 'quench:review', cycle: 'c1' },
       { stage: 'forge:write', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'open' }];
+    const feedback = [{ state: 'open', forge_count: 3 }];
     assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
   });
 
@@ -329,7 +329,7 @@ describe('determineRoute', () => {
       { stage: 'quench:review', cycle: 'c1' },
       { stage: 'forge:write', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'open' }];
+    const feedback = [{ state: 'open', forge_count: 3 }];
     assert.equal(
       determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true }),
       'blocked',
@@ -345,7 +345,7 @@ describe('determineRoute', () => {
       { stage: 'quench:review', cycle: 'c1' },
       { stage: 'forge:write', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'open' }];
+    const feedback = [{ state: 'open', forge_count: 3 }];
     assert.equal(
       determineRoute(noHuman, history, feedback, 3, { deadlockHumanAppraise: true, cycle: 'fallback-cycle' }),
       'blocked',
@@ -381,7 +381,7 @@ describe('determineRoute', () => {
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'open' }];
+    const feedback = [{ state: 'open', forge_count: 3 }];
     // stagesWithHuman includes human-appraise:review, so first() finds the
     // configured stage rather than falling back to human-appraise:<cycle>
     assert.equal(
@@ -399,7 +399,7 @@ describe('determineRoute', () => {
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'open' }];
+    const feedback = [{ state: 'open', forge_count: 3 }];
     assert.equal(determineRoute(stages, history, feedback, 3), 'blocked');
   });
 
@@ -412,7 +412,7 @@ describe('determineRoute', () => {
       { stage: 'forge:write', cycle: 'c1' },
       { stage: 'quench:review', cycle: 'c1' },
     ];
-    const feedback = [{ state: 'open' }];
+    const feedback = [{ state: 'open', forge_count: 3 }];
     assert.equal(
       determineRoute(stages, history, feedback, 3, { alwaysHumanAppraise: true }),
       'blocked',
@@ -1252,7 +1252,11 @@ describe('runSort', () => {
       'WORK.feedback.yaml': makeFeedbackYaml([
         {
           artefact_version: 'a'.repeat(64),
-          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }],
+          history: [
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:04:30Z' },
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:03:30Z' },
+            { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:02:00Z' },
+          ],
         },
       ]),
     });
@@ -1274,7 +1278,11 @@ describe('runSort', () => {
       'WORK.feedback.yaml': makeFeedbackYaml([
         {
           artefact_version: 'a'.repeat(64),
-          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:04:00Z' }],
+          history: [
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:04:30Z' },
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:03:30Z' },
+            { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:02:00Z' },
+          ],
         },
       ]),
     });
@@ -1297,7 +1305,11 @@ describe('runSort', () => {
       'WORK.feedback.yaml': makeFeedbackYaml([
         {
           artefact_version: 'a'.repeat(64),
-          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:05:00Z' }],
+          history: [
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:05:30Z' },
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-01-01T00:04:30Z' },
+            { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-01-01T00:02:00Z' },
+          ],
         },
       ]),
     });
@@ -1516,7 +1528,7 @@ describe('runSort routing reasons', () => {
     const res = runSort({ workPath: 'WORK.md', historyPath: 'WORK.history.yaml' }, io);
     assert.equal(res.route, 'forge:write');
     assert.match(res.reason, /unresolved feedback/);
-    assert.match(res.reason, /iteration 2 of 3/);
+    assert.match(res.reason, /iteration 1 of 3/);
   });
 
   it('includes reason for appraise dispatch', () => {
@@ -1549,11 +1561,17 @@ describe('runSort routing reasons', () => {
         { stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' },
         { stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:03:00Z' },
         { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:04:00Z' },
+        { stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:05:00Z' },
+        { stage: 'quench:review', cycle: 'c1', timestamp: '2026-05-01T10:06:00Z' },
       ]),
       'WORK.feedback.yaml': makeFeedbackYaml([
         {
           file: 'a.md', artefact_version: validSha,
-          history: [{ state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:04:00Z' }],
+          history: [
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:05:30Z' },
+            { state: 'open', stage: 'forge:write', cycle: 'c1', timestamp: '2026-05-01T10:03:30Z' },
+            { state: 'open', stage: 'appraise:check', cycle: 'c1', timestamp: '2026-05-01T10:02:00Z' },
+          ],
         },
       ]),
     });

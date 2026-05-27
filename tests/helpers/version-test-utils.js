@@ -27,6 +27,7 @@ export function makeFeedbackWithVersion(overrides = {}) {
     depth: 1,
     source: 'quench:haiku-cycle',
     artefact_version: HASH_V1,
+    forge_count: 0,
   };
   return { ...defaults, ...overrides };
 }

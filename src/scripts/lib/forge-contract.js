@@ -38,14 +38,14 @@ function handleVersionChanged(item, feedbackStore, cycleId, postVersion) {
   });
   if (!result.ok) {
     postSystemFeedback(feedbackStore, cycleId, postVersion, result.error || 'store transition failed');
-    feedbackStore.forceState(item.id, 'open', cycleId);
+    feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
     return { contractPassed: false };
   }
   return { contractPassed: true };
 }
 
 function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reason) {
-  const sourceBase = item.source.split(':')[0];
+  const sourceBase = typeof item.source === 'string' ? item.source.split(':')[0] : '';
   if (sourceBase === 'appraise') {
     const result = feedbackStore.transition({
       id: item.id,
@@ -56,7 +56,7 @@ function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reas
     });
     if (!result.ok) {
       postSystemFeedback(feedbackStore, cycleId, postVersion, result.error || 'store transition failed');
-      feedbackStore.forceState(item.id, 'open', cycleId);
+      feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
     }
     return { contractPassed: result.ok };
   }
@@ -65,7 +65,7 @@ function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reas
     feedbackStore, cycleId, postVersion,
     `wont-fix not allowed on ${sourceBase}-sourced item; wont-fix is only allowed for appraise-sourced items`,
   );
-  feedbackStore.forceState(item.id, 'open', cycleId);
+  feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
   return { contractPassed: false };
 }
 
@@ -100,6 +100,6 @@ export function enforceForgeContract({ item, preVersion, postVersion, summary, f
     feedbackStore, cycleId, postVersion,
     'forge did not change artefacts and did not provide WONT-FIX justification',
   );
-  feedbackStore.forceState(item.id, 'open', cycleId);
+  feedbackStore.forceState(item.id, 'open', cycleId, `forge:${cycleId}`);
   return { contractPassed: false };
 }

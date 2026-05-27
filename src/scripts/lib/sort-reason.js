@@ -18,15 +18,13 @@ export function reasonForRoute(route, prep) {
 
 function buildReasonData(route, prep) {
   const base = baseStage(route);
-  const forgeCount = prep.history.filter(e =>
-    baseStage(e.stage || '') === 'forge' && e.contract_passed !== false,
-  ).length;
   const maxIt = prep.defaults.maxIterations;
   const feedback = prep.feedback || [];
+  const needingForgeItems = feedback.filter(f => f.state === 'open' || f.state === 'rejected');
+  // Per-item forge count: use the maximum count across all unresolved items
+  const forgeCount = needingForgeItems.length > 0 ? Math.max(...needingForgeItems.map(i => i.forge_count || 0)) : 0;
+  const needingForge = needingForgeItems.length;
   const openCount = feedback.filter(f => f.state !== 'resolved').length;
-  const needingForge = feedback.filter(
-    f => f.state === 'open' || f.state === 'rejected',
-  ).length;
   const alwaysHumanAppraise = prep.defaults.alwaysHumanAppraise;
   const deadlockHumanAppraise = prep.defaults.deadlockHumanAppraise;
 
@@ -34,7 +32,9 @@ function buildReasonData(route, prep) {
 }
 
 function forgeReason(d) {
-  if (d.forgeCount === 0) return `starting cycle — routing to forge (iteration 1 of ${d.maxIt})`;
+  if (d.forgeCount === 0 && d.needingForge === 0) {
+    return `starting cycle — routing to forge (iteration 1 of ${d.maxIt})`;
+  }
   return `found ${d.needingForge} unresolved feedback item(s) — routing to forge for revision (iteration ${d.forgeCount + 1} of ${d.maxIt})`;
 }
 

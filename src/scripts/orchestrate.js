@@ -145,13 +145,16 @@ async function captureForgeContext(sortResult, args, preCheck, io) {
   });
   if (!io.exists('.foundry')) io.mkdir('.foundry');
   const forgeItem = unresolvedItems.length > 0
-    ? {
+    ? ({
       id: unresolvedItems[0].id,
       file: unresolvedItems[0].file,
       tag: unresolvedItems[0].tag,
       text: unresolvedItems[0].text,
-      source: unresolvedItems[0].source,
-    }
+      source: (typeof unresolvedItems[0].source === 'string'
+        ? unresolvedItems[0].source.split(':')[0]
+        : unresolvedItems[0].source),
+      sourceAlias: unresolvedItems[0].source,
+    })
     : null;
   const ctx = { forgePreVersion: preVersion, forgeItem };
   io.writeFile(FORGE_CTX, JSON.stringify(ctx));

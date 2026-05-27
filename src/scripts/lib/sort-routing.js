@@ -103,18 +103,28 @@ function validateRoute(maxIterations, stages, history) {
 
 /**
  * Extracts routing state from history and feedback: the last non-sort
- * stage entry (full alias), its base stage name, forge iteration count,
- * and categorised feedback items.
+ * stage entry (full alias), its base stage name, forge iteration count
+ * per the first unresolved item, and categorised feedback items.
+ *
+ * The forge count tracks attempts against the current (first) unresolved
+ * item only. Each feedback item carries its own `forge_count` (set by
+ * `loadFeedback` in sort.js) that records how many forge runs it has
+ * actually consumed. This satisfies SPEC R7: each item gets at most
+ * `max-iterations` attempts before the cycle deadlocks.
  */
 function computeRoutingState(history, feedback) {
   const nonSort = history.filter(e => baseStage(e.stage || '') !== 'sort');
   const lastEntry = nonSort.length > 0 ? nonSort[nonSort.length - 1].stage : null;
   const lastStage = lastEntry !== null ? baseStage(lastEntry) : null;
-  const forgeCount = history.filter(e =>
-    baseStage(e.stage || '') === 'forge' && e.contract_passed !== false,
-  ).length;
   const unresolvedItems = feedback.filter(f => f.state === 'open' || f.state === 'rejected');
   const addressedItems = feedback.filter(f => f.state === 'actioned' || f.state === 'wont-fix');
+  // Per-item forge count: use the maximum forge_count across all unresolved
+  // items. This ensures that if any item has exhausted its iteration budget,
+  // the route blocks — no single item with remaining budget can mask an
+  // item that has hit the cap.
+  const forgeCount = unresolvedItems.length > 0
+    ? Math.max(...unresolvedItems.map(i => i.forge_count || 0))
+    : 0;
   return { lastEntry, lastStage, forgeCount, unresolvedItems, addressedItems };
 }
 
@@ -146,7 +156,7 @@ function checkIterationAndRoute(firstFn, stages, forgeCount, maxIterations, opts
  * fall through to forwardClean.
  */
 function routeAddressedItems(addressedItems, stages, opts) {
-  const sourceBases = [...new Set(addressedItems.map(i => baseStage(i.source)))];
+  const sourceBases = [...new Set(addressedItems.map(i => baseStage(i.source || '')))];
   const chain = ['quench', 'appraise', 'human-appraise'];
   for (const base of chain) {
     if (sourceBases.includes(base) && hasStage(stages, base)) {

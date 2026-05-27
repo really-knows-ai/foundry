@@ -153,6 +153,12 @@ function emptyDispatch(cycleId) {
  * Resolve stale feedback items whose artefact version does not match the
  * current on-disk version. Items from this stage's source base with a
  * mismatched artefact_version are auto-resolved as superseded.
+ *
+ * @param {object[]} items - Feedback items to check
+ * @param {string} currentVersion - Current on-disk artefact version
+ * @param {string} stageBase - Stage base name (e.g. 'appraise') to filter by source
+ * @param {object} feedback - Feedback store instance with autoResolve method
+ * @param {string} cycle - Current cycle identifier
  */
 export function resolveStaleFeedback(items, currentVersion, stageBase, feedback, cycle) {
   for (const item of items) {

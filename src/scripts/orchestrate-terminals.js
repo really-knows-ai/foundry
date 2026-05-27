@@ -68,7 +68,7 @@ async function resolveStaleHumanAppraiseFeedback(cfm, fd, io, cycleId, cwd) {
 
 function shouldSkipHumanAppraiseResolve(item, currentVersion) {
   if (item.history[0].state === 'resolved') return true;
-  if (baseStage(item.source) !== 'human-appraise') return true;
+  if (typeof item.source !== 'string' || baseStage(item.source) !== 'human-appraise') return true;
   if (item.artefact_version === currentVersion) return true;
   return false;
 }

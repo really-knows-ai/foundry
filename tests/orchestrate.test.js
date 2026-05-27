@@ -111,7 +111,8 @@ describe('captureForgeContext', () => {
     assert.equal(ctx.forgeItem.file, 'test.md');
     assert.equal(ctx.forgeItem.tag, 'law:test');
     assert.equal(ctx.forgeItem.text, 'test feedback');
-    assert.equal(ctx.forgeItem.source, 'quench:test-cycle');
+    assert.equal(ctx.forgeItem.source, 'quench');
+    assert.equal(ctx.forgeItem.sourceAlias, 'quench:test-cycle');
 
     // Must have forgePreVersion (string)
     assert.equal(typeof ctx.forgePreVersion, 'string');
@@ -205,13 +206,35 @@ describe('renderDispatchPrompt with forgeItem', () => {
         file: 'src/test.md',
         tag: 'law:quality',
         text: 'This code needs improvement',
-        source: 'quench:test-cycle',
+        source: 'quench',
       },
     });
 
     assert.match(prompt, /This code needs improvement/);
     assert.match(prompt, /src\/test\.md/);
-    assert.match(prompt, /quench:test-cycle/);
+    assert.match(prompt, /Source: quench\b/);
+    assert.doesNotMatch(prompt, /Source: quench:test-cycle/);
+  });
+
+  test('renders source base (not full alias) in Source: line', () => {
+    const prompt = renderDispatchPrompt({
+      stage: 'forge:test-cycle',
+      cycle: 'test-cycle',
+      token: 'TOKEN',
+      cwd: '/tmp/work',
+      outputType: 'test-type',
+      forgeItem: {
+        id: 'item-1',
+        file: 'src/test.md',
+        tag: 'law:quality',
+        text: 'This code needs improvement',
+        source: 'quench',
+      },
+    });
+
+    // Should show the base "quench", not the full alias "quench:test-cycle"
+    assert.match(prompt, /Source: quench\b/);
+    assert.doesNotMatch(prompt, /Source: quench:test-cycle/);
   });
 
   // ---------------------------------------------------------------------------
@@ -226,7 +249,7 @@ describe('renderDispatchPrompt with forgeItem', () => {
       cwd: '/tmp/work',
       outputType: 'test-type',
       forgeItem: {
-        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it', source: 'quench:c',
+        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it', source: 'quench',
       },
     });
 
@@ -247,7 +270,7 @@ describe('renderDispatchPrompt with forgeItem', () => {
       cwd: '/tmp/work',
       outputType: 'test-type',
       forgeItem: {
-        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it', source: 'quench:test-cycle',
+        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it', source: 'quench',
       },
     });
 
@@ -262,13 +285,63 @@ describe('renderDispatchPrompt with forgeItem', () => {
       cwd: '/tmp/work',
       outputType: 'test-type',
       forgeItem: {
-        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it', source: 'quench:test-cycle',
+        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it', source: 'quench',
       },
     });
 
     // The prompt has a general WONT-FIX option section but the quench rule
     // states there is no wont-fix option. Verify the quench override exists.
     assert.match(prompt, /no wont-fix option/i);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 6b: null/undefined source is handled gracefully (Issue 2 guard)
+  // ---------------------------------------------------------------------------
+
+  test('renders empty source for null forgeItem.source', () => {
+    const prompt = renderDispatchPrompt({
+      stage: 'forge:test-cycle',
+      cycle: 'test-cycle',
+      token: 'TOKEN',
+      cwd: '/tmp/work',
+      outputType: 'test-type',
+      forgeItem: {
+        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it', source: null,
+      },
+    });
+
+    assert.match(prompt, /Source: /);
+    assert.doesNotMatch(prompt, /Source: null/);
+  });
+
+  test('renders empty source for undefined forgeItem.source', () => {
+    const prompt = renderDispatchPrompt({
+      stage: 'forge:test-cycle',
+      cycle: 'test-cycle',
+      token: 'TOKEN',
+      cwd: '/tmp/work',
+      outputType: 'test-type',
+      forgeItem: {
+        id: 'item-1', file: 'a.md', tag: 't', text: 'fix it',
+      },
+    });
+
+    assert.match(prompt, /Source: /);
+    assert.doesNotMatch(prompt, /Source: undefined/);
+  });
+
+  test('handles forgeItem being null without crashing', () => {
+    const prompt = renderDispatchPrompt({
+      stage: 'forge:test-cycle',
+      cycle: 'test-cycle',
+      token: 'TOKEN',
+      cwd: '/tmp/work',
+      outputType: 'test-type',
+      forgeItem: null,
+    });
+
+    assert.ok(prompt);
+    assert.doesNotMatch(prompt, /FEEDBACK ITEM TO ADDRESS/);
   });
 });
 
@@ -300,7 +373,7 @@ file-patterns: []
 `,
       '.foundry/forge-context.json': JSON.stringify({
         forgePreVersion: 'abc123',
-        forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'resolve this issue', source: 'quench:test-cycle' },
+        forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'resolve this issue', source: 'quench', sourceAlias: 'quench:test-cycle' },
       }),
       '.opencode/agents/foundry-openai-gpt-4o.md': '# agent',
     });

@@ -17,28 +17,26 @@ const mockPerformValidation = mock.fn();
 const mockComputeArtefactVersion = mock.fn();
 const mockOpenFeedbackStore = mock.fn();
 
+// Mock the required modules
 mock.module('../src/scripts/lib/state.js', {
-  namedExports: { readActiveStage: mockReadActiveStage },
+  exports: { readActiveStage: mockReadActiveStage },
 });
-
 mock.module('../src/scripts/lib/artefacts.js', {
-  namedExports: {
+  exports: {
     getArtefactFiles: mockGetArtefactFiles,
     computeArtefactVersion: mockComputeArtefactVersion,
   },
 });
-
 mock.module('../src/scripts/lib/config.js', {
-  namedExports: { getCycleDefinition: mockGetCycleDefinition },
+  exports: { getCycleDefinition: mockGetCycleDefinition },
 });
-
 mock.module('../src/scripts/lib/validation.js', {
-  namedExports: { performValidation: mockPerformValidation },
+  exports: { performValidation: mockPerformValidation },
+});
+mock.module('../src/scripts/lib/feedback-store.js', {
+  exports: { openFeedbackStore: mockOpenFeedbackStore },
 });
 
-mock.module('../src/scripts/lib/feedback-store.js', {
-  namedExports: { openFeedbackStore: mockOpenFeedbackStore },
-});
 
 // Module under test — loaded dynamically after mocks are in place
 let runQuench;
@@ -442,8 +440,150 @@ describe('runQuench — finalisation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// R8 dedup: postFeedbackItems must still deduplicate after stale resolution
+// ---------------------------------------------------------------------------
+
+describe('runQuench — dedup after stale resolution', () => {
+  it('creates fresh feedback when prior actioned item was resolved for older version', async () => {
+    mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'haiku.md', state: 'new' },
+    ]);
+    mockPerformValidation.mock.mockImplementation(() =>
+      makeValidationResult({
+        ok: true,
+        validatorsRun: 1,
+        items: [
+          { lawId: 'form', validatorId: 'v1', file: 'haiku.md', text: 'needs revision' },
+        ],
+      })
+    );
+
+    // Current artefact version differs from the stored item's version.
+    mockComputeArtefactVersion.mock.mockImplementation(() => Promise.resolve('v2'));
+
+    // A single actioned item from the previous artefact version.
+    // The stale handler will advance it to resolved before postFeedbackItems runs.
+    const storedItems = [
+      {
+        id: 'stale-actioned',
+        source: 'quench:test-cycle',
+        file: 'haiku.md',
+        tag: 'law:form:v1',
+        text: 'needs revision',
+        artefact_version: 'v1',
+        history: [{ state: 'actioned' }],
+      },
+    ];
+
+    mockOpenFeedbackStore.mock.mockImplementation(() => ({
+      list: () => storedItems,
+      autoResolve: ({ id }) => {
+        const item = storedItems.find(i => i.id === id);
+        if (item) item.history[0].state = 'resolved';
+      },
+    }));
+
+    const feedbackAdd = mock.fn();
+    const finalize = mock.fn();
+    const ctx = createMockCtx({ feedbackAdd, finalize });
+
+    const result = await runQuench(ctx);
+
+    // Confirm stale resolution actually ran against the actioned item
+    assert.equal(storedItems[0].history[0].state, 'resolved');
+
+    // The resolved item from v1 should NOT suppress the same issue in v2.
+    // A fresh feedback entry is created for the new artefact version.
+    assert.equal(result.ok, true);
+    assert.equal(feedbackAdd.mock.calls.length, 1);
+    assert.equal(feedbackAdd.mock.calls[0].arguments[0].artefact_version, 'v2');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // resolveStaleFeedback — stale feedback detection (Phase 4)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// R8 dedup: postFeedbackItems must deduplicate when stale resolution and
+// dedup check use separate store instances with independent caches.
+// The real openFeedbackStore reads from disk once at construction and
+// list() never re-reads, so changes made by one instance are invisible
+// to another that was instantiated before those changes were persisted.
+// ---------------------------------------------------------------------------
+
+describe('runQuench — dedup with separate store instances', () => {
+  it('creates fresh feedback when stale-resolved item has older artefact version', async () => {
+    mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'haiku.md', state: 'new' },
+    ]);
+    mockPerformValidation.mock.mockImplementation(() =>
+      makeValidationResult({
+        ok: true,
+        validatorsRun: 1,
+        items: [
+          { lawId: 'form', validatorId: 'v1', file: 'haiku.md', text: 'needs revision' },
+        ],
+      })
+    );
+    mockComputeArtefactVersion.mock.mockImplementation(() => Promise.resolve('v2'));
+
+    // An item that is 'open' from a prior artefact version.
+    // Stale resolution converts it to 'resolved' before postFeedbackItems runs.
+    const diskItems = [
+      {
+        id: 'stale-open-item',
+        source: 'quench:test-cycle',
+        file: 'haiku.md',
+        tag: 'law:form:v1',
+        text: 'needs revision',
+        artefact_version: 'v1',
+        history: [{ state: 'open' }],
+      },
+    ];
+
+    // Simulate the real openFeedbackStore behaviour: each call creates an
+    // independent cache loaded from the "disk" state at construction time.
+    // autoResolve mutates only the caller's cache and writes to disk.
+    let callIndex = 0;
+    mockOpenFeedbackStore.mock.mockImplementation(() => {
+      callIndex++;
+      const cache = JSON.parse(JSON.stringify(diskItems));
+      return {
+        list: () => JSON.parse(JSON.stringify(cache)),
+        autoResolve: ({ id, reason, cycle }) => {
+          const item = cache.find(i => i.id === id);
+          if (item) {
+            item.history.unshift({ state: 'resolved', stage: 'system', cycle, reason, timestamp: new Date().toISOString() });
+          }
+        },
+      };
+    });
+
+    const feedbackAdd = mock.fn();
+    const finalize = mock.fn();
+    const ctx = createMockCtx({ feedbackAdd, finalize });
+
+    const result = await runQuench(ctx);
+
+    assert.equal(result.ok, true);
+
+    // A resolved item from an older artefact version does NOT suppress the
+    // same validation issue in the current version. The artefact has changed
+    // (v1 → v2), so the issue is treated as a new occurrence and a fresh
+    // feedback entry is created.
+    assert.equal(feedbackAdd.mock.calls.length, 1, 'should create fresh feedback for new version');
+    assert.equal(feedbackAdd.mock.calls[0].arguments[0].artefact_version, 'v2');
+  });
+});
 
 describe('resolveStaleFeedback (quench)', () => {
   function makeItem(overrides = {}) {
@@ -494,5 +634,61 @@ describe('resolveStaleFeedback (quench)', () => {
     const feedback = { autoResolve: mock.fn() };
     resolveStaleFeedback(items, 'v2', 'quench', feedback, 'my-cycle');
     assert.equal(feedback.autoResolve.mock.calls[0].arguments[0].cycle, 'my-cycle');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge case: computeArtefactVersion fails → artefactVersion is undefined
+// No stale resolution should happen when version cannot be determined.
+// ---------------------------------------------------------------------------
+
+describe('runQuench — undefined artefactVersion (computeArtefactVersion fails)', () => {
+  it('does not auto-resolve any items when artefactVersion is undefined', async () => {
+    mockReadActiveStage.mock.mockImplementation(() => ({ stage: {}, baseSha: BASE_SHA }));
+    mockGetCycleDefinition.mock.mockImplementation(() => ({
+      frontmatter: { 'output-type': 'haiku' },
+    }));
+    mockGetArtefactFiles.mock.mockImplementation(() => [
+      { file: 'haiku.md', state: 'new' },
+    ]);
+    mockPerformValidation.mock.mockImplementation(() =>
+      makeValidationResult({
+        ok: true,
+        validatorsRun: 1,
+        items: [
+          { lawId: 'form', validatorId: 'v1', file: 'haiku.md', text: 'needs revision' },
+        ],
+      })
+    );
+
+    // computeArtefactVersion rejects → artefactVersion becomes undefined
+    mockComputeArtefactVersion.mock.mockImplementation(() => Promise.reject(new Error('version check failed')));
+
+    const autoResolve = mock.fn();
+    const storedItems = [
+      {
+        id: 'item-v1',
+        source: 'quench:test-cycle',
+        file: 'haiku.md',
+        tag: 'law:form:v1',
+        text: 'needs revision',
+        artefact_version: 'v1',
+        history: [{ state: 'open' }],
+      },
+    ];
+
+    mockOpenFeedbackStore.mock.mockImplementation(() => ({
+      list: () => storedItems,
+      autoResolve,
+    }));
+
+    const feedbackAdd = mock.fn();
+    const finalize = mock.fn();
+    const ctx = createMockCtx({ feedbackAdd, finalize });
+
+    await runQuench(ctx);
+
+    // No items should be auto-resolved when version can't be determined
+    assert.equal(autoResolve.mock.calls.length, 0);
   });
 });
