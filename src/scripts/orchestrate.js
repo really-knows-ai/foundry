@@ -10,6 +10,7 @@ import { ulid as defaultUlid } from './lib/ulid.js';
 import { computeArtefactVersion } from './lib/artefacts.js';
 import { enforceForgeContract } from './lib/forge-contract.js';
 import { loadHistory } from './lib/history.js';
+import { getCycleDefinition } from './lib/config.js';
 import {
   readCycleTargets,
   readForgeFilePatterns,
@@ -109,13 +110,21 @@ function buildQuenchContext(cycleId, args, io) {
     feedback: buildFeedback(cycleId, stageId, io) };
 }
 
-function buildAppraiseCtx(cycleId, args, io) {
+async function buildAppraiseCtx(cycleId, args, io) {
   const stageId = `appraise:${cycleId}`;
+  const defaultModel = args.defaultModel ?? await readAppraiseModel(cycleId, io);
   return { cycleId, io, git: args.git, finalize: buildFinalizeWrapper(cycleId, args, io),
-    foundryDir: 'foundry', defaultModel: args.defaultModel,
+    foundryDir: 'foundry', defaultModel,
     baseBranch: args.baseBranch ?? 'main', cwd: args.cwd ?? process.cwd(),
     activeStage: readActiveStage(io), lastStage: readLastStage(io),
     feedback: buildFeedback(cycleId, stageId, io) };
+}
+
+async function readAppraiseModel(cycleId, io) {
+  try {
+    const cd = await getCycleDefinition('foundry', cycleId, io);
+    return cd.frontmatter?.models?.appraise;
+  } catch { return undefined; }
 }
 
 function resolveBaseSha(io) {
@@ -222,13 +231,13 @@ async function dispatchAppraiseOrConsolidate(sortResult, preCheck, args, io, res
 
 async function handleAppraiseGatherRoute(sortResult, preCheck, args, io) {
   writeStageRecord(io, preCheck.cycleId, sortResult.route);
-  const result = await gatherAppraiseContext(buildAppraiseCtx(preCheck.cycleId, args, io));
+  const result = await gatherAppraiseContext(await buildAppraiseCtx(preCheck.cycleId, args, io));
   if (result.action === 'violation') { clearActiveStage(io); return result; }
   return dispatchAppraiseOrConsolidate(sortResult, preCheck, args, io, result);
 }
 
 async function handleAppraiseConsolidateRoute(sortResult, preCheck, args, io) {
-  const ctx = buildAppraiseCtx(preCheck.cycleId, args, io);
+  const ctx = await buildAppraiseCtx(preCheck.cycleId, args, io);
   const result = await consolidateAppraise(ctx, args.lastResults);
   if (result.action === 'violation') {
     clearActiveStage(io);
