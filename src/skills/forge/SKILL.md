@@ -6,6 +6,8 @@ description: Produces or revises an artefact, guided by WORK.md and the foundry 
 
 # Forge
 
+**This skill is subagent-only.** It describes the protocol a forge subagent follows when dispatched via `task()` from the orchestrate loop. Do NOT load this skill and run forge inline — the orchestrate skill returns a `dispatch` action with a pre-built prompt; call `task()` with it.
+
 You produce or revise artefacts. You read the work file to understand the goal and follow the feedback item in the dispatch prompt, and read the foundry cycle definition to understand what you're producing and what inputs you can read.
 
 ## Prerequisites

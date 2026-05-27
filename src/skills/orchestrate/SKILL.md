@@ -37,7 +37,13 @@ Loop until `foundry_orchestrate` returns a terminal action (`done`, `blocked`, o
 
 Payload: `{stage, subagent_type, prompt}`.
 
-Call the `task` tool:
+Call the `task` tool. Do NOT load the forge, quench, or appraise skills yourself — the subagent will use them internally:
+
+```
+task tool:
+  subagent_type: <subagent_type-from-payload>
+  description: "Run <stage> for <cycle>"
+  prompt: <prompt-from-payload — pass verbatim>
 ```
 task tool:
   subagent_type: <subagent_type-from-payload>
@@ -51,7 +57,7 @@ When the task returns, call `foundry_orchestrate({lastResult: {ok: true}})`. If 
 
 Payload: `{stage, cycle, tasks}`.
 
-Fire all tasks in parallel by making multiple `task` tool calls in a single response:
+Fire all tasks in parallel by making multiple `task` tool calls in a single response. Do NOT load stage skills yourself:
 
 ```
 task tool:
