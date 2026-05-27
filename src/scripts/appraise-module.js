@@ -197,11 +197,16 @@ export async function consolidateAppraise(ctx, lastResults) {
 
   const summary = buildConsolidateSummary(consolidated.length);
 
-  await ctx.finalize({
+  return finalizeAndReturn(ctx, stageId, summary, baseSha);
+}
+
+async function finalizeAndReturn(ctx, stageId, summary, baseSha) {
+  const result = await ctx.finalize({
     lastStage: { stage: stageId, summary, baseSha },
     activeStage: ctx.activeStage,
   });
 
+  if (result && result.action === 'violation') return result;
   return { ok: true, summary };
 }
 

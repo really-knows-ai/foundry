@@ -75,13 +75,13 @@ function isTerminalRoute(route) {
 export async function handleSortResult(sortResult, ctx) {
   const { route, model, token, reason } = sortResult;
   const routeBase = routeDispatch(route);
-  const result = await resolveRouteResult({ route, routeBase, model, token, ctx });
+  const result = await resolveRouteResult({ route, routeBase, model, token, ctx, sortResult });
   if (reason !== undefined) result.reason = reason;
   return result;
 }
 
-async function resolveRouteResult({ route, routeBase, model, token, ctx }) {
-  if (isTerminalRoute(route)) return handleTerminalRoute(route, { route }, ctx);
+async function resolveRouteResult({ route, routeBase, model, token, ctx, sortResult }) {
+  if (isTerminalRoute(route)) return handleTerminalRoute(route, sortResult, ctx);
   if (routeBase === 'quench' || routeBase === 'appraise') return violation(routeBase + ' route reached handleSortResult');
   if (routeBase === 'human-appraise') return humanAppraiseAction(route, token, ctx);
   return buildDispatchAction(route, model, token, ctx);
