@@ -166,6 +166,7 @@ function resolveModelId(routeBase, models, defaultModel) {
 
 function pickModelId(route, frontmatter, defaultModel) {
   const routeBase = baseStage(route);
+  if (routeBase === 'human-appraise') return null;
   const resolved = frontmatter.models ? resolveModelId(routeBase, frontmatter.models, defaultModel) : null;
   return resolved || defaultModel || defaultForStage(routeBase);
 }
