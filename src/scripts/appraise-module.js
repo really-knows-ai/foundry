@@ -2,28 +2,33 @@
  * Appraise module — gathers context for parallel appraiser dispatch and
  * consolidates results after all appraisers have run.
  *
- * Gather phase: reads artefacts, laws, and appraiser personalities, builds
- * subagent prompts, and returns a dispatch_multi action so the orchestrator's
- * LLM dispatches appraisers in parallel.
+ * Gather phase: reads artefacts, selects appraisers, builds subagent prompts
+ * with only personality + type ID (no artefact content or laws inlined), and
+ * returns a dispatch_multi action so the orchestrator's LLM dispatches
+ * appraisers in parallel.
  *
- * Consolidate phase: receives lastResults from the orchestrator, unions and
- * de-duplicates appraiser issues, posts feedback, and finalises the stage
- * so the orchestrator can re-sort and determine the next action.
+ * Each appraiser subagent discovers artefacts, laws, and file-patterns via
+ * tool calls and returns JSONL — one JSON object per line.
+ *
+ * Consolidate phase: receives lastResults from the orchestrator, parses JSONL
+ * from each appraiser, unions and de-duplicates issues, posts feedback, and
+ * finalises the stage so the orchestrator can re-sort and determine the next
+ * action.
  */
 
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
-import { selectAppraisers, getLaws, getCycleDefinition } from './lib/config.js';
+import { selectAppraisers, getCycleDefinition } from './lib/config.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
-import yaml from 'js-yaml';
 
 // ---------------------------------------------------------------------------
 // Public API — gather
 // ---------------------------------------------------------------------------
 
 /**
- * Gather appraise context: read draft artefacts, select appraisers, read laws
- * and artefact content, then build a dispatch_multi action with one task per
- * (artefact, appraiser) pair.
+ * Gather appraise context: read draft artefacts, select appraisers, build a
+ * dispatch_multi action with one task per appraiser. The subagent prompt
+ * contains only the appraiser personality and artefact type ID — the subagent
+ * discovers artefact files, laws, and file-patterns via tool calls.
  *
  * @param {object} ctx
  * @param {string} ctx.cycleId
@@ -36,25 +41,47 @@ import yaml from 'js-yaml';
  * @returns {Promise<{action: string, tasks: Array, stage: string, cycle: string}>}
  */
 export async function gatherAppraiseContext(ctx) {
-  if (!ctx.cycleId) {
-    return violation('cycleId is required', []);
-  }
+  const guarded = guardAppraiseGather(ctx);
+  if (guarded) return guarded;
 
   await resolveStaleAppraiseFeedback(ctx);
 
   const cd = await getCycleDefinition(ctx.foundryDir, ctx.cycleId, ctx.io);
-  const outputType = cd.frontmatter['output-type'];
-  if (!outputType) {
-    return violation(`cycle ${ctx.cycleId} missing output-type field`, []);
-  }
-  const baseBranch = ctx.baseBranch || 'main';
-  const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch });
-  if (artefacts.length === 0) {
+  const outputType = validateOutputType(cd, ctx.cycleId);
+  if (typeof outputType !== 'string') return outputType;
+
+  const artefacts = await fetchAppraiseArtefacts(ctx, outputType);
+  if (!Array.isArray(artefacts)) return artefacts;
+
+  const appraisers = await selectAppraisers(ctx.foundryDir, outputType, { io: ctx.io });
+  if (appraisers.length === 0) {
     return emptyDispatch(ctx.cycleId);
   }
 
-  const typedArtefacts = artefacts.map(artefact => ({ ...artefact, type: outputType }));
-  const tasks = await collectTasks(typedArtefacts, ctx);
+  return buildGatherResponse(appraisers, outputType, ctx);
+}
+
+function guardAppraiseGather(ctx) {
+  return ctx.cycleId ? null : violation('cycleId is required', []);
+}
+
+function validateOutputType(cd, cycleId) {
+  const outputType = cd.frontmatter['output-type'];
+  return outputType ?? violation(`cycle ${cycleId} missing output-type field`, []);
+}
+
+async function fetchAppraiseArtefacts(ctx, outputType) {
+  const baseBranch = ctx.baseBranch || 'main';
+  const artefacts = await getArtefactFiles(ctx.foundryDir, outputType, ctx.io, { baseBranch });
+  if (artefacts.length === 0) return emptyDispatch(ctx.cycleId);
+  return artefacts;
+}
+
+function buildGatherResponse(appraisers, outputType, ctx) {
+  const tasks = appraisers.map(appraiser => ({
+    subagent_type: resolveSubagentType(appraiser, ctx),
+    prompt: buildAppraiserPrompt({ appraiser, typeId: outputType }),
+  }));
 
   return {
     action: 'dispatch_multi',
@@ -62,65 +89,6 @@ export async function gatherAppraiseContext(ctx) {
     stage: `appraise:${ctx.cycleId}`,
     cycle: ctx.cycleId,
   };
-}
-
-/**
- * Build all appraiser tasks across artefacts, caching per type.
- */
-async function collectTasks(artefacts, ctx) {
-  const tasks = [];
-  const typeCache = new Map();
-
-  for (const artefact of artefacts) {
-    const entry = await resolveTypeEntry(artefact.type, typeCache, ctx);
-    if (!entry) continue;
-
-    addTasksForArtefact(tasks, artefact, entry, ctx);
-  }
-
-  return tasks;
-}
-
-/**
- * Get or create a cached (appraisers, laws) entry for an artefact type.
- * Returns null when no appraisers are available for the type.
- */
-async function resolveTypeEntry(typeId, cache, ctx) {
-  if (cache.has(typeId)) {
-    return cache.get(typeId);
-  }
-
-  const [appraisers, laws] = await Promise.all([
-    selectAppraisers(ctx.foundryDir, typeId, { io: ctx.io }),
-    getLaws(ctx.foundryDir, ctx.io, { typeId }),
-  ]);
-
-  const entry = appraisers.length === 0 ? null : { appraisers, laws };
-  cache.set(typeId, entry);
-  return entry;
-}
-
-/**
- * Build and append appraiser tasks for a single artefact.
- */
-function addTasksForArtefact(tasks, artefact, entry, ctx) {
-  let content = '';
-  if (artefact.state !== 'deleted') {
-    content = ctx.io.readFile(artefact.file);
-  }
-
-  for (const appraiser of entry.appraisers) {
-    const prompt = buildAppraiserPrompt({
-      appraiser,
-      artefact: { file: artefact.file, content },
-      laws: entry.laws,
-    });
-
-    tasks.push({
-      subagent_type: resolveSubagentType(appraiser, ctx),
-      prompt,
-    });
-  }
 }
 
 /**
@@ -197,9 +165,9 @@ async function resolveStaleAppraiseFeedback(ctx) {
 /**
  * Consolidate appraiser results and finalise the appraise stage.
  *
- * Called by orchestrator after all appraisers have completed. Parses results,
- * posts combined feedback, resolves prior appraise feedback, and advances
- * the cycle to the next stage via finalize.
+ * Called by orchestrator after all appraisers have completed. Parses JSONL
+ * from each appraiser's output, posts combined feedback, resolves prior
+ * appraise feedback, and advances the cycle to the next stage via finalize.
  *
  * @param {object} ctx
  * @param {Array<{ok: boolean, output?: string, error?: string}>} lastResults
@@ -238,18 +206,71 @@ export async function consolidateAppraise(ctx, lastResults) {
 }
 
 /**
- * Parse all successful appraiser outputs and de-duplicate the combined issue
- * list by (file, law-id, issue text).
+ * Parse JSONL from all successful appraiser outputs and de-duplicate the
+ * combined issue list by (file, law-id, issue text).
  */
 function parseConsolidated(successful) {
   const all = [];
 
   for (const result of successful) {
-    const issues = parseAppraiserOutput(result.output || '');
+    const issues = parseAppraiserJsonl(result.output || '');
     all.push(...issues);
   }
 
   return deduplicateIssues(all);
+}
+
+/**
+ * Parse appraiser JSONL output.
+ *
+ * Each line must be a JSON object with at least `file` and `text` fields.
+ * Extra fields (`law`, `evidence`, `severity`, `location`) are preserved.
+ * The `text` field maps to the issue description used for feedback text.
+ */
+function parseAppraiserJsonl(output) {
+  const issues = [];
+  const lines = output.trim().split('\n');
+
+  for (const line of lines) {
+    const issue = parseAppraiserLine(line);
+    if (issue) issues.push(issue);
+  }
+
+  return issues;
+}
+
+function parseAppraiserLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  const obj = tryJsonParseLine(trimmed);
+  if (!obj) return null;
+
+  return validateJsonlIssue(obj);
+}
+
+function tryJsonParseLine(line) {
+  try { return JSON.parse(line); } catch { return null; }
+}
+
+function validateJsonlIssue(obj) {
+  if (!hasStringField(obj, 'file')) return null;
+  if (!hasStringField(obj, 'text')) return null;
+
+  return {
+    file: obj.file,
+    law: strOrEmpty(obj.law),
+    issue: obj.text,
+    evidence: strOrEmpty(obj.evidence),
+  };
+}
+
+function hasStringField(obj, key) {
+  return typeof obj[key] === 'string' && obj[key].length > 0;
+}
+
+function strOrEmpty(value) {
+  return typeof value === 'string' ? value : '';
 }
 
 /**
@@ -332,136 +353,39 @@ function buildConsolidateSummary(count) {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a subagent prompt for a single (appraiser, artefact) pair.
+ * Build a subagent prompt for an appraiser.
  *
- * Follows the template from the appraise skill (src/skills/appraise/SKILL.md)
- * extended to include the file path for deterministic result parsing.
+ * The prompt contains only the appraiser's personality and the artefact type
+ * ID. The subagent discovers artefact files, laws, and file-patterns via tool
+ * calls and returns JSONL — one JSON object per line.
  */
-function buildAppraiserPrompt({ appraiser, artefact, laws }) {
-  const lawSections = laws
-    .map(law => `## ${law.id}\n\n${law.text}`)
-    .join('\n\n');
-
+function buildAppraiserPrompt({ appraiser, typeId }) {
   const lines = [
     'You are an appraiser. Your personality:',
     '',
     appraiser.personality,
     '',
-    'Evaluate the following artefact against each law below. For each law,',
-    'either:',
-    '- Note no issues (pass)',
-    '- Describe the issue, quoting evidence from the artefact',
+    `Evaluate artefacts of type "${typeId}" against applicable laws.`,
     '',
-    '## Artefact',
+    'Use tools to discover context:',
+    `- foundry_config_artefact_type with typeId "${typeId}" for file-patterns`,
+    `- foundry_config_laws with typeId "${typeId}" for applicable laws (prose only)`,
+    '- foundry_artefacts_list for changed files',
+    '- Read matching files from the worktree',
     '',
-    artefact.content,
+    'For each law, evaluate each relevant file. If a violation is found,',
+    'output a JSONL line:',
     '',
-    '## Laws',
+    '{"file": "<path>", "law": "<law-slug>", "text": "<issue description>", "evidence": "<quote>"}',
     '',
-    lawSections,
+    '`file` and `text` are required. `law` and `evidence` are recommended.',
+    'Optional fields `severity` and `location` are passed through unchanged.',
     '',
-    '## Output',
-    '',
-    'Return a list of issues. For each issue:',
-    `- file: ${artefact.file}`,
-    '  law: <law-id>',
-    '  issue: <description>',
-    '  evidence: <quote from artefact>',
-    '',
-    'If there are no issues, return an empty list.',
+    'Output ONLY JSONL — one JSON object per line. No markdown, no commentary.',
+    'If no issues are found, output nothing.',
   ];
 
   return lines.join('\n');
-}
-
-// ---------------------------------------------------------------------------
-// Output parsing
-// ---------------------------------------------------------------------------
-
-/**
- * Parse a structured issue list from an appraiser subagent output.
- *
- * LLM output is free-form text that may contain a YAML list of issues.
- * Tries js-yaml first; falls back to line-scanning when the output is
- * not clean YAML (LLMs may include surrounding text, quotes in bare
- * strings, or other quirks that trip up a strict YAML parser).
- *
- * Returns an array of { file, law, issue, evidence } objects.
- */
-function parseAppraiserOutput(output) {
-  const text = output || '';
-  const yamlBlock = extractYamlBlock(text);
-  const issues = tryYamlParse(yamlBlock);
-  if (issues) return issues;
-
-  return parseFallback(text);
-}
-
-function extractYamlBlock(text) {
-  if (text.startsWith('- file:')) return text;
-  const afterNewline = text.indexOf('\n- file:');
-  if (afterNewline >= 0) return text.slice(afterNewline + 1);
-  return text;
-}
-
-function tryYamlParse(yamlBlock) {
-  try {
-    const parsed = yaml.load(yamlBlock);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter(e => e && typeof e === 'object' && e.file && e.law && e.issue)
-        .map(e => ({ file: e.file, law: e.law, issue: e.issue, evidence: e.evidence || '' }));
-    }
-  } catch { /* fall through to fallback */ }
-  return null;
-}
-
-const FALLBACK_FIELDS = new Set(['law', 'issue', 'evidence']);
-
-function isCompleteIssue(obj) {
-  return obj && obj.file && obj.law && obj.issue;
-}
-
-function applyFallbackField(kv, entry, issues) {
-  if (kv.key === 'file') {
-    const e = { file: kv.value, law: '', issue: '', evidence: '' };
-    issues.push(e);
-    return e;
-  }
-  if (entry && FALLBACK_FIELDS.has(kv.key)) {
-    entry[kv.key] = kv.value;
-  }
-  return entry;
-}
-
-function parseFallback(text) {
-  const issues = [];
-  let entry = null;
-
-  for (const line of text.split('\n')) {
-    const kv = parseFallbackLine(line);
-    if (kv) entry = applyFallbackField(kv, entry, issues);
-  }
-
-  return issues.filter(isCompleteIssue);
-}
-
-function parseFallbackLine(line) {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-
-  const colon = trimmed.indexOf(':');
-  if (colon < 1) return null;
-
-  const key = stripDash(trimmed.slice(0, colon));
-  return {
-    key: key.trim(),
-    value: trimmed.slice(colon + 1).trim(),
-  };
-}
-
-function stripDash(s) {
-  return s.startsWith('- ') ? s.slice(2) : s;
 }
 
 // ---------------------------------------------------------------------------

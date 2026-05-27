@@ -1,12 +1,14 @@
 ---
 name: appraise
 type: atomic
-description: Subjective evaluation of an artefact against laws via multiple independent appraisers.
+description: Subjective evaluation of an artefact against laws via independent appraiser subagents.
 ---
 
 # Appraise
 
-You orchestrate subjective appraisal of an artefact by dispatching independent sub-agent appraisers, then consolidating their feedback.
+**This skill is subagent-only.** It describes the protocol an appraiser subagent follows when dispatched via `task()` from the orchestrate loop. Do NOT load this skill and run appraise inline — the orchestrate skill returns a `dispatch_multi` action with pre-built prompts; call `task()` with each.
+
+You evaluate artefacts against laws. Your dispatch prompt contains your personality and the artefact type ID. You discover artefact files, laws, and file-patterns via tool calls.
 
 ## Prerequisites
 
@@ -18,152 +20,58 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 Appraise runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
-1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
+1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt. No other tool call is permitted before this one.
 2. **Last:** `foundry_stage_end({summary})`.
 
-Appraise makes **no disk writes**. Feedback output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. The orchestrator's internal finalize step flags any unexpected writes as a violation.
+Appraise makes **no disk writes**. Feedback output flows through JSONL returned in your response text. The orchestrator's internal consolidate step parses the JSONL, posts feedback, and resolves prior items.
 
 ## Protocol
 
-1. `foundry_stage_begin(...)`.
-2. Gather context:
-   - `foundry_workfile_get` — read the `cycle` from frontmatter
+1. `foundry_stage_begin(...)` with the token from the dispatch prompt.
+2. `foundry_config_artefact_type` with the type ID — get the artefact type definition and `file-patterns`.
+3. `foundry_config_laws` with the type ID — get all applicable laws (prose only).
+4. `foundry_artefacts_list` — enumerate the current cycle's branch artefact changes.
+5. For each artefact file that matches the type's `file-patterns`, read the file from the worktree.
+6. Evaluate each file against each law. For each law, either:
+   - Note no issues (pass)
+   - Describe the violation, quoting evidence from the artefact
+7. Output JSONL. Each line is one JSON object:
 
-     **Check for failed flow state.** If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:
+   ```json
+   {"file": "<path>", "law": "<law-slug>", "text": "<issue description>", "evidence": "<quote from artefact>"}
+   ```
 
-     > The flow is in a failed state. Reason: `<reason>`.
-     >
-     > No further work is permitted. To recover:
-     >
-     >   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
-     >   2. Back out to main (`git checkout main`) and delete the work branch.
-     >   3. Investigate and fix the root cause of the failure before restarting.
+   `file` and `text` are required. `law` and `evidence` are recommended — `law` tells the orchestrator which law tag to use, `evidence` quotes the offending passage. Optional extra fields (`severity`, `location`) are passed through unchanged.
 
-     Then return control to the user and stop.
-   - `foundry_artefacts_list({})` — enumerate the current cycle's branch artefact changes as `[{ file, state }]` entries.
-   - For each artefact change, gather its type-specific context:
-     - `foundry_config_laws` with the cycle's output type — applicable laws (global + type-specific)
-     - `foundry_config_artefact_type` with the type ID — the artefact type definition
-     - `foundry_appraisers_select` with the type ID — selected appraiser personalities with their raw model IDs
+   If there are no issues, output nothing (empty response).
 
-3. Dispatch each appraiser as an independent sub-agent (see Dispatch below). If this cycle produced multiple artefacts, appraisers evaluate each.
+   Your response text is ONLY JSONL — one JSON object per line. No markdown headings, no code blocks, no commentary, no YAML.
 
-4. Collect results from all appraisers
+8. `foundry_stage_end({summary})`. The summary describes how many issues were found (e.g. "3 issues found" or "No issues found").
 
-5. Consolidate (this is judgment):
-   - Union of all issues — if any one appraiser flags it, it's feedback
-   - De-duplicate: merge overlapping observations into a single feedback item
-   - Preserve which appraiser(s) raised each issue (for traceability)
+## Output examples
 
-6. For each consolidated issue: `foundry_feedback_add` with `{ file, text, tag: 'law:<slug>' }`. Tags must match `law:<slug>`, and dedup uses the non-resolved `(file, tag, hash(text))` semantics described in Feedback handling.
+Good (issues found):
 
-7. If no appraiser found any issues, the artefact clears appraisal.
+```
+{"file": "haikus/mountain.md", "law": "syllable-count", "text": "Line 2 has 8 syllables, expected 7", "evidence": "A frog jumps into the pond", "location": "2:1"}
+{"file": "haikus/mountain.md", "law": "nature-imagery", "text": "Contains industrial imagery violating nature-only requirement", "evidence": "The rusty old machine"}
+```
 
-8. `foundry_stage_end({summary})`.
+Good (no issues found — empty response, then stage_end):
+
+(no output text)
 
 ## Feedback handling
 
-As an appraise stage, you have two feedback responsibilities:
-
-1. **Adding new law-violation feedback.** For each unmet law, call
-   `foundry_feedback_add` with `{ file, text, tag: 'law:<slug>' }`.
-   The `source` is automatically your stage id (e.g. `appraise:write-check`).
-   The tool rejects any tag not matching `law:<slug>` during an appraise
-   stage; do not attempt bare `'appraise'` or `'review'` tags.
-
-   The tool returns `{ ok: true, id, deduped }` on success. `deduped: true`
-   means an existing non-resolved item with the same `(file, tag,
-   hash(text))` was found (no new snapshot written); `deduped: false`
-   means a new item was created. Resolved items are NOT considered for
-   dedup — a re-added item after a resolution is a legitimate new item
-   (regression feedback).
-
-2. **Resolving items you sourced.** Call `foundry_feedback_list` and look
-   at items whose `source` exactly matches your stage id. For items whose
-   current state is `actioned` or `wont-fix`:
-   - Approve: `foundry_feedback_resolve` with `{ id, resolution: 'approved' }`.
-     `reason` is optional.
-   - Reject: `foundry_feedback_resolve` with `{ id, resolution: 'rejected', reason: '...' }`.
-     `reason` is required. A rejection sends the item back to forge for
-     another attempt (the `rejected` state is a legal forge input per
-     §5.1 rule 2).
-
-**Reason rules.** `reason` is required on `resolution: 'rejected'` and on
-any deadlock-override transition. On `resolution: 'approved'` for a
-non-deadlocked item, `reason` is optional.
-
-**Source-authorship rule.** You can only resolve/reject items whose `source`
-matches your own stage id — not every appraise stage in the cycle, just yours.
-This prevents a second appraise stage from rubber-stamping work it didn't
-request. For deadlocked items, only human-appraise has the override authority.
-
-**Future work.** Spec §17 notes a planned cycle-level mode that would let
-human-appraise see non-deadlocked unresolved feedback before the orchestrator routes.
-Not available in v2.6.0; appraise stages today are the sole resolver of
-their own non-deadlocked items.
-
-## Dispatch
-
-Each appraiser is dispatched as an independent sub-agent. The sub-agent receives a prompt containing:
-- The appraiser's personality (from their definition)
-- The artefact content
-- All applicable laws (global + type-specific)
-- Instructions to evaluate the artefact against each law and return issues as a structured list
-
-### Model resolution
-
-`foundry_appraisers_select` returns raw model IDs for each appraiser. Convert each to an agent name: `foundry-<model.replace(/[/.]/g, '-')>` — both `/` and `.` are replaced with `-`. Examples:
-- `openai/gpt-4o` → `foundry-openai-gpt-4o`
-- `github-copilot/claude-sonnet-4.6` → `foundry-github-copilot-claude-sonnet-4-6`
-
-- If a model is specified: dispatch with `subagent_type: "foundry-<converted-name>"`. If no agent with that name exists, **hard fail**.
-- If no model is specified: dispatch with `subagent_type: "general"` (inherits session model).
-
-Note: per-appraiser `model` overrides are applied here at dispatch time. The cycle-level `models.appraise` value (if set) is used for routing-time agent-file validation only; this skill does not consult it when iterating appraisers.
-
-Dispatch all appraisers in parallel (multiple Task calls in a single response).
-
-### Sub-agent prompt template
-
-```
-You are an appraiser. Your personality:
-
-<contents of appraiser personality>
-
-Evaluate the following artefact against each law below. For each law, either:
-- Note no issues (pass)
-- Describe the issue, quoting evidence from the artefact
-
-## Artefact
-
-<artefact content>
-
-## Laws
-
-<all applicable laws>
-
-## Output
-
-Return a list of issues. For each issue:
-- law: <law-id>
-- issue: <description>
-- evidence: <quote from artefact>
-
-If there are no issues, return an empty list.
-```
-
-## History
-
-Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those (the tools are not registered publicly). Return a summary via `foundry_stage_end` (e.g., "3 issues found across 2 appraisers" or "No issues found").
-
-### Human override awareness
-
-When reviewing an artefact, check the feedback history for `#human` tagged items. If a human has already ruled on a topic in a prior iteration, do not re-raise the same issue — the human's decision is final.
+You do NOT call `foundry_feedback_add` or `foundry_feedback_resolve`. The orchestrator's consolidate step reads your JSONL output, de-duplicates across all appraisers, posts feedback items with tag `law:<slug>`, and resolves prior appraise-sourced feedback.
 
 ## What you do NOT do
 
-- You do not write files — feedback output goes through `foundry_feedback_add` and `foundry_feedback_resolve`.
-- You do not revise the artefact.
+- You do not write files — feedback output goes through JSONL, not `foundry_feedback_add`.
+- You do not revise the artefact — that is the forge skill's job.
 - You do not run deterministic validators — that is the quench skill's job.
-- You do not filter out feedback because only one appraiser raised it — one is enough.
-- You do not register artefacts — that happens automatically via the orchestrator's internal finalize step.
+- You do not call `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, or `foundry_feedback_resolve`.
+- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those.
+- You do not register artefacts — that happens automatically.
+- You do not output YAML, markdown, or prose — only JSONL.

@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.8.3] - 2026-05-27
+
+### Changed
+
+- Appraise subagents no longer receive artefact content or laws in their prompt. The dispatch prompt contains only the appraiser's personality and the artefact type ID. The subagent discovers artefact files, laws, and file-patterns via tool calls (`foundry_config_artefact_type`, `foundry_config_laws`, `foundry_artefacts_list`) and reads files from the worktree.
+
+- Appraise subagent output format changed from YAML to JSONL (one JSON object per line), matching the quench validator protocol. Required fields: `file`, `text`. Recommended: `law`, `evidence`. Optional: `severity`, `location`. The consolidate phase parses JSONL and posts feedback with tag `law:<slug>`.
+
+- Gather phase now creates one task per appraiser (not per artefact × appraiser). Each appraiser covers all artefacts of the given type via tool-based discovery.
+
+### Fixed
+
+- Removed `js-yaml` dependency from appraise-module.js. All YAML parsing and fallback line-parsing code replaced with JSONL parsing.
+
 ## [3.8.2] - 2026-05-27
 
 ### Changed

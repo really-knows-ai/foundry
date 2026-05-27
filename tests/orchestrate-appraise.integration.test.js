@@ -258,11 +258,11 @@ test('AC5.2: consolidate appraise posts feedback for appraiser issues', async ()
   const lastResults = [
     {
       ok: true,
-      output: `- file: out/a.md\n  law: style\n  issue: Use consistent line length\n  evidence: Lines vary between 5 and 12 syllables`,
+      output: '{"file": "out/a.md", "law": "style", "text": "Use consistent line length", "evidence": "Lines vary between 5 and 12 syllables"}',
     },
     {
       ok: true,
-      output: `- file: out/a.md\n  law: clarity\n  issue: Metaphor is unclear\n  evidence: "terminal delay" does not evoke a clear image`,
+      output: '{"file": "out/a.md", "law": "clarity", "text": "Metaphor is unclear", "evidence": "terminal delay does not evoke a clear image"}',
     },
   ];
 
@@ -391,7 +391,7 @@ test('AC5.4: a failed appraiser subagent contributes no issues, non-fatal', asyn
 
   // One appraiser succeeds, one fails
   const lastResults = [
-    { ok: true, output: `- file: out/a.md\n  law: style\n  issue: Use consistent line length\n  evidence: Lines vary` },
+    { ok: true, output: '{"file": "out/a.md", "law": "style", "text": "Use consistent line length", "evidence": "Lines vary"}' },
     { ok: false, error: 'subagent crashed' },
   ];
 

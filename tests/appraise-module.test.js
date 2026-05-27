@@ -191,8 +191,7 @@ describe('gatherAppraiseContext', () => {
     ]);
     mockSelectAppraisers.mock.mockImplementation(() => []);
     mockGetLaws.mock.mockImplementation(() => [makeLaw()]);
-    const ioReadFile = mock.fn(() => 'silent pond\nfrog jumps\nsplash');
-    const ctx = createGatherCtx({ ioReadFile });
+    const ctx = createGatherCtx();
 
     const result = await gatherAppraiseContext(ctx);
 
@@ -203,7 +202,7 @@ describe('gatherAppraiseContext', () => {
   });
 
   // AC2.1: happy path — one artefact, one appraiser
-  it('builds correct dispatch_multi with one task per (artefact, appraiser)', async () => {
+  it('builds correct dispatch_multi with one task per appraiser', async () => {
     mockGetCycleDefinition.mock.mockImplementation(() => ({
       frontmatter: { 'output-type': 'haiku' },
     }));
@@ -216,8 +215,7 @@ describe('gatherAppraiseContext', () => {
     mockGetLaws.mock.mockImplementation(() => [
       makeLaw({ id: 'dark', text: 'Avoid dark themes.' }),
     ]);
-    const ioReadFile = mock.fn(() => 'silent pond');
-    const ctx = createGatherCtx({ ioReadFile });
+    const ctx = createGatherCtx();
 
     const result = await gatherAppraiseContext(ctx);
 
@@ -230,17 +228,15 @@ describe('gatherAppraiseContext', () => {
     assert.equal(task.subagent_type, 'foundry-openai-gpt-4o');
     assert.match(task.prompt, /You are an appraiser/);
     assert.match(task.prompt, /You are strict/);
-    assert.match(task.prompt, /## Artefact/);
-    assert.match(task.prompt, /silent pond/);
-    assert.match(task.prompt, /## Laws/);
-    assert.match(task.prompt, /Avoid dark themes/);
-    assert.match(task.prompt, /- file: poem.md/);
-    assert.match(task.prompt, /issue: <description>/);
-    assert.match(task.prompt, /If there are no issues/);
+    assert.match(task.prompt, /"haiku"/);
+    assert.match(task.prompt, /foundry_config_artefact_type/);
+    assert.match(task.prompt, /foundry_config_laws/);
+    assert.match(task.prompt, /foundry_artefacts_list/);
+    assert.match(task.prompt, /JSONL/);
   });
 
-  // AC2.1: multiple artefacts, multiple appraisers
-  it('creates tasks for all artefact-appraiser pairs', async () => {
+  // AC2.1: multiple artefacts, one appraiser → one task per appraiser (not per artefact)
+  it('creates one task per appraiser regardless of artefact count', async () => {
     mockGetCycleDefinition.mock.mockImplementation(() => ({
       frontmatter: { 'output-type': 'haiku' },
     }));
@@ -258,18 +254,14 @@ describe('gatherAppraiseContext', () => {
       if (typeId === 'haiku') return [makeLaw({ id: 'dark' })];
       return [];
     });
-    const readCalls = { 'poem1.md': 'content 1', 'poem2.md': 'content 2' };
-    const ioReadFile = mock.fn(f => readCalls[f] || '');
-    const ctx = createGatherCtx({ ioReadFile });
+    const ctx = createGatherCtx();
 
     const result = await gatherAppraiseContext(ctx);
 
-    // Both artefacts have type 'haiku' from the output-type, so only one type key
-    assert.equal(result.tasks.length, 2);
+    // One appraiser → one task (appraiser discovers artefacts via tool calls)
+    assert.equal(result.tasks.length, 1);
     assert.equal(result.tasks[0].subagent_type, 'foundry-openai-gpt-4o');
-    assert.match(result.tasks[0].prompt, /poem1\.md/);
-    assert.equal(result.tasks[1].subagent_type, 'foundry-openai-gpt-4o');
-    assert.match(result.tasks[1].prompt, /poem2\.md/);
+    assert.match(result.tasks[0].prompt, /"haiku"/);
 
     // selectAppraisers called once per unique type
     assert.equal(callCount.haiku, 1);
@@ -286,9 +278,7 @@ describe('gatherAppraiseContext', () => {
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'custom', model: 'github-copilot/claude-sonnet-4.6' }),
     ]);
-    mockGetLaws.mock.mockImplementation(() => [makeLaw()]);
-    const ioReadFile = mock.fn(() => 'content');
-    const ctx = createGatherCtx({ ioReadFile });
+    const ctx = createGatherCtx();
 
     const result = await gatherAppraiseContext(ctx);
 
@@ -306,17 +296,15 @@ describe('gatherAppraiseContext', () => {
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'basic', model: undefined }),
     ]);
-    mockGetLaws.mock.mockImplementation(() => [makeLaw()]);
-    const ioReadFile = mock.fn(() => 'content');
-    const ctx = createGatherCtx({ ioReadFile, defaultModel: undefined });
+    const ctx = createGatherCtx({ defaultModel: undefined });
 
     const result = await gatherAppraiseContext(ctx);
 
     assert.equal(result.tasks[0].subagent_type, 'foundry-appraise');
   });
 
-  // Artefact content is read from disk for non-deleted artefacts
-  it('reads artefact content from disk via io', async () => {
+  // Artefact content is NOT read from disk — subagent discovers it via tool calls
+  it('does not inline artefact content in the prompt', async () => {
     mockGetCycleDefinition.mock.mockImplementation(() => ({
       frontmatter: { 'output-type': 'haiku' },
     }));
@@ -326,22 +314,17 @@ describe('gatherAppraiseContext', () => {
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'strict', model: 'openai/gpt-4o' }),
     ]);
-    mockGetLaws.mock.mockImplementation(() => [makeLaw()]);
-    const ioReadFile = mock.fn(f => {
-      if (f === 'unique-file.md') return 'the actual content';
-      return '';
-    });
+    const ioReadFile = mock.fn(() => 'the actual content');
     const ctx = createGatherCtx({ ioReadFile });
 
     const result = await gatherAppraiseContext(ctx);
 
-    assert.match(result.tasks[0].prompt, /the actual content/);
-    assert.equal(ioReadFile.mock.calls.length, 1);
-    assert.equal(ioReadFile.mock.calls[0].arguments[0], 'unique-file.md');
+    assert.equal(ioReadFile.mock.calls.length, 0);
+    assert.equal(result.tasks.length, 1);
   });
 
-  // Deleted artefacts do not attempt to read file content
-  it('does not read file content for deleted artefacts', async () => {
+  // Deleted artefacts do not affect task creation
+  it('creates tasks regardless of artefact state', async () => {
     mockGetCycleDefinition.mock.mockImplementation(() => ({
       frontmatter: { 'output-type': 'haiku' },
     }));
@@ -351,17 +334,13 @@ describe('gatherAppraiseContext', () => {
     mockSelectAppraisers.mock.mockImplementation(() => [
       makeAppraiser({ id: 'strict', model: 'openai/gpt-4o' }),
     ]);
-    mockGetLaws.mock.mockImplementation(() => [makeLaw()]);
     const ioReadFile = mock.fn(() => 'should not be called');
     const ctx = createGatherCtx({ ioReadFile });
 
     const result = await gatherAppraiseContext(ctx);
 
     assert.equal(result.tasks.length, 1);
-    // Content should not be read for deleted artefacts
     assert.equal(ioReadFile.mock.calls.length, 0);
-    // The prompt should mention the file but not include content
-    assert.match(result.tasks[0].prompt, /deleted\.md/);
   });
 });
 
@@ -405,7 +384,7 @@ describe('consolidateAppraise', () => {
   it('treats failed appraiser as contributing no issues (non-fatal)', async () => {
     const ctx = createConsolidateCtx();
     const lastResults = [
-      { ok: true, output: `- file: poem.md\n  law: dark\n  issue: Too dark\n  evidence: shadows` },
+      { ok: true, output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}' },
       { ok: false, error: 'crashed' },
     ];
 
@@ -425,21 +404,11 @@ describe('consolidateAppraise', () => {
     const lastResults = [
       {
         ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: dark',
-          '  issue: Too dark',
-          '  evidence: shadows',
-        ].join('\n'),
+        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
       },
       {
         ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: dark',
-          '  issue: Too dark',
-          '  evidence: shadows everywhere',
-        ].join('\n'),
+        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows everywhere"}',
       },
     ];
 
@@ -460,21 +429,11 @@ describe('consolidateAppraise', () => {
     const lastResults = [
       {
         ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: dark',
-          '  issue: Too dark',
-          '  evidence: shadows',
-        ].join('\n'),
+        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
       },
       {
         ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: dark',
-          '  issue: Gloomy tone',
-          '  evidence: sad words',
-        ].join('\n'),
+        output: '{"file": "poem.md", "law": "dark", "text": "Gloomy tone", "evidence": "sad words"}',
       },
     ];
 
@@ -493,21 +452,11 @@ describe('consolidateAppraise', () => {
     const lastResults = [
       {
         ok: true,
-        output: [
-          '- file: poem1.md',
-          '  law: dark',
-          '  issue: Too dark',
-          '  evidence: shadows',
-        ].join('\n'),
+        output: '{"file": "poem1.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
       },
       {
         ok: true,
-        output: [
-          '- file: poem2.md',
-          '  law: dark',
-          '  issue: Too dark',
-          '  evidence: shadows',
-        ].join('\n'),
+        output: '{"file": "poem2.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
       },
     ];
 
@@ -549,20 +498,14 @@ describe('consolidateAppraise', () => {
     assert.equal(feedbackAdd.mock.calls.length, 0);
   });
 
-  it('parses output in the exact format buildAppraiserPrompt produces', async () => {
+  it('parses JSONL output from appraisers', async () => {
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ feedbackAdd, finalize });
     const lastResults = [
       { ok: true, output: [
-        '- file: poem.md',
-        '  law: imagery',
-        '  issue: The haiku compares rain to human constructs instead of nature',
-        '  evidence: "like a drum of war" / "Each drop hits like lead"',
-        '- file: poem.md',
-        '  law: mood',
-        '  issue: No seasonal reference (kigo) — lacks classical grounding',
-        '  evidence: no mention of season',
+        '{"file": "poem.md", "law": "imagery", "text": "The haiku compares rain to human constructs instead of nature", "evidence": "like a drum of war"}',
+        '{"file": "poem.md", "law": "mood", "text": "No seasonal reference (kigo) — lacks classical grounding", "evidence": "no mention of season"}',
       ].join('\n') },
     ];
 
@@ -591,12 +534,7 @@ describe('consolidateAppraise', () => {
     const lastResults = [
       {
         ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: dark',
-          '  issue: Too dark',
-          '  evidence: shadows',
-        ].join('\n'),
+        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
       },
     ];
 
@@ -617,7 +555,7 @@ describe('consolidateAppraise', () => {
     const feedbackList = mock.fn(() => []);
     const ctx = createConsolidateCtx({ feedbackList });
     const lastResults = [
-      { ok: true, output: '- file: poem.md\n  law: dark\n  issue: Too dark\n  evidence: shadows' },
+      { ok: true, output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}' },
     ];
 
     await consolidateAppraise(ctx, lastResults);
@@ -634,12 +572,7 @@ describe('consolidateAppraise', () => {
     const lastResults = [
       {
         ok: true,
-        output: [
-          '- file: poem.md',
-          '  law: dark-themes',
-          '  issue: Too dark',
-          '  evidence: shadows',
-        ].join('\n'),
+        output: '{"file": "poem.md", "law": "dark-themes", "text": "Too dark", "evidence": "shadows"}',
       },
     ];
 
@@ -655,7 +588,7 @@ describe('consolidateAppraise', () => {
     const lastResults = [
       {
         ok: true,
-        output: '- file: poem.md\n  law: dark\n  issue: Too dark\n  evidence: shadows',
+        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
       },
     ];
 
