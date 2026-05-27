@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.8.4] - 2026-05-27
+
+### Added
+
+- `foundry_config_create_artefact_type` now accepts an optional `example` arg. When provided, it writes `foundry/artefacts/<id>/example.md` alongside `definition.md`. The example file is a structure document — markdown with code blocks showing the expected output format, plus documentation for the forge agent.
+
+- The `add-artefact-type` skill now prompts users to provide an example artefact during the Understand phase, includes it in the Plan, and passes it to the create tool in Build.
+
+### Fixed
+
+- Human-appraise stage tokens no longer carry a subagent model scope. Previously, `sort.js` resolved a model for human-appraise routes (falling through to `defaultModel`), which got embedded in the token. `foundry_stage_begin` then rejected the token because the main Foundry agent is not the scoped subagent, causing the human-appraise stage to fail to start and user feedback to be lost. Human-appraise always runs inline by the Foundry agent.
+
 ## [3.8.3] - 2026-05-27
 
 ### Changed
