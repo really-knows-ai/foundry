@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
+import { _clearAllOutputs } from '../../src/plugin/tools/stage-output-tool.js';
 
 function setupWorktree() {
   const root = mkdtempSync(join(tmpdir(), 'mem-end-'));
@@ -57,7 +58,11 @@ describe('end-of-flow memory sync', () => {
     writeFileSync(join(root, '.foundry/active-stage.json'),
       JSON.stringify({ cycle: 'observe', stage: 'forge:observe', baseSha: 'abc123' }));
 
-    const endOut = await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, ctx);
+    // Populate buffer to satisfy forge contract (exactly 1 output)
+    _clearAllOutputs();
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, ctx);
+
+    const endOut = await plugin.tool.foundry_stage_end.execute({}, ctx);
     assert.equal(JSON.parse(endOut).ok, true);
 
     // After stage end: sync should have flushed the record to NDJSON.

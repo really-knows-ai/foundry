@@ -9,6 +9,7 @@ import { signToken } from '../../src/scripts/lib/token.js';
 import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
 import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
+import { _clearAllOutputs } from '../../src/plugin/tools/stage-output-tool.js';
 
 const GIT_ENV = { ...process.env,
   GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
@@ -70,13 +71,17 @@ async function beginAssay(plugin, root, cycleId = 'c') {
   if (!r.ok) throw new Error(`begin failed: ${JSON.stringify(r)}`);
 }
 
-async function endStage(plugin, root, summary = 'ok') {
-  await plugin.tool.foundry_stage_end.execute({ summary }, { worktree: root });
+async function endStage(plugin, root) {
+  await plugin.tool.foundry_stage_end.execute({}, { worktree: root });
 }
 
 describe('foundry_assay_run', () => {
   let root, plugin;
-  beforeEach(async () => { root = setupWorktree(); plugin = await FoundryPlugin({ directory: root }); });
+  beforeEach(async () => {
+    root = setupWorktree();
+    plugin = await FoundryPlugin({ directory: root });
+    _clearAllOutputs();
+  });
   afterEach(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
 
   it('executes a simple extractor and upserts entities into memory', async () => {

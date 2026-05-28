@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import { createHash } from 'node:crypto';
+import { join } from 'node:path';
 import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage, clearLastStage } from '../../scripts/lib/state.js';
 import { verifyToken } from '../../scripts/lib/token.js';
 import { readOrCreateSecret } from '../../scripts/lib/secret.js';
@@ -10,6 +11,20 @@ import { markWorkfileFailed, readFailedStatus, clearWorkfileFailed } from '../..
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 import { initForgeCallLog, readForgeCallSet } from '../../scripts/lib/stage-calls.js';
 import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
+import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
+import { ulid } from '../../scripts/lib/ulid.js';
+import { getStageOutputs, clearStageOutputs } from './stage-output-tool.js';
+
+/** Track which stage IDs have had their output directory cleaned. */
+const cleanedStages = new Set();
+
+function ensureDir(io, outDir) {
+  io.mkdir(outDir);
+}
+
+function contractError(stage, expected, got) {
+  return `${stage} stage_end: expected exactly ${expected} stage_output call${expected === 1 ? '' : 's'}, got ${got}`;
+}
 
 const FORGE_REQUIRED_TOOLS = [
   'foundry_config_cycle',
@@ -106,11 +121,64 @@ async function executeStageBegin(args, context, pending) {
   };
   writeActiveStage(io, active);
   initForgeIfApplicable(io, active.stage);
+
+  cleanStageOutputDir(io, args.stage);
+
   return JSON.stringify({ ok: true, active });
 }
 
 function initForgeIfApplicable(io, stage) {
   if (stageBase(stage) === 'forge') initForgeCallLog(io);
+}
+
+// -- Stage output directory helpers --
+
+function cleanStageOutputDir(io, stage) {
+  if (!cleanedStages.has(stage)) {
+    const outDir = '.foundry/stage-outputs/';
+    if (io.exists(outDir)) {
+      for (const f of io.readDir(outDir)) {
+        io.unlink(join(outDir, f));
+      }
+    }
+    io.mkdir(outDir);
+    cleanedStages.add(stage);
+  }
+}
+
+function checkContractViolation(outputs, base) {
+  if (base === 'forge' || base === 'human-appraise') {
+    if (outputs.length !== 1) {
+      return contractError(base, 1, outputs.length);
+    }
+  }
+  return null;
+}
+
+function writeAtomicOutputFile(io, outputs, id) {
+  const outDir = '.foundry/stage-outputs/';
+  ensureDir(io, outDir);
+  if (outputs.length === 0) {
+    io.writeFile(outDir + '.tmp-' + id, '');
+  } else {
+    const content = outputs.map(o => JSON.stringify(o)).join('\n') + '\n';
+    io.writeFile(outDir + '.tmp-' + id, content);
+  }
+  io.rename(outDir + '.tmp-' + id, outDir + id + '.jsonl');
+}
+
+function trySyncMemory(worktree) {
+  try {
+    return syncMemoryAtStageEnd(worktree);
+  } catch {
+    return { error: 'memory sync at stage end failed' };
+  }
+}
+
+function activeStageOrError(io) {
+  const active = readActiveStage(io);
+  if (!active) return null;
+  return active;
 }
 
 // -- Helpers for foundry_stage_end --
@@ -127,34 +195,55 @@ async function syncMemoryAtStageEnd(worktree) {
   }
 }
 
+async function finishStageAndSync(io, active, context) {
+  writeLastStage(io, { cycle: active.cycle, stage: active.stage, baseSha: active.baseSha, summary: '' });
+  clearActiveStage(io);
+
+  try {
+    await syncMemoryAtStageEnd(context.worktree);
+    return {};
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    const msg = `memory sync at stage end failed: ${detail}`;
+    markWorkfileFailedSilently(io, msg);
+    return { error: msg, flow_failed: true };
+  }
+}
+
 async function executeStageEnd(args, context) {
   const io = makeIO(context.worktree);
+
+  if (args.summary !== undefined) {
+    return JSON.stringify({ error: "foundry_stage_end: 'summary' argument is removed; use foundry_stage_output instead" });
+  }
+
   const active = readActiveStage(io);
   if (!active) {
     return JSON.stringify({ error: 'foundry_stage_end requires active stage; current: none' });
   }
 
+  verifyForgeToolsIfApplicable(io, active);
+
+  const outputs = getStageOutputs(active.stage);
+  const base = stageBaseOf(active.stage);
+  const violation = checkContractViolation(outputs, base);
+  if (violation) {
+    return JSON.stringify({ error: violation });
+  }
+
+  const id = ulid();
+  writeAtomicOutputFile(io, outputs, id);
+  clearStageOutputs(active.stage);
+
+  const result = await finishStageAndSync(io, active, context);
+  if (result.error) return JSON.stringify(result);
+  return JSON.stringify({ ok: true });
+}
+
+function verifyForgeToolsIfApplicable(io, active) {
   if (stageBase(active.stage) === 'forge') {
     verifyAndManageForgeTools(io, active);
   }
-
-  writeLastStage(io, {
-    cycle: active.cycle,
-    stage: active.stage,
-    baseSha: active.baseSha,
-    summary: args.summary,
-  });
-  clearActiveStage(io);
-
-  try {
-    await syncMemoryAtStageEnd(context.worktree);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    const msg = `memory sync at stage end failed: ${detail}`;
-    markWorkfileFailedSilently(io, msg);
-    return JSON.stringify({ error: msg, flow_failed: true });
-  }
-  return JSON.stringify({ ok: true, summary: args.summary });
 }
 
 function postForbiddenToolsFeedback(io, active, forbidden) {
@@ -240,6 +329,14 @@ async function executeStageRetry(_args, context) {
   });
 }
 
+/**
+ * Reset the cleaned-stages tracker. Internal helper for test isolation.
+ * Exported with underscore prefix — not part of the public API.
+ */
+export function _clearCleanedStages() {
+  cleanedStages.clear();
+}
+
 export function createStageTools({ tool, pending }) {
   return {
     foundry_stage_begin: tool({
@@ -255,10 +352,8 @@ export function createStageTools({ tool, pending }) {
     }),
 
     foundry_stage_end: tool({
-      description: 'Close the active subagent work stage; preserves baseSha for finalize.',
-      args: {
-        summary: tool.schema.string().describe('Short summary of the work done'),
-      },
+      description: 'Close the active subagent work stage. Output must be provided via foundry_stage_output before calling this tool. Validates the output contract for the active stage, writes accumulated outputs to a JSONL file, and clears the stage.',
+      args: {},
       execute: guarded('foundry_stage_end', [flowBranchGuard],
         executeStageEnd,
         { branchIo: branchIoFactory, io: asyncIoFactory }),

@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
+import { _clearAllOutputs } from '../../src/plugin/tools/stage-output-tool.js';
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'e2e-failed-'));
@@ -57,10 +58,14 @@ describe('failed-flow e2e', () => {
     // Deterministic write-failure injection: directory at the NDJSON path
     // forces EISDIR from writeFileSync inside syncStore. Platform-agnostic
     // and matches the convention used by the assay-tools failure test.
+    // Populate buffer to satisfy forge contract (exactly 1 output)
+    _clearAllOutputs();
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, ctx);
+
     const poisonPath = join(root, 'foundry-memory/relations/finding.ndjson');
     mkdirSync(poisonPath);
 
-    const end = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 's' }, ctx));
+    const end = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, ctx));
     assert.equal(end.flow_failed, true);
     assert.match(readFileSync(join(root, 'WORK.md'), 'utf-8'), /status: failed/);
 

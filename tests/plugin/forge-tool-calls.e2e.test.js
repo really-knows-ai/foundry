@@ -8,6 +8,7 @@ import yaml from 'js-yaml';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { signToken } from '../../src/scripts/lib/token.js';
 import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
+import { _clearAllOutputs } from '../../src/plugin/tools/stage-output-tool.js';
 
 function makeCtx(worktree) { return { worktree }; }
 
@@ -74,6 +75,7 @@ describe('forge tool call verification on stage_end', () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'foundry-forge-log-end-'));
     initRepo(dir);
+    _clearAllOutputs();
     // Seed empty feedback file so the store can open it.
     writeFileSync(join(dir, 'WORK.feedback.yaml'), yaml.dump({ items: [] }));
   });
@@ -94,9 +96,10 @@ describe('forge tool call verification on stage_end', () => {
     ].join('\n') + '\n';
     writeFileSync(logPath, lines);
 
-    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute(
-      { summary: 'done' }, makeCtx(dir),
-    ));
+    // Populate buffer to satisfy forge contract
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, makeCtx(dir));
+
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.equal(res.ok, true, JSON.stringify(res));
     assert.equal(existsSync(logPath), false);
   });
@@ -106,9 +109,10 @@ describe('forge tool call verification on stage_end', () => {
     await beginForgeStage(plugin, dir);
     // No tool calls recorded — log file is empty.
 
-    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute(
-      { summary: 'done' }, makeCtx(dir),
-    ));
+    // Populate buffer to satisfy forge contract
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, makeCtx(dir));
+
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.equal(res.ok, true, JSON.stringify(res));
 
     // Verify system feedback was posted.
@@ -145,9 +149,10 @@ describe('forge tool call verification on stage_end', () => {
       JSON.stringify({ tool: 'foundry_feedback_list', ts: Date.now() }),
     ].join('\n') + '\n');
 
-    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute(
-      { summary: 'done' }, makeCtx(dir),
-    ));
+    // Populate buffer to satisfy forge contract
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, makeCtx(dir));
+
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.equal(res.ok, true, JSON.stringify(res));
 
     // Verify system feedback was resolved.
@@ -168,9 +173,7 @@ describe('forge tool call verification on stage_end', () => {
       { stage: 'quench:c', cycle: 'c', token }, makeCtx(dir),
     );
 
-    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute(
-      { summary: 'done' }, makeCtx(dir),
-    ));
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.equal(res.ok, true);
     // No system feedback should have been posted.
     const fbDoc = yaml.load(readFileSync(join(dir, 'WORK.feedback.yaml'), 'utf-8'));
