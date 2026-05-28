@@ -122,7 +122,7 @@ Foundry uses HMAC-SHA256 tokens to gate stage execution. Tokens are single-use, 
    - The token has not expired.
    - The claimed `stage` and `cycle` match the token's signed payload.
 4. **Activate.** On success, the stage is recorded in `.foundry/active-stage.json`. Mutation tools (`foundry_feedback_*`, `foundry_artefacts_*`, etc.) now check that their role matches the active stage.
-5. **End.** The sub-agent's **last** call is `foundry_stage_end({summary})`. This removes `.foundry/active-stage.json` and writes `.foundry/last-stage.json` for the orchestrator's finalize step.
+5. **End.** The sub-agent's **last** call is `foundry_stage_end()`. This removes `.foundry/active-stage.json` and writes `.foundry/last-stage.json` for the orchestrator's finalize step.
 6. **Finalize.** The orchestrator's internal finalize step runs after `stage_end`, scanning the git diff and committing the stage.
 
 ### Secret key

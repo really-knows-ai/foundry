@@ -82,7 +82,7 @@ module handles lifecycle internally.
 
 Payload: `{stage, token, context}`.
 
-Invoke the `human-appraise` skill inline, passing `{cycle, token, context}`. The skill will prompt the user, collect feedback, and call `foundry_stage_end({summary})`.
+Invoke the `human-appraise` skill inline, passing `{cycle, token, context}`. The skill will prompt the user, collect feedback, and call `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`.
 
 When it returns, call `foundry_orchestrate({lastResult: {ok: true}})`.
 
@@ -117,7 +117,7 @@ Report to the user: "Cycle halted (violation): `<details>`. Affected files: `<af
 
 The orchestrator manages forge feedback transitions directly. After each
 forge subagent completes, `enforceForgeStage` inspects the outcome — a
-version change or a WONT-FIX in the stage-end summary — and transitions the
+version change or a wont-fix status in the stage output — and transitions the
 feedback item to `actioned` or `wont-fix`. Forge subagents do not call
 `foundry_feedback_action` or `foundry_feedback_wontfix`; those are the
 orchestrator's responsibility. If you want to inspect feedback state for

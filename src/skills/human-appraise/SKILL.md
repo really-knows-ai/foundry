@@ -19,7 +19,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 Human-appraise runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
-2. **Last:** `foundry_stage_end({summary})`.
+2. **Last:** `foundry_stage_end()`.
 
 Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. `foundry_stage_end` flags unexpected writes as a violation.
 
@@ -35,7 +35,7 @@ When invoked from orchestrate, you receive `{cycle, token, context}`:
 
 Your FIRST tool call must be `foundry_stage_begin({stage: 'human-appraise:<cycle>', cycle, token})`.
 
-Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence description of the user verdict>'})` — orchestrate reads this summary for the commit message.
+Your last tool calls must be `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`. The verdict is communicated through `foundry_stage_output` before the stage is closed.
 
 ## Protocol
 
@@ -54,7 +54,7 @@ Your LAST tool call must be `foundry_stage_end({summary: '<one-sentence descript
    >   2. Back out to main (`git checkout main`) and delete the work branch.
    >   3. Investigate and fix the root cause of the failure before restarting.
 
-   Then call `foundry_stage_end({summary: 'Flow is failed; no human appraisal performed'})`, return control to the user, and stop.
+   Then call `foundry_stage_end()`, return control to the user, and stop.
 
 3. `foundry_artefacts_list({})` — this cycle's branch artefact changes as `[{ file, state }]` entries.
 4. `foundry_feedback_list` — all existing feedback items.
@@ -118,8 +118,8 @@ options:
 
 ### A.3 Act on response
 
-- **Approve**: No feedback added. Call `foundry_stage_end({summary: 'Human approved — no issues'})`. Sort will route to `done`.
-- **Provide feedback**: Ask the user what needs changing (the user types their feedback). Then call `foundry_feedback_add({ file: '<artefact-file>', text: '<user feedback>', tag: 'human' })`. Call `foundry_stage_end({summary: 'Human requested changes'})`. Sort will route to forge.
+- **Approve**: No feedback added. Call `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`. Sort will route to `done`.
+- **Provide feedback**: Ask the user what needs changing (the user types their feedback). Then call `foundry_feedback_add({ file: '<artefact-file>', text: '<user feedback>', tag: 'human' })`. Call `foundry_stage_end()`. Sort will route to forge.
 
 ---
 
@@ -178,8 +178,8 @@ options:
     description: "Provide additional notes for forge"
 ```
 
-- **None — continue**: Call `foundry_stage_end({summary: 'Human reviewed — <count> item(s) agreed, <count> overridden'})`.
-- **Add more feedback**: Ask the user what they want to add, then call `foundry_feedback_add({ file: '<file>', text: '<text>', tag: 'human' })`. Then call `foundry_stage_end({summary: 'Human reviewed with additional feedback'})`.
+- **None — continue**: Call `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`.
+- **Add more feedback**: Ask the user what they want to add, then call `foundry_feedback_add({ file: '<file>', text: '<text>', tag: 'human' })`. Then call `foundry_stage_end()`.
 
 ---
 
@@ -207,5 +207,5 @@ What human-appraise CAN do:
 - You do not modify the artefact.
 - You do not skip the pause — the human must respond before continuing.
 - You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` owns those (the tools are not registered publicly).
-- You do not register artefacts — handled by `foundry_stage_end({summary})`.
+- You do not register artefacts — handled by `foundry_stage_end()`.
 - You do not present the full artefact file content — the human can inspect files themselves if curious. Show summaries only.

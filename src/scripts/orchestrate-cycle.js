@@ -266,17 +266,17 @@ function buildForgePromptLines({ cycle, outputType, forgeItem }) {
       `File: ${forgeItem.file}`,
       `Issue: ${forgeItem.text}`,
       ``,
-      `Respond with EXACTLY one of:`,
-      `  - ACTIONED  — fix the issue by changing the artefact file`,
-      `  - WONT-FIX: <justification> — the issue is already resolved or does not apply`,
+      `Call foundry_stage_output with the correct status:`,
+      `  - foundry_stage_output({ status: "actioned" }) — fix the issue by changing the artefact file`,
+      `  - foundry_stage_output({ status: "wont-fix", reason: "<justification>" }) — the issue is already resolved or does not apply`,
       ``,
-      `Write NOTHING else in the stage_end summary — no descriptions, no explanations.`,
+      `Then call foundry_stage_end(). Write nothing else — format is validated by the tool.`,
     );
   } else {
     lines.push(
       ``,
       `First generation — no feedback to address yet.`,
-      `Produce the artefact and call foundry_stage_end({summary: "DONE"}).`,
+      `Produce the artefact, call foundry_stage_output({ status: "done" }), then foundry_stage_end().`,
     );
   }
   return lines;
@@ -301,7 +301,7 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, o
   lines.push(
     ``,
     `Your FIRST tool call MUST be foundry_stage_begin({stage, cycle, token}) using the values above.`,
-    `Your LAST tool call MUST be foundry_stage_end({summary}).`,
+    `Your LAST tool call MUST be foundry_stage_end().`,
   );
   return lines.join('\n');
 }

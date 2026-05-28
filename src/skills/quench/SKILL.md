@@ -19,7 +19,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 Quench runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt. Any other tool call before this will be blocked.
-2. **Last:** `foundry_stage_end({summary})`.
+2. **Last:** `foundry_stage_end()`.
 
 Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`, never by creating or modifying files. The orchestrator's internal finalize step (run after `stage_end`) will flag any unexpected writes as a violation.
 
@@ -43,11 +43,11 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
 4. For each artefact change:
     a. `foundry_validate_run({ typeId: '<type-id>' })` — executes all law-based validators for the artefact type. The tool returns `{ ok, validatorsRun, items, errors }`. `items` is the array of parsed feedback items; each entry carries `lawId`, `validatorId`, `file`, and `text` (plus optional `location` and `severity`). `errors` carries validator-level failures with `lawId`, `validatorId`, `type` (`parse` or `pattern-mismatch`), and `message`.
    b. For each entry in `items`: call `foundry_feedback_add` with `{ file: item.file, text: item.text, tag: 'law:' + item.lawId + ':' + item.validatorId }`. The tag uses the law ID and validator ID returned by the tool so operators reading `WORK.feedback.yaml` can identify exactly which validator produced each item.
-   c. If `errors` is non-empty, the validators themselves misbehaved (malformed JSONL or files outside the artefact type's `file-patterns`). Report these to the user via `foundry_stage_end` summary; do not convert them to law-tagged feedback.
+   c. If `errors` is non-empty, the validators themselves misbehaved (malformed JSONL or files outside the artefact type's `file-patterns`). Report these to the user; do not convert them to law-tagged feedback.
 5. Call `foundry_feedback_list`. For items whose `source` matches your stage id and whose state is `actioned` or `wont-fix`, use the validation results from step 4 to resolve them by id: approve when the relevant validation now passes or the deterministic issue is gone; reject with a reason when it still fails.
 6. If every command passes for every artefact change, add no new feedback.
-7. If the artefact list is empty, `foundry_stage_end({summary: 'SKIP: no files'})` and stop.
-8. `foundry_stage_end({summary})`.
+7. If the artefact list is empty, `foundry_stage_end()` and stop.
+8. `foundry_stage_end()`.
 
 ## Feedback handling
 
@@ -86,7 +86,7 @@ deadlocked items (only human-appraise can override those).
 
 ## History
 
-Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those (the tools are not registered publicly). Return a clear summary via `foundry_stage_end` (e.g., "2 validation issues found" or "Validation passed").
+Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those (the tools are not registered publicly).
 
 ## What you do NOT do
 

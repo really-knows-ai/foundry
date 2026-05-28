@@ -365,7 +365,7 @@ function buildConsolidateSummary(count) {
  *
  * The prompt contains only the appraiser's personality and the artefact type
  * ID. The subagent discovers artefact files, laws, and file-patterns via tool
- * calls and returns JSONL — one JSON object per line.
+ * calls and uses foundry_stage_output to report each violation.
  */
 function buildAppraiserPrompt({ appraiser, typeId }) {
   const lines = [
@@ -381,16 +381,12 @@ function buildAppraiserPrompt({ appraiser, typeId }) {
     '- foundry_artefacts_list for changed files',
     '- Read matching files from the worktree',
     '',
-    'For each law, evaluate each relevant file. If a violation is found,',
-    'output a JSONL line:',
-    '',
-    '{"file": "<path>", "law": "<law-slug>", "text": "<issue description>", "evidence": "<quote>"}',
-    '',
+    'For each violation, call `foundry_stage_output({ file, law, text, evidence })`.',
     '`file` and `text` are required. `law` and `evidence` are recommended.',
     'Optional fields `severity` and `location` are passed through unchanged.',
     '',
-    'Output ONLY JSONL — one JSON object per line. No markdown, no commentary.',
-    'If no issues are found, output nothing.',
+    'If no issues, call `foundry_stage_end()` directly — no `stage_output` calls needed.',
+    'Do NOT write JSONL as text. Call the tool.',
   ];
 
   return lines.join('\n');

@@ -21,9 +21,9 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 Appraise runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt. No other tool call is permitted before this one.
-2. **Last:** `foundry_stage_end({summary})`.
+2. **Last:** `foundry_stage_end()`.
 
-Appraise makes **no disk writes**. Feedback output flows through JSONL returned in your response text. The orchestrator's internal consolidate step parses the JSONL, posts feedback, and resolves prior items.
+Appraise makes **no disk writes**. Feedback output flows through `foundry_stage_output` calls. The orchestrator's internal consolidate step reads the outputs, posts feedback, and resolves prior items.
 
 ## Protocol
 
@@ -35,43 +35,25 @@ Appraise makes **no disk writes**. Feedback output flows through JSONL returned 
 6. Evaluate each file against each law. For each law, either:
    - Note no issues (pass)
    - Describe the violation, quoting evidence from the artefact
-7. Output JSONL. Each line is one JSON object:
-
-   ```json
-   {"file": "<path>", "law": "<law-slug>", "text": "<issue description>", "evidence": "<quote from artefact>"}
-   ```
-
+7. For each violation, call `foundry_stage_output({ file, law, text, evidence })`.
    `file` and `text` are required. `law` and `evidence` are recommended — `law` tells the orchestrator which law tag to use, `evidence` quotes the offending passage. Optional extra fields (`severity`, `location`) are passed through unchanged.
 
-   If there are no issues, output nothing (empty response).
+   If no issues, call `foundry_stage_end()` directly — no `stage_output` calls needed.
 
-   Your response text is ONLY JSONL — one JSON object per line. No markdown headings, no code blocks, no commentary, no YAML.
+   Do NOT write JSONL as text. Call the tool.
 
-8. `foundry_stage_end({summary})`. The summary describes how many issues were found (e.g. "3 issues found" or "No issues found").
-
-## Output examples
-
-Good (issues found):
-
-```
-{"file": "haikus/mountain.md", "law": "syllable-count", "text": "Line 2 has 8 syllables, expected 7", "evidence": "A frog jumps into the pond", "location": "2:1"}
-{"file": "haikus/mountain.md", "law": "nature-imagery", "text": "Contains industrial imagery violating nature-only requirement", "evidence": "The rusty old machine"}
-```
-
-Good (no issues found — empty response, then stage_end):
-
-(no output text)
+8. `foundry_stage_end()`.
 
 ## Feedback handling
 
-You do NOT call `foundry_feedback_add` or `foundry_feedback_resolve`. The orchestrator's consolidate step reads your JSONL output, de-duplicates across all appraisers, posts feedback items with tag `law:<slug>`, and resolves prior appraise-sourced feedback.
+You do NOT call `foundry_feedback_add` or `foundry_feedback_resolve`. The orchestrator's consolidate step reads your stage outputs, de-duplicates across all appraisers, posts feedback items with tag `law:<slug>`, and resolves prior appraise-sourced feedback.
 
 ## What you do NOT do
 
-- You do not write files — feedback output goes through JSONL, not `foundry_feedback_add`.
+- You do not write files — feedback output goes through `foundry_stage_output`, not `foundry_feedback_add`.
 - You do not revise the artefact — that is the forge skill's job.
 - You do not run deterministic validators — that is the quench skill's job.
 - You do not call `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, or `foundry_feedback_resolve`.
 - You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those.
 - You do not register artefacts — that happens automatically.
-- You do not output YAML, markdown, or prose — only JSONL.
+- You do not output YAML, markdown, or prose — use `foundry_stage_output` for structured data.
