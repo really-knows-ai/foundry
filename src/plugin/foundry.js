@@ -36,6 +36,7 @@ import { createMemoryAdminTools } from './tools/memory-admin-tools.js';
 import { createSnapshotTools } from './tools/snapshot-tools.js';
 import { createAttestationTools } from './tools/attestation-tools.js';
 import { createRefreshAgentsTool } from './tools/refresh-agents-tool.js';
+import { createStageOutputTool } from './tools/stage-output-tool.js';
 import { resolveGit, resolvePnpm } from '../scripts/lib/tool-paths.js';
 
 function findPackageRoot(startDir) {
@@ -201,6 +202,7 @@ function buildTools(createTool, pending) {
     ...createSnapshotTools({ tool: createTool }),
     ...createAttestationTools({ tool: createTool }),
     ...createRefreshAgentsTool({ tool: createTool }),
+    ...createStageOutputTool({ tool: createTool }),
   };
 }
 
