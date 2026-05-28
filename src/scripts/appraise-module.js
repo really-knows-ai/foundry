@@ -16,6 +16,7 @@
  * action.
  */
 
+import path from 'node:path';
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { selectAppraisers, getCycleDefinition } from './lib/config.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
@@ -170,9 +171,29 @@ async function resolveStaleAppraiseFeedback(ctx) {
  * appraise feedback, and advances the cycle to the next stage via finalize.
  *
  * @param {object} ctx
- * @param {Array<{ok: boolean, output?: string, error?: string}>} lastResults
+ * @param {Array<{ok: boolean, error?: string}>} lastResults
  * @returns {Promise<{ok: boolean, summary?: string}|violation>}
  */
+async function readAppraiseStageOutputs(io) {
+  try {
+    const entries = await io.readDir('.foundry/stage-outputs');
+    if (!Array.isArray(entries)) return [];
+    return entries
+      .filter(f => f.endsWith('.jsonl'))
+      .map(f => path.join('.foundry/stage-outputs', f));
+  } catch {
+    return [];
+  }
+}
+
+function cleanupStageOutputFiles(filePaths, io) {
+  for (const fp of filePaths) {
+    try { io.unlink(fp); } catch (err) {
+      if (err.code !== 'ENOENT') console.warn('appraise: failed to delete output file', fp, err.message);
+    }
+  }
+}
+
 export async function consolidateAppraise(ctx, lastResults) {
   const baseSha = ctx.activeStage?.baseSha;
   if (!baseSha) {
@@ -188,15 +209,17 @@ export async function consolidateAppraise(ctx, lastResults) {
 
   await resolveStaleAppraiseFeedback(ctx);
 
-  const consolidated = parseConsolidated(successful);
+  const filePaths = await readAppraiseStageOutputs(ctx.io);
+  const consolidated = parseConsolidated(filePaths, ctx.io);
   const stageId = `appraise:${ctx.cycleId}`;
 
   const artefactVersion = await computeAppraiseArtefactVersion(ctx);
   postConsolidatedFeedback(ctx, consolidated, artefactVersion);
   resolvePriorAppraise(ctx, consolidated, stageId);
 
-  const summary = buildConsolidateSummary(consolidated.length);
+  cleanupStageOutputFiles(filePaths, ctx.io);
 
+  const summary = buildConsolidateSummary(consolidated.length);
   return finalizeAndReturn(ctx, stageId, summary, baseSha);
 }
 
@@ -211,71 +234,51 @@ async function finalizeAndReturn(ctx, stageId, summary, baseSha) {
 }
 
 /**
- * Parse JSONL from all successful appraiser outputs and de-duplicate the
- * combined issue list by (file, law-id, issue text).
- */
-function parseConsolidated(successful) {
-  const all = [];
-
-  for (const result of successful) {
-    const issues = parseAppraiserJsonl(result.output || '');
-    all.push(...issues);
-  }
-
-  return deduplicateIssues(all);
-}
-
-/**
- * Parse appraiser JSONL output.
+ * Parse consolidated findings from stage output files and de-duplicate
+ * the combined issue list by (file, law-id, issue text).
  *
- * Each line must be a JSON object with at least `file` and `text` fields.
- * Extra fields (`law`, `evidence`, `severity`, `location`) are preserved.
- * The `text` field maps to the issue description used for feedback text.
+ * Reads each file as JSONL (one JSON object per line), parses every line,
+ * and collects appraiser findings. Invalid lines are skipped with a
+ * warning, not a crash.
+ *
+ * @param {string[]} filePaths - Array of paths to .jsonl files
+ * @param {object} io          - IO adapter with readFile
+ * @returns {Array<{file: string, law: string, issue: string, evidence: string}>}
  */
-function parseAppraiserJsonl(output) {
-  const issues = [];
-  const lines = output.trim().split('\n');
+function isValidIssue(obj) {
+  return Boolean(obj) && typeof obj.file === 'string' && obj.file.length > 0 && typeof obj.text === 'string' && obj.text.length > 0;
+}
 
-  for (const line of lines) {
-    const issue = parseAppraiserLine(line);
-    if (issue) issues.push(issue);
+function parseConsolidatedLine(line) {
+  try {
+    const obj = JSON.parse(line);
+    if (!isValidIssue(obj)) return null;
+    return {
+      file: obj.file,
+      law: typeof obj.law === 'string' ? obj.law : '',
+      issue: obj.text,
+      evidence: typeof obj.evidence === 'string' ? obj.evidence : '',
+    };
+  } catch {
+    return null;
   }
-
-  return issues;
 }
 
-function parseAppraiserLine(line) {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-
-  const obj = tryJsonParseLine(trimmed);
-  if (!obj) return null;
-
-  return validateJsonlIssue(obj);
-}
-
-function tryJsonParseLine(line) {
-  try { return JSON.parse(line); } catch { return null; }
-}
-
-function validateJsonlIssue(obj) {
-  if (!hasStringField(obj, 'file')) return null;
-  if (!hasStringField(obj, 'text')) return null;
-
-  return {
-    file: obj.file,
-    law: strOrEmpty(obj.law),
-    issue: obj.text,
-    evidence: strOrEmpty(obj.evidence),
-  };
-}
-
-function hasStringField(obj, key) {
-  return typeof obj[key] === 'string' && obj[key].length > 0;
-}
-
-function strOrEmpty(value) {
-  return typeof value === 'string' ? value : '';
+function parseConsolidated(filePaths, io) {
+  const all = [];
+  for (const fp of filePaths) {
+    let content;
+    try { content = io.readFile(fp); } catch (err) {
+      console.warn(`appraise: failed to read output file ${fp}:`, err.message);
+      continue;
+    }
+    const lines = content.trim().split('\n').filter(Boolean);
+    for (const line of lines) {
+      const item = parseConsolidatedLine(line);
+      if (item) all.push(item);
+    }
+  }
+  return deduplicateIssues(all);
 }
 
 /**

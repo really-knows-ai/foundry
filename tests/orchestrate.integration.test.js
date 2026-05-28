@@ -27,6 +27,17 @@ function makeIo(files = {}) {
     },
     unlink: (p) => fs.delete(p),
     mkdir: () => {},
+    readDir: (p) => {
+      const prefix = p.endsWith('/') ? p : `${p}/`;
+      const entries = [];
+      for (const key of fs.keys()) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length);
+          entries.push(rest.includes('/') ? rest.slice(0, rest.indexOf('/')) : rest);
+        }
+      }
+      return [...new Set(entries)].sort();
+    },
     exec: (args) => {
       const cmd = args.join(' ');
       if (cmd.includes('merge-base')) return 'basesha\n';
@@ -1307,13 +1318,17 @@ id: haiku
     return makeIo({ ...defaults, ...files });
   }
 
+  function addForgeOutput(files, output) {
+    return { ...files, '.foundry/stage-outputs/forge-out.jsonl': JSON.stringify(output) };
+  }
+
   // #1 — No forgeItem -> no-op, passes
   test('no forgeItem — no-op, passes', async () => {
-    const io = makeForgeIo({
+    const io = makeForgeIo(addForgeOutput({
       '.foundry/last-stage.json': JSON.stringify({
         cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'did work',
       }),
-    });
+    }, { status: 'done' }));
     const forgeCtx = { forgeItem: null, forgePreVersion: EMPTY_SHA };
     const fgResult = { outputType: 'haiku' };
     const result = await orchestrate.__enforceForgeStageForTest(forgeCtx, fgResult, 'test-cycle', io, '/tmp');
@@ -1323,7 +1338,7 @@ id: haiku
 
   // #2 — Version changed -> passes, item actioned
   test('version changed — passes, item actioned', async () => {
-    const io = makeForgeIo({
+    const io = makeForgeIo(addForgeOutput({
       '.foundry/last-stage.json': JSON.stringify({
         cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'fixed it',
       }),
@@ -1339,7 +1354,7 @@ id: haiku
         cycle: test-cycle
         timestamp: '2026-01-01T00:00:00.000Z'
 `,
-    });
+    }, { status: 'actioned' }));
     const forgeCtx = {
       forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: 'v1-old',
@@ -1358,7 +1373,7 @@ id: haiku
 
   // #3 — Version unchanged + WONT-FIX appraise -> passes
   test('version unchanged + WONT-FIX appraise — passes, item wont-fix', async () => {
-    const io = makeForgeIo({
+    const io = makeForgeIo(addForgeOutput({
       '.foundry/last-stage.json': JSON.stringify({
         cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'WONT-FIX: subjective preference',
       }),
@@ -1374,7 +1389,7 @@ id: haiku
         cycle: test-cycle
         timestamp: '2026-01-01T00:00:00.000Z'
 `,
-    });
+    }, { status: 'wont-fix', reason: 'subjective preference' }));
     const forgeCtx = {
       forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'appraise:test-cycle' },
       forgePreVersion: EMPTY_SHA,
@@ -1390,7 +1405,7 @@ id: haiku
 
   // #4 — Version unchanged + WONT-FIX quench -> passes
   test('version unchanged + WONT-FIX quench — passes', async () => {
-    const io = makeForgeIo({
+    const io = makeForgeIo(addForgeOutput({
       '.foundry/last-stage.json': JSON.stringify({
         cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'WONT-FIX: not a bug',
       }),
@@ -1406,7 +1421,7 @@ id: haiku
         cycle: test-cycle
         timestamp: '2026-01-01T00:00:00.000Z'
 `,
-    });
+    }, { status: 'wont-fix', reason: 'not a bug' }));
     const forgeCtx = {
       forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: EMPTY_SHA,
@@ -1418,7 +1433,7 @@ id: haiku
 
   // #5 — Version unchanged + no WONT-FIX -> violation
   test('version unchanged + no WONT-FIX — violation', async () => {
-    const io = makeForgeIo({
+    const io = makeForgeIo(addForgeOutput({
       '.foundry/last-stage.json': JSON.stringify({
         cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'did some work',
       }),
@@ -1434,7 +1449,7 @@ id: haiku
         cycle: test-cycle
         timestamp: '2026-01-01T00:00:00.000Z'
 `,
-    });
+    }, { status: 'done' }));
     const forgeCtx = {
       forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: EMPTY_SHA,
@@ -1446,7 +1461,7 @@ id: haiku
 
   // #6 — 3 consecutive failures -> cycle violation
   test('3 consecutive failures — cycle violation', async () => {
-    const io = makeForgeIo({
+    const io = makeForgeIo(addForgeOutput({
       '.foundry/last-stage.json': JSON.stringify({
         cycle: 'test-cycle', stage: 'forge:test-cycle', baseSha: 'abc', summary: 'did some work',
       }),
@@ -1471,7 +1486,7 @@ id: haiku
         cycle: test-cycle
         timestamp: '2026-01-01T00:00:00.000Z'
 `,
-    });
+    }, { status: 'done' }));
     const forgeCtx = {
       forgeItem: { id: 'item-1', file: 'test.md', tag: 'law:test', text: 'test feedback', source: 'quench', sourceAlias: 'quench:test-cycle' },
       forgePreVersion: EMPTY_SHA,

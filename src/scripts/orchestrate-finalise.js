@@ -20,22 +20,25 @@ function buildFinalizeViolation(finalizeResult) {
   return violation(`stage_finalize error: ${finalizeResult.error}`, []);
 }
 
+function resolveStageSummary(ctx) {
+  return ctx.structuredSummary || ctx.lastStage.summary || '(no summary)';
+}
+
 function buildStageEntryBase(ctx) {
-  const summary = ctx.lastStage.summary || '(no summary)';
+  const summary = resolveStageSummary(ctx);
   const changed = ctx.lastStage.changedFiles ?? [];
-  return { cycle: ctx.cycleId, stage: ctx.lastStage.stage,
+  const base = { cycle: ctx.cycleId, stage: ctx.lastStage.stage,
     iteration: ctx.iteration, comment: summary,
     openFeedback: ctx.openFeedback, changedFiles: changed,
-    ...(baseStage(ctx.lastStage.stage || '') === 'forge'
-      ? buildForgeHistoryEntry({
-        cycle: ctx.cycleId, stage: ctx.lastStage.stage,
-        iteration: ctx.iteration, comment: summary,
-        artefactVersion: ctx.artefactVersion,
-        contractPassed: ctx.contractPassed,
-        changedFiles: changed,
-      })
-      : {}),
   };
+  if (baseStage(ctx.lastStage.stage || '') !== 'forge') return base;
+  return { ...base, ...buildForgeHistoryEntry({
+    cycle: ctx.cycleId, stage: ctx.lastStage.stage,
+    iteration: ctx.iteration, comment: summary,
+    artefactVersion: ctx.artefactVersion,
+    contractPassed: ctx.contractPassed,
+    changedFiles: changed,
+  }) };
 }
 
 function writeHistoryEntries(ctx) {
@@ -58,8 +61,8 @@ async function computeAllowedPatterns(lastStage, cycleId, io) {
   return allowedPatternsForStage({ stageBase: stageB, forgeFilePatterns });
 }
 
-function buildCommitMessage(cycleId, lastStage) {
-  return `[${cycleId}] ${lastStage.stage}: ${lastStage.summary || '(no summary)'}`;
+function buildCommitMessage(cycleId, lastStage, structuredSummary) {
+  return `[${cycleId}] ${lastStage.stage}: ${structuredSummary || lastStage.summary || '(no summary)'}`;
 }
 
 function rollbackState(io, original) {
@@ -68,10 +71,10 @@ function rollbackState(io, original) {
   else if (io.exists('WORK.history.yaml')) { io.unlink('WORK.history.yaml'); }
 }
 
-async function tryStageCommit(git, lastStage, cycleId, io) {
+async function tryStageCommit(git, lastStage, cycleId, io, structuredSummary) {
   if (!git || typeof git.commit !== 'function') return null;
   const allowedPatterns = await computeAllowedPatterns(lastStage, cycleId, io);
-  return tryCommit(git, buildCommitMessage(cycleId, lastStage), allowedPatterns, lastStage.stage);
+  return tryCommit(git, buildCommitMessage(cycleId, lastStage, structuredSummary), allowedPatterns, lastStage.stage);
 }
 
 function clearStageState(activeStage, lastStage, io) {
@@ -80,7 +83,7 @@ function clearStageState(activeStage, lastStage, io) {
 }
 
 export async function finaliseStage(args) {
-  const { lastStage, activeStage, cycleId, io, finalize, git, postVersion, contractPassed } = args;
+  const { lastStage, activeStage, cycleId, io, finalize, git, postVersion, contractPassed, structuredSummary } = args;
   const original = {
     workMd: io.readFile('WORK.md'),
     history: io.exists('WORK.history.yaml') ? io.readFile('WORK.history.yaml') : null,
@@ -104,8 +107,9 @@ export async function finaliseStage(args) {
     lastStage: { ...lastStage, changedFiles: finalizeResult.changedFiles },
     iteration, openFeedback, io,
     artefactVersion: postVersion, contractPassed,
+    structuredSummary,
   });
-  const commitErr = await tryStageCommit(git, lastStage, cycleId, io);
+  const commitErr = await tryStageCommit(git, lastStage, cycleId, io, structuredSummary);
   if (commitErr) {
     rollbackState(io, original);
     clearStageState(activeStage, null, io);

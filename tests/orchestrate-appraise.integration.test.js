@@ -135,6 +135,12 @@ You are a strict reviewer who checks for clarity and correctness.
 
 const AGENT_FILE = '# agent';
 
+/** Helper to write a forge stage output file, simulating what foundry_stage_end() does. */
+function writeForgeOutput(io) {
+  io.mkdir('.foundry/stage-outputs');
+  io.writeFile('.foundry/stage-outputs/forge-out.jsonl', '{"status":"actioned"}\n');
+}
+
 // ---------------------------------------------------------------------------
 // AC5.1 — Appraise gather returns dispatch_multi with correct task structure
 // ---------------------------------------------------------------------------
@@ -171,6 +177,7 @@ test('AC5.1: appraise gather returns dispatch_multi with one task per appraiser'
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // Call 2: finalize forge → internal quench → appraise gather
   const r2 = await runOrchestrate({ ...args, lastResult: { ok: true }, finalize }, io);
@@ -254,16 +261,15 @@ test('AC5.2: consolidate appraise posts feedback for appraiser issues', async ()
     },
   };
 
+  // Write appraiser output files as foundry_stage_end would
+  io.mkdir('.foundry/stage-outputs');
+  io.writeFile('.foundry/stage-outputs/a.jsonl', '{"file": "out/a.md", "law": "style", "text": "Use consistent line length", "evidence": "Lines vary between 5 and 12 syllables"}\n');
+  io.writeFile('.foundry/stage-outputs/b.jsonl', '{"file": "out/a.md", "law": "clarity", "text": "Metaphor is unclear", "evidence": "terminal delay does not evoke a clear image"}\n');
+
   // Call consolidateAppraise directly with two successful appraiser results
   const lastResults = [
-    {
-      ok: true,
-      output: '{"file": "out/a.md", "law": "style", "text": "Use consistent line length", "evidence": "Lines vary between 5 and 12 syllables"}',
-    },
-    {
-      ok: true,
-      output: '{"file": "out/a.md", "law": "clarity", "text": "Metaphor is unclear", "evidence": "terminal delay does not evoke a clear image"}',
-    },
+    { ok: true, output: '' },
+    { ok: true, output: '' },
   ];
 
   const result = await consolidateAppraise(ctx, lastResults);
@@ -326,6 +332,7 @@ file-patterns: ["out/*.md"]
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // Call 2: forge → quench → appraise (empty tasks → consolidate → done)
   const r2 = await runOrchestrate({ ...args, lastResult: { ok: true }, finalize }, io);
@@ -389,9 +396,13 @@ test('AC5.4: a failed appraiser subagent contributes no issues, non-fatal', asyn
     },
   };
 
+  // Write successful appraiser output file as foundry_stage_end would
+  io.mkdir('.foundry/stage-outputs');
+  io.writeFile('.foundry/stage-outputs/a.jsonl', '{"file": "out/a.md", "law": "style", "text": "Use consistent line length", "evidence": "Lines vary"}\n');
+
   // One appraiser succeeds, one fails
   const lastResults = [
-    { ok: true, output: '{"file": "out/a.md", "law": "style", "text": "Use consistent line length", "evidence": "Lines vary"}' },
+    { ok: true, output: '' },
     { ok: false, error: 'subagent crashed' },
   ];
 
@@ -513,6 +524,7 @@ test('AC5.7: full cycle forge → quench → appraise (dispatch_multi) → conso
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // Call 2: forge finalize → internal quench → appraise gather (dispatch_multi)
   const r2 = await runOrchestrate({ ...args, lastResult: { ok: true }, finalize }, io);
@@ -626,6 +638,7 @@ always-human-appraise: true
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // Call 2: forge → quench → appraise gather (dispatch_multi)
   const r2 = await runOrchestrate({ ...args, lastResult: { ok: true }, finalize }, io);

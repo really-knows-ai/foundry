@@ -23,12 +23,29 @@ function makeIo(files = {}) {
     },
     unlink: (p) => fs.delete(p),
     mkdir: () => {},
+    readDir: (p) => {
+      const prefix = p.endsWith('/') ? p : `${p}/`;
+      const entries = [];
+      for (const key of fs.keys()) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length);
+          entries.push(rest.includes('/') ? rest.slice(0, rest.indexOf('/')) : rest);
+        }
+      }
+      return [...new Set(entries)].sort();
+    },
     exec: (args) => {
       const cmd = args.join(' ');
       if (cmd.includes('merge-base')) return 'basesha\n';
       return '';
     },
   };
+}
+
+/** Helper to write a forge stage output file, simulating what foundry_stage_end() does. */
+function writeForgeOutput(io) {
+  io.mkdir('.foundry/stage-outputs');
+  io.writeFile('.foundry/stage-outputs/forge-out.jsonl', '{"status":"actioned"}\n');
 }
 
 test('runOrchestrate full happy-path: setup -> forge -> quench -> appraise -> done', async () => {
@@ -138,6 +155,7 @@ appraisers:
     summary: 'wrote first draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // ------------------------------------------------------------------
   // Call 2: finalize forge, append history, commit, run quench
@@ -156,7 +174,7 @@ appraisers:
 
   const histAfterForge = io.readFile('WORK.history.yaml');
   assert.match(histAfterForge, /stage: forge:create-haiku/);
-  assert.match(histAfterForge, /wrote first draft/);
+  assert.match(histAfterForge, /ACTIONED/);
   assert.match(histAfterForge, /route: forge:create-haiku/);
 
   // Quench ran internally — no dispatch for quench. Appraise also runs

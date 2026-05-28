@@ -69,12 +69,52 @@ beforeEach(async () => {
 
 const BASE_SHA = 'abc1234';
 
-function makeMockIO(overrides = {}) {
-  return {
-    readFile: overrides.ioReadFile ?? mock.fn(() => ''),
-    writeFile: overrides.ioWriteFile ?? mock.fn(),
-    exists: overrides.ioExists ?? mock.fn(() => true),
-  };
+const DEFAULT_IO_MOCKS = {
+  readFile: mock.fn(() => ''),
+  writeFile: mock.fn(),
+  exists: mock.fn(() => true),
+  readDir: mock.fn(() => []),
+  unlink: mock.fn(),
+};
+
+const IO_PROP_MAP = {
+  readFile: 'ioReadFile',
+  writeFile: 'ioWriteFile',
+  exists: 'ioExists',
+  readDir: 'ioReadDir',
+  unlink: 'ioUnlink',
+};
+
+function makeMockIO(overrides) {
+  const result = {};
+  for (const key of Object.keys(IO_PROP_MAP)) {
+    const ov = overrides;
+    result[key] = ov && ov[IO_PROP_MAP[key]] ? ov[IO_PROP_MAP[key]] : DEFAULT_IO_MOCKS[key];
+  }
+  return result;
+}
+
+/**
+ * Set up IO mock with stage output files in .foundry/stage-outputs/.
+ * Each entry in `files` maps a filename (e.g. "appraiser-1.jsonl") to a
+ * string content (the JSONL content). The helper wires readDir to return
+ * the filenames and readFile to return the content for matching paths.
+ */
+function setupStageOutputFiles(ioMock, files) {
+  const filenames = Object.keys(files);
+  ioMock.readDir = mock.fn((dir) => {
+    if (dir === '.foundry/stage-outputs') return filenames;
+    return [];
+  });
+  ioMock.readFile = mock.fn((fp) => {
+    for (const name of filenames) {
+      if (fp === `.foundry/stage-outputs/${name}` || fp.endsWith(`/${name}`)) {
+        return files[name];
+      }
+    }
+    throw new Error(`ENOENT: ${fp}`);
+  });
+  ioMock.unlink = mock.fn();
 }
 
 function makeMockFeedback(overrides = {}) {
@@ -383,8 +423,11 @@ describe('consolidateAppraise', () => {
   // AC2.6: one appraiser fails → non-fatal, remaining issues still posted
   it('treats failed appraiser as contributing no issues (non-fatal)', async () => {
     const ctx = createConsolidateCtx();
+    setupStageOutputFiles(ctx.io, {
+      'appraiser-1.jsonl': '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
+    });
     const lastResults = [
-      { ok: true, output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}' },
+      { ok: true, output: '' },
       { ok: false, error: 'crashed' },
     ];
 
@@ -401,15 +444,13 @@ describe('consolidateAppraise', () => {
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ feedbackAdd, finalize });
+    setupStageOutputFiles(ctx.io, {
+      'a.jsonl': '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
+      'b.jsonl': '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows everywhere"}',
+    });
     const lastResults = [
-      {
-        ok: true,
-        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
-      },
-      {
-        ok: true,
-        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows everywhere"}',
-      },
+      { ok: true, output: '' },
+      { ok: true, output: '' },
     ];
 
     const result = await consolidateAppraise(ctx, lastResults);
@@ -426,15 +467,11 @@ describe('consolidateAppraise', () => {
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ feedbackAdd, finalize });
+    setupStageOutputFiles(ctx.io, {
+      'a.jsonl': '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}\n{"file": "poem.md", "law": "dark", "text": "Gloomy tone", "evidence": "sad words"}',
+    });
     const lastResults = [
-      {
-        ok: true,
-        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
-      },
-      {
-        ok: true,
-        output: '{"file": "poem.md", "law": "dark", "text": "Gloomy tone", "evidence": "sad words"}',
-      },
+      { ok: true, output: '' },
     ];
 
     const result = await consolidateAppraise(ctx, lastResults);
@@ -449,15 +486,13 @@ describe('consolidateAppraise', () => {
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ feedbackAdd, finalize });
+    setupStageOutputFiles(ctx.io, {
+      'a.jsonl': '{"file": "poem1.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
+      'b.jsonl': '{"file": "poem2.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
+    });
     const lastResults = [
-      {
-        ok: true,
-        output: '{"file": "poem1.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
-      },
-      {
-        ok: true,
-        output: '{"file": "poem2.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
-      },
+      { ok: true, output: '' },
+      { ok: true, output: '' },
     ];
 
     const result = await consolidateAppraise(ctx, lastResults);
@@ -502,11 +537,14 @@ describe('consolidateAppraise', () => {
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ feedbackAdd, finalize });
-    const lastResults = [
-      { ok: true, output: [
+    setupStageOutputFiles(ctx.io, {
+      'appraiser-1.jsonl': [
         '{"file": "poem.md", "law": "imagery", "text": "The haiku compares rain to human constructs instead of nature", "evidence": "like a drum of war"}',
         '{"file": "poem.md", "law": "mood", "text": "No seasonal reference (kigo) — lacks classical grounding", "evidence": "no mention of season"}',
-      ].join('\n') },
+      ].join('\n'),
+    });
+    const lastResults = [
+      { ok: true, output: '' },
     ];
 
     const result = await consolidateAppraise(ctx, lastResults);
@@ -531,11 +569,11 @@ describe('consolidateAppraise', () => {
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ feedbackList, feedbackResolve, feedbackAdd, finalize });
+    setupStageOutputFiles(ctx.io, {
+      'appraiser-1.jsonl': '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
+    });
     const lastResults = [
-      {
-        ok: true,
-        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
-      },
+      { ok: true, output: '' },
     ];
 
     const result = await consolidateAppraise(ctx, lastResults);
@@ -554,8 +592,11 @@ describe('consolidateAppraise', () => {
   it('lists prior feedback with correct source filter', async () => {
     const feedbackList = mock.fn(() => []);
     const ctx = createConsolidateCtx({ feedbackList });
+    setupStageOutputFiles(ctx.io, {
+      'a.jsonl': '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
+    });
     const lastResults = [
-      { ok: true, output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}' },
+      { ok: true, output: '' },
     ];
 
     await consolidateAppraise(ctx, lastResults);
@@ -569,11 +610,11 @@ describe('consolidateAppraise', () => {
     const feedbackAdd = mock.fn();
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ feedbackAdd, finalize });
+    setupStageOutputFiles(ctx.io, {
+      'a.jsonl': '{"file": "poem.md", "law": "dark-themes", "text": "Too dark", "evidence": "shadows"}',
+    });
     const lastResults = [
-      {
-        ok: true,
-        output: '{"file": "poem.md", "law": "dark-themes", "text": "Too dark", "evidence": "shadows"}',
-      },
+      { ok: true, output: '' },
     ];
 
     await consolidateAppraise(ctx, lastResults);
@@ -585,11 +626,11 @@ describe('consolidateAppraise', () => {
   it('calls finalize after successful consolidation', async () => {
     const finalize = mock.fn();
     const ctx = createConsolidateCtx({ finalize });
+    setupStageOutputFiles(ctx.io, {
+      'a.jsonl': '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
+    });
     const lastResults = [
-      {
-        ok: true,
-        output: '{"file": "poem.md", "law": "dark", "text": "Too dark", "evidence": "shadows"}',
-      },
+      { ok: true, output: '' },
     ];
 
     await consolidateAppraise(ctx, lastResults);
