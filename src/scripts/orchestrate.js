@@ -114,7 +114,8 @@ function buildQuenchContext(cycleId, args, io) {
 
 async function buildAppraiseCtx(cycleId, args, io) {
   const stageId = `appraise:${cycleId}`;
-  const defaultModel = args.defaultModel ?? await readAppraiseModel(cycleId, io);
+  const cycleModel = await readAppraiseModel(cycleId, io);
+  const defaultModel = cycleModel || args.defaultModel;
   return { cycleId, io, git: args.git, finalize: buildFinalizeWrapper(cycleId, args, io),
     foundryDir: 'foundry', defaultModel,
     baseBranch: args.baseBranch ?? 'main', cwd: args.cwd ?? process.cwd(),
