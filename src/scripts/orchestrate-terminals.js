@@ -46,7 +46,7 @@ export async function humanAppraiseAction(route, token, ctx) {
 
   const artefact = await findOutputArtefacts(cfm, io, fd, base);
   const artefactFile = artefact ? artefact.file : null;
-  return { action: 'human_appraise', stage: route, token, context: { cycle: cycleId, artefact_file: artefactFile, recent_feedback: readRecentFeedback(io) } };
+  return { action: 'human_appraise', stage: route, context: { cycle: cycleId, artefact_file: artefactFile, recent_feedback: readRecentFeedback(io) } };
 }
 
 /**

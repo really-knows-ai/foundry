@@ -79,7 +79,13 @@ async function executeStageBegin(args, context, pending) {
     agent: context.agent, worktree: context.worktree, io, pending,
   };
   const beginResult = beginTokenStage(opts);
-  if (beginResult.error) return JSON.stringify({ error: beginResult.error });
+  if (beginResult.error) {
+    if (beginResult.error.includes('token')) {
+      const tokenPath = '.foundry/dispatch-token';
+      if (io.exists(tokenPath)) io.unlink(tokenPath);
+    }
+    return JSON.stringify({ error: beginResult.error });
+  }
 
   return JSON.stringify({ ok: true, active: beginResult.active });
 }

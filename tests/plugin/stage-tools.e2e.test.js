@@ -65,6 +65,7 @@ describe('foundry_stage_begin', () => {
     ));
     assert.match(res.error, /expired/);
     assert.equal(existsSync(join(dir, '.foundry/active-stage.json')), false);
+    assert.equal(existsSync(join(dir, '.foundry/dispatch-token')), false);
   });
 
   it('rejects a reused nonce', async () => {

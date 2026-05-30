@@ -669,7 +669,7 @@ haiku
     // no lastResult
   }, io);
   assert.strictEqual(result.action, 'violation');
-  assert.match(result.details, /orphaned|prior stage/i);
+  assert.match(result.details, /is active but you called foundry_orchestrate\(\) without lastResult/i);
 });
 
 test('runOrchestrate dispatch: tokens include timestamp nonce for uniqueness (TF8)', async () => {
@@ -870,7 +870,6 @@ file-patterns: ["out/*.md"]
   );
   assert.strictEqual(result.action, 'human_appraise');
   assert.strictEqual(result.stage, 'human-appraise:create-haiku');
-  assert.strictEqual(result.token, 'HA_TOKEN');
   assert.strictEqual(result.context.cycle, 'create-haiku');
   // artefact_file is null because no git diff changes detected
   assert.strictEqual(result.context.artefact_file, null);

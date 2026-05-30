@@ -652,8 +652,6 @@ always-human-appraise: true
   assert.strictEqual(r3.action, 'human_appraise',
     'after appraise, should route to human-appraise');
   assert.strictEqual(r3.stage, 'human-appraise:test-cycle');
-  assert.strictEqual(typeof r3.token, 'string',
-    'human-appraise must include a token');
   assert.ok(r3.context, 'human-appraise must include context');
   assert.strictEqual(r3.context.cycle, 'test-cycle');
 });
