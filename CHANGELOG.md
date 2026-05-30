@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.9.0] - 2026-05-30
+
+### Added
+
+- Structured stage output schemas with JSON Schema-style validation for forge, appraise, and human-appraise outputs. Each schema defines required and optional fields with type and enum constraints.
+- `foundry_stage_output` tool: stages can now return structured JSON output instead of free-text summaries.
+- `foundry_stage_end` contract enforcement: validates stage output against the declared schema and rejects malformed responses with actionable error messages.
+- Orchestrator integration: stage output validation wired into the orchestration post-dispatch path.
+- E2E integration tests and skill guidance for the stage output tooling.
+
+### Fixed
+
+- Appraise context now prefers the cycle frontmatter `models.appraise` value over the caller's `defaultModel` when resolving the appraise subagent model.
+
+### Changed
+
+- Reviewer agent and systematic-fix-and-review skill updated.
+
 ## [3.8.5] - 2026-05-27
 
 ### Changed
