@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.2] - 2026-05-30
+
+### Fixed
+
+- Dispatch token file only deleted for definitively dead tokens (bad signature, malformed, expired, already consumed), preserving the file for recoverable errors like stage mismatch where the nonce is still valid.
+- Active stage check moved before token file check in `foundry_stage_begin`, so dispatch_multi (appraise) gives "stage already active" instead of "no dispatch token found".
+
 ## [3.9.1] - 2026-05-30
 
 ### Fixed
