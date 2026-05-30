@@ -4,12 +4,12 @@
  *
  * Rules (per spec R4):
  *   - Version changed → transition item to `actioned`.
- *   - Version unchanged + summary contains `WONT-FIX:` + source base is
- *     `appraise` → transition item to `wont-fix` with the justification
- *     as the reason.
- *   - Version unchanged + summary contains `WONT-FIX:` + source base is
+ *   - Version unchanged + output.status is `wont-fix` + source base is
+ *     `appraise` → transition item to `wont-fix` with output.reason
+ *     as the justification.
+ *   - Version unchanged + output.status is `wont-fix` + source base is
  *     NOT `appraise` → contract violation.
- *   - Version unchanged + no `WONT-FIX:` in summary → contract violation.
+ *   - Version unchanged + output.status is `done` → contract violation.
  *   - No item (null/undefined) → no-op, contract passes.
  */
 
@@ -45,12 +45,13 @@ function handleVersionChanged(item, feedbackStore, cycleId, postVersion) {
 }
 
 function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reason) {
+  const reasonStr = reason || '';
   const result = feedbackStore.transition({
     id: item.id,
     target: 'wont-fix',
     stage: 'forge:' + cycleId,
     cycle: cycleId,
-    reason,
+    reason: reasonStr,
   });
   if (!result.ok) {
     postSystemFeedback(feedbackStore, cycleId, postVersion, result.error || 'store transition failed');
@@ -67,21 +68,20 @@ function handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, reas
  * exists yet and subsequent runs where all items were already resolved.
  *
  * @param {{ item: object|null, preVersion: string, postVersion: string,
- *           summary: string, feedbackStore: object, cycleId: string }} params
+ *           output: { status: string, reason?: string }, feedbackStore: object,
+ *           cycleId: string }} params
  * @returns {{ contractPassed: boolean }}
  */
-export function enforceForgeContract({ item, preVersion, postVersion, summary, feedbackStore, cycleId }) {
+export function enforceForgeContract({ item, preVersion, postVersion, output, feedbackStore, cycleId }) {
   if (!item) return { contractPassed: true };
 
-  const wontFixMatch = summary.match(/WONT-FIX:\s*(.+)/);
   const versionChanged = preVersion !== postVersion;
-  const actioned = summary.trim() === 'ACTIONED';
 
-  if (wontFixMatch) {
-    return handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, wontFixMatch[1]);
+  if (output.status === 'wont-fix') {
+    return handleWontFixWithReason(item, feedbackStore, cycleId, postVersion, output.reason);
   }
 
-  if (versionChanged || actioned) {
+  if (versionChanged || output.status === 'actioned') {
     return handleVersionChanged(item, feedbackStore, cycleId, postVersion);
   }
 

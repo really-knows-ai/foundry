@@ -23,10 +23,10 @@ export async function readStageOutput(filePath, io) {
   try {
     const content = await io.readFile(filePath);
     const lines = content.trim().split('\n').filter(Boolean);
-    if (lines.length === 0) return null;
-    return JSON.parse(lines[0]);
+    if (lines.length === 0) return [];
+    return lines.map(line => JSON.parse(line));
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -39,12 +39,17 @@ async function readForgeStageOutput(io) {
 async function parseForgeOutput(entries, io) {
   const files = (Array.isArray(entries) ? entries : []).filter(f => f.endsWith('.jsonl'));
   if (files.length === 0) return { ok: false, error: 'forge: no stage output found' };
-  if (files.length > 1) return { ok: false, error: 'forge: unexpected multiple output files' };
-  const filePath = path.join('.foundry/stage-outputs', files[0]);
-  const output = await readStageOutput(filePath, io);
-  if (!output) return { ok: false, error: 'forge: malformed stage output' };
-  safeUnlink(io, filePath);
-  return { ok: true, output };
+
+  const allOutputs = [];
+  for (const f of files) {
+    const filePath = path.join('.foundry/stage-outputs', f);
+    const outputs = await readStageOutput(filePath, io);
+    allOutputs.push(...outputs);
+    safeUnlink(io, filePath);
+  }
+
+  if (allOutputs.length === 0) return { ok: false, error: 'forge: malformed stage output' };
+  return { ok: true, outputs: allOutputs };
 }
 
 export async function enforceForgeStage(forgeCtx, fgResult, cycleId, io, cwd) {
@@ -54,31 +59,21 @@ export async function enforceForgeStage(forgeCtx, fgResult, cycleId, io, cwd) {
   const stageResult = await readForgeStageOutput(io);
   if (!stageResult.ok) return stageResult;
 
-  const output = stageResult.output;
-  if (output.reason) {
-    console.log(`forge stage output reason: ${output.reason}`);
+  const outputs = stageResult.outputs;
+  if (outputs.length !== 1) {
+    return { ok: false, error: `forge stage_end: expected exactly 1 output object, got ${outputs.length}` };
   }
-  // Build summary string for the existing enforceForgeContract which expects
-  // the old free-text format: "ACTIONED", "WONT-FIX: reason", or "DONE".
-  const summary = buildForgeSummary(output);
+  const output = outputs[0];
   const item = forgeCtx.forgeItem || null;
 
   const { contractPassed } = enforceForgeContract({
-    item, preVersion: forgeCtx.forgePreVersion, postVersion, summary, feedbackStore, cycleId,
+    item, preVersion: forgeCtx.forgePreVersion, postVersion, output, feedbackStore, cycleId,
   });
 
   if (checkConsecutiveFailures(contractPassed, io, cycleId)) {
     return { violation: 'forge contract failed 3 consecutive times — unable to satisfy feedback requirements' };
   }
-  return { postVersion, contractPassed, summary };
-}
-
-function buildForgeSummary(output) {
-  if (output.status === 'wont-fix') {
-    return output.reason ? `WONT-FIX: ${output.reason}` : 'WONT-FIX';
-  }
-  if (output.status === 'actioned') return 'ACTIONED';
-  return 'DONE';
+  return { postVersion, contractPassed, output };
 }
 
 function countConsecutiveForgeFailures(io, cycleId) {
@@ -142,7 +137,7 @@ export async function runForgePostDispatch(args, activeStage, lastStage, cycleId
     ...base,
     postVersion: result.postVersion,
     contractPassed: result.contractPassed,
-    structuredSummary: result.summary,
+    structuredSummary: JSON.stringify(result.output),
   });
 }
 
@@ -157,32 +152,83 @@ async function readStageOutputFiles(io) {
   return (entries || []).filter(f => f.endsWith('.jsonl'));
 }
 
+function resolveHumanAppraiseVerdict(output) {
+  return isVerdictApproved(output) ? 'approved' : '';
+}
+
+function cleanupHumanAppraiseFiles(io, files) {
+  for (const f of files) {
+    safeUnlink(io, path.join('.foundry/stage-outputs', f));
+  }
+}
+
 export async function runHumanAppraisePostDispatch(args, activeStage, lastStage, cycleId, io) {
   const files = await readStageOutputFiles(io);
 
   if (files.length === 0) {
     return finaliseStage({
-      lastStage: { ...lastStage, summary: 'Human appraisal complete' }, activeStage, cycleId, io,
+      lastStage, activeStage, cycleId, io,
       finalize: args.finalize, git: args.git,
+      structuredSummary: '',
     });
   }
 
-  const output = await readStageOutput(path.join('.foundry/stage-outputs', files[0]), io);
-  let humanSummary = 'Human appraisal complete';
-  if (isVerdictApproved(output)) humanSummary = 'Human approved';
-  for (const f of files) {
-    safeUnlink(io, path.join('.foundry/stage-outputs', f));
+  if (files.length > 1) {
+    cleanupHumanAppraiseFiles(io, files);
+    return finaliseStage({
+      lastStage, activeStage, cycleId, io,
+      finalize: args.finalize, git: args.git,
+      structuredSummary: '',
+    });
   }
 
+  const outputs = await readStageOutput(path.join('.foundry/stage-outputs', files[0]), io);
+  cleanupHumanAppraiseFiles(io, files);
+
+  // Any approved verdict in the outputs means approved
+  const approved = outputs.some(o => o && o.verdict === 'approved');
+  const structuredSummary = approved ? 'approved' : '';
+
   return finaliseStage({
-    lastStage: { ...lastStage, summary: humanSummary }, activeStage, cycleId, io,
+    lastStage, activeStage, cycleId, io,
     finalize: args.finalize, git: args.git,
+    structuredSummary,
+  });
+}
+
+export async function runAppraisePostDispatch(args, activeStage, lastStage, cycleId, io) {
+  const files = await readStageOutputFiles(io);
+
+  if (files.length === 0) {
+    return finaliseStage({
+      lastStage, activeStage, cycleId, io,
+      finalize: args.finalize, git: args.git,
+      structuredSummary: undefined,
+    });
+  }
+
+  let totalCount = 0;
+  for (const f of files) {
+    const filePath = path.join('.foundry/stage-outputs', f);
+    const outputs = await readStageOutput(filePath, io);
+    totalCount += outputs.length;
+  }
+
+  // Do NOT clean up files — consolidateAppraise handles cleanup later
+
+  const structuredSummary = totalCount > 0 ? `found:${totalCount}` : undefined;
+
+  return finaliseStage({
+    lastStage, activeStage, cycleId, io,
+    finalize: args.finalize, git: args.git,
+    structuredSummary,
   });
 }
 
 export function routePostDispatchStage(baseStageName, opts) {
   if (baseStageName === 'forge') return runForgePostDispatch(opts.args, opts.activeStage, opts.lastStage, opts.cycleId, opts.io);
   if (baseStageName === 'human-appraise') return runHumanAppraisePostDispatch(opts.args, opts.activeStage, opts.lastStage, opts.cycleId, opts.io);
+  if (baseStageName === 'appraise') return runAppraisePostDispatch(opts.args, opts.activeStage, opts.lastStage, opts.cycleId, opts.io);
   return finaliseStage({
     lastStage: opts.lastStage,
     activeStage: opts.activeStage,

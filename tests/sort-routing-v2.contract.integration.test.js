@@ -87,7 +87,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench:test-cycle' },
       preVersion: 'v1',
       postVersion: 'v2',
-      summary: 'fixed the artefact',
+      output: { status: 'actioned' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -105,7 +105,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'appraise:test-cycle' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'WONT-FIX: subjective preference, acceptable tradeoff',
+      output: { status: 'wont-fix', reason: 'subjective preference, acceptable tradeoff' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -124,7 +124,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench:test-cycle' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'WONT-FIX: not a bug',
+      output: { status: 'wont-fix', reason: 'not a bug' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -140,7 +140,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench:test-cycle' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'made some changes but artefacts are the same',
+      output: { status: 'done' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -161,7 +161,7 @@ describe('enforceForgeContract', () => {
       item: null,
       preVersion: 'v1',
       postVersion: 'v2',
-      summary: 'irrelevant',
+      output: { status: 'done' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -178,7 +178,7 @@ describe('enforceForgeContract', () => {
     enforceForgeContract({
       item: { id: 'item-1', source: 'quench:test-cycle' },
       preVersion: 'v1', postVersion: 'v1',
-      summary: 'did some work',
+      output: { status: 'done' },
       feedbackStore: store1, cycleId: 'test-cycle',
     });
     const sys1 = store1._items.find(i => i.source === 'system:forge-contract-mismatch');

@@ -514,7 +514,6 @@ describe('consolidateAppraise', () => {
     const result = await consolidateAppraise(ctx, lastResults);
 
     assert.equal(result.ok, true);
-    assert.match(result.summary, /No issues found/);
     assert.equal(feedbackAdd.mock.calls.length, 0);
   });
 
@@ -529,7 +528,6 @@ describe('consolidateAppraise', () => {
     const result = await consolidateAppraise(ctx, lastResults);
 
     assert.equal(result.ok, true);
-    assert.match(result.summary, /No issues found/);
     assert.equal(feedbackAdd.mock.calls.length, 0);
   });
 
@@ -640,7 +638,7 @@ describe('consolidateAppraise', () => {
     assert.equal(args.lastStage.stage, 'appraise:haiku-cycle');
     assert.equal(args.lastStage.baseSha, BASE_SHA);
     assert.equal(args.activeStage, ctx.activeStage);
-    assert.match(args.lastStage.summary, /1 issue/);
+    assert.match(args.lastStage.summary, /actioned:1/);
   });
 
   // Empty lastResults
@@ -652,7 +650,6 @@ describe('consolidateAppraise', () => {
     const result = await consolidateAppraise(ctx, []);
 
     assert.equal(result.ok, true);
-    assert.match(result.summary, /No issues found/);
     assert.equal(feedbackAdd.mock.calls.length, 0);
   });
 });

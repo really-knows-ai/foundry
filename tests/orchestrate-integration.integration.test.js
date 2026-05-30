@@ -174,7 +174,7 @@ appraisers:
 
   const histAfterForge = io.readFile('WORK.history.yaml');
   assert.match(histAfterForge, /stage: forge:create-haiku/);
-  assert.match(histAfterForge, /ACTIONED/);
+  assert.match(histAfterForge, /actioned/);
   assert.match(histAfterForge, /route: forge:create-haiku/);
 
   // Quench ran internally — no dispatch for quench. Appraise also runs

@@ -3,114 +3,172 @@
 // Each exported function validates a plain object against the stage's output
 // schema and returns { ok: true } or { ok: false, errors: [...] }.
 
-function isPlainObject(v) {
+// ── JSON Schema definitions ──────────────────────────────────────────
+
+const FORGE_SCHEMA = {
+  type: 'object',
+  required: ['status'],
+  properties: {
+    status: { enum: ['done', 'actioned', 'wont-fix'] },
+    reason: { type: 'string' },
+  },
+  allOf: [
+    {
+      if: { properties: { status: { const: 'wont-fix' } } },
+      then: { required: ['reason'] },
+    },
+  ],
+};
+
+const APPRAISE_SCHEMA = {
+  type: 'object',
+  required: ['file', 'law', 'text'],
+  properties: {
+    file: { type: 'string', minLength: 1 },
+    law: { type: 'string', minLength: 1 },
+    text: { type: 'string', minLength: 1 },
+    evidence: { type: 'string' },
+    severity: { type: 'string' },
+    location: { type: 'string' },
+  },
+};
+
+const HUMAN_APPRAISE_SCHEMA = {
+  type: 'object',
+  required: ['verdict'],
+  properties: {
+    verdict: { const: 'approved' },
+  },
+};
+
+// ── Schema validator ─────────────────────────────────────────────────
+
+function checkObjectType(schema, data, path) {
+  if (schema.type !== 'object') return [];
+  if (isRecord(data)) return [];
+  return [`${path} — must be a plain object`];
+}
+
+function checkStringType(schema, data, path) {
+  if (schema.type !== 'string') return [];
+  if (typeof data !== 'string') {
+    return [`${path} — must be a string`];
+  }
+  if (schema.minLength !== undefined && data.length < schema.minLength) {
+    return [`${path} — must be a non-empty string`];
+  }
+  return [];
+}
+
+function checkType(schema, data, path) {
+  return [
+    ...checkObjectType(schema, data, path),
+    ...checkStringType(schema, data, path),
+  ];
+}
+
+function isRecord(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function checkExtraFields(data, allowed, stage) {
+function checkRequired(schema, data, path) {
+  if (!schema.required || !isRecord(data)) return [];
+  return schema.required
+    .filter(key => !(key in data))
+    .map(key => `${path}: ${key} — is required`);
+}
+
+function checkProperties(schema, data, path) {
+  if (!schema.properties || !isRecord(data)) return [];
   const errors = [];
-  for (const key of Object.keys(data)) {
-    if (!allowed.has(key)) {
-      errors.push(`${stage}: ${key} — unknown field`);
+  for (const [key, propSchema] of Object.entries(schema.properties)) {
+    if (key in data) {
+      errors.push(...validateSchema(propSchema, data[key], `${path}: ${key}`));
     }
   }
   return errors;
 }
 
-// ── Forge ──────────────────────────────────────────────────────────
+function checkAdditionalProperties(schema, data, path) {
+  if (schema.additionalProperties !== false || !schema.properties || !isRecord(data)) return [];
+  const allowed = new Set(Object.keys(schema.properties));
+  return Object.keys(data)
+    .filter(key => !allowed.has(key))
+    .map(key => `${path}: ${key} — unknown field`);
+}
 
-const VALID_STATUSES = new Set(['done', 'actioned', 'wont-fix']);
-const DONE_LIKE = new Set(['done', 'actioned']);
-const FORGE_ALLOWED = new Set(['status', 'reason']);
+function checkEnum(schema, data, path) {
+  if (schema.enum === undefined) return [];
+  if (schema.enum.includes(data)) return [];
+  const allowed = schema.enum.map(v => JSON.stringify(v)).join(', ');
+  return [`${path} — must be one of ${allowed}`];
+}
 
-function checkForgeStatus(data, stage) {
+function checkConst(schema, data, path) {
+  if (schema.const === undefined) return [];
+  if (data === schema.const) return [];
+  return [`${path} — must be ${JSON.stringify(schema.const)}`];
+}
+
+function checkNot(schema, data, path) {
+  if (!schema.not || !schema.not.required || !isRecord(data)) return [];
+  return schema.not.required
+    .filter(key => key in data)
+    .map(key => `${path}: ${key} — must not be present`);
+}
+
+function skipAllOfItem(item, data) {
+  if (!item.if) return true;
+  if (!item.if.properties) return false;
+  return Object.keys(item.if.properties).some(key => !(key in data));
+}
+
+function checkAllOf(schema, data, path) {
+  if (!schema.allOf) return [];
   const errors = [];
-  if (data.status === undefined) {
-    errors.push(`${stage}: status — is required`);
-  } else if (!VALID_STATUSES.has(data.status)) {
-    errors.push(`${stage}: status — must be one of done, actioned, wont-fix`);
+  for (const item of schema.allOf) {
+    if (skipAllOfItem(item, data)) continue;
+    const ifErrors = validateSchema(item.if, data, path);
+    if (ifErrors.length === 0) {
+      errors.push(...validateSchema(item.then, data, path));
+    }
   }
   return errors;
 }
 
-function checkForgeReason(data, stage) {
-  const errors = [];
-  if (data.status === 'wont-fix' && typeof data.reason !== 'string') {
-    errors.push(`${stage}: reason — is required when status is wont-fix`);
-  }
-  if (DONE_LIKE.has(data.status) && data.reason !== undefined) {
-    errors.push(`${stage}: reason — must not be present when status is ${data.status}`);
-  }
-  return errors;
+function validateSchema(schema, data, path = '') {
+  const typeErrors = checkType(schema, data, path);
+  if (typeErrors.length > 0) return typeErrors;
+
+  return [
+    ...checkRequired(schema, data, path),
+    ...checkProperties(schema, data, path),
+    ...checkAdditionalProperties(schema, data, path),
+    ...checkEnum(schema, data, path),
+    ...checkConst(schema, data, path),
+    ...checkNot(schema, data, path),
+    ...checkAllOf(schema, data, path),
+  ];
 }
+// ── Exported validators ──────────────────────────────────────────────
 
 export function validateForgeOutput(data) {
   const stage = 'forge';
-  if (!isPlainObject(data)) {
-    return { ok: false, errors: [`${stage}: data — must be a plain object`] };
-  }
-  const errors = [];
-  errors.push(...checkForgeStatus(data, stage));
-  errors.push(...checkForgeReason(data, stage));
-  errors.push(...checkExtraFields(data, FORGE_ALLOWED, stage));
+  const errors = validateSchema(FORGE_SCHEMA, data, stage);
   if (errors.length) return { ok: false, errors };
   return { ok: true };
-}
-
-// ── Appraise ───────────────────────────────────────────────────────
-
-const APPRAISE_REQUIRED = ['file', 'law', 'text'];
-const APPRAISE_OPTIONAL = ['evidence', 'severity', 'location'];
-const APPRAISE_ALLOWED = new Set([...APPRAISE_REQUIRED, ...APPRAISE_OPTIONAL]);
-
-function checkRequiredStrings(data, fields, stage) {
-  const errors = [];
-  for (const field of fields) {
-    const val = data[field];
-    if (typeof val !== 'string' || val.length === 0) {
-      errors.push(`${stage}: ${field} — must be a non-empty string`);
-    }
-  }
-  return errors;
-}
-
-function checkOptionalStrings(data, fields, stage) {
-  const errors = [];
-  for (const field of fields) {
-    if (data[field] !== undefined && typeof data[field] !== 'string') {
-      errors.push(`${stage}: ${field} — must be a string`);
-    }
-  }
-  return errors;
 }
 
 export function validateAppraiseOutput(data) {
   const stage = 'appraise';
-  if (!isPlainObject(data)) {
-    return { ok: false, errors: [`${stage}: data — must be a plain object`] };
-  }
-  const errors = [];
-  errors.push(...checkRequiredStrings(data, APPRAISE_REQUIRED, stage));
-  errors.push(...checkOptionalStrings(data, APPRAISE_OPTIONAL, stage));
-  errors.push(...checkExtraFields(data, APPRAISE_ALLOWED, stage));
+  const errors = validateSchema(APPRAISE_SCHEMA, data, stage);
   if (errors.length) return { ok: false, errors };
   return { ok: true };
 }
 
-// ── Human-Appraise ─────────────────────────────────────────────────
-
-const HUMAN_ALLOWED = new Set(['verdict']);
-
 export function validateHumanAppraiseOutput(data) {
   const stage = 'human-appraise';
-  if (!isPlainObject(data)) {
-    return { ok: false, errors: [`${stage}: data — must be a plain object`] };
-  }
-  const errors = [];
-  if (data.verdict !== 'approved') {
-    errors.push(`${stage}: verdict — must be "approved"`);
-  }
-  errors.push(...checkExtraFields(data, HUMAN_ALLOWED, stage));
+  const errors = validateSchema(HUMAN_APPRAISE_SCHEMA, data, stage);
   if (errors.length) return { ok: false, errors };
   return { ok: true };
 }

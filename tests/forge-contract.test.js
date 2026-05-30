@@ -79,7 +79,7 @@ describe('enforceForgeContract', () => {
     const result = enforceForgeContract({
       item: null,
       preVersion: 'v1', postVersion: 'v2',
-      summary: 'did work',
+      output: { status: 'done' },
       feedbackStore, cycleId: 'test-cycle',
     });
     assert.deepEqual(result, { contractPassed: true });
@@ -96,7 +96,7 @@ describe('enforceForgeContract', () => {
     const result = enforceForgeContract({
       item: undefined,
       preVersion: 'v1', postVersion: 'v2',
-      summary: 'did work',
+      output: { status: 'done' },
       feedbackStore, cycleId: 'test-cycle',
     });
     assert.deepEqual(result, { contractPassed: true });
@@ -112,7 +112,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v2',
-      summary: 'fixed the issue',
+      output: { status: 'actioned' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -133,7 +133,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'appraise' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'WONT-FIX: this is a subjective preference, not a bug',
+      output: { status: 'wont-fix', reason: 'this is a subjective preference, not a bug' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -154,7 +154,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'WONT-FIX: nope',
+      output: { status: 'wont-fix', reason: 'nope' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -172,7 +172,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'human-appraise' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'WONT-FIX: no',
+      output: { status: 'wont-fix', reason: 'no' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -190,7 +190,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'did some work but no change',
+      output: { status: 'done' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -216,7 +216,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v2',
-      summary: 'fixed',
+      output: { status: 'actioned' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -237,7 +237,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'item-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'no change',
+      output: { status: 'done' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });
@@ -265,7 +265,7 @@ describe('enforceForgeContract', () => {
       item: { id: 'target-1', source: 'quench' },
       preVersion: 'v1',
       postVersion: 'v1',
-      summary: 'no change',
+      output: { status: 'done' },
       feedbackStore: store,
       cycleId: 'test-cycle',
     });

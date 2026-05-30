@@ -13,7 +13,6 @@ import { FoundryPlugin } from '../../../src/plugin/foundry.js';
 import { signToken } from '../../../src/scripts/lib/token.js';
 import { readOrCreateSecret } from '../../../src/scripts/lib/secret.js';
 import { _clearAllOutputs, getStageOutputs } from '../../../src/plugin/tools/stage-output-tool.js';
-import { _clearCleanedStages } from '../../../src/plugin/tools/stage-tools.js';
 
 const GIT_ENV = {
   ...process.env,
@@ -71,57 +70,7 @@ function readOutputFile(dir, filename) {
 
 // ── Summary rejection ───────────────────────────────────────────────
 
-describe('summary rejection', () => {
-  beforeEach(() => _clearAllOutputs());
-  afterEach(() => _clearAllOutputs());
 
-  test('returns error when summary argument is passed', async () => {
-    const dir = tmpDir();
-    try {
-      initRepo(dir);
-      const plugin = await FoundryPlugin({ directory: dir });
-      await beginStage(plugin, dir);
-      const result = await stageEnd(plugin, dir, { summary: 'anything' });
-      assert.equal(result.ok, undefined);
-      assert.equal(result.error, "foundry_stage_end: 'summary' argument is removed; use foundry_stage_output instead");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  test('does not write output files on summary rejection', async () => {
-    const dir = tmpDir();
-    try {
-      initRepo(dir);
-      const plugin = await FoundryPlugin({ directory: dir });
-      await beginStage(plugin, dir);
-      await stageEnd(plugin, dir, { summary: 'test' });
-      const files = listOutputFiles(dir);
-      assert.equal(files.length, 0);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  test('preserves in-memory buffer on summary rejection', async () => {
-    const dir = tmpDir();
-    try {
-      initRepo(dir);
-      const plugin = await FoundryPlugin({ directory: dir });
-      await beginStage(plugin, dir);
-      // Accumulate some output first
-      await stageOutput(plugin, dir, { status: 'done' });
-      assert.equal(getStageOutputs('forge:cycle-1').length, 1);
-      // Reject with summary — buffer must survive
-      const result = await stageEnd(plugin, dir, { summary: 'test' });
-      assert.equal(result.ok, undefined);
-      assert.equal(getStageOutputs('forge:cycle-1').length, 1,
-        'buffer must be preserved after summary rejection so subagent can retry');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
 
 // ── Forge contract ──────────────────────────────────────────────────
 
@@ -355,7 +304,7 @@ describe('buffer lifecycle', () => {
     }
   });
 
-  test('buffer is preserved when summary is rejected', async () => {
+  test('buffer is cleared after successful stage_end with unknown args', async () => {
     const dir = tmpDir();
     try {
       initRepo(dir);
@@ -363,9 +312,9 @@ describe('buffer lifecycle', () => {
       await beginStage(plugin, dir, 'forge:cycle-1');
       await stageOutput(plugin, dir, { status: 'done' });
       assert.equal(getStageOutputs('forge:cycle-1').length, 1);
-      await stageEnd(plugin, dir, { summary: 'old-arg' });
-      assert.equal(getStageOutputs('forge:cycle-1').length, 1,
-        'buffer must survive summary rejection');
+      await stageEnd(plugin, dir, { unused: 'arg' });
+      assert.equal(getStageOutputs('forge:cycle-1').length, 0,
+        'unused args must not block stage_end');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -395,14 +344,12 @@ describe('buffer lifecycle', () => {
 describe('cleanup tracking', () => {
   beforeEach(() => {
     _clearAllOutputs();
-    _clearCleanedStages();
   });
   afterEach(() => {
     _clearAllOutputs();
-    _clearCleanedStages();
   });
 
-  test('stage_begin cleans the output directory on first call', async () => {
+  test('stage_begin cleans the output directory on call', async () => {
     const dir = tmpDir();
     try {
       initRepo(dir);
@@ -422,7 +369,7 @@ describe('cleanup tracking', () => {
     }
   });
 
-  test('second stage_begin for same stage does NOT clean again', async () => {
+  test('second stage_begin for same stage cleans again', async () => {
     const dir = tmpDir();
     try {
       initRepo(dir);
@@ -432,19 +379,12 @@ describe('cleanup tracking', () => {
       // End the first stage — this writes a .jsonl file
       await stageOutput(plugin, dir, { status: 'done' });
       await stageEnd(plugin, dir);
-      const filesAfterEnd = listOutputFiles(dir).length;
-      assert.ok(filesAfterEnd >= 1, 'stage_end should write an output file');
+      assert.ok(listOutputFiles(dir).length >= 1, 'stage_end should write an output file');
 
-      // Create an additional file in the output directory
-      const outDir = stageOutputDir(dir);
-      writeFileSync(join(outDir, 'survivor.jsonl'), '{}');
-
-      // Begin again with same stage ID — must NOT clean
+      // Begin again with same stage ID — must clean (fresh slate per stage)
       await beginStage(plugin, dir, 'forge:clean-test-2', 'cycle-1', 'n-same-stage');
-      const filesAfterSecondBegin = listOutputFiles(dir).length;
-      // The total should be filesAfterEnd + 1 (survivor) — second begin didn't clean
-      assert.equal(filesAfterSecondBegin, filesAfterEnd + 1,
-        'second begin for same stage must NOT clean directory');
+      assert.equal(listOutputFiles(dir).length, 0,
+        'second begin for same stage must clean directory (fresh slate per stage)');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

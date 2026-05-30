@@ -351,9 +351,7 @@ function resolvePriorAppraise(ctx, consolidated, stageId) {
  * Build the summary string for consolidation.
  */
 function buildConsolidateSummary(count) {
-  if (count === 0) return 'No issues found by appraisers';
-
-  return `${count} issue(s) found by appraisers`;
+  return count === 0 ? 'No issues found by appraisers' : `actioned:${count}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +380,7 @@ function buildAppraiserPrompt({ appraiser, typeId }) {
     '- Read matching files from the worktree',
     '',
     'For each violation, call `foundry_stage_output({ file, law, text, evidence })`.',
-    '`file` and `text` are required. `law` and `evidence` are recommended.',
+    '`file`, `law`, and `text` are required. `evidence` is recommended.',
     'Optional fields `severity` and `location` are passed through unchanged.',
     '',
     'If no issues, call `foundry_stage_end()` directly — no `stage_output` calls needed.',

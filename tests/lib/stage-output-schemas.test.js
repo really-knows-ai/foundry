@@ -31,25 +31,25 @@ describe('validateForgeOutput — non-object inputs', () => {
   test('rejects null', () => {
     const r = validateForgeOutput(null);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['forge — must be a plain object']);
   });
 
   test('rejects array', () => {
     const r = validateForgeOutput([1, 2]);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['forge — must be a plain object']);
   });
 
   test('rejects string', () => {
     const r = validateForgeOutput('hello');
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['forge — must be a plain object']);
   });
 
   test('rejects number', () => {
     const r = validateForgeOutput(5);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['forge — must be a plain object']);
   });
 });
 
@@ -57,7 +57,7 @@ describe('validateForgeOutput — status field', () => {
   test('rejects invalid status value', () => {
     const r = validateForgeOutput({ status: 'fixed' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: status — must be one of done, actioned, wont-fix']);
+    assert.deepEqual(r.errors, ['forge: status — must be one of "done", "actioned", "wont-fix"']);
   });
 
   test('rejects missing status', () => {
@@ -71,43 +71,24 @@ describe('validateForgeOutput — reason conditional', () => {
   test('rejects wont-fix without reason', () => {
     const r = validateForgeOutput({ status: 'wont-fix' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: reason — is required when status is wont-fix']);
+    assert.deepEqual(r.errors, ['forge: reason — is required']);
   });
 
   test('rejects wont-fix with non-string reason', () => {
     const r = validateForgeOutput({ status: 'wont-fix', reason: 5 });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: reason — is required when status is wont-fix']);
+    assert.deepEqual(r.errors, ['forge: reason — must be a string']);
   });
 
-  test('rejects actioned with reason', () => {
-    const r = validateForgeOutput({ status: 'actioned', reason: 'stuff' });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: reason — must not be present when status is actioned']);
-  });
 
-  test('rejects done with reason', () => {
-    const r = validateForgeOutput({ status: 'done', reason: 'stuff' });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: reason — must not be present when status is done']);
-  });
-});
-
-describe('validateForgeOutput — extra fields', () => {
-  test('rejects unknown field alongside valid status', () => {
-    const r = validateForgeOutput({ status: 'done', extra: true });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['forge: extra — unknown field']);
-  });
 });
 
 describe('validateForgeOutput — reports all errors', () => {
-  test('reports invalid status and extra field together', () => {
-    const r = validateForgeOutput({ status: 'fixed', extra: true });
+  test('reports invalid status value', () => {
+    const r = validateForgeOutput({ status: 'fixed' });
     assert.equal(r.ok, false);
-    assert.equal(r.errors.length, 2);
+    assert.equal(r.errors.length, 1);
     assert.ok(r.errors.some(e => e.includes('status')));
-    assert.ok(r.errors.some(e => e.includes('extra')));
   });
 });
 
@@ -143,25 +124,25 @@ describe('validateAppraiseOutput — non-object inputs', () => {
   test('rejects null', () => {
     const r = validateAppraiseOutput(null);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['appraise — must be a plain object']);
   });
 
   test('rejects array', () => {
     const r = validateAppraiseOutput([1, 2]);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['appraise — must be a plain object']);
   });
 
   test('rejects string', () => {
     const r = validateAppraiseOutput('hello');
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['appraise — must be a plain object']);
   });
 
   test('rejects number', () => {
     const r = validateAppraiseOutput(5);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['appraise — must be a plain object']);
   });
 });
 
@@ -169,19 +150,19 @@ describe('validateAppraiseOutput — missing required fields', () => {
   test('rejects missing file', () => {
     const r = validateAppraiseOutput({ law: 'l', text: 't' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: file — must be a non-empty string']);
+    assert.deepEqual(r.errors, ['appraise: file — is required']);
   });
 
   test('rejects missing law', () => {
     const r = validateAppraiseOutput({ file: 'f', text: 't' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: law — must be a non-empty string']);
+    assert.deepEqual(r.errors, ['appraise: law — is required']);
   });
 
   test('rejects missing text', () => {
     const r = validateAppraiseOutput({ file: 'f', law: 'l' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: text — must be a non-empty string']);
+    assert.deepEqual(r.errors, ['appraise: text — is required']);
   });
 });
 
@@ -209,19 +190,19 @@ describe('validateAppraiseOutput — type mismatches on required fields', () => 
   test('rejects non-string file', () => {
     const r = validateAppraiseOutput({ file: 5, law: 'l', text: 't' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: file — must be a non-empty string']);
+    assert.deepEqual(r.errors, ['appraise: file — must be a string']);
   });
 
   test('rejects non-string law', () => {
     const r = validateAppraiseOutput({ file: 'f', law: true, text: 't' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: law — must be a non-empty string']);
+    assert.deepEqual(r.errors, ['appraise: law — must be a string']);
   });
 
   test('rejects non-string text', () => {
     const r = validateAppraiseOutput({ file: 'f', law: 'l', text: null });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: text — must be a non-empty string']);
+    assert.deepEqual(r.errors, ['appraise: text — must be a string']);
   });
 });
 
@@ -245,19 +226,11 @@ describe('validateAppraiseOutput — type mismatches on optional fields', () => 
   });
 });
 
-describe('validateAppraiseOutput — extra fields', () => {
-  test('rejects unknown field', () => {
-    const r = validateAppraiseOutput({ file: 'f', law: 'l', text: 't', unknown: true });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['appraise: unknown — unknown field']);
-  });
-});
-
 describe('validateAppraiseOutput — reports all errors', () => {
-  test('reports multiple field errors and extra field together', () => {
-    const r = validateAppraiseOutput({ file: '', law: '', text: '', unknown: true });
+  test('reports multiple field errors together', () => {
+    const r = validateAppraiseOutput({ file: '', law: '', text: '' });
     assert.equal(r.ok, false);
-    assert.equal(r.errors.length, 4);
+    assert.equal(r.errors.length, 3);
     assert.ok(r.errors.every(e => e.startsWith('appraise:')));
   });
 });
@@ -271,31 +244,38 @@ describe('validateHumanAppraiseOutput — valid object', () => {
       { ok: true },
     );
   });
+
+  test('accepts extra fields', () => {
+    assert.deepEqual(
+      validateHumanAppraiseOutput({ verdict: 'approved', extra: 'field' }),
+      { ok: true },
+    );
+  });
 });
 
 describe('validateHumanAppraiseOutput — non-object inputs', () => {
   test('rejects null', () => {
     const r = validateHumanAppraiseOutput(null);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['human-appraise — must be a plain object']);
   });
 
   test('rejects array', () => {
     const r = validateHumanAppraiseOutput([1, 2]);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['human-appraise — must be a plain object']);
   });
 
   test('rejects string', () => {
     const r = validateHumanAppraiseOutput('hello');
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['human-appraise — must be a plain object']);
   });
 
   test('rejects number', () => {
     const r = validateHumanAppraiseOutput(5);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: data — must be a plain object']);
+    assert.deepEqual(r.errors, ['human-appraise — must be a plain object']);
   });
 });
 
@@ -315,29 +295,15 @@ describe('validateHumanAppraiseOutput — verdict field', () => {
   test('rejects missing verdict', () => {
     const r = validateHumanAppraiseOutput({});
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: verdict — must be "approved"']);
-  });
-});
-
-describe('validateHumanAppraiseOutput — extra fields', () => {
-  test('rejects arbitrary extra field', () => {
-    const r = validateHumanAppraiseOutput({ verdict: 'approved', extra: 'yes' });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: extra — unknown field']);
-  });
-
-  test('rejects reason as extra field', () => {
-    const r = validateHumanAppraiseOutput({ verdict: 'approved', reason: 'looks good' });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: reason — unknown field']);
+    assert.deepEqual(r.errors, ['human-appraise: verdict — is required']);
   });
 });
 
 describe('validateHumanAppraiseOutput — reports all errors', () => {
-  test('reports invalid verdict and extra field together', () => {
-    const r = validateHumanAppraiseOutput({ verdict: 'rejected', extra: true });
+  test('reports invalid verdict', () => {
+    const r = validateHumanAppraiseOutput({ verdict: 'rejected' });
     assert.equal(r.ok, false);
-    assert.equal(r.errors.length, 2);
+    assert.equal(r.errors.length, 1);
     assert.ok(r.errors.every(e => e.startsWith('human-appraise:')));
   });
 });

@@ -11,7 +11,7 @@ import {
   validateHumanAppraiseOutput,
 } from '../../scripts/lib/stage-output-schemas.js';
 
-/** @type {Map<string, object[]>} In-memory buffer keyed by full stage ID. */
+/** @type {Map<string, object[]>} In-memory buffer keyed by stageId::tokenHash. */
 const stageOutputsBuffer = new Map();
 
 /** Gate that rejects when the subagent's flow is in a failed state. */
@@ -46,15 +46,19 @@ async function handleStageOutput(args, context) {
 
   const validationResult = validator(args.data);
   if (!validationResult.ok) {
-    return JSON.stringify({ error: validationResult.errors.join('; ') });
+    const msg = `${base} stage_output: ${validationResult.errors.join('; ')}`;
+    return JSON.stringify({ error: msg });
   }
 
   const stageId = activeResult.active.stage;
-  const buf = stageOutputsBuffer.get(stageId) || [];
+  const tokenHash = activeResult.active.tokenHash;
+  const key = `${stageId}::${tokenHash}`;
+  const buf = stageOutputsBuffer.get(key) || [];
   buf.push(args.data);
-  stageOutputsBuffer.set(stageId, buf);
+  stageOutputsBuffer.set(key, buf);
 
-  return JSON.stringify({ ok: true, count: buf.length });
+  const totalCount = getStageOutputs(stageId).length;
+  return JSON.stringify({ ok: true, count: totalCount });
 }
 
 export function createStageOutputTool({ tool }) {
@@ -78,7 +82,13 @@ export function createStageOutputTool({ tool }) {
  * @returns {object[]} Array of validated data objects
  */
 export function getStageOutputs(stageId) {
-  return [...(stageOutputsBuffer.get(stageId) || [])];
+  const results = [];
+  for (const [key, outputs] of stageOutputsBuffer) {
+    if (key.startsWith(stageId + '::') || key === stageId) {
+      results.push(...outputs);
+    }
+  }
+  return results;
 }
 
 /**
@@ -87,7 +97,11 @@ export function getStageOutputs(stageId) {
  * @param {string} stageId - The full stage alias (e.g. "forge:cycle-1")
  */
 export function clearStageOutputs(stageId) {
-  stageOutputsBuffer.delete(stageId);
+  for (const key of stageOutputsBuffer.keys()) {
+    if (key.startsWith(stageId + '::') || key === stageId) {
+      stageOutputsBuffer.delete(key);
+    }
+  }
 }
 
 /**

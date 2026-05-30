@@ -150,6 +150,21 @@ describe('forge schema dispatch', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test('rejects forge data { status: "wont-fix" } without reason', async () => {
+    const dir = tmpDir();
+    try {
+      initGitRepo(dir);
+      writeActiveStage(dir, 'forge:cycle-1');
+      const result = await handler.execute({ data: { status: 'wont-fix' } }, { worktree: dir });
+      const parsed = JSON.parse(result);
+      assert.equal(parsed.ok, undefined);
+      assert.ok(parsed.error.includes('reason'));
+      assert.ok(parsed.error.includes('required'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 // ── Schema dispatch: appraise ───────────────────────────────────────

@@ -15,9 +15,6 @@ import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
 import { ulid } from '../../scripts/lib/ulid.js';
 import { getStageOutputs, clearStageOutputs } from './stage-output-tool.js';
 
-/** Track which stage IDs have had their output directory cleaned. */
-const cleanedStages = new Set();
-
 function ensureDir(io, outDir) {
   io.mkdir(outDir);
 }
@@ -122,7 +119,7 @@ async function executeStageBegin(args, context, pending) {
   writeActiveStage(io, active);
   initForgeIfApplicable(io, active.stage);
 
-  cleanStageOutputDir(io, args.stage);
+  cleanStageOutputDir(io);
 
   return JSON.stringify({ ok: true, active });
 }
@@ -133,17 +130,14 @@ function initForgeIfApplicable(io, stage) {
 
 // -- Stage output directory helpers --
 
-function cleanStageOutputDir(io, stage) {
-  if (!cleanedStages.has(stage)) {
-    const outDir = '.foundry/stage-outputs/';
-    if (io.exists(outDir)) {
-      for (const f of io.readDir(outDir)) {
-        io.unlink(join(outDir, f));
-      }
+function cleanStageOutputDir(io) {
+  const outDir = '.foundry/stage-outputs/';
+  if (io.exists(outDir)) {
+    for (const f of io.readDir(outDir)) {
+      io.unlink(join(outDir, f));
     }
-    io.mkdir(outDir);
-    cleanedStages.add(stage);
   }
+  io.mkdir(outDir);
 }
 
 function checkContractViolation(outputs, base) {
@@ -213,10 +207,6 @@ async function finishStageAndSync(io, active, context) {
 async function executeStageEnd(args, context) {
   const io = makeIO(context.worktree);
 
-  if (args.summary !== undefined) {
-    return JSON.stringify({ error: "foundry_stage_end: 'summary' argument is removed; use foundry_stage_output instead" });
-  }
-
   const active = readActiveStage(io);
   if (!active) {
     return JSON.stringify({ error: 'foundry_stage_end requires active stage; current: none' });
@@ -224,7 +214,7 @@ async function executeStageEnd(args, context) {
 
   verifyForgeToolsIfApplicable(io, active);
 
-  const outputs = getStageOutputs(active.stage);
+  const outputs = getStageOutputs(active.stage + '::' + active.tokenHash);
   const base = stageBaseOf(active.stage);
   const violation = checkContractViolation(outputs, base);
   if (violation) {
@@ -233,7 +223,7 @@ async function executeStageEnd(args, context) {
 
   const id = ulid();
   writeAtomicOutputFile(io, outputs, id);
-  clearStageOutputs(active.stage);
+  clearStageOutputs(active.stage + '::' + active.tokenHash);
 
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);
@@ -327,14 +317,6 @@ async function executeStageRetry(_args, context) {
     ok: true,
     message: 'Flow unlocked. Memory state reset to disk. Stage can be re-run.',
   });
-}
-
-/**
- * Reset the cleaned-stages tracker. Internal helper for test isolation.
- * Exported with underscore prefix — not part of the public API.
- */
-export function _clearCleanedStages() {
-  cleanedStages.clear();
 }
 
 export function createStageTools({ tool, pending }) {
