@@ -274,8 +274,8 @@ describe('renderDispatchPrompt with forgeItem', () => {
       },
     });
 
-    assert.match(prompt, /ACTIONED/);
-    assert.match(prompt, /WONT-FIX/);
+    assert.match(prompt, /"actioned"/);
+    assert.match(prompt, /"wont-fix"/);
   });
 
   test('includes ACTIONED and WONT-FIX options for quench-sourced items', () => {
@@ -291,9 +291,9 @@ describe('renderDispatchPrompt with forgeItem', () => {
     });
 
     // The prompt shows the same feedback handling for all sources:
-    // ACTIONED to fix and WONT-FIX when the issue does not apply.
-    assert.match(prompt, /ACTIONED/);
-    assert.match(prompt, /WONT-FIX/);
+    // actioned to fix and wont-fix when the issue does not apply.
+    assert.match(prompt, /"actioned"/);
+    assert.match(prompt, /"wont-fix"/);
   });
 
   // ---------------------------------------------------------------------------

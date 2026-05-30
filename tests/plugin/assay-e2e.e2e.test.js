@@ -146,8 +146,7 @@ describe('assay end-to-end: happy path', () => {
     assert.equal(runRes.ok, true);
     assert.equal(runRes.perExtractor[0].rowsUpserted, 3);
 
-    const end = JSON.parse(await plugin.tool.foundry_stage_end.execute(
-      { summary: 'extracted 3 rows' }, ctx));
+    const end = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, ctx));
     assert.equal(end.ok, true);
 
     // 3. Memory is populated.
@@ -196,7 +195,7 @@ describe('assay end-to-end: extractor failure', () => {
       { stage: dispatch.stage, cycle: 'doc-java', token }, ctx);
     const runRes = JSON.parse(await plugin.tool.foundry_assay_run.execute(
       { cycle: 'doc-java', extractors: ['java-syms'] }, ctx));
-    try { await plugin.tool.foundry_stage_end.execute({ summary: 'aborted' }, ctx); } catch {}
+    try { await plugin.tool.foundry_stage_end.execute({}, ctx); } catch {}
 
     // Extractor failure marks the workfile failed and surfaces flow_failed.
     // The abort detail (failedExtractor / reason) is preserved alongside the

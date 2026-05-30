@@ -32,12 +32,29 @@ function makeIo(files = {}) {
     },
     unlink: (p) => fs.delete(p),
     mkdir: () => {},
+    readDir: (p) => {
+      const prefix = p.endsWith('/') ? p : `${p}/`;
+      const entries = [];
+      for (const key of fs.keys()) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length);
+          entries.push(rest.includes('/') ? rest.slice(0, rest.indexOf('/')) : rest);
+        }
+      }
+      return [...new Set(entries)].sort();
+    },
     exec: (args) => {
       const cmd = args.join(' ');
       if (cmd.includes('merge-base')) return 'basesha\n';
       return '';
     },
   };
+}
+
+/** Helper to write a forge stage output file, simulating what foundry_stage_end() does. */
+function writeForgeOutput(io) {
+  io.mkdir('.foundry/stage-outputs');
+  io.writeFile('.foundry/stage-outputs/forge-out.jsonl', '{"status":"actioned"}\n');
 }
 
 function makeArgs(overrides = {}) {
@@ -118,6 +135,7 @@ file-patterns: ["out/*.md"]
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // ------------------------------------------------------------------
   // Call 2: finalize forge → internal quench → next stage (appraise)
@@ -204,6 +222,7 @@ file-patterns: ["out/*.md"]
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // Call 2: finalize forge → internal quench (no artefacts → SKIP) →
   //          internal appraise (no artefacts → SKIP) → done
@@ -318,6 +337,7 @@ file-patterns: ["out/*.md"]
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // Call 2: finalize forge → internal quench → internal appraise → done
   const r2 = await runOrchestrate(
@@ -391,6 +411,7 @@ output-type: haiku
     summary: 'wrote draft',
   });
   clearActiveStage(io);
+  writeForgeOutput(io);
 
   // Call 2: finalize forge → internal quench → performValidation fails
   const r2 = await runOrchestrate(

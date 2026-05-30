@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { signToken } from '../../src/scripts/lib/token.js';
 import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
+import { _clearAllOutputs } from '../../src/plugin/tools/stage-output-tool.js';
 
 function makeCtx(worktree) { return { worktree }; }
 
@@ -149,6 +150,7 @@ describe('foundry_stage_end', () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'foundry-stageend-'));
     initRepo(dir);
+    _clearAllOutputs();
   });
 
   async function beginStage(plugin, nonce = 'na') {
@@ -163,21 +165,22 @@ describe('foundry_stage_end', () => {
   it('clears active-stage and writes last-stage', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     await beginStage(plugin);
-    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, makeCtx(dir)));
+    // Populate buffer to satisfy forge contract (exactly 1 output)
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, makeCtx(dir));
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.equal(res.ok, true);
-    assert.equal(res.summary, 'done');
     assert.equal(existsSync(join(dir, '.foundry/active-stage.json')), false);
     assert.ok(existsSync(join(dir, '.foundry/last-stage.json')));
     const last = JSON.parse(readFileSync(join(dir, '.foundry/last-stage.json'), 'utf-8'));
     assert.equal(last.cycle, 'c');
     assert.equal(last.stage, 'forge:c');
     assert.ok(last.baseSha);
-    assert.equal(last.summary, 'done');
+    assert.equal(last.summary, '');
   });
 
   it('errors when no active stage', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
-    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 'x' }, makeCtx(dir)));
+    const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.match(res.error, /requires active stage/);
   });
 });

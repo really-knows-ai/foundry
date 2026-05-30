@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 import { disposeStores } from '../../src/scripts/lib/memory/singleton.js';
 import { hashFrontmatter } from '../../src/scripts/lib/memory/schema.js';
+import { _clearAllOutputs } from '../../src/plugin/tools/stage-output-tool.js';
 
 function setupWorktree() {
   const root = mkdtempSync(join(tmpdir(), 'failed-flow-'));
@@ -55,13 +56,17 @@ describe('stage_end: sync failure marks flow failed', () => {
     writeFileSync(join(root, '.foundry/active-stage.json'),
       JSON.stringify({ cycle: 'observe', stage: 'forge:observe', baseSha: 'abc123' }));
 
+    // Populate buffer to satisfy forge contract (exactly 1 output)
+    _clearAllOutputs();
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, ctx);
+
     // Deterministic write-failure injection: place a directory where syncStore
     // expects to writeFileSync the entity NDJSON. writeFileSync against a
     // directory path raises EISDIR on every platform/filesystem, unlike chmod
     // which depends on POSIX permissions and user privileges.
     mkdirSync(join(root, 'foundry-memory/relations/finding.ndjson'));
 
-    const endOut = JSON.parse(await plugin.tool.foundry_stage_end.execute({ summary: 'done' }, ctx));
+    const endOut = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, ctx));
     assert.equal(endOut.flow_failed, true, `expected flow_failed:true, got ${JSON.stringify(endOut)}`);
     assert.match(endOut.error, /memory sync/i);
 

@@ -7,9 +7,6 @@ import matter from 'gray-matter';
 import { readActiveStage, readLastStage, writeActiveStage, clearActiveStage } from './lib/state.js';
 import { stageBaseOf } from './lib/stage-guard.js';
 import { ulid as defaultUlid } from './lib/ulid.js';
-import { computeArtefactVersion } from './lib/artefacts.js';
-import { enforceForgeContract } from './lib/forge-contract.js';
-import { loadHistory } from './lib/history.js';
 import { getCycleDefinition } from './lib/config.js';
 import {
   readCycleTargets,
@@ -33,6 +30,11 @@ import { runQuench } from './quench-module.js';
 import { gatherAppraiseContext, consolidateAppraise } from './appraise-module.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { guardNoWorkMd, guardMissingCycleId, guardSetupInconsistent, guardOrphanedStage, guardMissingLastStage, guardLastResults } from './lib/orchestrate-guards.js';
+import {
+  captureForgeContext,
+  enforceForgeStage,
+  routePostDispatchStage,
+} from './orchestrate-dispatch.js';
 
 export {
   renderDispatchPrompt, synthesizeStages, computeOpenFeedback,
@@ -139,77 +141,6 @@ function writeStageRecord(io, cycleId, route) {
   writeActiveStage(io, { cycle: cycleId, stage: `${route}`, token: null, baseSha: resolveBaseSha(io) });
 }
 
-const FORGE_CTX = '.foundry/forge-context.json';
-
-async function captureForgeContext(sortResult, args, preCheck, io) {
-  const fgResult = await readForgeFilePatterns(preCheck.cycleId, io);
-  if (!fgResult) return;
-  const preVersion = await computeArtefactVersion('foundry', fgResult.outputType, io, args.cwd);
-  const allItems = openFeedbackStore('WORK.feedback.yaml', io).list();
-  // Only capture unresolved items (open/rejected) — resolved items are terminal
-  // and presenting them to forge causes the contract to fail and revert them.
-  const unresolvedItems = allItems.filter(item => {
-    const state = item.history?.[0]?.state ?? 'open';
-    return state === 'open' || state === 'rejected';
-  });
-  if (!io.exists('.foundry')) io.mkdir('.foundry');
-  const forgeItem = unresolvedItems.length > 0
-    ? ({
-      id: unresolvedItems[0].id,
-      file: unresolvedItems[0].file,
-      tag: unresolvedItems[0].tag,
-      text: unresolvedItems[0].text,
-      source: (typeof unresolvedItems[0].source === 'string'
-        ? unresolvedItems[0].source.split(':')[0]
-        : unresolvedItems[0].source),
-      sourceAlias: unresolvedItems[0].source,
-    })
-    : null;
-  const ctx = { forgePreVersion: preVersion, forgeItem };
-  io.writeFile(FORGE_CTX, JSON.stringify(ctx));
-}
-
-function countConsecutiveForgeFailures(io, cycleId) {
-  if (!io.exists('WORK.history.yaml')) return 0;
-  const entries = loadHistory('WORK.history.yaml', cycleId, io);
-  let count = 0;
-  for (let i = entries.length - 1; i >= 0; i--) {
-    if (stageBaseOf(entries[i].stage) !== 'forge') break;
-    if (entries[i].contract_passed === false) count++;
-    else break;
-  }
-  return count;
-}
-
-function checkConsecutiveFailures(contractPassed, io, cycleId) {
-  if (!contractPassed) {
-    return countConsecutiveForgeFailures(io, cycleId) + 1 >= 3;
-  }
-  return false;
-}
-
-async function enforceForgeStage(forgeCtx, fgResult, cycleId, io, cwd) {
-  const postVersion = await computeArtefactVersion('foundry', fgResult.outputType, io, cwd);
-  const feedbackStore = openFeedbackStore('WORK.feedback.yaml', io);
-  const lastStage = readLastStage(io);
-  const summary = (lastStage && lastStage.summary) || '';
-  const item = forgeCtx.forgeItem || null;
-
-  const { contractPassed } = enforceForgeContract({
-    item,
-    preVersion: forgeCtx.forgePreVersion,
-    postVersion,
-    summary,
-    feedbackStore,
-    cycleId,
-  });
-
-  if (checkConsecutiveFailures(contractPassed, io, cycleId)) {
-    return { violation: 'forge contract failed 3 consecutive times — unable to satisfy feedback requirements' };
-  }
-  return { postVersion, contractPassed };
-}
-
 async function handleQuenchRoute(sortResult, preCheck, args, io) {
   writeStageRecord(io, preCheck.cycleId, sortResult.route);
   const quenchCtx = buildQuenchContext(preCheck.cycleId, args, io);
@@ -269,7 +200,7 @@ export async function runOrchestrate(args, io) {
 function checkFlowGuards(args, activeStage, lastStage) {
   const lastResultsErr = guardLastResults(args, activeStage, lastStage);
   if (lastResultsErr) return lastResultsErr;
-  // Only flag orphaned stage when not on consolidation path (lastResults path has activeStage but no lastResult)
+  // Only flag orphaned stage when not on consolidation path
   if (args.lastResults === undefined) return guardOrphanedStage(activeStage, args.lastResult);
   return null;
 }
@@ -305,25 +236,11 @@ async function runSetupIfNeeded(preCheck, args, io) {
   return err || setupWorkfile(buildSetupArgs(preCheck, args, io));
 }
 
-async function runForgePostDispatch(args, activeStage, lastStage, cycleId, io) {
-  const fgResult = await readForgeFilePatterns(cycleId, io);
-  const base = { lastStage, activeStage, cycleId, io, finalize: args.finalize, git: args.git };
-  if (!fgResult) return finaliseStage(base);
-  if (!io.exists(FORGE_CTX)) return finaliseStage(base);
-  const forgeCtx = JSON.parse(io.readFile(FORGE_CTX));
-  io.unlink(FORGE_CTX);
-  const result = await enforceForgeStage(forgeCtx, fgResult, cycleId, io, args.cwd);
-  if (result.violation) return violation(result.violation, []);
-  return finaliseStage({ ...base, postVersion: result.postVersion, contractPassed: result.contractPassed });
-}
-
 async function runPostDispatch(args, activeStage, lastStage, cycleId, io) {
   if (!args.lastResult) return null;
   if (args.lastResult.ok === false) {
     return handleViolation({ lastResult: args.lastResult, activeStage, lastStage, cycleId, io });
   }
-  const stageErr = guardMissingLastStage(lastStage);
-  if (stageErr) return stageErr;
-  if (stageBaseOf(lastStage.stage) === 'forge') return runForgePostDispatch(args, activeStage, lastStage, cycleId, io);
-  return finaliseStage({ lastStage, activeStage, cycleId, io, finalize: args.finalize, git: args.git });
+  if (guardMissingLastStage(lastStage)) return guardMissingLastStage(lastStage);
+  return routePostDispatchStage(stageBaseOf(lastStage.stage), { args, activeStage, lastStage, cycleId, io });
 }

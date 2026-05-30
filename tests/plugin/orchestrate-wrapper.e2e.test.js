@@ -15,7 +15,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, unlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
@@ -38,7 +38,15 @@ function makeIO(directory) {
     writeFile: (p, c) => writeFileSync(join(directory, p), c, 'utf-8'),
     mkdir: (p) => mkdirSync(join(directory, p), { recursive: true }),
     unlink: (p) => { const f = join(directory, p); if (existsSync(f)) unlinkSync(f); },
+    readDir: (p) => { const d = join(directory, p); if (!existsSync(d)) { return []; } return readdirSync(d).sort(); },
   };
+}
+
+/** Helper to write a forge stage output file, simulating what foundry_stage_end() does. */
+function writeForgeOutput(root) {
+  const outDir = join(root, '.foundry/stage-outputs');
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, 'forge-out.jsonl'), '{"status":"actioned"}\n');
 }
 
 function setupBasicCycle({ withMemoryRead = false } = {}) {
@@ -129,6 +137,7 @@ describe('foundry_orchestrate wrapper: finalize registers artefact rows', () => 
     writeActiveStage(io, { cycle: 'c', stage: 'forge:c', token: 'tok', baseSha });
     writeLastStage(io, { cycle: 'c', stage: 'forge:c', baseSha, summary: 'wrote first haiku' });
     clearActiveStage(io);
+    writeForgeOutput(root);
 
     // Call 2: wrapper.finalize bridge runs lib/finalize.finalizeStage; on
     // success runOrchestrate then dispatches the next stage (appraise).
@@ -168,6 +177,7 @@ describe('foundry_orchestrate wrapper: missing cycle definition during finalize'
     writeActiveStage(io, { cycle: 'c', stage: 'forge:c', token: 'tok', baseSha });
     writeLastStage(io, { cycle: 'c', stage: 'forge:c', baseSha, summary: 'forge done' });
     clearActiveStage(io);
+    writeForgeOutput(root);
 
     // Now remove the cycle file so the wrapper's finalize bridge cannot load it.
     rmSync(join(root, 'foundry/cycles/c.md'));
@@ -205,6 +215,7 @@ describe('foundry_orchestrate wrapper: missing artefact-type during finalize', (
     writeActiveStage(io, { cycle: 'c', stage: 'forge:c', token: 'tok', baseSha });
     writeLastStage(io, { cycle: 'c', stage: 'forge:c', baseSha, summary: 'forge done' });
     clearActiveStage(io);
+    writeForgeOutput(root);
 
     // Remove the artefact type definition. The finalize bridge must surface
     // this as a typed `missing_artefact_type` error rather than falling back
@@ -270,6 +281,7 @@ describe('foundry_orchestrate wrapper: catches thrown errors as violations', () 
     writeActiveStage(io, { cycle: 'c', stage: 'forge:c', token: 'tok', baseSha });
     writeLastStage(io, { cycle: 'c', stage: 'forge:c', baseSha, summary: 'forge done' });
     clearActiveStage(io);
+    writeForgeOutput(root);
 
     // Plant a malformed history file. After finalize succeeds, runOrchestrate
     // calls getIteration -> loadHistory -> yaml.load, which throws "WORK.history.yaml

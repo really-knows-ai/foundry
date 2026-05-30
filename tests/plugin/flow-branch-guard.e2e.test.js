@@ -78,7 +78,7 @@ const FLOW_TIER_MUTATION_CASES = [
   ['foundry_appraisers_select', { typeId: 'code' }],
   // stage-tools.js
   ['foundry_stage_begin', { stage: 'forge:observe', cycle: 'observe', token: 'x' }],
-  ['foundry_stage_end', { summary: 'done' }],
+  ['foundry_stage_end', {}],
   // memory-tools.js
   ['foundry_memory_put', { type: 'finding', name: 'x', value: 'v' }],
   ['foundry_memory_relate', {

@@ -8,7 +8,7 @@ description: Deterministic population of flow memory by running project-authored
 
 Runs the `assay` stage of a cycle. An assay stage executes every extractor listed in the cycle's `assay.extractors` frontmatter, in order. Each extractor is a project-authored CLI script at the path given in its definition file — see the `foundry/memory/extractors/<name>.md` files for what each one does.
 
-The assay stage is **deterministic**. This skill does **not** interpret extractor output. It only calls `foundry_assay_run`, which handles spawning, parsing, validation, and memory upserts. On any failure (extractor non-zero exit, parse error, permission violation, timeout, or post-run memory sync failure), `foundry_assay_run` marks the workfile failed (`status: failed`) with a reason describing the failure, and returns `{error, flow_failed: true, ...}`. The cycle is over — extractor scripts live outside any artefact's `file-patterns`, so forge cannot fix them. The user must fix the extractor and start a new cycle. Your job is to wrap the lifecycle cleanly: end the stage with a descriptive summary even on failure, then stop.
+The assay stage is **deterministic**. This skill does **not** interpret extractor output. It only calls `foundry_assay_run`, which handles spawning, parsing, validation, and memory upserts. On any failure (extractor non-zero exit, parse error, permission violation, timeout, or post-run memory sync failure), `foundry_assay_run` marks the workfile failed (`status: failed`) with a reason describing the failure, and returns `{error, flow_failed: true, ...}`. The cycle is over — extractor scripts live outside any artefact's `file-patterns`, so forge cannot fix them. The user must fix the extractor and start a new cycle. Your job is to wrap the lifecycle cleanly: end the stage and stop.
 
 ## Protocol
 
@@ -22,7 +22,7 @@ Call `foundry_stage_begin({ stage, cycle, token })` with the values from the dis
 
 ### 2. Read WORK.md to find the extractor list
 
-Call `foundry_workfile_get()`. Read `frontmatter.assay.extractors`. This is an ordered array of extractor names. If it is missing or empty, this is a routing bug — end the stage (step 5) with an error summary describing the missing extractor list.
+Call `foundry_workfile_get()`. Read `frontmatter.assay.extractors`. This is an ordered array of extractor names. If it is missing or empty, this is a routing bug — end the stage (step 4) with an error describing the missing extractor list.
 
 ### Check for failed flow state
 
@@ -45,20 +45,13 @@ Call `foundry_assay_run({ cycle, extractors })` passing exactly those values. Do
 - `{ok: true, perExtractor: [{name, rowsUpserted, durationMs}, ...]}` — all extractors succeeded.
 - `{error, flow_failed: true, aborted: true, failedExtractor, reason, stderr, perExtractor: [...]}` — the run aborted on an extractor failure. The workfile is already marked failed; no further work is permitted until the user abandons the cycle.
 - `{error, flow_failed: true}` — post-run memory sync failed. Same recovery path: workfile is failed, user must abandon.
-- `{error: "..."}` (without `flow_failed`) — a precondition failed (not an active assay stage, etc.). This should not happen if step 1 succeeded; treat as an error and end the stage (step 5) with the error text as the summary.
+- `{error: "..."}` (without `flow_failed`) — a precondition failed (not an active assay stage, etc.). This should not happen if step 1 succeeded; treat as an error and end the stage (step 4).
 
-### 4. Prepare the summary
+### 4. End the stage
 
-Build a short summary string for `foundry_stage_end`. Examples:
-
-- On success: `"ran 2 extractors, upserted 47 rows in 1420ms"`.
-- On abort: `"aborted on extractor 'java-symbols': extractor exited with exit code 2"`.
+Call `foundry_stage_end()`. Always end the stage, whether the run succeeded or aborted. The stage lifecycle must close cleanly so the orchestrator can commit.
 
 Do not add feedback items, do not call `foundry_feedback_add`. Assay stages cannot file feedback — extractor failure is recorded directly on the workfile (`status: failed`).
-
-### 5. End the stage
-
-Call `foundry_stage_end({ summary })` with the summary from step 4. Always end the stage, whether the run succeeded or aborted. The stage lifecycle must close cleanly so the orchestrator can commit.
 
 ## What this skill must not do
 
@@ -69,4 +62,4 @@ Call `foundry_stage_end({ summary })` with the summary from step 4. Always end t
 
 ## If something unexpected happens
 
-If `foundry_assay_run` throws an unrelated error (e.g. `error: memory not enabled`), that is a programming error in the cycle configuration — not an expected extractor failure. Do not retry. End the stage with a summary quoting the error and stop.
+If `foundry_assay_run` throws an unrelated error (e.g. `error: memory not enabled`), that is a programming error in the cycle configuration — not an expected extractor failure. Do not retry. End the stage and stop.

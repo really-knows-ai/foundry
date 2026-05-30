@@ -21,7 +21,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 Forge runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
 1. **First:** `foundry_stage_begin({stage, cycle, token})` — the orchestrator hands you `stage`, `cycle`, and an opaque `token` string in the dispatch prompt. Copy the token verbatim; never invent, edit, or re-sign it. No other tool call is permitted before this one. Any writes before `stage_begin` will be blocked by preconditions.
-2. **Last:** `foundry_stage_end({summary})` — return control to the orchestrator. After `stage_end`, the orchestrator's internal finalise step scans the disk and registers your output artefact. **You do not register artefacts yourself.**
+2. **Last:** `foundry_stage_end()` — return control to the orchestrator. After `stage_end`, the orchestrator's internal finalise step scans the disk and registers your output artefact. **You do not register artefacts yourself.**
 
 ## Protocol
 
@@ -51,7 +51,7 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
    - Read the selected files for context.
 7. Produce the artefact, respecting all applicable laws from the start.
 8. Write the artefact file to a location that matches the artefact type's `file-patterns`.
-9. `foundry_stage_end({summary: "DONE"})`.
+9. `foundry_stage_output({ status: "done" })` then `foundry_stage_end()`.
 
 ### Revision (feedback exists)
 
@@ -60,26 +60,25 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
 3. If the cycle declares `inputs`, discover them via filesystem scan against each input type's `file-patterns` (same protocol as first-generation step 6). Re-read the relevant files — they may have changed on disk since the previous iteration (nothing in this cycle wrote to them, but the user may have modified them between iterations).
 4. Address the single feedback item from the dispatch prompt following the feedback handling rules below.
 5. Update the artefact file (if fixing), or skip (if WONT-FIX).
-6. `foundry_stage_end({summary})`. The summary must be EXACTLY one of:
-   - `"ACTIONED"` — file was changed to address the feedback
-   - `"WONT-FIX: <justification>"` — item already resolved or does not apply
-   Write NOTHING else in the summary.
+6. `foundry_stage_output({ status: "actioned" })` then `foundry_stage_end()` — file was changed to address the feedback.
+   Or: `foundry_stage_output({ status: "wont-fix", reason: "<justification>" })` then `foundry_stage_end()` — item already resolved or does not apply.
+   Call `foundry_stage_output` with the correct status object. Write nothing else — format is validated by the tool.
 
 ## Feedback handling
 
 The dispatch prompt contains one feedback item to address.
 
 **To fix the issue** — change the artefact file and call
-`foundry_stage_end({summary: "ACTIONED"})`.
+`foundry_stage_output({ status: "actioned" })` then `foundry_stage_end()`.
 
 **If the issue is already resolved** — call
-`foundry_stage_end({summary: "WONT-FIX: <justification>"})`.
+`foundry_stage_output({ status: "wont-fix", reason: "<justification>" })` then `foundry_stage_end()`.
 Do NOT change the file.
 
 **If the issue does not apply** (appraise judgement you disagree with) — same
-`WONT-FIX:` flow.
+`wont-fix` flow.
 
-The summary is ONLY one of these keywords. No descriptions, no explanations.
+The status is validated by the tool. No descriptions, no explanations.
 
 Do NOT call `foundry_feedback_action`, `foundry_feedback_wontfix`, or
 `foundry_feedback_resolve`. The orchestrator handles transitions automatically.
@@ -109,5 +108,5 @@ items in the list output.
 - You do not register artefacts — the orchestrator's internal finalise step handles that automatically.
 - You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` does (those tools are not registered publicly).
 - You do not evaluate or score the artefact.
-- You do not mark feedback as actioned or wont-fix via tool calls — the orchestrator handles feedback transitions based on your artefact changes and `stage_end` summary.
+- You do not mark feedback as actioned or wont-fix via tool calls — the orchestrator handles feedback transitions based on your artefact changes and stage output.
 - You do not write to any file outside the output artefact type's `file-patterns` (plus `WORK.md` / `WORK.feedback.yaml` / `WORK.history.yaml`). Input files are read-only unless the output type's patterns happen to cover them.
