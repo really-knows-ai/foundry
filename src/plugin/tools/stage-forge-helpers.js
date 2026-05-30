@@ -24,9 +24,9 @@ function describeTokenError(reason) {
 
 export function verifyStageToken(token, secret, stage, cycle, agent) {
   const v = verifyToken(token, secret);
-  if (!v.ok) return { error: `foundry_stage_begin: ${describeTokenError(v.reason)}` };
+  if (!v.ok) return { error: `foundry_stage_begin: ${describeTokenError(v.reason)}`, fatal: true };
   if (v.payload.route !== stage || v.payload.cycle !== cycle) {
-    return { error: `foundry_stage_begin: token is for stage "${v.payload.route}" cycle "${v.payload.cycle}", but you called it with stage "${stage}" cycle "${cycle}". Use the token from the dispatch prompt — it already matches the right stage` };
+    return { error: `foundry_stage_begin: token is for stage "${v.payload.route}" cycle "${v.payload.cycle}", but you called it with stage "${stage}" cycle "${cycle}". Use the token from the dispatch prompt — it already matches the right stage`, fatal: false };
   }
   return checkTokenAgentBinding(v.payload, agent);
 }
@@ -35,7 +35,7 @@ function checkTokenAgentBinding(payload, agent) {
   if (!payload.model) return { payload };
   if (!agent) return { payload };
   if (agent === 'foundry') {
-    return { error: `foundry_stage_begin: this token is meant for a task subagent (${payload.model}), not for you to call directly. Use the task tool with the dispatch prompt to spawn a subagent, and let the subagent call foundry_stage_begin` };
+    return { error: `foundry_stage_begin: this token is meant for a task subagent (${payload.model}), not for you to call directly. Use the task tool with the dispatch prompt to spawn a subagent, and let the subagent call foundry_stage_begin`, fatal: false };
   }
   return { payload };
 }

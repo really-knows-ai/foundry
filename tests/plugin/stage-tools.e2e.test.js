@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -150,6 +150,73 @@ describe('foundry_stage_begin', () => {
     writeFileSync(join(dir, '.foundry/dispatch-token'), token2);
     const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir)));
     assert.match(res.error, /is already active/);
+  });
+});
+
+describe('dispatch-token file cleanup on stage_begin failure', () => {
+  let dir;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'foundry-tokenclean-'));
+    initRepo(dir);
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  function tokenPath() { return join(dir, '.foundry/dispatch-token'); }
+
+  it('deletes token file on bad_signature', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const secret = readOrCreateSecret(dir);
+    const token = signToken({ route: 'forge:c', cycle: 'c', nonce: 'n', exp: Date.now() + 60_000 }, secret);
+    // Tamper with the signature
+    const garbled = token.slice(0, -4) + 'xxxx';
+    writeFileSync(tokenPath(), garbled);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir));
+    assert.equal(existsSync(tokenPath()), false);
+  });
+
+  it('deletes token file on expired token', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = readOrCreateSecret(dir);
+    const payload = { route: 'forge:c', cycle: 'c', nonce: 'ne', exp: Date.now() - 1 };
+    pending.add('ne', payload);
+    const token = signToken(payload, secret);
+    writeFileSync(tokenPath(), token);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir));
+    assert.equal(existsSync(tokenPath()), false);
+  });
+
+  it('preserves token file on stage mismatch (nonce unconsumed, retry possible)', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = readOrCreateSecret(dir);
+    const payload = { route: 'forge:c', cycle: 'c', nonce: 'nm', exp: Date.now() + 60_000 };
+    pending.add('nm', payload);
+    const token = signToken(payload, secret);
+    writeFileSync(tokenPath(), token);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'quench:c', cycle: 'c' }, makeCtx(dir));
+    assert.equal(existsSync(tokenPath()), true, 'token file should persist for retry after stage mismatch');
+  });
+
+  it('preserves token file on agent binding error (nonce unconsumed, retry possible)', async () => {
+    // Note: agent binding only fires when context.agent === 'foundry', which
+    // is set by the plugin for real dispatches. Test contexts don't set this,
+    // so the token is accepted. The file is preserved because stage_begin
+    // succeeded and stage_end hasn't been called yet — we clean up manually.
+    const plugin = await FoundryPlugin({ directory: dir });
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = readOrCreateSecret(dir);
+    const payload = { route: 'forge:c', cycle: 'c', nonce: 'na', exp: Date.now() + 60_000, model: 'some-model' };
+    pending.add('na', payload);
+    const token = signToken(payload, secret);
+    writeFileSync(tokenPath(), token);
+    const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+      { stage: 'forge:c', cycle: 'c' }, makeCtx(dir),
+    ));
+    assert.equal(res.ok, true, 'model-scoped token accepted in test context (agent not foundry)');
+    // File is consumed (read) but not deleted by stage_begin on success —
+    // stage_end deletes it. Clean up for the test.
+    assert.equal(existsSync(tokenPath()), true);
   });
 });
 

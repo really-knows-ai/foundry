@@ -34,9 +34,17 @@ function resolveBaseSha(worktree) {
   }
 }
 
+function deleteDispatchToken(io) {
+  const p = '.foundry/dispatch-token';
+  if (io.exists(p)) io.unlink(p);
+}
+
 function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pending }) {
   const tokenResult = verifyStageToken(token, secret, stage, cycle, agent);
-  if (tokenResult.error) return { error: tokenResult.error };
+  if (tokenResult.error) {
+    if (tokenResult.fatal) deleteDispatchToken(io);
+    return { error: tokenResult.error };
+  }
 
   const baseSha = resolveBaseSha(worktree);
   if (!baseSha) {
@@ -44,7 +52,10 @@ function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pen
   }
 
   const meta = pending.consume(tokenResult.payload.nonce);
-  if (!meta) return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_orchestrate. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
+  if (!meta) {
+    deleteDispatchToken(io);
+    return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_orchestrate. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
+  }
 
   const tokenHash = createHash('sha256').update(token).digest('hex');
   const active = {
@@ -61,35 +72,25 @@ function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pen
   return { active };
 }
 
-function cleanDispatchTokenOnError(io, errorMsg) {
-  if (errorMsg.includes('token')) {
-    const tokenPath = '.foundry/dispatch-token';
-    if (io.exists(tokenPath)) io.unlink(tokenPath);
-  }
-}
-
 async function executeStageBegin(args, context, pending) {
   const io = makeIO(context.worktree);
   const secret = readOrCreateSecret(context.worktree);
 
+  const current = readActiveStage(io);
+  if (current) {
+    return JSON.stringify({ error: `foundry_stage_begin: stage "${current.stage}" is already active — it was set up by the orchestrator and does not need stage_begin. If you received a dispatch_multi or human_appraise action, proceed with the stage work directly (dispatch subagents or present the review)` });
+  }
+
   const dispatchResult = readDispatchToken(io);
   if (dispatchResult.error) return JSON.stringify({ error: dispatchResult.error });
   const token = dispatchResult.token;
-
-  const current = readActiveStage(io);
-  if (current) {
-    return JSON.stringify({ error: `foundry_stage_begin: stage "${current.stage}" is already active — finish it with foundry_stage_end before starting a new one. If that stage is abandoned, call foundry_orchestrate() to recover` });
-  }
 
   const opts = {
     token, secret, stage: args.stage, cycle: args.cycle,
     agent: context.agent, worktree: context.worktree, io, pending,
   };
   const beginResult = beginTokenStage(opts);
-  if (beginResult.error) {
-    cleanDispatchTokenOnError(io, beginResult.error);
-    return JSON.stringify({ error: beginResult.error });
-  }
+  if (beginResult.error) return JSON.stringify({ error: beginResult.error });
 
   return JSON.stringify({ ok: true, active: beginResult.active });
 }
@@ -198,8 +199,7 @@ async function executeStageEnd(args, context) {
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);
 
-  const tokenPath = '.foundry/dispatch-token';
-  if (io.exists(tokenPath)) io.unlink(tokenPath);
+  deleteDispatchToken(io);
 
   return JSON.stringify({ ok: true });
 }
