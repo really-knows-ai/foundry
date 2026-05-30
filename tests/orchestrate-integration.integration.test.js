@@ -122,7 +122,6 @@ appraisers:
     'foundry-github-copilot-claude-sonnet-4-6'
   );
   assert.match(r1.prompt, /Stage: forge:create-haiku/);
-  assert.match(r1.prompt, /Token: T1/);
   assert.match(r1.prompt, /File patterns \(forge only\): \["haikus\/\*\.md"\]/);
 
   const workAfterSetup = io.readFile('WORK.md');

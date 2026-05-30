@@ -206,7 +206,7 @@ describe('workfile tools preconditions', () => {
     const res = JSON.parse(await plugin.tool.foundry_workfile_delete.execute(
       { confirm: true }, makeCtx(dir),
     ));
-    assert.match(res.error, /requires no active stage/);
+    assert.match(res.error, /is already active/);
   });
 
   it('workfile_delete succeeds with confirm:true and no active stage', async () => {
@@ -246,7 +246,7 @@ describe('workfile tools preconditions', () => {
     const res = JSON.parse(await plugin.tool.foundry_workfile_create.execute(
       { flow: 'f', cycle: 'c', goal: 'g' }, makeCtx(dir),
     ));
-    assert.match(res.error, /requires no active stage/);
+    assert.match(res.error, /is already active/);
   });
 
   it('workfile_get succeeds during active stage (read-only)', async () => {
@@ -278,7 +278,7 @@ describe('git tools require no active stage', () => {
     const res = JSON.parse(await plugin.tool.foundry_git_branch.execute(
       { flowId: 'f', description: 'x' }, makeCtx(dir),
     ));
-    assert.match(res.error, /requires no active stage/);
+    assert.match(res.error, /is already active/);
   });
 
   it('foundry_git_finish errors when stage active', async () => {
@@ -286,6 +286,6 @@ describe('git tools require no active stage', () => {
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
       { message: 'squash' }, makeCtx(dir),
     ));
-    assert.match(res.error, /requires no active stage/);
+    assert.match(res.error, /is already active/);
   });
 });

@@ -42,6 +42,8 @@ export async function humanAppraiseAction(route, token, ctx) {
     return { action: 'violation', details: `version check failed: ${err.message}`, recoverable: false, affected_files: [] };
   }
 
+  io.writeFile('.foundry/dispatch-token', token);
+
   const artefact = await findOutputArtefacts(cfm, io, fd, base);
   const artefactFile = artefact ? artefact.file : null;
   return { action: 'human_appraise', stage: route, token, context: { cycle: cycleId, artefact_file: artefactFile, recent_feedback: readRecentFeedback(io) } };

@@ -9,7 +9,7 @@ export function stageBaseOf(stage) {
 export function requireNoActiveStage(io) {
   const a = readActiveStage(io);
   if (!a) return { ok: true };
-  return { ok: false, error: `tool requires no active stage; current: ${a.stage}` };
+  return { ok: false, error: `stage "${a.stage}" is already active — finish it with foundry_stage_end first. If abandoned, call foundry_orchestrate() to recover` };
 }
 
 function stageMismatchError(active, stageBase, cycle) {
@@ -24,7 +24,7 @@ function stageMismatchError(active, stageBase, cycle) {
 
 export function requireActiveStage(io, { stageBase, cycle } = {}) {
   const a = readActiveStage(io);
-  if (!a) return { ok: false, error: `tool requires active stage; current: none` };
+  if (!a) return { ok: false, error: `no stage is active — call foundry_orchestrate() to get a dispatch, then begin the stage with foundry_stage_begin` };
   const mismatch = stageMismatchError(a, stageBase, cycle);
   if (mismatch) return { ok: false, error: mismatch };
   return { ok: true, active: a };

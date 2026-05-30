@@ -248,7 +248,7 @@ describe('foundry_orchestrate lastResults validation', () => {
       const result = await runOrchestrate(args, io);
 
       assert.equal(isViolation(result), true);
-      assert.match(result.details, /mutually exclusive/);
+      assert.match(result.details, /not both at once/);
     });
   });
 
@@ -274,7 +274,7 @@ describe('foundry_orchestrate lastResults validation', () => {
       const result = await runOrchestrate(args, io);
 
       assert.equal(isViolation(result), true);
-      assert.match(result.details, /no active stage exists/);
+      assert.match(result.details, /no active appraise stage exists/);
     });
 
     it('rejects lastResults when active stage is not an appraise stage', async () => {
@@ -284,7 +284,7 @@ describe('foundry_orchestrate lastResults validation', () => {
       const result = await runOrchestrate(args, io);
 
       assert.equal(isViolation(result), true);
-      assert.match(result.details, /not an appraise stage/);
+      assert.match(result.details, /only valid for appraise stages/);
     });
   });
 
@@ -329,7 +329,7 @@ describe('foundry_orchestrate lastResults validation', () => {
       const result = await runOrchestrate(args, io);
 
       assert.equal(isViolation(result), true);
-      assert.match(result.details, /duplicate lastResults/);
+      assert.match(result.details, /consolidation already completed/);
       assert.match(result.details, /consolidation already completed/);
     });
 

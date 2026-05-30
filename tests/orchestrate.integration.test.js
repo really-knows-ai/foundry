@@ -56,10 +56,9 @@ test('renderDispatchPrompt includes stage, cycle, token, cwd, file-patterns', ()
   });
   assert.match(prompt, /Stage: forge:create-haiku/);
   assert.match(prompt, /Cycle: create-haiku/);
-  assert.match(prompt, /Token: TOKEN_XYZ/);
   assert.match(prompt, /Working directory: \/tmp\/work/);
   assert.match(prompt, /File patterns \(forge only\): \["haikus\/\*\.md"\]/);
-  assert.match(prompt, /foundry_stage_begin\({stage, cycle, token}\)/);
+  assert.match(prompt, /foundry_stage_begin\({stage: "forge:create-haiku", cycle: "create-haiku"}\)/);
   assert.match(prompt, /foundry_stage_end\(\)/);
 });
 
@@ -223,7 +222,6 @@ test('runOrchestrate first call: runs setup, commits, returns dispatch for forge
   assert.strictEqual(result.action, 'dispatch');
   assert.strictEqual(result.stage, 'forge:create-haiku');
   assert.strictEqual(result.subagent_type, 'foundry-github-copilot-claude-sonnet-4-6');
-  assert.match(result.prompt, /Token: MINTED_TOKEN/);
   assert.match(result.prompt, /File patterns \(forge only\): \["haikus\/\*\.md"\]/);
 
   const work = io.readFile('WORK.md');

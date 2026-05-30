@@ -112,7 +112,7 @@ describe('guard failures', () => {
       const result = await handler.execute({ data: { status: 'done' } }, { worktree: dir });
       const parsed = JSON.parse(result);
       assert.equal(parsed.ok, undefined);
-      assert.ok(parsed.error.includes('requires active stage'));
+      assert.ok(parsed.error.includes('no stage is active'));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

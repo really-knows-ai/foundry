@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,8 +39,9 @@ describe('foundry_stage_begin', () => {
     pending.add('n1', payload);
     const token = signToken(payload, secret);
 
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
     const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-      { stage: 'forge:c', cycle: 'c', token },
+      { stage: 'forge:c', cycle: 'c' },
       makeCtx(dir),
     ));
     assert.equal(res.ok, true);
@@ -58,8 +59,9 @@ describe('foundry_stage_begin', () => {
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n2', exp: Date.now() - 1 };
     pending.add('n2', payload);
     const token = signToken(payload, secret);
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
     const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-      { stage: 'forge:c', cycle: 'c', token }, makeCtx(dir),
+      { stage: 'forge:c', cycle: 'c' }, makeCtx(dir),
     ));
     assert.match(res.error, /expired/);
     assert.equal(existsSync(join(dir, '.foundry/active-stage.json')), false);
@@ -72,10 +74,11 @@ describe('foundry_stage_begin', () => {
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n3', exp: Date.now() + 60_000 };
     pending.add('n3', payload);
     const token = signToken(payload, secret);
-    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c', token }, makeCtx(dir));
-    // Clear active-stage to bypass "no active stage" precondition the second time.
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir));
     rmSync(join(dir, '.foundry/active-stage.json'));
-    const res2 = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c', token }, makeCtx(dir)));
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
+    const res2 = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir)));
     assert.match(res2.error, /nonce/);
   });
 
@@ -86,8 +89,9 @@ describe('foundry_stage_begin', () => {
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n4', exp: Date.now() + 60_000 };
     pending.add('n4', payload);
     const token = signToken(payload, secret);
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
     const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-      { stage: 'quench:c', cycle: 'c', token }, makeCtx(dir),
+      { stage: 'quench:c', cycle: 'c' }, makeCtx(dir),
     ));
     assert.match(res.error, /token.*mismatch/);
   });
@@ -108,9 +112,10 @@ describe('foundry_stage_begin', () => {
       pending.add('nNC', payload);
       const token = signToken(payload, secret);
 
+      writeFileSync(join(noCommitDir, '.foundry/dispatch-token'), token);
       // First attempt fails because there are no commits.
       const res1 = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-        { stage: 'forge:c', cycle: 'c', token }, makeCtx(noCommitDir),
+        { stage: 'forge:c', cycle: 'c' }, makeCtx(noCommitDir),
       ));
       assert.match(res1.error, /git rev-parse HEAD/);
       assert.equal(existsSync(join(noCommitDir, '.foundry/active-stage.json')), false);
@@ -119,7 +124,7 @@ describe('foundry_stage_begin', () => {
       // still be pending for this to succeed.
       execSync('git commit --allow-empty -m init -q', { cwd: noCommitDir, env: GIT_ENV });
       const res2 = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-        { stage: 'forge:c', cycle: 'c', token }, makeCtx(noCommitDir),
+        { stage: 'forge:c', cycle: 'c' }, makeCtx(noCommitDir),
       ));
       assert.equal(res2.ok, true, `expected retry to succeed, got: ${JSON.stringify(res2)}`);
       assert.ok(existsSync(join(noCommitDir, '.foundry/active-stage.json')));
@@ -135,12 +140,14 @@ describe('foundry_stage_begin', () => {
     const payload = { route: 'forge:c', cycle: 'c', nonce: 'n5', exp: Date.now() + 60_000 };
     pending.add('n5', payload);
     const token = signToken(payload, secret);
-    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c', token }, makeCtx(dir));
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir));
     // Add another pending nonce and try again without clearing active-stage.
     const p2 = { route: 'forge:c', cycle: 'c', nonce: 'n6', exp: Date.now() + 60_000 };
     pending.add('n6', p2);
     const token2 = signToken(p2, secret);
-    const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c', token: token2 }, makeCtx(dir)));
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token2);
+    const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir)));
     assert.match(res.error, /stage already active|no active stage/);
   });
 });
@@ -159,7 +166,8 @@ describe('foundry_stage_end', () => {
     const payload = { route: 'forge:c', cycle: 'c', nonce, exp: Date.now() + 60_000 };
     pending.add(nonce, payload);
     const token = signToken(payload, secret);
-    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c', token }, makeCtx(dir));
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
+    await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir));
   }
 
   it('clears active-stage and writes last-stage', async () => {
@@ -181,7 +189,7 @@ describe('foundry_stage_end', () => {
   it('errors when no active stage', async () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
-    assert.match(res.error, /requires active stage/);
+    assert.match(res.error, /no active stage to close/);
   });
 });
 

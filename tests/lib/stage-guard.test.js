@@ -20,7 +20,7 @@ describe('stage-guard', () => {
   it('requireNoActiveStage errors when present', () => {
     const r = requireNoActiveStage(fakeIO({ cycle: 'c', stage: 'forge:c' }));
     assert.equal(r.ok, false);
-    assert.match(r.error, /no active stage.*forge:c/);
+    assert.match(r.error, /forge:c.*is already active/);
   });
 
   it('requireActiveStage matches stageBase + cycle', () => {

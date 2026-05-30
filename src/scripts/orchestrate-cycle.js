@@ -289,7 +289,6 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, o
     ``,
     `Stage: ${stage}`,
     `Cycle: ${cycle}`,
-    `Token: ${token}`,
     `Working directory: ${cwd}`,
   ];
   if (filePatterns && filePatterns.length) {
@@ -300,7 +299,7 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, o
   }
   lines.push(
     ``,
-    `Your FIRST tool call MUST be foundry_stage_begin({stage, cycle, token}) using the values above.`,
+    `Your FIRST tool call MUST be foundry_stage_begin({stage: "${stage}", cycle: "${cycle}"}).`,
     `Your LAST tool call MUST be foundry_stage_end().`,
   );
   return lines.join('\n');

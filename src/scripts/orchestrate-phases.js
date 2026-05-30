@@ -52,6 +52,7 @@ async function buildDispatchAction(route, model, token, ctx) {
   const base = route.split(':')[0];
   const forgePayload = base === 'forge' ? await prepareForgePayload(ctx.cycleId, ctx.io) : { filePatterns: null, outputType: null, forgeItem: null };
   const payload = { route, cycleId: ctx.cycleId, token, cwd: ctx.cwd, ...forgePayload };
+  ctx.io.writeFile('.foundry/dispatch-token', token);
   return { action: 'dispatch', stage: route, subagent_type: model,
     prompt: renderDispatchPrompt(makeDispatchPayload(payload)) };
 }

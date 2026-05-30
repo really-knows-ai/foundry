@@ -446,7 +446,6 @@ describe('existing renderDispatchPrompt behaviour preserved', () => {
     });
     assert.match(prompt, /Stage: forge:test-cycle/);
     assert.match(prompt, /Cycle: test-cycle/);
-    assert.match(prompt, /Token: T/);
     assert.match(prompt, /Working directory: \/w/);
     assert.match(prompt, /File patterns \(forge only\)/);
     assert.match(prompt, /foundry_stage_begin/);

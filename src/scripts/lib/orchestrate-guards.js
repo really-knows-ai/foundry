@@ -21,15 +21,18 @@ export function guardMissingCycleId(io) {
 }
 
 export function guardSetupInconsistent(lastResult) {
-  if (lastResult) return violation('inconsistent state: lastResult provided but WORK.md still needs setup', ['WORK.md']);
+  if (lastResult) return violation('WORK.md needs setup (no stages configured), but you passed lastResult — stages are configured during setup. Call foundry_orchestrate() without any arguments to initialise the cycle first', ['WORK.md']);
   return null;
 }
 
 export function guardOrphanedStage(activeStage, lastResult) {
   if (activeStage && !lastResult) {
     return violation(
-      `prior stage ${activeStage.stage} orphaned — no lastResult provided but active stage exists. ` +
-      `Likely cause: previous orchestrate call returned dispatch but caller did not follow up.`,
+      `stage "${activeStage.stage}" is active but you called foundry_orchestrate() without lastResult — ` +
+      `the orchestrator cannot advance past an active stage. ` +
+      `If this stage was abandoned or its subagent already finished (stage was entered via foundry_stage_begin and exited via foundry_stage_end), ` +
+      `call foundry_stage_end to close it, then foundry_orchestrate() to get the next action. ` +
+      `Otherwise, pass lastResult: {ok: true} (or {ok: false, error: "..."}) to report the outcome.`,
       [],
     );
   }
@@ -37,26 +40,30 @@ export function guardOrphanedStage(activeStage, lastResult) {
 }
 
 export function guardMissingLastStage(lastStage) {
-  if (!lastStage) return violation('lastResult provided but no last stage recorded — orphaned state');
+  if (!lastStage) return violation(
+    'lastResult provided but the orchestrator has no record of a pending dispatch to match it against — ' +
+    'the stage was already finalised (likely by foundry_stage_end in a subagent). ' +
+    'Call foundry_orchestrate() without arguments to sort and get the next action.',
+  );
   return null;
 }
 
 function checkLastResultsConflict(args) {
-  if (args.lastResult !== undefined && args.lastResults !== undefined) return violation('lastResult and lastResults are mutually exclusive');
+  if (args.lastResult !== undefined && args.lastResults !== undefined) return violation('pass lastResult (singular) for dispatch stages, or lastResults (plural array) for appraise dispatch_multi — not both at once');
   return null;
 }
 
 function checkLastResultsShape(args) {
   if (args.lastResults === undefined) return null;
-  if (!Array.isArray(args.lastResults)) return violation('lastResults must be an array');
+  if (!Array.isArray(args.lastResults)) return violation('lastResults must be an array of {ok, output?, error?} objects — one per appraiser subagent result');
   return null;
 }
 
 function checkLastResultsStageContext(args, activeStage, lastStage) {
   if (args.lastResults === undefined) return null;
-  if (!activeStage) return violation('lastResults provided but no active stage exists');
-  if (stageBaseOf(activeStage.stage) !== 'appraise') return violation(`lastResults provided but active stage "${activeStage.stage}" is not an appraise stage`);
-  if (isDuplicateConsolidation(lastStage, activeStage)) return violation(`duplicate lastResults: consolidation already completed for this appraise stage "${activeStage.stage}"`);
+  if (!activeStage) return violation('lastResults (plural) provided but no active appraise stage exists. If appraise was already consolidated, call foundry_orchestrate() without arguments to get the next action');
+  if (stageBaseOf(activeStage.stage) !== 'appraise') return violation(`lastResults (plural) is only valid for appraise stages, but active stage is "${activeStage.stage}". For forge or human-appraise, use lastResult (singular)`);
+  if (isDuplicateConsolidation(lastStage, activeStage)) return violation(`consolidation already completed for "${activeStage.stage}". Call foundry_orchestrate() without arguments to get the next action`);
   return null;
 }
 

@@ -134,11 +134,12 @@ describe('assay end-to-end: happy path', () => {
     assert.equal(dispatch1.stage, 'assay:doc-java');
     const cycle = 'doc-java';
     const stage = dispatch1.stage;
-    const token = dispatch1.prompt.match(/Token: (\S+)/)[1];
+
+    // Token was written to .foundry/dispatch-token by the orchestrator.
 
     // 2. Sub-agent protocol: begin → run → end.
     const begin = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-      { stage, cycle, token }, ctx));
+      { stage, cycle }, ctx));
     assert.equal(begin.ok, true);
 
     const runRes = JSON.parse(await plugin.tool.foundry_assay_run.execute(
@@ -189,10 +190,9 @@ describe('assay end-to-end: extractor failure', () => {
 
     const dispatch = JSON.parse(await plugin.tool.foundry_orchestrate.execute({}, ctx));
     assert.equal(dispatch.stage, 'assay:doc-java');
-    const token = dispatch.prompt.match(/Token: (\S+)/)[1];
 
     await plugin.tool.foundry_stage_begin.execute(
-      { stage: dispatch.stage, cycle: 'doc-java', token }, ctx);
+      { stage: dispatch.stage, cycle: 'doc-java' }, ctx);
     const runRes = JSON.parse(await plugin.tool.foundry_assay_run.execute(
       { cycle: 'doc-java', extractors: ['java-syms'] }, ctx));
     try { await plugin.tool.foundry_stage_end.execute({}, ctx); } catch {}

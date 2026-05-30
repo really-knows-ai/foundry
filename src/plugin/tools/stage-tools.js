@@ -2,15 +2,14 @@ import { execSync } from 'child_process';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { readActiveStage, writeActiveStage, clearActiveStage, writeLastStage, clearLastStage } from '../../scripts/lib/state.js';
-import { verifyToken } from '../../scripts/lib/token.js';
 import { readOrCreateSecret } from '../../scripts/lib/secret.js';
 import { getContext, invalidateStore } from '../../scripts/lib/memory/singleton.js';
 import { syncStore } from '../../scripts/lib/memory/store.js';
 import { makeIO, makeMemoryIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 import { markWorkfileFailed, readFailedStatus, clearWorkfileFailed } from '../../scripts/lib/failed-flow.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
-import { initForgeCallLog, readForgeCallSet } from '../../scripts/lib/stage-calls.js';
-import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
+import { initForgeCallLog } from '../../scripts/lib/stage-calls.js';
+import { verifyStageToken, readDispatchToken, verifyAndManageForgeTools } from './stage-forge-helpers.js';
 import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
 import { ulid } from '../../scripts/lib/ulid.js';
 import { getStageOutputs, clearStageOutputs } from './stage-output-tool.js';
@@ -23,40 +22,9 @@ function contractError(stage, expected, got) {
   return `${stage} stage_end: expected exactly ${expected} stage_output call${expected === 1 ? '' : 's'}, got ${got}`;
 }
 
-const FORGE_REQUIRED_TOOLS = [
-  'foundry_config_cycle',
-  'foundry_workfile_get',
-  'foundry_config_artefact_type',
-  'foundry_config_laws',
-];
-
-const FORGE_FORBIDDEN_TOOLS = [
-  'foundry_feedback_action',
-  'foundry_feedback_wontfix',
-  'foundry_feedback_resolve',
-];
-
 function stageBase(stage) { return stage.split(':')[0]; }
 
 const gateNotFailed = notFailedGuard(makeIO);
-
-// -- Helpers for forge tool call verification --
-
-function verifyAndManageForgeTools(io, active) {
-  const callSet = readForgeCallSet(io);
-  const forbidden = FORGE_FORBIDDEN_TOOLS.filter(t => callSet.has(t));
-  const missing = FORGE_REQUIRED_TOOLS.filter(t => !callSet.has(t));
-  io.unlink('.foundry/.forge-tool-calls.jsonl');
-  if (forbidden.length) {
-    postForbiddenToolsFeedback(io, active, forbidden);
-    return;
-  }
-  if (missing.length) {
-    postMissingToolsFeedback(io, active, missing);
-    return;
-  }
-  resolveSystemFeedback(io, active);
-}
 
 function resolveBaseSha(worktree) {
   try {
@@ -66,62 +34,54 @@ function resolveBaseSha(worktree) {
   }
 }
 
-function verifyStageToken(token, secret, stage, cycle, agent) {
-  const v = verifyToken(token, secret);
-  if (!v.ok) return { error: `foundry_stage_begin: token ${v.reason}` };
-  if (v.payload.route !== stage || v.payload.cycle !== cycle) {
-    return { error: `foundry_stage_begin: token payload mismatch (route=${v.payload.route}, cycle=${v.payload.cycle})` };
-  }
-  return checkTokenAgentBinding(v.payload, agent);
-}
+function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pending }) {
+  const tokenResult = verifyStageToken(token, secret, stage, cycle, agent);
+  if (tokenResult.error) return { error: tokenResult.error };
 
-function checkTokenAgentBinding(payload, agent) {
-  // Token has no model scope — allow (legacy or test tokens)
-  if (!payload.model) return { payload };
-  // Unknown agent — allow (test environments, edge cases)
-  if (!agent) return { payload };
-  // Main Foundry agent cannot use subagent-scoped tokens
-  if (agent === 'foundry') {
-    return { error: `foundry_stage_begin: token is scoped to subagent '${payload.model}'. Dispatch forge via task(), not inline.` };
-  }
-  // Subagent — allow (model-specific or default foundry-forge/foundry-appraise)
-  return { payload };
-}
-
-async function executeStageBegin(args, context, pending) {
-  const io = makeIO(context.worktree);
-  const secret = readOrCreateSecret(context.worktree);
-
-  const current = readActiveStage(io);
-  if (current) {
-    return JSON.stringify({ error: `foundry_stage_begin requires no active stage; current: ${current.stage}` });
-  }
-
-  const tokenResult = verifyStageToken(args.token, secret, args.stage, args.cycle, context.agent);
-  if (tokenResult.error) return JSON.stringify({ error: tokenResult.error });
-
-  const baseSha = resolveBaseSha(context.worktree);
+  const baseSha = resolveBaseSha(worktree);
   if (!baseSha) {
-    return JSON.stringify({ error: 'foundry_stage_begin: git rev-parse HEAD failed (no commits?)' });
+    return { error: 'foundry_stage_begin: git rev-parse HEAD failed (no commits?)' };
   }
 
   const meta = pending.consume(tokenResult.payload.nonce);
-  if (!meta) return JSON.stringify({ error: 'foundry_stage_begin: nonce not pending or already consumed' });
+  if (!meta) return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_orchestrate. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
 
-  const tokenHash = createHash('sha256').update(args.token).digest('hex');
+  const tokenHash = createHash('sha256').update(token).digest('hex');
   const active = {
-    cycle: args.cycle,
-    stage: args.stage,
+    cycle,
+    stage,
     tokenHash,
     baseSha,
     startedAt: new Date().toISOString(),
   };
   writeActiveStage(io, active);
   initForgeIfApplicable(io, active.stage);
-
   cleanStageOutputDir(io);
 
-  return JSON.stringify({ ok: true, active });
+  return { active };
+}
+
+async function executeStageBegin(args, context, pending) {
+  const io = makeIO(context.worktree);
+  const secret = readOrCreateSecret(context.worktree);
+
+  const dispatchResult = readDispatchToken(io);
+  if (dispatchResult.error) return JSON.stringify({ error: dispatchResult.error });
+  const token = dispatchResult.token;
+
+  const current = readActiveStage(io);
+  if (current) {
+    return JSON.stringify({ error: `foundry_stage_begin: stage "${current.stage}" is already active — finish it with foundry_stage_end before starting a new one. If that stage is abandoned, call foundry_orchestrate() to recover` });
+  }
+
+  const opts = {
+    token, secret, stage: args.stage, cycle: args.cycle,
+    agent: context.agent, worktree: context.worktree, io, pending,
+  };
+  const beginResult = beginTokenStage(opts);
+  if (beginResult.error) return JSON.stringify({ error: beginResult.error });
+
+  return JSON.stringify({ ok: true, active: beginResult.active });
 }
 
 function initForgeIfApplicable(io, stage) {
@@ -209,7 +169,7 @@ async function executeStageEnd(args, context) {
 
   const active = readActiveStage(io);
   if (!active) {
-    return JSON.stringify({ error: 'foundry_stage_end requires active stage; current: none' });
+    return JSON.stringify({ error: 'foundry_stage_end: no active stage to close. If you are trying to recover from a tangled state, call foundry_orchestrate() without arguments — it will sort and route to the next stage' });
   }
 
   verifyForgeToolsIfApplicable(io, active);
@@ -227,6 +187,10 @@ async function executeStageEnd(args, context) {
 
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);
+
+  const tokenPath = '.foundry/dispatch-token';
+  if (io.exists(tokenPath)) io.unlink(tokenPath);
+
   return JSON.stringify({ ok: true });
 }
 
@@ -234,39 +198,6 @@ function verifyForgeToolsIfApplicable(io, active) {
   if (stageBase(active.stage) === 'forge') {
     verifyAndManageForgeTools(io, active);
   }
-}
-
-function postForbiddenToolsFeedback(io, active, forbidden) {
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    store.add({
-      file: '(forge)',
-      tag: 'system:forbidden-tool-calls',
-      text: `Forbidden forge tool calls: ${forbidden.join(', ')}. Forge subagents do not manage feedback — the orchestrator handles transitions.`,
-      source: active.stage,
-      cycle: active.cycle,
-    });
-  } catch { /* feedback file not initialised yet; non-critical */ }
-}
-
-function postMissingToolsFeedback(io, active, missing) {
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    store.add({
-      file: '(forge)',
-      tag: 'system:missing-tool-calls',
-      text: `Missing required forge tools: ${missing.join(', ')}`,
-      source: active.stage,
-      cycle: active.cycle,
-    });
-  } catch { /* feedback file not initialised yet; non-critical */ }
-}
-
-function resolveSystemFeedback(io, active) {
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    store.resolveSystemItems(active.stage, active.cycle);
-  } catch { /* non-critical */ }
 }
 
 // -- Helpers for foundry_stage_retry --
@@ -322,11 +253,10 @@ async function executeStageRetry(_args, context) {
 export function createStageTools({ tool, pending }) {
   return {
     foundry_stage_begin: tool({
-      description: 'Open a subagent work stage; consumes a dispatch token from foundry_orchestrate.',
+      description: 'Open a subagent work stage. The orchestrator writes a dispatch token to .foundry/dispatch-token — this tool reads it automatically.',
       args: {
         stage: tool.schema.string().describe('Stage alias, e.g. "forge:create-haiku"'),
         cycle: tool.schema.string().describe('Cycle name'),
-        token: tool.schema.string().describe('Token received from foundry_orchestrate via the dispatch prompt'),
       },
       execute: guarded('foundry_stage_begin', [flowBranchGuard, gateNotFailed],
         (args, context) => executeStageBegin(args, context, pending),

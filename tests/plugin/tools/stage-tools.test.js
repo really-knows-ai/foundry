@@ -42,7 +42,8 @@ async function beginStage(plugin, dir, stage = 'forge:cycle-1', cycle = 'cycle-1
   const payload = { route: stage, cycle, nonce, exp: Date.now() + 60_000 };
   pending.add(nonce, payload);
   const token = signToken(payload, secret);
-  const r = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage, cycle, token }, makeCtx(dir)));
+  writeFileSync(join(dir, '.foundry/dispatch-token'), token);
+  const r = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage, cycle }, makeCtx(dir)));
   if (!r.ok) throw new Error(`beginStage failed: ${JSON.stringify(r)}`);
 }
 
@@ -332,7 +333,7 @@ describe('buffer lifecycle', () => {
       // Second call: no active stage
       const second = await stageEnd(plugin, dir);
       assert.equal(second.ok, undefined);
-      assert.match(second.error, /requires active stage/);
+      assert.match(second.error, /no active stage to close/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
