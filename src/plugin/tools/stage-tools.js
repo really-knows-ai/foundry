@@ -61,6 +61,13 @@ function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pen
   return { active };
 }
 
+function cleanDispatchTokenOnError(io, errorMsg) {
+  if (errorMsg.includes('token')) {
+    const tokenPath = '.foundry/dispatch-token';
+    if (io.exists(tokenPath)) io.unlink(tokenPath);
+  }
+}
+
 async function executeStageBegin(args, context, pending) {
   const io = makeIO(context.worktree);
   const secret = readOrCreateSecret(context.worktree);
@@ -80,10 +87,7 @@ async function executeStageBegin(args, context, pending) {
   };
   const beginResult = beginTokenStage(opts);
   if (beginResult.error) {
-    if (beginResult.error.includes('token')) {
-      const tokenPath = '.foundry/dispatch-token';
-      if (io.exists(tokenPath)) io.unlink(tokenPath);
-    }
+    cleanDispatchTokenOnError(io, beginResult.error);
     return JSON.stringify({ error: beginResult.error });
   }
 

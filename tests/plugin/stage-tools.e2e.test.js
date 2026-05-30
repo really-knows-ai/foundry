@@ -80,7 +80,7 @@ describe('foundry_stage_begin', () => {
     rmSync(join(dir, '.foundry/active-stage.json'));
     writeFileSync(join(dir, '.foundry/dispatch-token'), token);
     const res2 = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir)));
-    assert.match(res2.error, /nonce/);
+    assert.match(res2.error, /already used/);
   });
 
   it('rejects when stage arg mismatches token payload', async () => {
@@ -94,7 +94,7 @@ describe('foundry_stage_begin', () => {
     const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
       { stage: 'quench:c', cycle: 'c' }, makeCtx(dir),
     ));
-    assert.match(res.error, /token.*mismatch/);
+    assert.match(res.error, /token is for stage/);
   });
 
   it('does not consume nonce when git rev-parse HEAD fails (no commits)', async () => {
@@ -149,7 +149,7 @@ describe('foundry_stage_begin', () => {
     const token2 = signToken(p2, secret);
     writeFileSync(join(dir, '.foundry/dispatch-token'), token2);
     const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute({ stage: 'forge:c', cycle: 'c' }, makeCtx(dir)));
-    assert.match(res.error, /stage already active|no active stage/);
+    assert.match(res.error, /is already active/);
   });
 });
 

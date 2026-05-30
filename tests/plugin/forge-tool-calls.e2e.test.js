@@ -31,8 +31,9 @@ async function beginForgeStage(plugin, dir, nonce = 'n1') {
   const payload = { route: 'forge:c', cycle: 'c', nonce, exp: Date.now() + 60_000 };
   pending.add(nonce, payload);
   const token = signToken(payload, secret);
+  writeFileSync(join(dir, '.foundry/dispatch-token'), token);
   const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-    { stage: 'forge:c', cycle: 'c', token }, makeCtx(dir),
+    { stage: 'forge:c', cycle: 'c' }, makeCtx(dir),
   ));
   return res;
 }
@@ -61,8 +62,9 @@ describe('forge tool call log on stage_begin', () => {
     const payload = { route: 'quench:c', cycle: 'c', nonce: 'nq', exp: Date.now() + 60_000 };
     pending.add('nq', payload);
     const token = signToken(payload, secret);
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
     const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-      { stage: 'quench:c', cycle: 'c', token }, makeCtx(dir),
+      { stage: 'quench:c', cycle: 'c' }, makeCtx(dir),
     ));
     assert.equal(res.ok, true);
     const logPath = join(dir, '.foundry/.forge-tool-calls.jsonl');
@@ -169,8 +171,9 @@ describe('forge tool call verification on stage_end', () => {
     const payload = { route: 'quench:c', cycle: 'c', nonce: 'nend', exp: Date.now() + 60_000 };
     pending.add('nend', payload);
     const token = signToken(payload, secret);
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
     await plugin.tool.foundry_stage_begin.execute(
-      { stage: 'quench:c', cycle: 'c', token }, makeCtx(dir),
+      { stage: 'quench:c', cycle: 'c' }, makeCtx(dir),
     );
 
     const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));

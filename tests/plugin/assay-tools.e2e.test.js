@@ -66,8 +66,9 @@ async function beginAssay(plugin, root, cycleId = 'c') {
   const payload = { route: `assay:${cycleId}`, cycle: cycleId, nonce: 'n-assay', exp: Date.now() + 60_000 };
   pending.add(payload.nonce, payload);
   const token = signToken(payload, secret);
+  writeFileSync(join(root, '.foundry/dispatch-token'), token);
   const r = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-    { stage: `assay:${cycleId}`, cycle: cycleId, token }, { worktree: root }));
+    { stage: `assay:${cycleId}`, cycle: cycleId }, { worktree: root }));
   if (!r.ok) throw new Error(`begin failed: ${JSON.stringify(r)}`);
 }
 

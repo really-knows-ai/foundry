@@ -39,8 +39,9 @@ async function beginStage(plugin, dir, stage, cycle, nonce = 'n1') {
   const payload = { route: stage, cycle, nonce, exp: Date.now() + 60_000 };
   pending.add(nonce, payload);
   const token = signToken(payload, secret);
+  writeFileSync(join(dir, '.foundry/dispatch-token'), token);
   const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
-    { stage, cycle, token }, makeCtx(dir),
+    { stage, cycle }, makeCtx(dir),
   ));
   assert.equal(res.ok, true, `beginStage failed: ${res.error}`);
 }
