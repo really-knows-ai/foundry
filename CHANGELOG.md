@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.9.1] - 2026-05-30
+
+### Fixed
+
+- Dispatch token travels via `.foundry/dispatch-token` file instead of being embedded in the LLM prompt text, eliminating `bad_signature` errors caused by the LLM misreading the token string.
+- Every stage and orchestrator error now includes recovery instructions telling the caller which tool to call next to get back on track.
+- `executeStageBegin` cleans up the dispatch token file when the token is definitively invalid (bad signature, malformed, expired, wrong stage).
+- Removed redundant `token` field from `humanAppraiseAction` response.
+
+### Changed
+
+- Forge verification and token helper functions extracted to `src/plugin/tools/stage-forge-helpers.js`.
+
 ## [3.9.0] - 2026-05-30
 
 ### Added
