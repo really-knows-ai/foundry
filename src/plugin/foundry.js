@@ -64,6 +64,20 @@ let pluginClient = null;
 // Map of child session IDs to roles, used by the tool.execute.before lockdown hook.
 const childSessions = new Map();
 
+// ── Role-based tool deny lists (R4) ──────────────────────────────────
+// These lists define which tools are denied to subagent sessions based on
+// their role. The forge deny list is enforced in Phase 2; appraise is
+// defined here for test access but enforced in Phase 3.
+
+const FORGE_DENIED = [
+  'foundry_orchestrate', 'foundry_feedback_', 'foundry_config_create_',
+  'foundry_workfile_', 'foundry_git_branch', 'foundry_git_finish',
+  'foundry_stage_retry', 'foundry_stage_begin', 'foundry_stage_end',
+  'foundry_assay_run', 'foundry_refresh_agents',
+];
+
+// APPRAISE_DENIED is added in Phase 3 when appraise dispatch is introduced.
+
 // -- Bootstrap helpers --
 
 function bootstrapDirectories(worktree) {
@@ -190,6 +204,32 @@ function runPluginBootstrap(worktree, pkgRoot) {
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
+async function configurePlugin(config, directory) {
+  config.skills = config.skills || {};
+  config.skills.paths = config.skills.paths || [];
+  if (!config.skills.paths.includes(allSkillsDir)) {
+    config.skills.paths.push(allSkillsDir);
+  }
+  ensureGuideAgent(directory, packageRoot);
+  writeFoundrySkills(directory, packageRoot);
+  restartNeeded = runPluginBootstrap(directory, packageRoot);
+}
+
+function isToolDeniedForForge(toolCall) {
+  if (!toolCall || !toolCall.name) return false;
+  return FORGE_DENIED.some(p => toolCall.name.startsWith(p));
+}
+
+function attachTestSymbols(plugin, pending, client, sessions, denied) {
+  Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
+    get: () => restartNeeded, configurable: true,
+  });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: client });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.childSessions'), { value: sessions });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.forgeDenied'), { value: denied });
+}
+
 function buildTools(createTool, pending, client, sessions) {
   return {
     ...createHistoryTools({ tool: createTool }),
@@ -235,21 +275,7 @@ export const FoundryPlugin = async ({ directory, client }) => {
   pluginClient = client || null;
 
   const plugin = {
-    config: async (config) => {
-      config.skills = config.skills || {};
-      config.skills.paths = config.skills.paths || [];
-
-      // Always register all skills — individual skills check for foundry/ dir
-      if (!config.skills.paths.includes(allSkillsDir)) {
-        config.skills.paths.push(allSkillsDir);
-      }
-
-      // Always ensure guide agent and skills are up to date
-      ensureGuideAgent(directory, packageRoot);
-      writeFoundrySkills(directory, packageRoot);
-
-      restartNeeded = runPluginBootstrap(directory, packageRoot);
-    },
+    config: (config) => configurePlugin(config, directory),
 
     'experimental.chat.messages.transform': async (_input, output) => {
       const bootstrap = getBootstrapContent(directory, packageRoot, restartNeeded);
@@ -264,19 +290,17 @@ export const FoundryPlugin = async ({ directory, client }) => {
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
     },
 
-    'tool.execute.before': async (_toolCall, _context) => {
-      // Phase 1 no-op — Phase 2 will add role-based lockdown here
+    'tool.execute.before': async (toolCall, context) => {
+      if (!context || !context.sessionID) return;
+      if (childSessions.get(context.sessionID) !== 'forge') return;
+      if (isToolDeniedForForge(toolCall)) {
+        throw new Error('Tool ' + toolCall.name + ' is not available to forge subagents');
+      }
     },
 
     tool: buildTools(tool, pending, pluginClient, childSessions),
   };
 
-  Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
-    get: () => restartNeeded,
-    configurable: true,
-  });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: pluginClient });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.childSessions'), { value: childSessions });
+  attachTestSymbols(plugin, pending, pluginClient, childSessions, FORGE_DENIED);
   return plugin;
 };
