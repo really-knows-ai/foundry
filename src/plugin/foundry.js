@@ -21,7 +21,9 @@ import { refreshAgents, detectChanges, writeFoundryGuideAgent, writeFoundrySkill
 import { createHistoryTools } from './tools/history-tools.js';
 import { createStageTools } from './tools/stage-tools.js';
 import { createWorkfileTools } from './tools/workfile-tools.js';
-import { createOrchestrateTool } from './tools/orchestrate-tool.js';
+import { createRunTool } from './tools/run-tool.js';
+import { createContinueTool } from './tools/continue-tool.js';
+import { createListModelsTool } from './tools/list-models-tool.js';
 import { createArtefactTools } from './tools/artefact-tools.js';
 import { createFeedbackTools } from './tools/feedback-tools.js';
 import { createGitTools } from './tools/git-tools.js';
@@ -55,6 +57,12 @@ const allSkillsDir = path.join(packageRoot, 'skills');
 
 // Module-level flag shared between config and message-transform hooks.
 let restartNeeded = false;
+
+// SDK client captured from plugin input, used by tool handlers.
+let pluginClient = null;
+
+// Map of child session IDs to roles, used by the tool.execute.before lockdown hook.
+const childSessions = new Map();
 
 // -- Bootstrap helpers --
 
@@ -182,12 +190,14 @@ function runPluginBootstrap(worktree, pkgRoot) {
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
 
-function buildTools(createTool, pending) {
+function buildTools(createTool, pending, client, sessions) {
   return {
     ...createHistoryTools({ tool: createTool }),
     ...createStageTools({ tool: createTool, pending }),
     ...createWorkfileTools({ tool: createTool }),
-    ...createOrchestrateTool({ tool: createTool, pending }),
+    ...createRunTool({ tool: createTool, client, childSessions: sessions }),
+    ...createContinueTool({ tool: createTool, client, childSessions: sessions }),
+    ...createListModelsTool({ tool: createTool, client }),
     ...createArtefactTools({ tool: createTool }),
     ...createFeedbackTools({ tool: createTool }),
     ...createGitTools({ tool: createTool }),
@@ -217,9 +227,12 @@ function getFirstUserWithParts(output) {
   return firstUser;
 }
 
-export const FoundryPlugin = async ({ directory }) => {
+export const FoundryPlugin = async ({ directory, client }) => {
   // Pending store is per-plugin-instance (shared across all tool invocations).
   const pending = createPendingStore();
+
+  // Capture the SDK client at module scope so tool handlers can close over it.
+  pluginClient = client || null;
 
   const plugin = {
     config: async (config) => {
@@ -251,7 +264,11 @@ export const FoundryPlugin = async ({ directory }) => {
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
     },
 
-    tool: buildTools(tool, pending),
+    'tool.execute.before': async (_toolCall, _context) => {
+      // Phase 1 no-op — Phase 2 will add role-based lockdown here
+    },
+
+    tool: buildTools(tool, pending, pluginClient, childSessions),
   };
 
   Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
@@ -259,5 +276,7 @@ export const FoundryPlugin = async ({ directory }) => {
     get: () => restartNeeded,
     configurable: true,
   });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: pluginClient });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.childSessions'), { value: childSessions });
   return plugin;
 };

@@ -10,8 +10,20 @@ import { FoundryPlugin } from '../../src/plugin/foundry.js';
 const plugin = await FoundryPlugin({ directory: process.cwd() });
 const toolNames = new Set(Object.keys(plugin.tool));
 
-test('plugin registers foundry_orchestrate', () => {
-  assert.ok(toolNames.has('foundry_orchestrate'));
+test('plugin does NOT register foundry_orchestrate', () => {
+  assert.ok(!toolNames.has('foundry_orchestrate'));
+});
+
+test('plugin registers foundry_run', () => {
+  assert.ok(toolNames.has('foundry_run'));
+});
+
+test('plugin registers foundry_continue', () => {
+  assert.ok(toolNames.has('foundry_continue'));
+});
+
+test('plugin registers foundry_list_models', () => {
+  assert.ok(toolNames.has('foundry_list_models'));
 });
 
 test('plugin does NOT register foundry_sort', () => {

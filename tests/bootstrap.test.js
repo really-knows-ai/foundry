@@ -5,7 +5,7 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync,
-  existsSync, chmodSync,
+  existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,57 +15,14 @@ import { getBootstrapContent } from '../src/plugin/tools/helpers.js';
 const PKG_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function installFakeOpencode(binDir, models) {
-  mkdirSync(binDir, { recursive: true });
-
-  let script;
-  if (models === null) {
-    // Simulate a failing opencode CLI
-    script = '#!/usr/bin/env node\nprocess.stderr.write("connection error");\nprocess.exit(1);\n';
-  } else if (models.length === 0) {
-    script = '#!/usr/bin/env node\nconsole.log("");\n';
-  } else {
-    const lines = models.map(m => "console.log('" + m + "');").join('\n');
-    script = '#!/usr/bin/env node\n' + lines + '\n';
-  }
-
-  const opencodePath = join(binDir, 'opencode');
-  writeFileSync(opencodePath, script, 'utf8');
-  chmodSync(opencodePath, 0o755);
-}
-
-/**
- * Bootstrap the given directory by running the plugin config hook with
- * a fake opencode that returns the given models.
- */
-async function runConfigHook(dir, binDir, models) {
-  const originalPath = process.env.PATH;
-  try {
-    process.env.PATH = `${binDir}:${originalPath}`;
-    installFakeOpencode(binDir, models);
-
-    const plugin = await FoundryPlugin({ directory: dir });
-    await plugin.config({ skills: {} });
-    return plugin;
-  } finally {
-    process.env.PATH = originalPath;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('bootstrap — config hook', () => {
   let dir;
-  let binDir;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'bootstrap-config-'));
-    binDir = join(dir, 'bin');
   });
 
   afterEach(() => {
@@ -73,7 +30,8 @@ describe('bootstrap — config hook', () => {
   });
 
   test('new project: creates directories, writes VERSION, sets restartNeeded', async () => {
-    const plugin = await runConfigHook(dir, binDir, ['opencode/claude-sonnet-4']);
+    const plugin = await FoundryPlugin({ directory: dir });
+    await plugin.config({ skills: {} });
 
     // Directory structure created
     assert.ok(existsSync(join(dir, 'foundry')));
@@ -89,11 +47,8 @@ describe('bootstrap — config hook', () => {
     const version = readFileSync(versionPath, 'utf8').trim();
     assert.equal(version, PKG_VERSION);
 
-    // Agent files created in .opencode/agents/
+    // Guide agent written (model-specific agent files no longer generated)
     const agentsDir = join(dir, '.opencode', 'agents');
-    assert.ok(existsSync(join(agentsDir, 'foundry-opencode-claude-sonnet-4.md')));
-
-    // Guide agent written
     assert.ok(existsSync(join(agentsDir, 'foundry.md')));
 
     // restartNeeded flag set
@@ -107,42 +62,13 @@ describe('bootstrap — config hook', () => {
     mkdirSync(foundryDir, { recursive: true });
     writeFileSync(join(foundryDir, 'VERSION'), PKG_VERSION, 'utf8');
 
-    // Pre-seed .opencode/agents/ to match what opencode produces
+    // Pre-seed guide agent only
     const agentsDir = join(dir, '.opencode', 'agents');
     mkdirSync(agentsDir, { recursive: true });
-    const modelId = 'opencode/claude-sonnet-4';
-    const slug = 'opencode-claude-sonnet-4';
-    const agentContent = `---
-description: "Foundry stage agent using ${modelId}"
-mode: subagent
-model: "${modelId}"
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-`;
-    writeFileSync(join(agentsDir, `foundry-${slug}.md`), agentContent, 'utf8');
+    writeFileSync(join(agentsDir, 'foundry.md'), 'guide', 'utf8');
 
-    // Pre-seed guide agent — the config hook ensures it exists
-    const guideAgentContent = `---
-description: "Guide users through Foundry authoring and flow execution"
-mode: primary
----
-You are the Foundry agent.
-`;
-    writeFileSync(join(agentsDir, 'foundry.md'), guideAgentContent, 'utf8');
-
-    // Pre-seed default stage agents so bootstrap doesn't create them as changes
-    const defaultAgent = `---
-description: "Default Foundry forge stage agent"
-mode: subagent
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-`;
-    writeFileSync(join(agentsDir, 'foundry-forge.md'), defaultAgent.replace('forge', 'forge'), 'utf8');
-    writeFileSync(join(agentsDir, 'foundry-appraise.md'), defaultAgent.replace('forge', 'appraise'), 'utf8');
-
-    const plugin = await runConfigHook(dir, binDir, [modelId]);
+    const plugin = await FoundryPlugin({ directory: dir });
+    await plugin.config({ skills: {} });
 
     // foundry/ should NOT have been re-created (no subdirectories from bootstrap)
     assert.equal(existsSync(join(dir, 'foundry', 'artefacts')), false);
@@ -151,8 +77,8 @@ You are a Foundry stage agent. Follow the skill instructions provided in your ta
     // VERSION unchanged
     assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), PKG_VERSION);
 
-    // Agent files intact
-    assert.ok(existsSync(join(agentsDir, `foundry-${slug}.md`)));
+    // Guide agent intact
+    assert.ok(existsSync(join(agentsDir, 'foundry.md')));
 
     // restartNeeded stays false
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
@@ -165,7 +91,8 @@ You are a Foundry stage agent. Follow the skill instructions provided in your ta
     mkdirSync(foundryDir, { recursive: true });
     writeFileSync(join(foundryDir, 'VERSION'), '0.0.1', 'utf8');
 
-    const plugin = await runConfigHook(dir, binDir, ['opencode/claude-sonnet-4']);
+    const plugin = await FoundryPlugin({ directory: dir });
+    await plugin.config({ skills: {} });
 
     // Bootstrap ran: subdirectories and .gitignore created
     assert.ok(existsSync(join(dir, 'foundry', 'artefacts')));
@@ -174,27 +101,29 @@ You are a Foundry stage agent. Follow the skill instructions provided in your ta
     // VERSION overwritten
     assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), PKG_VERSION);
 
-    // Agent files created
-    assert.ok(existsSync(join(dir, '.opencode', 'agents', 'foundry-opencode-claude-sonnet-4.md')));
+    // Guide agent written
+    assert.ok(existsSync(join(dir, '.opencode', 'agents', 'foundry.md')));
 
     // restartNeeded set
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
     assert.equal(restartNeeded, true);
   });
 
-  test('existing project with correct VERSION but agent set changed: agents refreshed, not full bootstrap', async () => {
+  test('existing project with correct VERSION but stale agent set: agents refreshed, not full bootstrap', async () => {
     // Pre-seed foundry/ with correct VERSION (needed to pass version check)
     const foundryDir = join(dir, 'foundry');
     mkdirSync(foundryDir, { recursive: true });
     writeFileSync(join(foundryDir, 'VERSION'), PKG_VERSION, 'utf8');
 
-    // Pre-seed agent files that are STALE (different model than opencode returns)
+    // Pre-seed stale agent files
     const agentsDir = join(dir, '.opencode', 'agents');
     mkdirSync(agentsDir, { recursive: true });
     writeFileSync(join(agentsDir, 'foundry-stale-model.md'), 'stale content', 'utf8');
+    // Guide agent pre-seeded so ensureGuideAgent short-circuits
+    writeFileSync(join(agentsDir, 'foundry.md'), 'guide', 'utf8');
 
-    // opencode returns a different model
-    const plugin = await runConfigHook(dir, binDir, ['opencode/claude-sonnet-4']);
+    const plugin = await FoundryPlugin({ directory: dir });
+    await plugin.config({ skills: {} });
 
     // Bootstrap subdirectories should NOT exist (full bootstrap did not run)
     assert.equal(existsSync(join(dir, 'foundry', 'artefacts')), false);
@@ -203,11 +132,10 @@ You are a Foundry stage agent. Follow the skill instructions provided in your ta
     // VERSION unchanged (full bootstrap did not run)
     assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), PKG_VERSION);
 
-    // Old agent gone, new agent written
+    // Stale agent deleted, no new model agent written
     assert.equal(existsSync(join(agentsDir, 'foundry-stale-model.md')), false);
-    assert.ok(existsSync(join(agentsDir, 'foundry-opencode-claude-sonnet-4.md')));
 
-    // Guide agent should exist (ensureGuideAgent also runs)
+    // Guide agent preserved
     assert.ok(existsSync(join(agentsDir, 'foundry.md')));
 
     // restartNeeded set because agents changed
@@ -215,38 +143,28 @@ You are a Foundry stage agent. Follow the skill instructions provided in your ta
     assert.equal(restartNeeded, true);
   });
 
-  test('bootstrap wrapped in try/catch — plugin loads even if opencode models fails', async () => {
-    // No foundry/ exists, opencode fails
-    const plugin = await runConfigHook(dir, binDir, null);
+  test('plugin loads even in empty project with no opencode binary', async () => {
+    // No foundry/ exists, no opencode binary needed anymore
+    const plugin = await FoundryPlugin({ directory: dir });
+    await plugin.config({ skills: {} });
 
-    // Plugin loaded without throwing — config hook caught the error
-    // Bootstrap should have attempted but opencode failure was caught
+    // Plugin loaded without throwing
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
 
-    // Note: when opencode fails, refreshAgents returns { ok: false, error }
-    // but runBootstrapSequence doesn't check the return, so it continues.
-    // Directories may have been created, VERSION may have been written.
-    // The key assertion is that the plugin loaded and the test did not throw.
-
-    // restartNeeded should be true because bootstrap ran (even if agents failed)
-    assert.equal(restartNeeded, true);
-
-    // Directories should be created (non-agent bootstrap steps succeed)
+    // Bootstrap ran — directories created
     assert.ok(existsSync(join(dir, 'foundry')));
     assert.ok(existsSync(join(dir, 'foundry', 'artefacts')));
+
+    // restartNeeded should be true because bootstrap ran
+    assert.equal(restartNeeded, true);
   });
 });
 
 describe('bootstrap — .gitignore idempotent', () => {
   let dir;
-  let binDir;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'bootstrap-gitignore-'));
-    binDir = join(dir, 'bin');
-    const originalPath = process.env.PATH;
-    process.env.PATH = `${binDir}:${originalPath}`;
-    installFakeOpencode(binDir, ['opencode/claude-sonnet-4']);
   });
 
   afterEach(() => {

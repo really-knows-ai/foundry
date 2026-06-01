@@ -2,7 +2,7 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync,
-  existsSync, chmodSync,
+  existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,187 +12,91 @@ import {
   writeFoundryGuideAgent,
 } from '../src/plugin/tools/agent-refresh.js';
 
-/**
- * Install a fake `opencode` CLI into a bin directory that is prepended to PATH.
- * @param {string} binDir
- * @param {string[]} models — list of model IDs the fake should output, or null to simulate failure
- */
-function installFakeOpencode(binDir, models) {
-  mkdirSync(binDir, { recursive: true });
-
-  let script;
-  if (models === null) {
-    // Simulate a failing opencode CLI
-    script = '#!/usr/bin/env node\nprocess.stderr.write("connection error");\nprocess.exit(1);\n';
-  } else if (models.length === 0) {
-    // Simulate empty output (no models)
-    script = '#!/usr/bin/env node\nconsole.log("");\n';
-  } else {
-    const lines = models.map(m => "console.log('" + m + "');").join('\n');
-    script = '#!/usr/bin/env node\n' + lines + '\n';
-  }
-
-  const opencodePath = join(binDir, 'opencode');
-  writeFileSync(opencodePath, script, 'utf8');
-  chmodSync(opencodePath, 0o755);
-}
-
 describe('refreshAgents', () => {
   let dir;
-  let binDir;
-  let originalPath;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'agent-refresh-'));
-    binDir = join(dir, 'bin');
-    originalPath = process.env.PATH;
   });
 
   afterEach(() => {
-    process.env.PATH = originalPath;
     rmSync(dir, { recursive: true, force: true });
   });
 
-  function withFakePath() {
-    process.env.PATH = `${binDir}${originalPath.includes(':') ? ':' : ';'}${originalPath}`;
-  }
+  test('returns { ok: true, count: 0 } and writes no agent files', () => {
+    const result = refreshAgents(dir);
 
-  test('returns { ok: true, count } when models are found', () => {
-    installFakeOpencode(binDir, [
-      'opencode/claude-sonnet-4',
-      'github-copilot/gpt-5.4',
-      'ollama-cloud/kimi-k2:1t',
-    ]);
-    withFakePath();
+    assert.equal(result.ok, true);
+    assert.equal(result.count, 0);
+
+    const agentsDir = join(dir, '.opencode', 'agents');
+    assert.ok(existsSync(agentsDir));
+  });
+
+  test('deletes stale foundry-*.md agents, preserves non-stage files', () => {
+    const agentsDir = join(dir, '.opencode', 'agents');
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(join(agentsDir, 'foundry-stale-model.md'), 'stale', 'utf8');
+    writeFileSync(join(agentsDir, 'foundry.md'), 'guide', 'utf8');
+    writeFileSync(join(agentsDir, 'other-agent.md'), 'other', 'utf8');
 
     const result = refreshAgents(dir);
 
     assert.equal(result.ok, true);
-    assert.equal(result.count, 3);
+    assert.equal(result.count, 0);
 
-    const agentsDir = join(dir, '.opencode', 'agents');
-    assert.ok(existsSync(join(agentsDir, 'foundry-opencode-claude-sonnet-4.md')));
-    assert.ok(existsSync(join(agentsDir, 'foundry-github-copilot-gpt-5-4.md')));
-    assert.ok(existsSync(join(agentsDir, 'foundry-ollama-cloud-kimi-k2:1t.md')));
-  });
-
-  test('returns { ok: false, error } when opencode models returns no models', () => {
-    installFakeOpencode(binDir, []);
-    withFakePath();
-
-    const result = refreshAgents(dir);
-
-    assert.equal(result.ok, false);
-    assert.ok(result.error.includes('No models returned'));
-  });
-
-  test('returns { ok: false, error } when opencode CLI fails', () => {
-    installFakeOpencode(binDir, null);
-    withFakePath();
-
-    const result = refreshAgents(dir);
-
-    assert.equal(result.ok, false);
-    assert.ok(result.error.length > 0);
+    // Stale foundry-* agent deleted
+    assert.equal(existsSync(join(agentsDir, 'foundry-stale-model.md')), false);
+    // Guide agent preserved
+    assert.equal(existsSync(join(agentsDir, 'foundry.md')), true);
+    // Non-foundry files untouched
+    assert.equal(existsSync(join(agentsDir, 'other-agent.md')), true);
   });
 });
 
 describe('detectChanges', () => {
   let dir;
-  let binDir;
-  let originalPath;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'detect-changes-'));
-    binDir = join(dir, 'bin');
-    originalPath = process.env.PATH;
   });
 
   afterEach(() => {
-    process.env.PATH = originalPath;
     rmSync(dir, { recursive: true, force: true });
   });
 
-  function withFakePath() {
-    process.env.PATH = `${binDir}${originalPath.includes(':') ? ':' : ';'}${originalPath}`;
-  }
-
-  test('returns changed: false when no models change', () => {
-    // Pre-create agent files that match what opencode models would produce
-    const agentsDir = join(dir, '.opencode', 'agents');
-    mkdirSync(agentsDir, { recursive: true });
-
-    const models = ['opencode/claude-sonnet-4'];
-    const slug = 'opencode-claude-sonnet-4';
-    const content = `---
-description: "Foundry stage agent using opencode/claude-sonnet-4"
-mode: subagent
-model: "opencode/claude-sonnet-4"
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-`;
-    writeFileSync(join(agentsDir, `foundry-${slug}.md`), content, 'utf8');
-
-    // Pre-seed default stage agents
-    const defaultAgent = `---
-description: "Default Foundry forge stage agent"
-mode: subagent
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-`;
-    writeFileSync(join(agentsDir, 'foundry-forge.md'), defaultAgent, 'utf8');
-    writeFileSync(join(agentsDir, 'foundry-appraise.md'), defaultAgent.replace('forge', 'appraise'), 'utf8');
-
-    installFakeOpencode(binDir, models);
-    withFakePath();
-
+  test('returns changed: false when no stale agent files exist', () => {
+    // Empty directory — nothing to change
     const result = detectChanges(dir);
 
     assert.equal(result.ok, true);
     assert.equal(result.changed, false);
-    assert.equal(result.count, 1);
+    assert.equal(result.count, 0);
   });
 
-  test('returns changed: true when a new model appears', () => {
-    // Pre-create agent files for the first model only
+  test('returns changed: true when stale agent files are cleaned up', () => {
     const agentsDir = join(dir, '.opencode', 'agents');
     mkdirSync(agentsDir, { recursive: true });
-
-    const slug = 'opencode-claude-sonnet-4';
-    const content = `---
-description: "Foundry stage agent using opencode/claude-sonnet-4"
-mode: subagent
-model: "opencode/claude-sonnet-4"
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-`;
-    writeFileSync(join(agentsDir, `foundry-${slug}.md`), content, 'utf8');
-
-    // Now opencode returns TWO models (one new)
-    installFakeOpencode(binDir, [
-      'opencode/claude-sonnet-4',
-      'github-copilot/gpt-5.4',
-    ]);
-    withFakePath();
+    writeFileSync(join(agentsDir, 'foundry-stale-model.md'), 'stale', 'utf8');
 
     const result = detectChanges(dir);
 
     assert.equal(result.ok, true);
     assert.equal(result.changed, true);
-    assert.equal(result.count, 2);
+    assert.equal(result.count, 0);
   });
 
-  test('propagates { ok: false, error } when refreshAgents fails', () => {
-    installFakeOpencode(binDir, []);
-    withFakePath();
+  test('guide agent changes are not detected as stale agent changes', () => {
+    const agentsDir = join(dir, '.opencode', 'agents');
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(join(agentsDir, 'foundry.md'), 'guide', 'utf8');
 
+    // Only foundry.md exists (not a stale model agent) — no change
     const result = detectChanges(dir);
 
-    assert.equal(result.ok, false);
-    assert.ok(result.error.includes('No models returned'));
+    assert.equal(result.ok, true);
+    assert.equal(result.changed, false);
+    assert.equal(result.count, 0);
   });
 });
 

@@ -1,42 +1,15 @@
 // Shared agent-refresh utility for the Foundry plugin.
 // Provides refreshAgents, detectChanges, and writeFoundryGuideAgent
 // used by both the config hook and the foundry_refresh_agents tool.
+//
+// Simplified in Phase 1 of SDK orchestration:
+// - No longer generates per-model agent files (listModels, writeAgentFiles, writeDefaultAgents removed)
+// - refreshAgents only deletes stale agents and returns { ok: true, count: 0 }
+// - isModelledAgent only excludes the guide agent foundry.md
 
 import path from 'path';
-import { execFileSync } from 'child_process';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { createHash } from 'crypto';
-import { resolveOpenCode } from '../../scripts/lib/tool-paths.js';
-
-const AGENT_FRONTMATTER_TEMPLATE = `---
-description: "Foundry stage agent using MODEL_ID"
-mode: subagent
-model: "MODEL_ID"
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-`;
-
-function makeSlug(modelId) {
-  return modelId.replace(/[/.]/g, '-');
-}
-
-function buildAgentContent(modelId) {
-  return AGENT_FRONTMATTER_TEMPLATE.replace(/MODEL_ID/g, modelId);
-}
-
-function listModels(worktree) {
-  const stdout = execFileSync(resolveOpenCode(), ['models'], {
-    cwd: worktree,
-    encoding: 'utf8',
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, FOUNDRY_SKIP_BOOTSTRAP: '1' },
-  });
-  return stdout
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0);
-}
 
 function deleteStaleAgents(agentsDir) {
   let existing;
@@ -52,32 +25,7 @@ function deleteStaleAgents(agentsDir) {
 
 function isModelledAgent(entry) {
   return entry.startsWith('foundry-') && entry.endsWith('.md')
-    && entry !== 'foundry-forge.md' && entry !== 'foundry-appraise.md';
-}
-
-function writeAgentFiles(agentsDir, models) {
-  for (const modelId of models) {
-    const slug = makeSlug(modelId);
-    const filePath = path.join(agentsDir, `foundry-${slug}.md`);
-    writeFileSync(filePath, buildAgentContent(modelId), 'utf8');
-  }
-}
-
-const DEFAULT_AGENT = `---
-description: "Default Foundry STAGE stage agent"
-mode: subagent
-hidden: true
----
-You are a Foundry stage agent. Follow the skill instructions provided in your task prompt exactly.
-`;
-
-function writeDefaultAgents(agentsDir) {
-  for (const stage of ['forge', 'appraise']) {
-    const filePath = path.join(agentsDir, `foundry-${stage}.md`);
-    if (!existsSync(filePath)) {
-      writeFileSync(filePath, DEFAULT_AGENT.replace('STAGE', stage), 'utf8');
-    }
-  }
+    && entry !== 'foundry.md';
 }
 
 /**
@@ -113,29 +61,17 @@ function snapshotsEqual(a, b) {
 }
 
 /**
- * Run `opencode models`, delete stale foundry-*.md agent files,
- * and write new ones for each model returned.
+ * Delete stale foundry-*.md agent files. Does not generate any new agent
+ * files — the guide agent is managed separately by writeFoundryGuideAgent.
  *
  * @param {string} worktree - Absolute path to the project worktree root.
- * @returns {{ ok: true, count: number } | { ok: false, error: string }}
+ * @returns {{ ok: true, count: number }}
  */
 export function refreshAgents(worktree) {
-  try {
-    const models = listModels(worktree);
-    if (models.length === 0) {
-      return { ok: false, error: 'No models returned by `opencode models`. Is the opencode CLI available?' };
-    }
-
-    const agentsDir = path.join(worktree, '.opencode', 'agents');
-    mkdirSync(agentsDir, { recursive: true });
-    deleteStaleAgents(agentsDir);
-    writeAgentFiles(agentsDir, models);
-    writeDefaultAgents(agentsDir);
-
-    return { ok: true, count: models.length };
-  } catch (err) {
-    return { ok: false, error: err.message ?? String(err) };
-  }
+  const agentsDir = path.join(worktree, '.opencode', 'agents');
+  mkdirSync(agentsDir, { recursive: true });
+  deleteStaleAgents(agentsDir);
+  return { ok: true, count: 0 };
 }
 
 /**
@@ -189,8 +125,6 @@ export function writeFoundryGuideAgent(worktree, packageRoot) {
       return { ok: false, error: `Failed to write guide agent: ${err.message ?? String(err)}` };
     }
   }
-
-  writeDefaultAgents(targetDir);
 
   return { ok: true, written };
 }
