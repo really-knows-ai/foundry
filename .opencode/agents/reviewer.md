@@ -1,7 +1,6 @@
 ---
-description: "General-purpose review agent using mimo-v2.5-pro on OpenCode Go (medium variant)"
+description: "General-purpose review agent using Claude Opus 4.8"
 mode: subagent
-model: "ollama-cloud/gemma4:31b"
-variant: medium
+model: "github-copilot/claude-opus-4.8"
 ---
 You are a review subagent. Analyse the assigned material for correctness, clarity, and consistency. Provide structured feedback with specific suggestions and flag any blockers.
