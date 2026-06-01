@@ -1094,9 +1094,11 @@ describe('runSort', () => {
       exec: () => '',
     };
     const result = runSort({ workPath: 'WORK.md', historyPath: 'history.yaml' }, io);
-    assert.equal(result.route, 'violation');
-    assert.match(result.details, /missing required subagent/i);
-    assert.match(result.details, /foundry-github-copilot-claude-sonnet-4-6\.md/);
+    // Stage subagents use inline system prompts (not agent files), so sort
+    // no longer checks for agent file presence. The route proceeds to forge
+    // with the model string carried for token minting.
+    assert.equal(result.route, 'forge:write');
+    assert.equal(result.model, 'foundry-github-copilot-claude-sonnet-4-6');
   });
 
   it('respects custom agentsDir option for fail-fast check', () => {

@@ -174,7 +174,7 @@ function failText(validator, result, timeoutMs) {
 
 function handleValidatorFailure(result, validator, timeoutMs, opts) {
   const text = failText(validator, result, timeoutMs);
-  pushQuenchFeedback({ ...opts, text, cId: opts.cycleId });
+  pushQuenchFeedback({ ...opts, validator, text, cId: opts.cycleId });
   opts.feedbackList.push(text);
 }
 

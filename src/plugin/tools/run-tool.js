@@ -1,11 +1,13 @@
 // src/plugin/tools/run-tool.js
 // foundry_run — starts a run, bootstraps WORK.md, and executes the state machine.
 
+import { execFileSync } from 'child_process';
 import { createWorkfile, parseFrontmatter } from '../../scripts/lib/workfile.js';
 import { setupWorkfile } from '../../scripts/orchestrate-setup.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { runRun } from '../../scripts/run.js';
+import { resolveGit } from '../../scripts/lib/tool-paths.js';
 import { makeIO, makeExec } from './helpers.js';
 
 function validateInputs(args) {
@@ -64,6 +66,19 @@ function isSetupViolation(result) {
   return result && result.action === 'violation';
 }
 
+function makeGit(worktree) {
+  const git = resolveGit();
+  return {
+    commit: function(message, _opts) {
+      execFileSync(git, ['add', '-A'], { cwd: worktree, encoding: 'utf8', stdio: 'pipe' });
+      execFileSync(git, ['commit', '-m', message], {
+        cwd: worktree, encoding: 'utf8', stdio: 'pipe',
+        env: { ...process.env, GIT_COMMITTER_NAME: 'foundry', GIT_COMMITTER_EMAIL: 'foundry@local', GIT_AUTHOR_NAME: 'foundry', GIT_AUTHOR_EMAIL: 'foundry@local' },
+      });
+    },
+  };
+}
+
 function resolveFlowStartCycle(args, io) {
   const flowFm = readFlowDefinition('foundry', args.flow, io);
   if (!flowFm) return { error: 'foundry_run: flow ' + args.flow + ' not found' };
@@ -110,8 +125,10 @@ export function createRunTool(pluginOpts) {
 
         if (isSetupViolation(setupResult)) return JSON.stringify(setupResult);
 
+        const git = makeGit(context.worktree);
         const result = await runRun({
-          cwd: context.worktree, client, childSessions, context, io, worktree: context.worktree,
+          cwd: context.worktree, client, childSessions, context, io,
+          worktree: context.worktree, git,
         });
         return JSON.stringify(result);
       },

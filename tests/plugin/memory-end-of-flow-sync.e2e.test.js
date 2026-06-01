@@ -43,7 +43,7 @@ describe('end-of-flow memory sync', () => {
   after(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
 
   it('flushes pending NDJSON on stage end (end-of-flow trigger)', async () => {
-    const ctx = { worktree: root, cycle: 'observe' };
+    const ctx = { worktree: root, cycle: 'observe', sessionID: 'test-session' };
     // Cycle-scoped put: goes into Cozo but NOT flushed to NDJSON (syncIfOutOfCycle is a no-op).
     const putOut = await plugin.tool.foundry_memory_put.execute(
       { type: 'finding', name: 'f-flow-end', value: 'pending' }, ctx);

@@ -86,6 +86,15 @@ async function handleStageOutput(args, context) {
   return JSON.stringify({ ok: true, count: count });
 }
 
+/**
+ * Clear all accumulated outputs for every stage.
+ * No-op in the current implementation (outputs are written directly to disk).
+ * Retained for backward compatibility with existing tests.
+ */
+export function _clearAllOutputs() {
+  // No-op — stage output is persisted to disk, not buffered in memory.
+}
+
 export function createStageOutputTool({ tool }) {
   return {
     foundry_stage_output: tool({

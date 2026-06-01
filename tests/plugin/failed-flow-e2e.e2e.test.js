@@ -46,7 +46,7 @@ describe('failed-flow e2e', () => {
   });
 
   it('memory put → stage_end sync fails → flow failed → next tool refuses → delete escapes', async () => {
-    const ctx = { worktree: root, cycle: 'observe' };
+    const ctx = { worktree: root, cycle: 'observe', sessionID: 'test-session' };
 
     const p = JSON.parse(await plugin.tool.foundry_memory_put.execute(
       { type: 'finding', name: 'f1', value: 'v1' }, ctx));

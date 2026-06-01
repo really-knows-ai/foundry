@@ -1,10 +1,25 @@
 // src/plugin/tools/continue-tool.js
 // foundry_continue — advances an existing run by reading state from disk.
 
+import { execFileSync } from 'child_process';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { continueRun } from '../../scripts/run.js';
+import { resolveGit } from '../../scripts/lib/tool-paths.js';
 import { makeIO, makeExec } from './helpers.js';
+
+function makeGit(worktree) {
+  const git = resolveGit();
+  return {
+    commit: function(message, _opts) {
+      execFileSync(git, ['add', '-A'], { cwd: worktree, encoding: 'utf8', stdio: 'pipe' });
+      execFileSync(git, ['commit', '-m', message], {
+        cwd: worktree, encoding: 'utf8', stdio: 'pipe',
+        env: { ...process.env, GIT_COMMITTER_NAME: 'foundry', GIT_COMMITTER_EMAIL: 'foundry@local', GIT_AUTHOR_NAME: 'foundry', GIT_AUTHOR_EMAIL: 'foundry@local' },
+      });
+    },
+  };
+}
 
 export function createContinueTool(pluginOpts) {
   const { tool, client, childSessions } = pluginOpts;
@@ -31,8 +46,10 @@ export function createContinueTool(pluginOpts) {
           return JSON.stringify({ action: 'violation', details: 'foundry_continue: WORK.md not found. Use foundry_run() to start a new run.', recoverable: false });
         }
 
+        const git = makeGit(context.worktree);
         const result = await continueRun({
-          cwd: context.worktree, client, childSessions, context, io, worktree: context.worktree,
+          cwd: context.worktree, client, childSessions, context, io,
+          worktree: context.worktree, git,
         });
         return JSON.stringify(result);
       },

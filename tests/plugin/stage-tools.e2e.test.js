@@ -9,7 +9,7 @@ import { signToken } from '../../src/scripts/lib/token.js';
 import { readOrCreateSecret } from '../../src/scripts/lib/secret.js';
 import { _clearAllOutputs } from '../../src/plugin/tools/stage-output-tool.js';
 
-function makeCtx(worktree) { return { worktree }; }
+function makeCtx(worktree) { return { worktree, sessionID: "test-session" }; }
 
 const GIT_ENV = {
   ...process.env,

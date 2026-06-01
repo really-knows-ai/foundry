@@ -48,7 +48,7 @@ describe('stage_end: sync failure marks flow failed', () => {
   });
 
   it('marks WORK.md failed when syncStore throws, keeps active stage cleared, returns flow_failed', async () => {
-    const ctx = { worktree: root, cycle: 'observe' };
+    const ctx = { worktree: root, cycle: 'observe', sessionID: 'test-session' };
     const putOut = await plugin.tool.foundry_memory_put.execute(
       { type: 'finding', name: 'f1', value: 'pending' }, ctx);
     assert.equal(JSON.parse(putOut).ok, true);

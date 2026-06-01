@@ -181,15 +181,10 @@ function resolveModel(route, frontmatter, agentsDir, io, defaultModel) {
   const modelId = pickModelId(route, frontmatter, defaultModel);
   if (!modelId) return null;
 
+  // Stage subagents are dispatched with inline system prompts via the SDK
+  // (client.session.prompt), not via agent files. The model identifier is
+  // carried for token minting but no agent file is required.
   const model = `foundry-${modelId.replace(/[/.]/g, '-')}`;
-  const agentPath = `${agentsDir}/${model}.md`;
-  if (!io.exists(agentPath)) {
-    if (modelId === 'forge' || modelId === 'appraise') return model;
-    return {
-      error: `Missing required subagent: ${model}.md is not present in ${agentsDir}/. `
-        + `Call foundry_refresh_agents() to regenerate agent files, then restart.`,
-    };
-  }
   return model;
 }
 
@@ -271,13 +266,18 @@ function buildRouteCtx(prep) {
   };
 }
 
+function resolveSortIo(opts, io) {
+  return opts.io || io;
+}
+
 export function runSort(args = {}, io = defaultIO) {
   const opts = withRunSortDefaults(args);
-  const prep = preparePhases({ ...opts, io });
+  const sortIo = resolveSortIo(opts, io);
+  const prep = preparePhases({ ...opts, io: sortIo });
   if (prep.kind !== 'ok') return { route: prep.kind, details: prep.details };
 
   const route = resolveRoute(buildRouteCtx(prep));
-  const modelCheck = checkModel(route, prep.frontmatter, opts.agentsDir, io, opts.defaultModel);
+  const modelCheck = checkModel(route, prep.frontmatter, opts.agentsDir, sortIo, opts.defaultModel);
   if (modelCheck.error) return { route: 'violation', details: modelCheck.error };
 
   return mintToken({
