@@ -11,8 +11,6 @@ import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 import { initForgeCallLog } from '../../scripts/lib/stage-calls.js';
 import { verifyStageToken, readDispatchToken, verifyAndManageForgeTools } from './stage-forge-helpers.js';
 import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
-import { ulid } from '../../scripts/lib/ulid.js';
-import { getStageOutputs, clearStageOutputs } from './stage-output-tool.js';
 
 function ensureDir(io, outDir) {
   io.mkdir(outDir);
@@ -120,6 +118,14 @@ function checkContractViolation(outputs, base) {
   return null;
 }
 
+function readOutputLinesFrom(io, filePath) {
+  if (!io.exists(filePath)) return [];
+  const content = io.readFile(filePath);
+  return content.trim().split('\n').filter(Boolean).map(function(l) {
+    try { return JSON.parse(l); } catch { return null; }
+  }).filter(Boolean);
+}
+
 function writeAtomicOutputFile(io, outputs, id) {
   const outDir = '.foundry/stage-outputs/';
   ensureDir(io, outDir);
@@ -185,16 +191,15 @@ async function executeStageEnd(args, context) {
 
   verifyForgeToolsIfApplicable(io, active);
 
-  const outputs = getStageOutputs(active.stage + '::' + active.tokenHash);
+  // Read outputs from the session's JSONL file on disk (source of truth)
+  const sessionId = context.sessionID;
+  const outputPath = '.foundry/stage-outputs/' + sessionId + '.jsonl';
+  const outputs = readOutputLinesFrom(io, outputPath);
   const base = stageBaseOf(active.stage);
   const violation = checkContractViolation(outputs, base);
   if (violation) {
     return JSON.stringify({ error: violation });
   }
-
-  const id = ulid();
-  writeAtomicOutputFile(io, outputs, id);
-  clearStageOutputs(active.stage + '::' + active.tokenHash);
 
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);

@@ -473,3 +473,86 @@ describe('foundry_feedback_resolve — deadlock override', () => {
     assert.ok(res.error);
   });
 });
+
+describe('foundry_feedback_action — reason passthrough (Phase 3)', () => {
+  test('foundry_feedback_action accepts optional reason', async () => {
+    worktree = makeWorktree({ stage: 'forge:write' });
+    // Add feedback item first from an appraise stage
+    writeActiveStage(worktree, { stage: 'appraise:a', cycle: 'write-haiku' });
+    const t1 = await tools(worktree);
+    const { id } = parseResult(await t1.foundry_feedback_add.execute(
+      { file: 'test.md', text: 'needs work', tag: 'law:quality' },
+      { worktree },
+    ));
+    // Switch to forge, call action with reason
+    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
+    const t2 = await tools(worktree);
+    const res = parseResult(await t2.foundry_feedback_action.execute(
+      { id, reason: 'fixed the typo' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    // Verify reason was stored
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'actioned');
+    assert.equal(doc.items[0].history[0].reason, 'fixed the typo');
+  });
+
+  test('resolve reason substituted with verbatim capture during human-appraise', async () => {
+    // Create a deadlocked item from appraise stage, then resolve with human-appraise
+    const id = await setupToActioned('appraise:write-check');
+    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
+    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
+    doc.items[0].history.unshift({
+      state: 'deadlocked',
+      stage: 'sort',
+      cycle: 'write-haiku',
+      timestamp: new Date().toISOString(),
+      reason: 'depth=3',
+    });
+    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
+
+    // Switch to human-appraise; write verbatim capture
+    writeActiveStage(worktree, { stage: 'human-appraise:review', cycle: 'write-haiku' });
+    const foundryDir = path.join(worktree, '.foundry');
+    writeFileSync(path.join(foundryDir, 'verbatim-capture.txt'), 'the user says this is wrong', 'utf-8');
+
+    // Resolve with no reason — should use verbatim capture
+    const t = await tools(worktree);
+    const res = parseResult(await t.foundry_feedback_resolve.execute(
+      { id, resolution: 'approved' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const after = yaml.load(readFileSync(feedbackPath, 'utf-8'));
+    assert.equal(after.items[0].history[0].state, 'resolved');
+    assert.equal(after.items[0].history[0].reason, 'the user says this is wrong');
+  });
+
+  test('action reason NOT substituted during non-human-appraise stage', async () => {
+    worktree = makeWorktree({ stage: 'forge:write', cycle: 'write-haiku' });
+    // Write verbatim capture (should be ignored during forge)
+    const foundryDir = path.join(worktree, '.foundry');
+    writeFileSync(path.join(foundryDir, 'verbatim-capture.txt'), 'verbatim text', 'utf-8');
+
+    // Add feedback from appraise, then switch to forge
+    writeActiveStage(worktree, { stage: 'appraise:a', cycle: 'write-haiku' });
+    const t1 = await tools(worktree);
+    const { id } = parseResult(await t1.foundry_feedback_add.execute(
+      { file: 'test.md', text: 'needs work', tag: 'law:quality' },
+      { worktree },
+    ));
+
+    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
+    const t2 = await tools(worktree);
+    const res = parseResult(await t2.foundry_feedback_action.execute(
+      { id, reason: 'agent reason' },
+      { worktree },
+    ));
+    assert.equal(res.ok, true);
+    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+    assert.equal(doc.items[0].history[0].state, 'actioned');
+    // Reason should be the agent's reason, NOT the verbatim capture
+    assert.equal(doc.items[0].history[0].reason, 'agent reason');
+  });
+});

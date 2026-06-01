@@ -76,7 +76,10 @@ const FORGE_DENIED = [
   'foundry_assay_run', 'foundry_refresh_agents',
 ];
 
-// APPRAISE_DENIED is added in Phase 3 when appraise dispatch is introduced.
+const APPRAISE_DENIED = [
+  ...FORGE_DENIED,
+  'foundry_validate_run', 'edit', 'bash',
+];
 
 // -- Bootstrap helpers --
 
@@ -215,19 +218,33 @@ async function configurePlugin(config, directory) {
   restartNeeded = runPluginBootstrap(directory, packageRoot);
 }
 
-function isToolDeniedForForge(toolCall) {
-  if (!toolCall || !toolCall.name) return false;
-  return FORGE_DENIED.some(p => toolCall.name.startsWith(p));
+function denyError(name, role) {
+  throw new Error('Tool ' + name + ' is not available to ' + role + ' subagents');
 }
 
-function attachTestSymbols(plugin, pending, client, sessions, denied) {
+function isDenied(name, role) {
+  const list = role === 'forge' ? FORGE_DENIED : APPRAISE_DENIED;
+  return list.some(function(p) { return name.startsWith(p); });
+}
+
+function enforceToolPolicy(toolCall, context, sessions) {
+  if (!context) return;
+  const role = sessions.get(context.sessionID);
+  if (!role) return;
+  const name = toolCall.name;
+  if (!name) return;
+  if (isDenied(name, role)) denyError(name, role);
+}
+
+function attachTestSymbols(plugin, pending, client, sessions, denyLists) {
   Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
   Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
     get: () => restartNeeded, configurable: true,
   });
   Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: client });
   Object.defineProperty(plugin, Symbol.for('foundry.test.childSessions'), { value: sessions });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.forgeDenied'), { value: denied });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.forgeDenied'), { value: denyLists.forge });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.appraiseDenied'), { value: denyLists.appraise });
 }
 
 function buildTools(createTool, pending, client, sessions) {
@@ -291,16 +308,12 @@ export const FoundryPlugin = async ({ directory, client }) => {
     },
 
     'tool.execute.before': async (toolCall, context) => {
-      if (!context || !context.sessionID) return;
-      if (childSessions.get(context.sessionID) !== 'forge') return;
-      if (isToolDeniedForForge(toolCall)) {
-        throw new Error('Tool ' + toolCall.name + ' is not available to forge subagents');
-      }
+      enforceToolPolicy(toolCall, context, childSessions);
     },
 
     tool: buildTools(tool, pending, pluginClient, childSessions),
   };
 
-  attachTestSymbols(plugin, pending, pluginClient, childSessions, FORGE_DENIED);
+  attachTestSymbols(plugin, pending, pluginClient, childSessions, { forge: FORGE_DENIED, appraise: APPRAISE_DENIED });
   return plugin;
 };

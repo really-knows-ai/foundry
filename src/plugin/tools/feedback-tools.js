@@ -1,11 +1,39 @@
 import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
 import { parseFrontmatter } from '../../scripts/lib/workfile.js';
 import { requireActiveStage, stageBaseOf } from '../../scripts/lib/stage-guard.js';
+import { readActiveStage as readActiveStageFile } from '../../scripts/lib/state.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 import { makeIO, branchIoFactory, asyncIoFactory, flowBranchGuard } from './helpers.js';
 import { writeCall } from '../../scripts/lib/stage-calls.js';
 
 const gateNotFailed = notFailedGuard(makeIO);
+
+// ---------------------------------------------------------------------------
+// Verbatim reason substitution for human-appraise stages (D4)
+// ---------------------------------------------------------------------------
+
+function readVerbatimCaptureFile(worktree) {
+  const io = makeIO(worktree);
+  const p = '.foundry/verbatim-capture.txt';
+  if (!io.exists(p)) return null;
+  return io.readFile(p);
+}
+
+function maybeSubstituteVerbatimReason(args, worktree) {
+  // Check if active stage is human-appraise
+  const io = makeIO(worktree);
+  const active = readActiveStageFile(io);
+  if (!active) return args.reason;
+
+  const stageBase = stageBaseOf(active.stage);
+  if (stageBase !== 'human-appraise') return args.reason;
+
+  // Read verbatim capture file written by the plugin
+  const captured = readVerbatimCaptureFile(worktree);
+  if (captured && captured.trim().length > 0) return captured;
+
+  return args.reason;
+}
 
 function readCycle(io) {
   if (!io.exists('WORK.md')) return null;
@@ -96,6 +124,8 @@ async function executeFeedbackAction(args, context) {
     return JSON.stringify({ error: `foundry_feedback_action requires active forge stage; current: ${activeStage}` });
   }
 
+  const reason = maybeSubstituteVerbatimReason(args, context.worktree);
+
   try {
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const r = store.transition({
@@ -103,6 +133,7 @@ async function executeFeedbackAction(args, context) {
       target: 'actioned',
       stage: activeStage,
       cycle,
+      reason: reason,
     });
     if (!r.ok) return JSON.stringify({ error: r.error });
     return JSON.stringify({ ok: true });
@@ -120,6 +151,8 @@ async function executeFeedbackWontfix(args, context) {
     return JSON.stringify({ error: `foundry_feedback_wontfix requires active forge stage; current: ${activeStage}` });
   }
 
+  const reason = maybeSubstituteVerbatimReason(args, context.worktree);
+
   try {
     const store = openFeedbackStore('WORK.feedback.yaml', io);
     const r = store.transition({
@@ -127,7 +160,7 @@ async function executeFeedbackWontfix(args, context) {
       target: 'wont-fix',
       stage: activeStage,
       cycle,
-      reason: args.reason,
+      reason: reason,
     });
     if (!r.ok) return JSON.stringify({ error: r.error });
     return JSON.stringify({ ok: true });
@@ -151,6 +184,7 @@ async function executeFeedbackResolve(args, context) {
   }
 
   const target = resolveTargetFromResolution(args.resolution);
+  const reason = maybeSubstituteVerbatimReason(args, context.worktree);
 
   try {
     const store = openFeedbackStore('WORK.feedback.yaml', io);
@@ -159,7 +193,7 @@ async function executeFeedbackResolve(args, context) {
       target,
       stage: activeStage,
       cycle,
-      reason: args.reason,
+      reason: reason,
     });
     if (!r.ok) return JSON.stringify({ error: r.error });
     return JSON.stringify({ ok: true });
@@ -198,6 +232,10 @@ async function executeFeedbackList(args, context) {
   }
 }
 
+function guardedTool(tool, toolName, guards, execute) {
+  return guarded(toolName, guards, execute, { branchIo: branchIoFactory, io: asyncIoFactory });
+}
+
 export function createFeedbackTools({ tool }) {
   return {
     foundry_feedback_add: tool({ description: 'Add a feedback item to WORK.feedback.yaml',
@@ -207,29 +245,29 @@ export function createFeedbackTools({ tool }) {
         tag: tool.schema.string().describe('Tag for the feedback item'),
         artefact_version: tool.schema.string().optional().describe('SHA-256 hash for version-aware sorting'),
       },
-      execute: guarded('foundry_feedback_add', [flowBranchGuard, gateNotFailed], executeFeedbackAdd, { branchIo: branchIoFactory, io: asyncIoFactory }),
+      execute: guardedTool(tool, 'foundry_feedback_add', [flowBranchGuard, gateNotFailed], executeFeedbackAdd),
     }),
-    foundry_feedback_action: tool({ description: 'Mark a feedback item as actioned (forge stages only)',
+    foundry_feedback_action: tool({ description: 'Action a feedback item (forge only). During human-appraise reason is substituted with verbatim captured text.',
       args: {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
+        reason: tool.schema.string().optional().describe('Reason; substituted with verbatim capture during human-appraise'),
       },
-      execute: guarded('foundry_feedback_action', [flowBranchGuard, gateNotFailed], executeFeedbackAction, { branchIo: branchIoFactory, io: asyncIoFactory }),
+      execute: guardedTool(tool, 'foundry_feedback_action', [flowBranchGuard, gateNotFailed], executeFeedbackAction),
     }),
     foundry_feedback_wontfix: tool({ description: 'Mark a feedback item as wont-fix with reason (forge stages only)',
       args: {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
         reason: tool.schema.string().describe('Reason for wont-fix'),
       },
-      execute: guarded('foundry_feedback_wontfix', [flowBranchGuard, gateNotFailed], executeFeedbackWontfix, { branchIo: branchIoFactory, io: asyncIoFactory }),
+      execute: guardedTool(tool, 'foundry_feedback_wontfix', [flowBranchGuard, gateNotFailed], executeFeedbackWontfix),
     }),
-    foundry_feedback_resolve: tool({
-      description: 'Resolve a feedback item (approved or rejected). Human-appraise stages can override deadlock with a reason.',
+    foundry_feedback_resolve: tool({ description: 'Resolve a feedback item (approved/rejected). human-appraise can override deadlock.',
       args: {
         id: tool.schema.string().describe('Feedback item id (ULID)'),
         resolution: tool.schema.enum(['approved', 'rejected']).describe('Resolution type'),
-        reason: tool.schema.string().optional().describe('Reason (required if rejected, or for deadlock override)'),
+        reason: tool.schema.string().optional().describe('Reason (required if rejected)'),
       },
-      execute: guarded('foundry_feedback_resolve', [flowBranchGuard, gateNotFailed], executeFeedbackResolve, { branchIo: branchIoFactory, io: asyncIoFactory }),
+      execute: guardedTool(tool, 'foundry_feedback_resolve', [flowBranchGuard, gateNotFailed], executeFeedbackResolve),
     }),
     foundry_feedback_list: tool({ description: 'List feedback items, optionally filtered by file',
       args: {

@@ -57,18 +57,18 @@ test('foundry_continue returns violation when no WORK.md exists', async () => {
   }
 });
 
-test('foundry_continue returns violation when human-appraise stage is active', async () => {
+test('foundry_continue returns violation when human-appraise stage is active (capture fails without client)', async () => {
   const dir = tmpDir();
   try {
     initGitRepo(dir);
     writeFileSync(join(dir, 'WORK.md'), '---\ncycle: test\nflow: test\n---\n');
     const foundryDir = join(dir, '.foundry');
     mkdirSync(foundryDir, { recursive: true });
-    writeFileSync(join(foundryDir, 'active-stage.json'), JSON.stringify({ stage: 'human-appraise:review', cycle: 'test' }));
+    writeFileSync(join(foundryDir, 'active-stage.json'), JSON.stringify({ stage: 'human-appraise:review', cycle: 'test', boundaryMarker: 'msg_1' }));
     const result = await handler.execute({}, { worktree: dir, sessionID: 'main-session' });
     const parsed = JSON.parse(result);
     assert.equal(parsed.action, 'violation');
-    assert.ok(parsed.details.includes('not yet implemented'));
+    assert.ok(parsed.details.includes('verbatim capture failed') || parsed.details.includes('continueRun'));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

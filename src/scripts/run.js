@@ -5,14 +5,18 @@
  * (WORK.md, WORK.history.yaml, WORK.feedback.yaml, .foundry/), iterates
  * through stages via `runSort`, and dispatches each stage.
  *
- * Exports: runRun, executeForge, executeQuench, executeAssay
+ * Exports: runRun, continueRun, executeForge, executeQuench, executeAssay, executeAppraise
  */
 
 import { runSort as defaultRunSort } from './sort.js';
-import { markWorkfileFailed } from './lib/failed-flow.js';
-import { parseFrontmatter } from './lib/workfile.js';
-import { tryCommit } from './orchestrate-cycle.js';
-import { executeForge, executeQuench, executeAssay } from './run-executors.js';
+import { markWorkfileFailed, readFailedStatus } from './lib/failed-flow.js';
+import { parseFrontmatter, setFrontmatterField } from './lib/workfile.js';
+import { tryCommit, readCycleTargets, synthesizeStages } from './orchestrate-cycle.js';
+import { appendEntry } from './lib/history.js';
+import { executeForge, executeQuench, executeAssay, executeAppraise } from './run-executors.js';
+import { readActiveStage } from './lib/state.js';
+import { stageBaseOf } from './lib/stage-guard.js';
+import { handleHumanAppraiseInit, handleHumanAppraiseResume } from './run-human-appraise.js';
 
 function guardNotFailed(io) {
   if (!io.exists('WORK.md')) return null;
@@ -86,10 +90,27 @@ async function handleAssay(opts, sortResult, cycleId, hp, fp) {
   return {};
 }
 
+async function handleAppraise(opts, sortResult, cycleId, hp, fp) {
+  const { client, childSessions, context, io, worktree, cwd } = opts;
+  try {
+    const aResult = await executeAppraise({
+      sort: sortResult, cwd, client, childSessions, context, io,
+      worktree, historyPath: hp, feedbackPath: fp, cycleId,
+    });
+    if (aResult.ok) return {};
+    markWorkfileFailed(io, aResult.error || 'appraise execution failed');
+    return terminalViolation(aResult.error || 'appraise execution failed', true);
+  } catch (err) {
+    markWorkfileFailed(io, 'appraise dispatch error: ' + err.message);
+    return terminalViolation('appraise dispatch error: ' + err.message, true);
+  }
+}
+
 function getHandler(base) {
   if (base === 'forge') return handleForge;
   if (base === 'quench') return handleQuench;
   if (base === 'assay') return handleAssay;
+  if (base === 'appraise') return handleAppraise;
   return null;
 }
 
@@ -99,9 +120,8 @@ function checkTerminalRoute(route, fm, s) {
   return null;
 }
 
-function isAppraiseBase(route) {
-  const base = routeBaseOf(route);
-  return base === 'appraise' || base === 'human-appraise';
+function isHumanAppraiseBase(route) {
+  return routeBaseOf(route) === 'human-appraise';
 }
 
 async function dispatchRouteHandler(opts, s, cycleId, hp) {
@@ -118,7 +138,30 @@ async function dispatchRouteHandler(opts, s, cycleId, hp) {
   return { done: false };
 }
 
-/** Execute one iteration of the state machine loop. Returns `{ done, result }`. */
+/**
+ * When the sort route is not a known stage handler, check for human-appraise
+ * or cycle targets. Returns a terminal result on human-appraise, transition,
+ * violation, or null when the route is a known stage handler (caller should
+ * dispatch normally).
+ */
+async function handleUnknownRoute(opts, s, fm, historyPath, prefix) {
+  const io = opts.io;
+  const route = s.route;
+  const base = routeBaseOf(route);
+  if (getHandler(base)) return null;
+
+  if (isHumanAppraiseBase(route)) {
+    return { done: true, result: await handleHumanAppraiseInit(opts, s, fm.cycle, historyPath, 'WORK.feedback.yaml') };
+  }
+
+  const targets = await readCycleTargets(fm.cycle, io)
+    .catch(function() { return []; });
+  if (Array.isArray(targets) && targets.length > 0) {
+    return { done: true, result: await handleCycleTransition(io, fm.cycle, fm, historyPath) };
+  }
+  return { done: true, result: terminalViolation(prefix + ': unknown route ' + route, false) };
+}
+
 async function runOneIteration(opts, runSort, hp) {
   const { io } = opts;
 
@@ -132,12 +175,13 @@ async function runOneIteration(opts, runSort, hp) {
   const terminal = checkTerminalRoute(s.route, fm, s);
   if (terminal) return { done: true, result: terminal };
 
-  if (isAppraiseBase(s.route)) return { done: true, result: terminalDone(fm) };
+  const tResult = await handleUnknownRoute(opts, s, fm, hp, 'runRun');
+  if (tResult) return tResult;
 
   return dispatchRouteHandler(opts, s, fm.cycle, hp);
 }
 
-/** Run the state machine loop. */
+/** Run the state machine loop from a clean start. */
 export async function runRun(opts) {
   const { io, sortFn } = opts;
   const runSort = sortFn || defaultRunSort;
@@ -153,4 +197,104 @@ export async function runRun(opts) {
   }
 }
 
-export { executeForge, executeQuench, executeAssay };
+// ---------------------------------------------------------------------------
+// Continue run — reads state from disk and resumes an existing run
+// ---------------------------------------------------------------------------
+
+async function continueDispatch(opts, s, cycle, hp) {
+  const handler = getHandler(routeBaseOf(s.route));
+  if (!handler) return { done: true, result: terminalViolation('continueRun: unknown route ' + s.route, false) };
+  const result = await handler(opts, s, cycle, hp, 'WORK.feedback.yaml');
+  if (result.action) return { done: true, result: result };
+  return { done: false };
+}
+
+async function continueOneIteration(opts, runSort, hp, io) {
+  const r = readWork(io);
+  if (r.error) return { done: true, result: r.error };
+
+  const s = doSort(runSort, hp, io);
+  if (s.error) return { done: true, result: s.error };
+
+  const terminal = checkTerminalRoute(s.route, r.fm, s);
+  if (terminal) return { done: true, result: terminal };
+
+  const tResult = await handleUnknownRoute(opts, s, r.fm, hp, 'continueRun');
+  if (tResult) return tResult;
+
+  return continueDispatch(opts, s, r.fm.cycle, hp);
+}
+
+async function handleCycleTransition(io, cycleId, fm, historyPath) {
+  const targets = await readCycleTargets(cycleId, io).catch(function() { return []; });
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return terminalDone(fm);
+  }
+
+  const nextCycle = targets[0];
+  const hasValidation = fm.stages ? fm.stages.some(function(s) { return s.startsWith('quench:'); }) : true;
+  const alwaysHumanAppraise = fm['always-human-appraise'] === true;
+  const newStages = synthesizeStages({
+    cycleId: nextCycle, hasValidation: hasValidation,
+    alwaysHumanAppraise: alwaysHumanAppraise, assay: false,
+  });
+
+  let workText = io.readFile('WORK.md');
+  workText = setFrontmatterField(workText, 'cycle', nextCycle);
+  workText = setFrontmatterField(workText, 'stages', newStages);
+  io.writeFile('WORK.md', workText);
+
+  appendEntry(historyPath, {
+    action: 'cycle-transition', from: cycleId, to: nextCycle,
+    stage: 'sort', cycle: nextCycle,
+    comment: 'Transition from ' + cycleId + ' to ' + nextCycle,
+  }, io);
+
+  return { action: 'continue-run' };
+}
+
+function checkContinuePreconditions(io) {
+  if (!io.exists('WORK.md')) {
+    return terminalViolation('continueRun: WORK.md not found. Use foundry_run() to start a new run.', false);
+  }
+  const failed = readFailedStatus(io);
+  if (failed) return terminalViolation('continueRun: flow is in failed state', false);
+  return null;
+}
+
+async function handleHumanAppraiseResumeIfNeeded(io, opts) {
+  const activeStage = readActiveStage(io);
+  if (!activeStage) return null;
+  if (stageBaseOf(activeStage.stage) !== 'human-appraise') return null;
+  const haResult = await handleHumanAppraiseResume(io, opts, activeStage);
+  if (haResult.action !== 'continue-run') return haResult;
+  return null;
+}
+
+async function processRunLoop(opts, runSort, hp, io) {
+  const iter = await continueOneIteration(opts, runSort, hp, io);
+  if (iter.done) return iter.result;
+  const postSort = doSort(runSort, hp, io);
+  if (postSort.error) return postSort.error;
+  return processRunLoop(opts, runSort, hp, io);
+}
+
+/**
+ * continueRun — resume an existing run by reading state from disk.
+ */
+export async function continueRun(opts) {
+  const { io, sortFn } = opts;
+  const runSort = sortFn || defaultRunSort;
+
+  const preCheck = checkContinuePreconditions(io);
+  if (preCheck) return preCheck;
+
+  const hp = 'WORK.history.yaml';
+
+  const haResult = await handleHumanAppraiseResumeIfNeeded(io, opts);
+  if (haResult) return haResult;
+
+  return processRunLoop(opts, runSort, hp, io);
+}
+
+export { executeForge, executeQuench, executeAssay, executeAppraise };

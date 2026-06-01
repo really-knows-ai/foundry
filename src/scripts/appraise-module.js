@@ -194,6 +194,20 @@ function cleanupStageOutputFiles(filePaths, io) {
   }
 }
 
+/**
+ * Read all .jsonl files from .foundry/stage-outputs/ and return parsed issues.
+ * Exported for use by the plugin-driven appraise lifecycle.
+ */
+export async function readConsolidatedOutputs(io) {
+  const filePaths = await readAppraiseStageOutputs(io);
+  return parseConsolidated(filePaths, io);
+}
+
+/**
+ * Export parseConsolidated for plugin-driven lifecycle.
+ */
+export { parseConsolidated, deduplicateIssues, buildAppraiserPrompt };
+
 export async function consolidateAppraise(ctx, lastResults) {
   const baseSha = ctx.activeStage?.baseSha;
   if (!baseSha) {
@@ -379,11 +393,12 @@ function buildAppraiserPrompt({ appraiser, typeId }) {
     '- foundry_artefacts_list for changed files',
     '- Read matching files from the worktree',
     '',
-    'For each violation, call `foundry_stage_output({ file, law, text, evidence })`.',
+    'For each violation, call `foundry_stage_output({ data: { file, law, text, evidence } })`.',
     '`file`, `law`, and `text` are required. `evidence` is recommended.',
     'Optional fields `severity` and `location` are passed through unchanged.',
     '',
-    'If no issues, call `foundry_stage_end()` directly — no `stage_output` calls needed.',
+    'If no issues, call no tool — produce no output. The system collects your findings from stage-output files.',
+    'The stage lifecycle is managed by the orchestrator. Do NOT call foundry_stage_begin or foundry_stage_end.',
     'Do NOT write JSONL as text. Call the tool.',
   ];
 

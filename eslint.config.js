@@ -209,6 +209,7 @@ export default [
   {
     files: ['tests/**/*.js', '**/*.test.js', '**/*.spec.js'],
     rules: {
+      'complexity': 'off',
       'max-lines': 'off',
       'max-lines-per-function': 'off',
       'max-statements': 'off',

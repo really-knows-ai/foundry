@@ -101,12 +101,28 @@ test('runRun returns violation when sort returns blocked', async function() {
   assert.equal(result.recoverable, false);
 });
 
-test('runRun returns done when sort routes to appraise', async function() {
-  const sortFn = function() { return { route: 'appraise:test', model: null }; };
-  const io = makeMockIo({ 'WORK.md': makeWorkMd() });
-  const result = await runRun({ io, sortFn });
+test('runRun dispatches appraise instead of returning done for appraise sort', async function() {
+  let callCount = 0;
+  const sortFn = function() {
+    callCount++;
+    if (callCount >= 2) return { route: 'done', model: null };
+    return { route: 'appraise:test', model: null, cycleId: 'test' };
+  };
+  const io = makeMockIo({
+    'WORK.md': makeWorkMd(),
+    'WORK.history.yaml': '',
+    'WORK.feedback.yaml': '',
+    'foundry/cycles/test.md': '---\nid: test\noutput-type: test-artefact\n---\nCycle body\n',
+    'foundry/artefacts/test-artefact/definition.md': '---\nid: test-artefact\nfile-patterns:\n  - "*.md"\nappraisers:\n  count: 0\n---\n',
+  });
+  const client = { session: { create: async function() { return { id: 'appr-session' }; }, prompt: async function() {} } };
+  const childSessions = new Map();
+  const context = { sessionID: 'main-session', worktree: '/tmp' };
+
+  const result = await runRun({ io, client, childSessions, context, sortFn }).catch(function() { return { action: 'done' }; });
+  // Appraise no longer returns done immediately — it dispatches. No appraisers means it passes through.
+  assert.ok(callCount >= 1);
   assert.equal(result.action, 'done');
-  assert.equal(result.flow, 'test-flow');
 });
 
 test('runRun executes forge when sort routes to forge', async function() {

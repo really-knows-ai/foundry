@@ -1,6 +1,6 @@
 // src/plugin/tools/stage-output-tool.js
-// Stage output tool for foundry stages — validates and accumulates structured
-// output before stage end. Registered as `foundry_stage_output`.
+// Stage output tool for foundry stages — validates structured output and
+// writes directly to a JSONL file on disk. Registered as `foundry_stage_output`.
 
 import { stageBaseOf, requireActiveStage } from '../../scripts/lib/stage-guard.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
@@ -10,9 +10,6 @@ import {
   validateAppraiseOutput,
   validateHumanAppraiseOutput,
 } from '../../scripts/lib/stage-output-schemas.js';
-
-/** @type {Map<string, object[]>} In-memory buffer keyed by stageId::tokenHash. */
-const stageOutputsBuffer = new Map();
 
 /** Gate that rejects when the subagent's flow is in a failed state. */
 const gateNotFailed = notFailedGuard(makeIO);
@@ -25,10 +22,41 @@ const VALIDATORS = Object.freeze({
 });
 
 /**
+ * Read an output JSONL file and return parsed lines.
+ * @param {import('./helpers.js').IO} io
+ * @param {string} filePath
+ * @returns {object[]}
+ */
+function readOutputLines(io, filePath) {
+  if (!io.exists(filePath)) return [];
+  const content = io.readFile(filePath);
+  return content.trim().split('\n').filter(Boolean).map(function(l) {
+    try { return JSON.parse(l); } catch { return null; }
+  }).filter(Boolean);
+}
+
+/**
+ * Append a JSON line to a session output file, returning the resulting line count.
+ * Creates the file and parent directory if they do not exist.
+ * @param {import('./helpers.js').IO} io
+ * @param {string} sessionId
+ * @param {object} data
+ * @returns {number}
+ */
+function appendSessionOutput(io, sessionId, data) {
+  const outFile = '.foundry/stage-outputs/' + sessionId + '.jsonl';
+  io.mkdir('.foundry/stage-outputs/');
+  const existing = readOutputLines(io, outFile);
+  const line = JSON.stringify(data) + '\n';
+  io.writeFile(outFile, io.exists(outFile) ? io.readFile(outFile) + line : line);
+  return existing.length + 1;
+}
+
+/**
  * Execute the stage output handler: validate data against the active stage
- * schema and accumulate it in the in-memory buffer.
+ * schema and write it as a JSONL line to the session's output file on disk.
  * @param {{ data: object }} args
- * @param {{ worktree: string }} context
+ * @param {{ worktree: string, sessionID: string }} context
  * @returns {Promise<string>} JSON result
  */
 async function handleStageOutput(args, context) {
@@ -50,21 +78,18 @@ async function handleStageOutput(args, context) {
     return JSON.stringify({ error: msg });
   }
 
-  const stageId = activeResult.active.stage;
-  const tokenHash = activeResult.active.tokenHash;
-  const key = `${stageId}::${tokenHash}`;
-  const buf = stageOutputsBuffer.get(key) || [];
-  buf.push(args.data);
-  stageOutputsBuffer.set(key, buf);
+  if (!context.sessionID) {
+    return JSON.stringify({ error: 'foundry_stage_output: no sessionID in context' });
+  }
 
-  const totalCount = getStageOutputs(stageId).length;
-  return JSON.stringify({ ok: true, count: totalCount });
+  const count = appendSessionOutput(io, context.sessionID, args.data);
+  return JSON.stringify({ ok: true, count: count });
 }
 
 export function createStageOutputTool({ tool }) {
   return {
     foundry_stage_output: tool({
-      description: 'Validate and store structured output for the active stage. Call before foundry_stage_end(). Forge and human-appraise stages require exactly one call; appraise stages accept zero or more.',
+      description: 'Validate and store structured output for the active stage. Output is written directly to .foundry/stage-outputs/<sessionId>.jsonl. Call before foundry_stage_end(). Forge and human-appraise stages require exactly one call; appraise stages accept zero or more.',
       args: {
         data: tool.schema.object().describe('The JSON data to validate against the active stage schema'),
       },
@@ -73,41 +98,4 @@ export function createStageOutputTool({ tool }) {
         { branchIo: branchIoFactory, io: asyncIoFactory }),
     }),
   };
-}
-
-/**
- * Retrieve all accumulated outputs for a given stage ID.
- * Returns a shallow copy of the internal array to prevent mutation.
- * @param {string} stageId - The full stage alias (e.g. "forge:cycle-1")
- * @returns {object[]} Array of validated data objects
- */
-export function getStageOutputs(stageId) {
-  const results = [];
-  for (const [key, outputs] of stageOutputsBuffer) {
-    if (key.startsWith(stageId + '::') || key === stageId) {
-      results.push(...outputs);
-    }
-  }
-  return results;
-}
-
-/**
- * Clear all accumulated outputs for a given stage ID.
- * Used after flushing buffer entries to disk.
- * @param {string} stageId - The full stage alias (e.g. "forge:cycle-1")
- */
-export function clearStageOutputs(stageId) {
-  for (const key of stageOutputsBuffer.keys()) {
-    if (key.startsWith(stageId + '::') || key === stageId) {
-      stageOutputsBuffer.delete(key);
-    }
-  }
-}
-
-/**
- * Clear all accumulated outputs for every stage.
- * Internal helper for test isolation — exported with underscore prefix.
- */
-export function _clearAllOutputs() {
-  stageOutputsBuffer.clear();
 }

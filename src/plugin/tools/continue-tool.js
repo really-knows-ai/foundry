@@ -1,20 +1,10 @@
 // src/plugin/tools/continue-tool.js
 // foundry_continue — advances an existing run by reading state from disk.
 
-import { readActiveStage } from '../../scripts/lib/state.js';
-import { stageBaseOf } from '../../scripts/lib/stage-guard.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
-import { runRun } from '../../scripts/run.js';
+import { continueRun } from '../../scripts/run.js';
 import { makeIO, makeExec } from './helpers.js';
-
-function detectHumanAppraise(io) {
-  const active = readActiveStage(io);
-  if (active && stageBaseOf(active.stage) === 'human-appraise') {
-    return 'foundry_continue: human-appraise resume not yet implemented in this phase';
-  }
-  return null;
-}
 
 export function createContinueTool(pluginOpts) {
   const { tool, client, childSessions } = pluginOpts;
@@ -41,10 +31,7 @@ export function createContinueTool(pluginOpts) {
           return JSON.stringify({ action: 'violation', details: 'foundry_continue: WORK.md not found. Use foundry_run() to start a new run.', recoverable: false });
         }
 
-        const haMsg = detectHumanAppraise(io);
-        if (haMsg) return JSON.stringify({ action: 'violation', details: haMsg, recoverable: false });
-
-        const result = await runRun({
+        const result = await continueRun({
           cwd: context.worktree, client, childSessions, context, io, worktree: context.worktree,
         });
         return JSON.stringify(result);

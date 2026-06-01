@@ -1,11 +1,11 @@
 // tests/plugin/stage-output-tool.test.js
-import { test, describe, beforeEach, afterEach } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { createStageOutputTool, _clearAllOutputs, getStageOutputs } from '../../src/plugin/tools/stage-output-tool.js';
+import { createStageOutputTool } from '../../src/plugin/tools/stage-output-tool.js';
 
 // ── Mock tool factory ───────────────────────────────────────────────
 
@@ -68,12 +68,16 @@ const mockTool = createMockTool();
 /** @type {{ execute: Function }} */
 const handler = createStageOutputTool({ tool: mockTool }).foundry_stage_output;
 
+/** Read JSONL output file for a given session. */
+function readSessionOutput(dir, sessionId) {
+  const p = join(dir, '.foundry', 'stage-outputs', sessionId + '.jsonl');
+  if (!readFileSync(p, 'utf-8').trim()) return [];
+  return readFileSync(p, 'utf-8').trim().split('\n').filter(Boolean).map(function(l) { return JSON.parse(l); });
+}
+
 // ── Guard failure tests ─────────────────────────────────────────────
 
 describe('guard failures', () => {
-  beforeEach(() => _clearAllOutputs());
-  afterEach(() => _clearAllOutputs());
-
   test('flowBranchGuard rejects when not on a flow branch', async () => {
     const dir = tmpDir();
     try {
@@ -122,15 +126,12 @@ describe('guard failures', () => {
 // ── Schema dispatch: forge ──────────────────────────────────────────
 
 describe('forge schema dispatch', () => {
-  beforeEach(() => _clearAllOutputs());
-  afterEach(() => _clearAllOutputs());
-
   test('accepts valid forge output { status: "done" }', async () => {
     const dir = tmpDir();
     try {
       initGitRepo(dir);
       writeActiveStage(dir, 'forge:cycle-1');
-      const result = await handler.execute({ data: { status: 'done' } }, { worktree: dir });
+      const result = await handler.execute({ data: { status: 'done' } }, { worktree: dir, sessionID: 'test-session-1' });
       assert.deepEqual(JSON.parse(result), { ok: true, count: 1 });
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -142,7 +143,7 @@ describe('forge schema dispatch', () => {
     try {
       initGitRepo(dir);
       writeActiveStage(dir, 'forge:cycle-1');
-      const result = await handler.execute({ data: { status: 'fixed' } }, { worktree: dir });
+      const result = await handler.execute({ data: { status: 'fixed' } }, { worktree: dir, sessionID: 'test-session-2' });
       const parsed = JSON.parse(result);
       assert.equal(parsed.ok, undefined);
       assert.ok(typeof parsed.error === 'string');
@@ -156,7 +157,7 @@ describe('forge schema dispatch', () => {
     try {
       initGitRepo(dir);
       writeActiveStage(dir, 'forge:cycle-1');
-      const result = await handler.execute({ data: { status: 'wont-fix' } }, { worktree: dir });
+      const result = await handler.execute({ data: { status: 'wont-fix' } }, { worktree: dir, sessionID: 'test-session-3' });
       const parsed = JSON.parse(result);
       assert.equal(parsed.ok, undefined);
       assert.ok(parsed.error.includes('reason'));
@@ -170,9 +171,6 @@ describe('forge schema dispatch', () => {
 // ── Schema dispatch: appraise ───────────────────────────────────────
 
 describe('appraise schema dispatch', () => {
-  beforeEach(() => _clearAllOutputs());
-  afterEach(() => _clearAllOutputs());
-
   test('accepts valid appraise output with required fields', async () => {
     const dir = tmpDir();
     try {
@@ -180,7 +178,7 @@ describe('appraise schema dispatch', () => {
       writeActiveStage(dir, 'appraise:round-1');
       const result = await handler.execute(
         { data: { file: 'a.md', law: 'b', text: 'c' } },
-        { worktree: dir },
+        { worktree: dir, sessionID: 'appr-session-1' },
       );
       assert.deepEqual(JSON.parse(result), { ok: true, count: 1 });
     } finally {
@@ -195,7 +193,7 @@ describe('appraise schema dispatch', () => {
       writeActiveStage(dir, 'appraise:round-1');
       const result = await handler.execute(
         { data: { file: '', law: 'b', text: 'c' } },
-        { worktree: dir },
+        { worktree: dir, sessionID: 'appr-session-2' },
       );
       const parsed = JSON.parse(result);
       assert.equal(parsed.ok, undefined);
@@ -209,9 +207,6 @@ describe('appraise schema dispatch', () => {
 // ── Schema dispatch: human-appraise ─────────────────────────────────
 
 describe('human-appraise schema dispatch', () => {
-  beforeEach(() => _clearAllOutputs());
-  afterEach(() => _clearAllOutputs());
-
   test('accepts valid human-appraise output { verdict: "approved" }', async () => {
     const dir = tmpDir();
     try {
@@ -219,7 +214,7 @@ describe('human-appraise schema dispatch', () => {
       writeActiveStage(dir, 'human-appraise:review');
       const result = await handler.execute(
         { data: { verdict: 'approved' } },
-        { worktree: dir },
+        { worktree: dir, sessionID: 'ha-session-1' },
       );
       assert.deepEqual(JSON.parse(result), { ok: true, count: 1 });
     } finally {
@@ -234,7 +229,7 @@ describe('human-appraise schema dispatch', () => {
       writeActiveStage(dir, 'human-appraise:review');
       const result = await handler.execute(
         { data: { verdict: 'rejected' } },
-        { worktree: dir },
+        { worktree: dir, sessionID: 'ha-session-2' },
       );
       const parsed = JSON.parse(result);
       assert.equal(parsed.ok, undefined);
@@ -248,23 +243,21 @@ describe('human-appraise schema dispatch', () => {
 // ── Multi-call accumulation ─────────────────────────────────────────
 
 describe('multi-call accumulation', () => {
-  beforeEach(() => _clearAllOutputs());
-  afterEach(() => _clearAllOutputs());
-
-  test('consecutive valid calls increment the count', async () => {
+  test('consecutive valid calls increment the count and write to filesystem', async () => {
     const dir = tmpDir();
+    const sessionId = 'multi-session-1';
     try {
       initGitRepo(dir);
       writeActiveStage(dir, 'forge:cycle-1');
 
-      const first = await handler.execute({ data: { status: 'done' } }, { worktree: dir });
+      const first = await handler.execute({ data: { status: 'done' } }, { worktree: dir, sessionID: sessionId });
       assert.deepEqual(JSON.parse(first), { ok: true, count: 1 });
 
-      const second = await handler.execute({ data: { status: 'actioned' } }, { worktree: dir });
+      const second = await handler.execute({ data: { status: 'actioned' } }, { worktree: dir, sessionID: sessionId });
       assert.deepEqual(JSON.parse(second), { ok: true, count: 2 });
 
-      // Verify buffer holds both objects
-      const outputs = getStageOutputs('forge:cycle-1');
+      // Verify filesystem holds both objects
+      const outputs = readSessionOutput(dir, sessionId);
       assert.equal(outputs.length, 2);
       assert.deepEqual(outputs[0], { status: 'done' });
       assert.deepEqual(outputs[1], { status: 'actioned' });
@@ -277,15 +270,12 @@ describe('multi-call accumulation', () => {
 // ── Unknown stage base ──────────────────────────────────────────────
 
 describe('unknown stage base', () => {
-  beforeEach(() => _clearAllOutputs());
-  afterEach(() => _clearAllOutputs());
-
   test('returns error for unrecognised stage base', async () => {
     const dir = tmpDir();
     try {
       initGitRepo(dir);
       writeActiveStage(dir, 'quench:fire');
-      const result = await handler.execute({ data: {} }, { worktree: dir });
+      const result = await handler.execute({ data: {} }, { worktree: dir, sessionID: 'unknown-session' });
       assert.deepEqual(JSON.parse(result), { error: 'unknown stage base: quench' });
     } finally {
       rmSync(dir, { recursive: true, force: true });

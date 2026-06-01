@@ -1,7 +1,8 @@
 /**
  * Stage executor functions used by the run state machine.
  *
- * Exports: executeForge, executeQuench, executeAssay
+ * Exports: executeForge, executeQuench, executeAssay, executeAppraise
+ * (executeAppraise is re-exported from run-appraise.js)
  */
 
 import { getCycleDefinition, getLawsForQuench } from './lib/config.js';
@@ -390,3 +391,6 @@ export async function executeAssay(assayOpts) {
 
   return buildAssaySummary(issues, cycleId, sort.route, historyPath, io);
 }
+
+// Re-export executeAppraise from the dedicated appraise executor module.
+export { executeAppraise } from './run-appraise.js';
