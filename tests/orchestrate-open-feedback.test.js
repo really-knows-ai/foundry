@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import yaml from 'js-yaml';
-import { computeOpenFeedback } from '../src/scripts/orchestrate.js';
+import { computeOpenFeedback } from '../src/scripts/orchestrate-cycle.js';
 import { makeMockIO } from './helpers/mock-io.js';
 
 describe('computeOpenFeedback (spec §10)', () => {

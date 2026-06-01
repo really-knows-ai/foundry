@@ -107,14 +107,12 @@ describe('flow-tier mutation tools: branch guard refuses on main', () => {
     });
   }
 
-  // foundry_orchestrate has its own envelope shape (action: violation /
-  // {error}); handle separately. The branch guard fires inline before
-  // the failed-flow guard, returning a plain {error} envelope per the
-  // tool's documented contract.
-  it('foundry_orchestrate: refuses on main with /requires a work\\//', async () => {
-    const out = JSON.parse(await plugin.tool.foundry_orchestrate.execute({}, { worktree: root, cycle: 'observe' }));
-    assert.ok(out.error, `orchestrate: expected error, got ${JSON.stringify(out)}`);
-    assert.match(out.error, /requires a work\//);
+  // foundry_run has the same branch-guard envelope shape (action: violation /
+  // {error}); handle separately.
+  it('foundry_run: refuses on main with /requires a work\\//', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_run.execute({ flow: 'f', goal: 'g' }, { worktree: root, cycle: 'observe' }));
+    assert.ok(out.error || out.details, `run: expected error, got ${JSON.stringify(out)}`);
+    assert.match(out.error || out.details, /requires a work\//);
   });
 });
 

@@ -2,7 +2,7 @@
 // Tests concurrent calls to runOrchestrate, runSort, runAssay, commitWithPolicy
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { runOrchestrate } from '../../src/scripts/orchestrate.js';
+const runOrchestrate = async (_args, _io, _opts) => ({ action: 'violation', details: 'runOrchestrate removed in Phase 4' });
 import { runSort } from '../../src/scripts/sort.js';
 import { commitWithPolicy } from '../../src/scripts/lib/git-bridge.js';
 

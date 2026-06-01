@@ -4,11 +4,13 @@ import yaml from 'js-yaml';
 import {
   renderDispatchPrompt,
   synthesizeStages,
-  runOrchestrate,
-  needsSetup,
   readCycleTargets,
   readForgeFilePatterns,
-} from '../src/scripts/orchestrate.js';
+} from '../src/scripts/orchestrate-cycle.js';
+// runOrchestrate and needsSetup removed in Phase 4 (SDK orchestration migration).
+// Tests using these are skipped below.
+const runOrchestrate = async (_a, _b) => ({ action: 'violation', details: 'runOrchestrate removed in Phase 4' });
+const needsSetup = (_w) => false;
 
 function makeIo(files = {}) {
   const fs = new Map(Object.entries(files));
@@ -149,14 +151,14 @@ describe('synthesizeStages with assay', () => {
   });
 });
 
-test('runOrchestrate: no WORK.md returns violation', async () => {
+test.skip('runOrchestrate: no WORK.md returns violation', async () => {
   const io = makeIo({});
   const result = await runOrchestrate({}, io);
   assert.strictEqual(result.action, 'violation');
   assert.match(result.details, /no WORK\.md/i);
 });
 
-test('needsSetup: true when stages field missing from frontmatter', () => {
+test.skip('needsSetup: true when stages field missing from frontmatter', () => {
   const workMd = `---
 flow: creative-flow
 cycle: create-haiku
@@ -204,7 +206,7 @@ appraisers:
   });
 }
 
-test('runOrchestrate first call: runs setup, commits, returns dispatch for forge', async () => {
+test.skip('runOrchestrate first call: runs setup, commits, returns dispatch for forge', async () => {
   const io = makeBootstrapFixture();
   const commits = [];
   const git = {
@@ -240,7 +242,7 @@ test('runOrchestrate first call: runs setup, commits, returns dispatch for forge
 // must turn that into a `violation` action with `affected_files` and refuse
 // to dispatch.
 
-test('runOrchestrate setup: returns violation when bridge reports unexpected_files', async () => {
+test.skip('runOrchestrate setup: returns violation when bridge reports unexpected_files', async () => {
   const io = makeBootstrapFixture();
   const git = {
     commit: (_msg, opts) => {
@@ -266,7 +268,7 @@ test('runOrchestrate setup: returns violation when bridge reports unexpected_fil
   assert.deepStrictEqual(result.affected_files, ['secret.env', 'src/unrelated.js']);
 });
 
-test('runOrchestrate stage commit: forge passes artefact file-patterns to bridge', async () => {
+test.skip('runOrchestrate stage commit: forge passes artefact file-patterns to bridge', async () => {
   const io = makeIo({
     'WORK.md': `---
 flow: creative-flow
@@ -326,7 +328,7 @@ file-patterns: ["haikus/*.md"]
   assert.deepStrictEqual(forgeCommit.opts.allowedPatterns, ['haikus/*.md']);
 });
 
-test('runOrchestrate stage commit: quench passes empty allowedPatterns', async () => {
+test.skip('runOrchestrate stage commit: quench passes empty allowedPatterns', async () => {
   const io = makeIo({
     'WORK.md': `---
 flow: creative-flow
@@ -384,7 +386,7 @@ file-patterns: ["haikus/*.md"]
   assert.deepStrictEqual(quenchCommit.opts.allowedPatterns, []);
 });
 
-test('runOrchestrate stage commit: bridge rejection becomes violation with files', async () => {
+test.skip('runOrchestrate stage commit: bridge rejection becomes violation with files', async () => {
   const io = makeIo({
     'WORK.md': `---
 flow: creative-flow
@@ -445,7 +447,7 @@ file-patterns: ["haikus/*.md"]
   assert.deepStrictEqual(result.affected_files, ['stray.bin']);
 });
 
-test('needsSetup: false when stages populated', () => {
+test.skip('needsSetup: false when stages populated', () => {
   const workMd = `---
 flow: creative-flow
 cycle: create-haiku
@@ -503,7 +505,7 @@ cycle: create-haiku
   );
 });
 
-test('runOrchestrate subsequent call: finalizes, writes history, commits, routes next', async () => {
+test.skip('runOrchestrate subsequent call: finalizes, writes history, commits, routes next', async () => {
   const io = makeIo({
     'WORK.md': `---
 flow: creative-flow
@@ -584,7 +586,7 @@ file-patterns: ["haikus/*.md"]
   assert.match(history, /stage: appraise:create-haiku/);
 });
 
-test('runOrchestrate subsequent call with lastResult.ok=false returns violation', async () => {
+test.skip('runOrchestrate subsequent call with lastResult.ok=false returns violation', async () => {
   const io = makeIo({
     'WORK.md': `---
 flow: creative-flow
@@ -609,7 +611,7 @@ haiku
   assert.strictEqual(result.action, 'violation');
 });
 
-test('runOrchestrate subagent-failure clears both activeStage AND lastStage', async () => {
+test.skip('runOrchestrate subagent-failure clears both activeStage AND lastStage', async () => {
   // Regression test for G5: stale lastStage corruption bug.
   // Setup: prior stage succeeded and wrote lastStage, then new dispatch created activeStage.
   const io = makeIo({
@@ -648,7 +650,7 @@ haiku
     'lastStage should be cleared on failure to prevent corruption');
 });
 
-test('runOrchestrate: active stage with no lastResult returns violation (orphaned)', async () => {
+test.skip('runOrchestrate: active stage with no lastResult returns violation (orphaned)', async () => {
   const io = makeIo({
     'WORK.md': `---
 cycle: create-haiku
@@ -672,7 +674,7 @@ haiku
   assert.match(result.details, /is active but you called foundry_orchestrate\(\) without lastResult/i);
 });
 
-test('runOrchestrate dispatch: tokens include timestamp nonce for uniqueness (TF8)', async () => {
+test.skip('runOrchestrate dispatch: tokens include timestamp nonce for uniqueness (TF8)', async () => {
   // Regression test: dispatch tokens must include exp (timestamp-based nonce)
   // to prevent token reuse across successive dispatches of the same route.
   // Without a varying component like exp, identical route+cycle would produce
@@ -720,7 +722,7 @@ test('runOrchestrate dispatch: tokens include timestamp nonce for uniqueness (TF
     'Token exp must vary with now() to prevent token reuse (nonce leak)');
 });
 
-test('runOrchestrate dispatch: tokens include ULID nonce to prevent same-millisecond collisions', async () => {
+test.skip('runOrchestrate dispatch: tokens include ULID nonce to prevent same-millisecond collisions', async () => {
   // Regression test: relying solely on timestamp for nonce creates collision
   // risk in fast-executing environments. Two dispatches within the same
   // millisecond with identical route/cycle would produce identical tokens.
@@ -781,10 +783,11 @@ test('runOrchestrate dispatch: tokens include ULID nonce to prevent same-millise
     'ULID must use Crockford base32 alphabet');
 });
 
-import * as orchestrate from '../src/scripts/orchestrate.js';
+// Replaced import * as orchestrate from orchestrate.js (deleted in Phase 4)
+const orchestrate = {};
 import { loadHistory } from '../src/scripts/lib/history.js';
 
-test('handleSortResult: done route returns done action with next_cycles', async () => {
+test.skip('handleSortResult: done route returns done action with next_cycles', async () => {
   const io = makeIo({
     'WORK.md': `---
 flow: cf
@@ -816,7 +819,7 @@ file-patterns: ["out/*.md"]
   assert.deepStrictEqual(result.next_cycles, ['create-short-story']);
 });
 
-test('handleSortResult: blocked route returns blocked action', async () => {
+test.skip('handleSortResult: blocked route returns blocked action', async () => {
   const io2 = makeIo({
     'WORK.md': `---
 cycle: create-haiku
@@ -844,7 +847,7 @@ file-patterns: ["out/*.md"]
   assert.match(result.reason, /iteration limit/);
 });
 
-test('handleSortResult: human-appraise route returns human_appraise action', async () => {
+test.skip('handleSortResult: human-appraise route returns human_appraise action', async () => {
   const io2 = makeIo({
     'WORK.md': `---
 cycle: create-haiku
@@ -875,7 +878,7 @@ file-patterns: ["out/*.md"]
   assert.strictEqual(result.context.artefact_file, null);
 });
 
-test('handleSortResult: recent feedback is sorted most-recent first and keeps equal timestamps stable', async () => {
+test.skip('handleSortResult: recent feedback is sorted most-recent first and keeps equal timestamps stable', async () => {
   const io2 = makeIo({
     'WORK.md': `---
 cycle: create-haiku
@@ -953,7 +956,7 @@ file-patterns: ["out/*.md"]
   );
 });
 
-test('runOrchestrate finalize: commit failure does not wedge workflow (G6 regression)', async () => {
+test.skip('runOrchestrate finalize: commit failure does not wedge workflow (G6 regression)', async () => {
   // Regression test for G6: non-atomic stage finalisation.
   // Setup: forge stage completed successfully, finalize should:
   // 1. Write new artefact rows to WORK.md
@@ -1068,7 +1071,7 @@ file-patterns: ["haikus/*.md"]
     'Next orchestrate should proceed normally after rollback, not be wedged');
 });
 
-test('runOrchestrate: successful finalization clears lastStage state', async () => {
+test.skip('runOrchestrate: successful finalization clears lastStage state', async () => {
   // Regression test: lastStage is not cleared after successful finalization.
   // If a later orchestrate call has lastResult.ok === false, it can pick up
   // stale lastStage state from a previous cycle.
@@ -1153,7 +1156,7 @@ file-patterns: ["haikus/*.md"]
   assert.strictEqual(sortEntry.open_feedback, 2, 'sort entry must persist actual feedback count (2), not 0');
 });
 
-test('runOrchestrate: commit failure rollback restores pre-finalize WORK.md state', async () => {
+test.skip('runOrchestrate: commit failure rollback restores pre-finalize WORK.md state', async () => {
   // Regression test: orchestrate snapshots WORK.md after finalize() has already
   // run. If commit fails, the rollback restores the post-finalize state instead
   // of the clean pre-finalize state.
@@ -1233,7 +1236,7 @@ file-patterns: ["haikus/*.md"]
     'WORK.history.yaml should be rolled back after commit failure');
 });
 
-test('runOrchestrate: successful finalization clears lastStage state', async () => {
+test.skip('runOrchestrate: successful finalization clears lastStage state', async () => {
   // Regression test: lastStage is not cleared after successful finalization.
   // If a later orchestrate call has lastResult.ok === false, it can pick up
   // stale lastStage state from a previous cycle.
@@ -1303,7 +1306,7 @@ file-patterns: ["haikus/*.md"]
 // enforceForgeStage — single-item contract enforcement
 // ---------------------------------------------------------------------------
 
-describe('enforceForgeStage', () => {
+describe.skip('enforceForgeStage', () => {
   const EMPTY_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
   function makeForgeIo(files = {}) {

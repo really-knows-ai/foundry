@@ -5,7 +5,7 @@ import yaml from 'js-yaml';
 import { openFeedbackStore } from '../src/scripts/lib/feedback-store.js';
 import { enforceForgeContract } from '../src/scripts/lib/forge-contract.js';
 import { baseStage } from '../src/scripts/lib/sort-routing.js';
-import { applyFmDefaults } from '../src/scripts/orchestrate-phases.js';
+import { applyFmDefaults } from '../src/scripts/orchestrate-setup.js';
 
 // ---------------------------------------------------------------------------
 // In-memory IO shim

@@ -1,5 +1,6 @@
-// Foundry v2.3.0 orchestrate: phase logic.
-// Private phase functions used by runOrchestrate.
+// Foundry SDK orchestration: setup workfile pipeline.
+// Validates cycle definitions, resolves stages, and bootstraps WORK.md.
+// Extracted from orchestrate-phases.js during the SDK orchestration cleanup.
 
 import {
   getArtefactType,
@@ -11,82 +12,10 @@ import matter from 'gray-matter';
 import { loadExtractor } from './lib/assay/loader.js';
 import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
 import {
-  readForgeFilePatterns,
   violation,
   tryCommit,
   synthesizeStages,
-  renderDispatchPrompt,
 } from './orchestrate-cycle.js';
-import {
-  doneAction,
-  blockedAction,
-  humanAppraiseAction,
-  missingModelViolation,
-} from './orchestrate-terminals.js';
-import { finaliseStage, handleViolation } from './orchestrate-finalise.js';
-export { finaliseStage, handleViolation };
-
-function makeDispatchPayload({ route, cycleId, token, cwd, filePatterns, outputType, forgeItem }) {
-  return { stage: route, cycle: cycleId, token, cwd, filePatterns, outputType, forgeItem };
-}
-
-async function prepareForgePayload(cycleId, io) {
-  const payload = { filePatterns: null, outputType: null, forgeItem: null };
-  const result = await readForgeFilePatterns(cycleId, io);
-  if (result) {
-    payload.filePatterns = result.patterns;
-    payload.outputType = result.outputType;
-  }
-  const forgeCtxPath = '.foundry/forge-context.json';
-  if (io.exists(forgeCtxPath)) {
-    try {
-      const parsed = JSON.parse(io.readFile(forgeCtxPath));
-      payload.forgeItem = parsed.forgeItem ?? null;
-    } catch { /* malformed or missing — defaults to null */ }
-  }
-  return payload;
-}
-
-async function buildDispatchAction(route, model, token, ctx) {
-  if (!model) return missingModelViolation(ctx.cycleId, route, ctx.io, ctx.foundryDir, ctx.baseBranch ?? 'main');
-  const base = route.split(':')[0];
-  const forgePayload = base === 'forge' ? await prepareForgePayload(ctx.cycleId, ctx.io) : { filePatterns: null, outputType: null, forgeItem: null };
-  const payload = { route, cycleId: ctx.cycleId, token, cwd: ctx.cwd, ...forgePayload };
-  ctx.io.writeFile('.foundry/dispatch-token', token);
-  return { action: 'dispatch', stage: route, subagent_type: model,
-    prompt: renderDispatchPrompt(makeDispatchPayload(payload)) };
-}
-
-export function routeDispatch(route) {
-  return typeof route === 'string' ? route.split(':')[0] : '';
-}
-
-async function handleTerminalRoute(route, sortResult, ctx) {
-  const baseBranch = ctx.baseBranch || 'main';
-  if (route === 'done') return doneAction(ctx.cycleId, ctx.io, ctx.foundryDir, baseBranch);
-  if (route === 'blocked') return blockedAction(ctx.cycleId, ctx.io, sortResult.details, ctx.foundryDir, baseBranch);
-  const details = sortResult.details || 'sort returned violation';
-  return violation(details);
-}
-
-function isTerminalRoute(route) {
-  return route === 'done' || route === 'blocked' || route === 'violation';
-}
-
-export async function handleSortResult(sortResult, ctx) {
-  const { route, model, token, reason } = sortResult;
-  const routeBase = routeDispatch(route);
-  const result = await resolveRouteResult({ route, routeBase, model, token, ctx, sortResult });
-  if (reason !== undefined) result.reason = reason;
-  return result;
-}
-
-async function resolveRouteResult({ route, routeBase, model, token, ctx, sortResult }) {
-  if (isTerminalRoute(route)) return handleTerminalRoute(route, sortResult, ctx);
-  if (routeBase === 'quench' || routeBase === 'appraise') return violation(routeBase + ' route reached handleSortResult');
-  if (routeBase === 'human-appraise') return humanAppraiseAction(route, token, ctx);
-  return buildDispatchAction(route, model, token, ctx);
-}
 
 function checkOutputType(cfm, cycleId) {
   const outputType = cfm['output-type'];
@@ -225,5 +154,3 @@ async function trySetupCommit(ctx) {
   if (v) return v;
   return { ok: true, workContent: ctx.io.readFile('WORK.md') };
 }
-
-

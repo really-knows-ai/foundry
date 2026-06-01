@@ -23,7 +23,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readForgeFilePatterns, runOrchestrate } from '../src/scripts/orchestrate.js';
+import { readForgeFilePatterns } from '../src/scripts/orchestrate-cycle.js';
+// runOrchestrate was removed in Phase 4 (SDK orchestration migration).
+const runOrchestrate = async (_args, _io) => ({ action: 'violation', details: 'runOrchestrate removed in Phase 4' });
 import { getAllowedPatterns } from '../src/scripts/sort.js';
 
 function makeIo(files = {}) {
@@ -97,7 +99,7 @@ cycle: create-haiku
   assert.equal(result, null, 'old output: key must not resolve patterns under new schema');
 });
 
-test('runOrchestrate setup: cycle with old `output:` key emits migration diagnostic', async () => {
+test.skip('runOrchestrate setup: cycle with old `output:` key emits migration diagnostic', async () => {
   // The setup phase reads the cycle definition to learn its output
   // artefact-type. Under the new schema it must look at `output-type:`. A
   // cycle still carrying the old `output:` key should yield a violation

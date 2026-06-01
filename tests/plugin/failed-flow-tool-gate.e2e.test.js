@@ -91,12 +91,10 @@ describe('failed-flow tool gate (flow-tier on work branch)', () => {
       { cycle: 'observe', extractors: ['e'] }, ctx()), 'assay_run');
   });
 
-  it('orchestrate refuses under failed', async () => {
-    const out = JSON.parse(await plugin.tool.foundry_orchestrate.execute({}, ctx()));
-    // orchestrate tool returns {action:'violation'} shape on normal error paths,
-    // but our guard returns {error} JSON directly, bypassing the orchestrate runner.
-    assert.ok(out.error, `orchestrate: expected error, got ${JSON.stringify(out)}`);
-    assert.match(out.error, /flow is in failed state/i);
+  it('foundry_continue refuses under failed', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_continue.execute({}, ctx()));
+    assert.ok(out.error || out.details, `continue: expected error, got ${JSON.stringify(out)}`);
+    assert.match(out.error || out.details, /flow is in failed state/i);
   });
 
   it('memory_put refuses under failed', async () => {

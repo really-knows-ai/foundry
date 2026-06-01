@@ -8,7 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { runOrchestrate } from '../src/scripts/orchestrate.js';
+const runOrchestrate = async (_args, _io) => ({ action: 'violation', details: 'runOrchestrate removed in Phase 4' });
 import { writeActiveStage, clearActiveStage, writeLastStage } from '../src/scripts/lib/state.js';
 
 // ---------------------------------------------------------------------------

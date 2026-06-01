@@ -2,7 +2,7 @@
 // foundry_run — starts a run, bootstraps WORK.md, and executes the state machine.
 
 import { createWorkfile, parseFrontmatter } from '../../scripts/lib/workfile.js';
-import { setupWorkfile } from '../../scripts/orchestrate-phases.js';
+import { setupWorkfile } from '../../scripts/orchestrate-setup.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { runRun } from '../../scripts/run.js';

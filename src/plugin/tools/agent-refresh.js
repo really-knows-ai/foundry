@@ -23,7 +23,7 @@ function deleteStaleAgents(agentsDir) {
   }
 }
 
-function isModelledAgent(entry) {
+export function isModelledAgent(entry) {
   return entry.startsWith('foundry-') && entry.endsWith('.md')
     && entry !== 'foundry.md';
 }
