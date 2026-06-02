@@ -177,7 +177,7 @@ describe('appraise schema dispatch', () => {
       initGitRepo(dir);
       writeActiveStage(dir, 'appraise:round-1');
       const result = await handler.execute(
-        { data: { file: 'a.md', law: 'b', text: 'c' } },
+        { data: { file: 'a.md', law: 'b', text: 'c', group: 'g', appraiser: 'a', pass: 1 } },
         { worktree: dir, sessionID: 'appr-session-1' },
       );
       assert.deepEqual(JSON.parse(result), { ok: true, count: 1 });
@@ -192,7 +192,7 @@ describe('appraise schema dispatch', () => {
       initGitRepo(dir);
       writeActiveStage(dir, 'appraise:round-1');
       const result = await handler.execute(
-        { data: { file: '', law: 'b', text: 'c' } },
+        { data: { file: '', law: 'b', text: 'c', group: 'g', appraiser: 'a', pass: 1 } },
         { worktree: dir, sessionID: 'appr-session-2' },
       );
       const parsed = JSON.parse(result);

@@ -22,11 +22,14 @@ const FORGE_SCHEMA = {
 
 const APPRAISE_SCHEMA = {
   type: 'object',
-  required: ['file', 'law', 'text'],
+  required: ['file', 'law', 'text', 'group', 'appraiser', 'pass'],
   properties: {
     file: { type: 'string', minLength: 1 },
     law: { type: 'string', minLength: 1 },
     text: { type: 'string', minLength: 1 },
+    group: { type: 'string' },
+    appraiser: { type: 'string' },
+    pass: { type: 'integer' },
     evidence: { type: 'string' },
     severity: { type: 'string' },
     location: { type: 'string' },
@@ -60,10 +63,19 @@ function checkStringType(schema, data, path) {
   return [];
 }
 
+function checkIntegerType(schema, data, path) {
+  if (schema.type !== 'integer') return [];
+  if (!Number.isInteger(data)) {
+    return [`${path} — must be an integer`];
+  }
+  return [];
+}
+
 function checkType(schema, data, path) {
   return [
     ...checkObjectType(schema, data, path),
     ...checkStringType(schema, data, path),
+    ...checkIntegerType(schema, data, path),
   ];
 }
 
