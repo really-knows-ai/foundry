@@ -323,6 +323,16 @@ export async function getFlow(foundryDir, flowId, io) {
   return parseDoc(text);
 }
 
+/**
+ * Returns the law-groups map from flow frontmatter, or {} if absent.
+ * Each entry: { mode?: string, passes?: number, appraisers?: string[] }
+ * @param {object} frontmatter - Flow document frontmatter
+ * @returns {object} - Law-groups map keyed by group name
+ */
+export function getFlowLawGroups(frontmatter) {
+  return frontmatter['law-groups'] || {};
+}
+
 function buildAppraiserPool(allAppraisers, allowed) {
   return allowed ? allAppraisers.filter(a => allowed.includes(a.id)) : allAppraisers;
 }
