@@ -243,58 +243,45 @@ describe('validation — invalid typeAppraisers group value type', () => {
 
 describe('warnings — type override mode/passes', () => {
   it('type override has mode key with appraisers', () => {
-    const result = resolveGroupConfig('g', {
-      g: { passes: 3 },
-    }, {
-      g: { mode: 'law-by-law', appraisers: ['a'] },
-    }, POOL_AB);
-
-    assert.equal(result.mode, 'bundle', 'mode override from type is ignored');
-    assert.equal(result.passes, 3, 'flow-level passes preserved');
-    assert.deepEqual(result.appraisers, [{ id: 'a' }]);
-    assert.equal(result.warnings.length, 1);
-    assert.ok(result.warnings[0].includes('mode'));
+    assert.throws(
+      () => resolveGroupConfig('g', {
+        g: { passes: 3 },
+      }, {
+        g: { mode: 'law-by-law', appraisers: ['a'] },
+      }, POOL_AB),
+      /expected an array, got object/
+    );
   });
 
   it('type override has passes key with appraisers', () => {
-    const result = resolveGroupConfig('g', {
-      g: { mode: 'law-by-law' },
-    }, {
-      g: { passes: 5, appraisers: ['a'] },
-    }, POOL_AB);
-
-    assert.equal(result.mode, 'law-by-law', 'flow-level mode preserved');
-    assert.equal(result.passes, 1, 'passes override from type is ignored');
-    assert.deepEqual(result.appraisers, [{ id: 'a' }]);
-    assert.equal(result.warnings.length, 1);
-    assert.ok(result.warnings[0].includes('passes'));
+    assert.throws(
+      () => resolveGroupConfig('g', {
+        g: { mode: 'law-by-law' },
+      }, {
+        g: { passes: 5, appraisers: ['a'] },
+      }, POOL_AB),
+      /expected an array, got object/
+    );
   });
 
   it('type override has both mode and passes with appraisers', () => {
-    const result = resolveGroupConfig('g', {}, {
-      g: { mode: 'law-by-law', passes: 5, appraisers: ['a'] },
-    }, POOL_AB);
-
-    assert.equal(result.mode, 'bundle');
-    assert.equal(result.passes, 1);
-    assert.deepEqual(result.appraisers, [{ id: 'a' }]);
-    assert.equal(result.warnings.length, 2);
-    assert.ok(result.warnings.some(w => w.includes('mode')));
-    assert.ok(result.warnings.some(w => w.includes('passes')));
+    assert.throws(
+      () => resolveGroupConfig('g', {}, {
+        g: { mode: 'law-by-law', passes: 5, appraisers: ['a'] },
+      }, POOL_AB),
+      /expected an array, got object/
+    );
   });
 
-  it('type override has mode key, no appraisers key', () => {
-    const result = resolveGroupConfig('g', {
-      g: { passes: 3 },
-    }, {
-      g: { mode: 'law-by-law' },
-    }, POOL_AB);
-
-    assert.equal(result.mode, 'bundle', 'mode override ignored');
-    assert.equal(result.passes, 3, 'flow-level passes preserved');
-    assert.deepEqual(result.appraisers, POOL_AB, 'pool unchanged');
-    assert.equal(result.warnings.length, 1);
-    assert.ok(result.warnings[0].includes('mode'));
+  it('object form without appraisers key throws', () => {
+    assert.throws(
+      () => resolveGroupConfig('g', {
+        g: { passes: 3 },
+      }, {
+        g: { mode: 'law-by-law' },
+      }, POOL_AB),
+      /expected an array, got object/
+    );
   });
 });
 
@@ -378,7 +365,7 @@ describe('edge cases', () => {
   it('typeAppraisers key with undefined value throws (invalid value type)', () => {
     assert.throws(
       () => resolveGroupConfig('g', {}, { g: undefined }, FULL_POOL),
-      /expected an array or object/
+      /expected an array/
     );
   });
 });

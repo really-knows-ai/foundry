@@ -70,6 +70,7 @@ function applyFlowOverride(groupName, flowGroups, acc, warnings, fullAppraiserPo
 /**
  * Apply the artefact-type override for a group.
  * Legacy keys are detected before reaching this function.
+ * The override value must be an array (object form is rejected).
  */
 function applyTypeOverride(groupName, typeAppraisers, acc, warnings, opts) {
   if (!Object.hasOwn(typeAppraisers, groupName)) return;
@@ -81,18 +82,8 @@ function applyTypeOverride(groupName, typeAppraisers, acc, warnings, opts) {
 
   validateTypeAppraisersValue(value, groupName, opts.artefactTypeId);
 
-  if (Array.isArray(value)) {
-    // Array form — direct pool override
-    acc.appraisers = filterAppraiserPool(groupName, value, opts.fullAppraiserPool, warnings, 'in type override');
-    return;
-  }
-
-  // Object form — warn about mode/passes, apply appraisers pool only
-  collectTypeOverrideWarnings(value, groupName, warnings);
-
-  if (value.appraisers !== undefined) {
-    acc.appraisers = filterAppraiserPool(groupName, value.appraisers, opts.fullAppraiserPool, warnings, 'in type override');
-  }
+  // After validation, value is guaranteed to be an array
+  acc.appraisers = filterAppraiserPool(groupName, value, opts.fullAppraiserPool, warnings, 'in type override');
 }
 
 /**
@@ -128,17 +119,17 @@ function detectLegacyKeys(typeAppraisers, artefactTypeId) {
 }
 
 /**
- * Validate that a `typeAppraisers` group value is either an array or a
- * plain object. Throws with a message naming the group and (optionally)
- * the artefact type when it is neither.
- * @throws {Error} when the value type is invalid
+ * Validate that a `typeAppraisers` group value is an array. Throws with
+ * a message naming the group and (optionally) the artefact type when the
+ * value is not an array (including plain objects).
+ * @throws {Error} when the value is not an array
  */
 function validateTypeAppraisersValue(value, groupName, artefactTypeId) {
   if (Array.isArray(value)) return;
-  if (typeof value === 'object') return;
 
   const typePart = artefactTypeId ? ` (artefact type "${artefactTypeId}")` : '';
-  throw new Error(`Group "${groupName}"${typePart}: invalid appraisers value — expected an array or object, got ${typeof value}`);
+  const valueType = typeof value === 'object' ? 'object' : typeof value;
+  throw new Error(`Group "${groupName}"${typePart}: invalid appraisers value — expected an array, got ${valueType}`);
 }
 
 /**
@@ -162,15 +153,4 @@ function filterAppraiserPool(groupName, ids, fullPool, warnings, contextSuffix) 
   return result;
 }
 
-/**
- * Collect warning strings for ignored `mode` and `passes` keys in an
- * object-form type override.
- */
-function collectTypeOverrideWarnings(value, groupName, warnings) {
-  if (value.mode !== undefined) {
-    warnings.push(`Group "${groupName}": ignoring per-type "mode" override — mode and passes are not overridable per artefact type`);
-  }
-  if (value.passes !== undefined) {
-    warnings.push(`Group "${groupName}": ignoring per-type "passes" override — mode and passes are not overridable per artefact type`);
-  }
-}
+

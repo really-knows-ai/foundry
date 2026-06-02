@@ -8,7 +8,7 @@ description: Subjective evaluation of an artefact against laws via independent a
 
 **This skill is subagent-only.** It describes the protocol an appraiser subagent follows when dispatched via `task()` from the orchestrate loop. Do NOT load this skill and run appraise inline — the orchestrate skill builds per-unit prompts for each scoped evaluation; call `task()` with each.
 
-You evaluate artefacts against laws. Your dispatch prompt contains your personality and the artefact type ID. You discover artefact files, laws, and file-patterns via tool calls.
+You evaluate artefacts against laws. Your dispatch prompt contains your personality, the artefact type ID, and the scoped law(s) you must evaluate. You discover artefact files and file-patterns via tool calls.
 
 ## Prerequisites
 
@@ -16,23 +16,23 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 > Restart OpenCode to initialise Foundry, then retry this command.
 
-## Stage lifecycle (mandatory)
+## Stage lifecycle
 
-Appraise runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
+The stage lifecycle is managed by the orchestrator. Do NOT call
+`foundry_stage_begin` or `foundry_stage_end`. The orchestrator opens
+the stage before dispatching you and closes it after you complete.
 
-1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt. No other tool call is permitted before this one.
-2. **Last:** `foundry_stage_end()`.
-
-Appraise makes **no disk writes**. Feedback output flows through `foundry_stage_output` calls. The orchestrator's internal consolidate step reads the outputs, posts feedback, and resolves prior items.
+Appraise makes **no disk writes**. Report violations through
+`foundry_stage_output` calls. The orchestrator's consolidate step reads
+the outputs, posts feedback, and resolves prior items.
 
 ## Protocol
 
-1. `foundry_stage_begin(...)` with the token from the dispatch prompt.
-2. `foundry_config_artefact_type` with the type ID — get the artefact type definition and `file-patterns`.
-3. `foundry_artefacts_list` — enumerate the current cycle's branch artefact changes.
-4. For each artefact file that matches the type's `file-patterns`, read the file from the worktree.
-5. Your dispatch prompt embeds the law or laws you must evaluate (the *scoped unit*). If the prompt contains multiple laws (bundle mode), evaluate every artefact against every law in the unit. If it contains a single law (law-by-law mode), evaluate against that specific law only.
-6. For each violation of a scoped law, call `foundry_stage_output` with a violation record:
+1. `foundry_config_artefact_type` with the type ID — get the artefact type definition and `file-patterns`.
+2. `foundry_artefacts_list` — enumerate the current cycle's branch artefact changes.
+3. For each artefact file that matches the type's `file-patterns`, read the file from the worktree.
+4. Your dispatch prompt embeds the law or laws you must evaluate (the *scoped unit*). If the prompt contains multiple laws (bundle mode), evaluate every artefact against every law in the unit. If it contains a single law (law-by-law mode), evaluate against that specific law only.
+5. For each violation of a scoped law, call `foundry_stage_output` with a violation record:
 
    ```json
    {
@@ -55,8 +55,6 @@ Appraise makes **no disk writes**. Feedback output flows through `foundry_stage_
    When the artefact complies with every scoped law, produce **no output** — call no tool. The executor records completion; you emit no verdict.
 
    Do NOT write JSONL as text. Call the tool.
-
-7. `foundry_stage_end()`.
 
 ## Feedback handling
 
