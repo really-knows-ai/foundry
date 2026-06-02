@@ -80,7 +80,28 @@ Build an inventory with these sections:
 - Items that need clarification.
 - Items with no current-version equivalent.
 
-### 5. Ask clarifying questions
+### 5. Check for removed artefact-type keys
+
+After building the inventory and before asking clarifying questions, scan
+every artefact-type definition in the preserved source directory for the
+legacy keys `appraisers.count` and `appraisers.allowed`. These keys are
+removed in the current version and have no equivalent in artefact-type
+frontmatter — appraiser selection is now configured via the `law-groups`
+block in flow frontmatter.
+
+If any artefact-type definition contains either key, exit with an error:
+
+> The artefact type `<type-id>` contains the removed key(s)
+> `appraisers.count` and/or `appraisers.allowed`. These fields no longer
+> function. Remove them from the artefact-type frontmatter before
+> upgrading. Appraiser selection is now configured via `law-groups` in
+> flow frontmatter.
+
+Do not attempt to migrate the values. Refuse to proceed — the tool
+exits with an error directing the user to remove the legacy keys and
+rerun.
+
+### 6. Ask clarifying questions
 
 Ask the user before proceeding whenever the old configuration does not map safely to current concepts.
 
@@ -93,12 +114,12 @@ Common clarification points:
 - Input contracts when old inputs do not state `any-of` or `all-of` intent.
 - Artefact ownership when file patterns overlap or are missing.
 - Validators whose purpose or failure meaning is unclear.
-- Appraiser selection when old config lacks counts, allowed appraisers, or personality detail.
+- Appraiser selection when old config lacks counts, allowed appraisers, or personality detail. Note that the artefact-type `appraisers.count` and `appraisers.allowed` fields no longer function — appraiser selection is now driven by the `law-groups` config block in flow frontmatter.
 - Human appraisal and deadlock settings that map to current fields with changed semantics.
 - Memory permissions, extractor outputs, relation files, or schema details whose current contract is ambiguous.
 - Deprecated concepts that have no current-version equivalent.
 
-### 6. Recreate configuration through current tools
+### 7. Recreate configuration through current tools
 
 Use current Foundry tools wherever they exist. Prefer tool-created config over direct file edits.
 
@@ -115,7 +136,7 @@ Use direct file edits only when current tools do not cover a required current-ve
 
 Do not recreate active flow state, `WORK.md`, feedback ledgers, branch state, generated artefacts, or historical runtime state.
 
-### 7. Validate current configuration
+### 8. Validate current configuration
 
 Run current validation tools for every recreated config kind:
 
@@ -128,7 +149,7 @@ Run current validation tools for every recreated config kind:
 
 Fix validation failures by using current tools or by asking the user for clarification when the fix changes migration intent.
 
-### 8. Commit meaningful checkpoints
+### 9. Commit meaningful checkpoints
 
 Prefer commits at meaningful checkpoints on the config branch:
 
@@ -146,7 +167,7 @@ git commit -m "chore: recreate foundry config for current version"
 git commit -m "chore: validate upgraded foundry config"
 ```
 
-### 9. Present migration report
+### 10. Present migration report
 
 End with a migration report containing these sections:
 
@@ -162,13 +183,14 @@ End with a migration report containing these sections:
 - User decisions made during migration.
 - Warnings.
 - Skipped items.
+- `appraisers.count` and `appraisers.allowed` artefact-type fields — removed; no current equivalent. Appraiser selection is configured via `law-groups` in flow frontmatter.
 - Manual follow-up.
 - Validation results.
 - Cleanup recommendation.
 
 Warnings must be concrete and actionable. Identify files or concepts that need human review.
 
-### 10. Cleanup policy
+### 11. Cleanup policy
 
 Do not delete the preserved source directory automatically.
 
