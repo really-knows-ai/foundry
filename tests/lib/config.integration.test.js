@@ -7,7 +7,6 @@ import {
   getLawsForQuench,
   getAppraisers,
   getFlow,
-  selectAppraisers,
   parseLaws,
 } from '../../src/scripts/lib/config.js';
 
@@ -365,44 +364,6 @@ describe('getFlow', () => {
   it('throws if not found', async () => {
     const io = mockIO({});
     await assert.rejects(() => getFlow('foundry', 'nope', io), /Flow not found/);
-  });
-});
-
-describe('selectAppraisers', () => {
-  it('round-robins appraisers to count', async () => {
-    const io = mockIO({
-      'foundry/artefacts/code/definition.md': '---\nname: Code\nappraisers:\n  count: 5\n---\n',
-      'foundry/appraisers': ['a.md', 'b.md'],
-      'foundry/appraisers/a.md': '---\nid: alice\n---\nAlice.',
-      'foundry/appraisers/b.md': '---\nid: bob\n---\nBob.',
-    });
-    const result = await selectAppraisers('foundry', 'code', { io, countOverride: null });
-    assert.equal(result.length, 5);
-    assert.equal(result[0].id, 'alice');
-    assert.equal(result[1].id, 'bob');
-    assert.equal(result[2].id, 'alice');
-  });
-
-  it('filters by allowed list', async () => {
-    const io = mockIO({
-      'foundry/artefacts/code/definition.md': '---\nname: Code\nappraisers:\n  allowed:\n    - bob\n---\n',
-      'foundry/appraisers': ['a.md', 'b.md'],
-      'foundry/appraisers/a.md': '---\nid: alice\n---\nAlice.',
-      'foundry/appraisers/b.md': '---\nid: bob\n---\nBob.',
-    });
-    const result = await selectAppraisers('foundry', 'code', { io });
-    assert.equal(result.length, 3);
-    assert.ok(result.every(r => r.id === 'bob'));
-  });
-
-  it('uses countOverride', async () => {
-    const io = mockIO({
-      'foundry/artefacts/code/definition.md': '---\nname: Code\n---\n',
-      'foundry/appraisers': ['a.md'],
-      'foundry/appraisers/a.md': '---\nid: alice\n---\nAlice.',
-    });
-    const result = await selectAppraisers('foundry', 'code', { io, countOverride: 2 });
-    assert.equal(result.length, 2);
   });
 });
 

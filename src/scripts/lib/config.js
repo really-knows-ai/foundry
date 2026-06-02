@@ -333,35 +333,4 @@ export function getFlowLawGroups(frontmatter) {
   return frontmatter['law-groups'] || {};
 }
 
-function buildAppraiserPool(allAppraisers, allowed) {
-  return allowed ? allAppraisers.filter(a => allowed.includes(a.id)) : allAppraisers;
-}
 
-function roundRobinSelect(pool, count) {
-  const result = [];
-  for (let i = 0; i < count; i++) {
-    result.push(pool[i % pool.length]);
-  }
-  return result;
-}
-
-function resolveAppraiserConfig(frontmatter, countOverride) {
-  const appraiserConfig = frontmatter.appraisers || {};
-  return {
-    count: countOverride || appraiserConfig.count || 3,
-    allowed: appraiserConfig.allowed || null,
-  };
-}
-
-export async function selectAppraisers(foundryDir, typeId, { io, countOverride } = {}) {
-  if (!io) throw new Error('selectAppraisers: io is required');
-
-  const { frontmatter } = await getArtefactType(foundryDir, typeId, io);
-  const { count, allowed } = resolveAppraiserConfig(frontmatter, countOverride);
-
-  const allAppraisers = await getAppraisers(foundryDir, io);
-  const pool = buildAppraiserPool(allAppraisers, allowed);
-  if (pool.length === 0) return [];
-
-  return roundRobinSelect(pool, count);
-}
