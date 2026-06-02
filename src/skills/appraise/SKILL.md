@@ -36,7 +36,7 @@ Appraise makes **no disk writes**. Feedback output flows through `foundry_stage_
    - Note no issues (pass)
    - Describe the violation, quoting evidence from the artefact
 7. For each violation, call `foundry_stage_output({ file, law, text, evidence })`.
-   `file` and `text` are required. `law` and `evidence` are recommended — `law` tells the orchestrator which law tag to use, `evidence` quotes the offending passage. Optional extra fields (`severity`, `location`) are passed through unchanged.
+   `file`, `law`, and `text` are required — `law` identifies the law the violation breaches and supplies its feedback tag. `evidence` is recommended and quotes the offending passage. Optional extra fields (`severity`, `location`) are passed through unchanged.
 
    If no issues, call `foundry_stage_end()` directly — no `stage_output` calls needed.
 
