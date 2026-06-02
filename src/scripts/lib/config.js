@@ -39,12 +39,31 @@ export async function getArtefactType(foundryDir, typeId, io) {
 }
 
 /**
+ * Extract the `group:` field from law text.
+ * Only the first top-level `^group:\s*(.+)` match counts.
+ * An empty value is treated as absent; the line is not stripped.
+ * @param {string} lawText - Full law text including optional group line
+ * @returns {{prose: string, group: string}} - Prose text and group name
+ */
+function extractGroup(lawText) {
+  const match = lawText.match(/^group:\s*(.+)/m);
+  if (match) {
+    const group = match[1].trim();
+    if (group) {
+      const prose = lawText.replace(match[0], '').trim();
+      return { prose, group };
+    }
+  }
+  return { prose: lawText, group: 'default' };
+}
+
+/**
  * Parse law entries from a markdown file. Each `## heading` starts a new law.
  * Each law may have an optional `validators:` block with entries containing id, command, and optional failure-means.
  * Validators are extracted and returned separately from prose.
- * Returns: [{id, text (prose only), validators (if present)}]
+ * Returns: [{id, text (prose only), group, validators (if present)}]
  */
-function parseLaws(text, source) {
+export function parseLaws(text, source) {
   const laws = [];
   const lines = text.split('\n');
   let currentId = null;
@@ -53,8 +72,9 @@ function parseLaws(text, source) {
   function flush() {
     if (currentId) {
       const lawText = currentLines.join('\n').trim();
-      const { prose, validators } = extractValidators(lawText, currentId);
-      const lawObj = { id: currentId, text: prose };
+      const { prose: groupProse, group } = extractGroup(lawText);
+      const { prose, validators } = extractValidators(groupProse, currentId);
+      const lawObj = { id: currentId, text: prose, group };
       if (validators && validators.length > 0) {
         lawObj.validators = validators;
       }
@@ -268,7 +288,7 @@ export async function getLaws(foundryDir, io, { typeId } = {}) {
   const laws = await collectAllLaws(foundryDir, io, { typeId });
 
   // Return prose-only without source or validators
-  return laws.map(law => ({ id: law.id, text: law.text }));
+  return laws.map(law => ({ id: law.id, text: law.text, group: law.group }));
 }
 
 export async function getLawsForQuench(foundryDir, io, { typeId } = {}) {

@@ -8,6 +8,7 @@ import {
   getAppraisers,
   getFlow,
   selectAppraisers,
+  parseLaws,
 } from '../../src/scripts/lib/config.js';
 
 function mockIO(files = {}) {
@@ -285,8 +286,46 @@ describe('getLaws - new shape', () => {
       'foundry/laws/style.md': '## clarity\nBe clear.',
     });
     const laws = await getLaws('foundry', io);
-    assert.deepEqual(laws[0], { id: 'clarity', text: 'Be clear.' });
+    assert.deepEqual(laws[0], { id: 'clarity', text: 'Be clear.', group: 'default' });
     assert.equal(laws[0].source, undefined);
+  });
+
+  it('carries group in returned objects', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': '## clarity\nBe clear.\n\ngroup: security',
+    });
+    const laws = await getLaws('foundry', io);
+    assert.equal(laws[0].group, 'security');
+  });
+
+  it('returns group default for ungrouped laws', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': '## clarity\nBe clear.',
+    });
+    const laws = await getLaws('foundry', io);
+    assert.equal(laws[0].group, 'default');
+  });
+
+  it('strips source and validators but not group', async () => {
+    const io = mockIO({
+      'foundry/laws': ['style.md'],
+      'foundry/laws/style.md': `## clarity
+Be clear.
+
+validators:
+  - id: check
+    command: echo test
+
+group: audit`,
+    });
+    const laws = await getLaws('foundry', io);
+    assert.equal(laws[0].group, 'audit');
+    assert.equal(laws[0].source, undefined);
+    assert.equal(laws[0].validators, undefined);
+    assert.equal(laws[0].id, 'clarity');
+    assert.equal(laws[0].text, 'Be clear.');
   });
 });
 
@@ -364,5 +403,83 @@ describe('selectAppraisers', () => {
     });
     const result = await selectAppraisers('foundry', 'code', { io, countOverride: 2 });
     assert.equal(result.length, 2);
+  });
+});
+
+describe('parseLaws', () => {
+  it('parses group field from law body', () => {
+    const result = parseLaws('## L1\nDo stuff.\n\ngroup: security', 'test.md');
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, 'L1');
+    assert.equal(result[0].group, 'security');
+  });
+
+  it('defaults to default when group absent', () => {
+    const result = parseLaws('## L1\nDo stuff.', 'test.md');
+    assert.equal(result[0].group, 'default');
+  });
+
+  it('strips group line from prose text', () => {
+    const result = parseLaws('## L1\nDo stuff.\n\ngroup: security', 'test.md');
+    assert.equal(result[0].text, 'Do stuff.');
+    assert.ok(!result[0].text.includes('group:'));
+  });
+
+  it('handles multiple laws with different groups', () => {
+    const result = parseLaws('## L1\nDo stuff.\n\ngroup: a\n\n## L2\nMore stuff.\n\ngroup: b', 'test.md');
+    assert.equal(result.length, 2);
+    assert.equal(result[0].group, 'a');
+    assert.equal(result[1].group, 'b');
+  });
+
+  it('strips group before validators block', () => {
+    const result = parseLaws(`## L1
+Do stuff.
+
+group: security
+
+validators:
+  - id: check
+    command: echo test`, 'test.md');
+    assert.equal(result[0].group, 'security');
+    assert.equal(result[0].validators.length, 1);
+    assert.equal(result[0].text, 'Do stuff.');
+    assert.ok(!result[0].text.includes('group:'));
+    assert.ok(!result[0].text.includes('validators:'));
+  });
+
+  it('strips group after validators block', () => {
+    const result = parseLaws(`## L1
+Do stuff.
+
+validators:
+  - id: check
+    command: echo test
+
+group: audit`, 'test.md');
+    assert.equal(result[0].group, 'audit');
+    assert.equal(result[0].validators.length, 1);
+    assert.equal(result[0].text, 'Do stuff.');
+    assert.ok(!result[0].text.includes('group:'));
+    assert.ok(!result[0].text.includes('validators:'));
+  });
+
+  it('ignores indented group inside validator entry', () => {
+    const result = parseLaws(`## L1
+Do stuff.
+
+validators:
+  - id: check
+    command: echo test
+    group: ignore`, 'test.md');
+    assert.equal(result[0].group, 'default');
+    assert.equal(result[0].validators.length, 1);
+  });
+
+  it('treats empty group value as absent', () => {
+    const result = parseLaws('## L1\nDo stuff.\n\ngroup:', 'test.md');
+    assert.equal(result[0].group, 'default');
+    // Empty group line stays in prose (not stripped)
+    assert.ok(result[0].text.includes('group:'));
   });
 });
