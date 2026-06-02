@@ -92,7 +92,19 @@ async function dispatchSingleAppraiser(appraiser, opts) {
   childSessions.set(session.id, 'appraise');
 
   const resolvedModel = resolveAppraiseModel(appraiser, cfm);
-  const promptBody = { system: buildAppraiserPrompt({ appraiser, typeId: outputType }), parts: [] };
+
+  // STUB: Phase 08 replaces this stub with real unit/identity from dispatch matrix
+  const identity = { group: 'default', appraiser: appraiser.id, pass: 1 };
+  const stubUnit = {
+    mode: 'law-by-law',
+    group: 'default',
+    law: { id: 'STUB', text: 'All artefacts must comply with organisational policy.' },
+  };
+
+  const promptBody = {
+    system: buildAppraiserPrompt({ appraiser, typeId: outputType, unit: stubUnit, identity }),
+    parts: [],
+  };
   if (resolvedModel) promptBody.model = resolvedModel;
 
   await client.session.prompt({

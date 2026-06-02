@@ -172,14 +172,16 @@ function deduplicateIssues(issues) {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a subagent prompt for an appraiser.
+ * Build a subagent prompt for an appraiser scoped to an evaluation unit.
  *
- * The prompt contains only the appraiser's personality and the artefact type
- * ID. The subagent discovers artefact files, laws, and file-patterns via tool
- * calls and uses foundry_stage_output to report each violation.
+ * The prompt embeds the scoped law(s) directly and instructs the appraiser
+ * to report violations via foundry_stage_output and to produce no output
+ * when the artefact complies. The personality framing and artefact-discovery
+ * tool instructions are preserved. The law-discovery instruction is
+ * removed — laws are provided inline.
  */
-function buildAppraiserPrompt({ appraiser, typeId }) {
-  const lines = [
+function buildAppraiserPrompt({ appraiser, typeId, unit, identity }) {
+  const preamble = [
     'You are an appraiser. Your personality:',
     '',
     appraiser.personality,
@@ -188,20 +190,57 @@ function buildAppraiserPrompt({ appraiser, typeId }) {
     '',
     'Use tools to discover context:',
     `- foundry_config_artefact_type with typeId "${typeId}" for file-patterns`,
-    `- foundry_config_laws with typeId "${typeId}" for applicable laws (prose only)`,
     '- foundry_artefacts_list for changed files',
     '- Read matching files from the worktree',
+  ].join('\n');
+
+  return [preamble, buildLawBlock(unit, typeId), buildViolationInstruction(identity)].join('\n\n');
+}
+
+/**
+ * Build the mode-specific law block for the prompt.
+ * Bundle mode lists every law in the group; law-by-law mode embeds a single law.
+ */
+function buildLawBlock(unit, typeId) {
+  if (unit.mode === 'bundle') {
+    const laws = unit.laws.map(l => `## ${l.id}\n${l.text}`).join('\n\n');
+    return `The group "${unit.group}" defines these laws:\n\n${laws}\n\nEvaluate whether every artefact of type "${typeId}" complies with every law in the group "${unit.group}".`;
+  }
+  return `The law to evaluate is:\n\n## ${unit.law.id}\n${unit.law.text}\n\nEvaluate whether every artefact of type "${typeId}" complies with this specific law.`;
+}
+
+/**
+ * Build the violations-only instruction block for the prompt.
+ * Informs the appraiser to report violations via foundry_stage_output with
+ * identity fields and to produce no output when the artefact complies.
+ */
+function buildViolationInstruction(identity) {
+  return [
+    'For each violation, call foundry_stage_output with the following data:',
     '',
-    'For each violation, call `foundry_stage_output({ data: { file, law, text, evidence } })`.',
-    '`file`, `law`, and `text` are required. `evidence` is recommended.',
+    'foundry_stage_output({',
+    '  data: {',
+    `    file: "<path to violating file>",`,
+    `    law: "<law.id>",`,
+    `    text: "<description of the issue>",`,
+    `    group: "${identity.group}",`,
+    `    appraiser: "${identity.appraiser}",`,
+    `    pass: ${identity.pass}`,
+    '  }',
+    '})',
+    '',
+    '`file`, `law`, `text`, `group`, `appraiser`, and `pass` are required.',
+    '`evidence` is recommended.',
     'Optional fields `severity` and `location` are passed through unchanged.',
     '',
-    'If no issues, call no tool — produce no output. The system collects your findings from stage-output files.',
-    'The stage lifecycle is managed by the orchestrator. Do NOT call foundry_stage_begin or foundry_stage_end.',
+    'If the artefact complies with every law in this unit, call NO tool —',
+    'produce no output. The system collects your findings from stage-output',
+    'files. An empty result means the artefact passed.',
+    '',
+    'The stage lifecycle is managed by the orchestrator. Do NOT call',
+    'foundry_stage_begin or foundry_stage_end.',
     'Do NOT write JSONL as text. Call the tool.',
-  ];
-
-  return lines.join('\n');
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
