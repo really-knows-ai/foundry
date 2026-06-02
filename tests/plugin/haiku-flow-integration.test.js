@@ -376,6 +376,18 @@ test('D1.7: appraise dispatch uses parallel sessions and consolidates', async ()
 
     const plugin = await FoundryPlugin({ directory: root, client });
 
+    // The childSessions map is scoped to the dispatch window and cleared when
+    // foundry_run returns (spec R4.1). Observe appraise role assignments as they
+    // happen during the run rather than inspecting the cleared map afterwards.
+    const childSessions = plugin[Symbol.for('foundry.test.childSessions')];
+    assert.ok(childSessions, 'childSessions map should exist');
+    const appraiseSessions = [];
+    const origSet = childSessions.set.bind(childSessions);
+    childSessions.set = function(id, role) {
+      if (role === 'appraise') appraiseSessions.push(id);
+      return origSet(id, role);
+    };
+
     await plugin.tool.foundry_run.execute(
       { flow: 'haiku', goal: 'write a haiku' },
       { worktree: root, sessionID: 'main-session' },
@@ -386,13 +398,6 @@ test('D1.7: appraise dispatch uses parallel sessions and consolidates', async ()
     assert.ok(sessionIds.length >= 3,
       'expected at least 3 child sessions (forge + 2 appraisers), got: ' + sessionIds.length);
 
-    // Check childSessions map has entries for appraise role
-    const childSessions = plugin[Symbol.for('foundry.test.childSessions')];
-    assert.ok(childSessions, 'childSessions map should exist');
-    const appraiseSessions = [];
-    for (const [id, role] of childSessions) {
-      if (role === 'appraise') appraiseSessions.push(id);
-    }
     assert.ok(appraiseSessions.length >= 2,
       'expected at least 2 appraise sessions, got: ' + appraiseSessions.length);
   } finally {

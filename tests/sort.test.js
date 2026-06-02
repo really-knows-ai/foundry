@@ -1428,7 +1428,7 @@ describe('runSort micro-commit enforcement', () => {
     assert.equal(res.route, 'violation');
     assert.match(res.details, /Uncommitted tool-managed files/);
     assert.match(res.details, /WORK\.md/);
-    assert.match(res.details, /foundry_orchestrate/);
+    assert.match(res.details, /foundry_run/);
   });
 
   it('returns violation for untracked WORK.history.yaml', () => {

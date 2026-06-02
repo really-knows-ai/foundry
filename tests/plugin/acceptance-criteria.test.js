@@ -237,11 +237,11 @@ test('AC6: foundry_list_models returns models from connected providers', async (
   const mockClient = {
     config: {
       providers: async function() {
-        return [{ name: 'opencode-go', models: { 'deepseek-v4-flash': {} } }];
+        return { providers: [{ name: 'opencode-go', models: { 'deepseek-v4-flash': {} } }] };
       },
     },
     provider: {
-      list: function() { return { connected: [{ name: 'opencode-go' }] }; },
+      list: function() { return { connected: ['opencode-go'] }; },
     },
   };
 

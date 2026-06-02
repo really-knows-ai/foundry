@@ -5,10 +5,10 @@ import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { continueRun } from '../../scripts/run.js';
 import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
-import { makeIO, makeExec } from './helpers.js';
+import { makeIO, makeExec, makeExecGit } from './helpers.js';
 
 function makeGit(worktree) {
-  const execFile = makeExec(worktree);
+  const execFile = makeExecGit(worktree);
   return {
     commit: function(message, opts) {
       return commitWithPolicy({ message, allowedPatterns: (opts && opts.allowedPatterns) || [], execFile });

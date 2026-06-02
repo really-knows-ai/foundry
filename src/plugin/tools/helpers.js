@@ -155,6 +155,17 @@ export function makeExec(cwd) {
 }
 
 /**
+ * Factory for creating git-specific exec functions.
+ * Returns a function that runs `git` with the supplied argv (no `git` prefix),
+ * matching the contract expected by commitWithPolicy and other git-bridge helpers.
+ */
+export function makeExecGit(cwd) {
+  return (argv) => execFileSync('git', argv, {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+
+/**
  * Guard function that ensures a tool is called on a flow branch (work/* or dry-run/*).
  * Used by guarded() to enforce branch requirements for flow-tier mutations.
  * Returns the result of requireOnFlowBranch({ exec }).

@@ -26,10 +26,10 @@ test('tool can access client via closure — null client returns error', async (
 test('tool can access client via closure — valid client returns models', async () => {
   const mockClient = {
     config: {
-      providers: async () => [{ name: 'test-p', models: { 'm1': {} } }],
+      providers: async () => ({ providers: [{ name: 'test-p', models: { 'm1': {} } }] }),
     },
     provider: {
-      list: async () => ({ connected: [{ name: 'test-p' }] }),
+      list: async () => ({ connected: ['test-p'] }),
     },
   };
   const plugin = await FoundryPlugin({ directory: process.cwd(), client: mockClient });

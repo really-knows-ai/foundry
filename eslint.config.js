@@ -263,6 +263,14 @@ export default [
     },
   },
 
+  // Shared tool helpers: makeExecGit runs git via PATH
+  {
+    files: ['src/plugin/tools/helpers.js'],
+    rules: {
+      'sonarjs/no-os-command-from-path': 'off',
+    },
+  },
+
   // Config create tools: requires OS command execution via PATH
   {
     files: ['src/plugin/tools/config-create-tools.js', 'src/plugin/tools/config-law-tools.js'],
