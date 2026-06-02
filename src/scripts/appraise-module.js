@@ -86,7 +86,7 @@ export async function readConsolidatedOutputs(io) {
 /**
  * Export parseConsolidated for plugin-driven lifecycle.
  */
-export { parseConsolidated, deduplicateIssues, buildAppraiserPrompt };
+export { parseConsolidated, deduplicateIssues, buildAppraiserPrompt, parseConsolidatedLine };
 
 /**
  * Parse consolidated findings from stage output files and de-duplicate
@@ -104,15 +104,26 @@ function isValidIssue(obj) {
   return Boolean(obj) && typeof obj.file === 'string' && obj.file.length > 0 && typeof obj.text === 'string' && obj.text.length > 0;
 }
 
+function stringField(obj, field, defaultVal) {
+  return typeof obj[field] === 'string' ? obj[field] : defaultVal;
+}
+
+function passField(obj) {
+  return typeof obj.pass === 'number' && !Number.isNaN(obj.pass) ? obj.pass : 0;
+}
+
 function parseConsolidatedLine(line) {
   try {
     const obj = JSON.parse(line);
     if (!isValidIssue(obj)) return null;
     return {
       file: obj.file,
-      law: typeof obj.law === 'string' ? obj.law : '',
+      law: stringField(obj, 'law', ''),
       issue: obj.text,
-      evidence: typeof obj.evidence === 'string' ? obj.evidence : '',
+      evidence: stringField(obj, 'evidence', ''),
+      group: stringField(obj, 'group', 'default'),
+      appraiser: stringField(obj, 'appraiser', 'unknown'),
+      pass: passField(obj),
     };
   } catch {
     return null;
