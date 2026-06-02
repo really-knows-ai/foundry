@@ -146,7 +146,7 @@ describe('appraise contract', () => {
       initRepo(dir);
       const plugin = await FoundryPlugin({ directory: dir });
       await beginStage(plugin, dir, 'appraise:round-1', 'cycle-1', 'n-appraise-1');
-      await stageOutput(plugin, dir, { file: 'a.md', law: 'style', text: 'issue' });
+      await stageOutput(plugin, dir, { file: 'a.md', law: 'style', text: 'issue', group: 'default', appraiser: 'skeptic', pass: 1 });
       const result = await stageEnd(plugin, dir);
       assert.equal(result.ok, true);
     } finally {
@@ -160,9 +160,9 @@ describe('appraise contract', () => {
       initRepo(dir);
       const plugin = await FoundryPlugin({ directory: dir });
       await beginStage(plugin, dir, 'appraise:round-1', 'cycle-1', 'n-appraise-3');
-      await stageOutput(plugin, dir, { file: 'a.md', law: 'style', text: 'issue 1' });
-      await stageOutput(plugin, dir, { file: 'a.md', law: 'mood', text: 'issue 2' });
-      await stageOutput(plugin, dir, { file: 'b.md', law: 'style', text: 'issue 3' });
+      await stageOutput(plugin, dir, { file: 'a.md', law: 'style', text: 'issue 1', group: 'default', appraiser: 'skeptic', pass: 1 });
+      await stageOutput(plugin, dir, { file: 'a.md', law: 'mood', text: 'issue 2', group: 'default', appraiser: 'skeptic', pass: 1 });
+      await stageOutput(plugin, dir, { file: 'b.md', law: 'style', text: 'issue 3', group: 'default', appraiser: 'skeptic', pass: 1 });
       const result = await stageEnd(plugin, dir);
       assert.equal(result.ok, true);
       // Verify 3-line JSONL file in session output

@@ -9,9 +9,11 @@ import { appendEntry } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.js';
 import { buildAppraiserPrompt, parseConsolidated } from './appraise-module.js';
+import { resolveGroupConfig } from './lib/group-config.js';
+import { buildDispatch } from './lib/evaluation-units.js';
 
 import { parseModelId } from './lib/parse-model-id.js';
-import { selectAppraisers, getCycleDefinition } from './lib/config.js';
+import { getCycleDefinition, getLaws, getAppraisers, getFlow } from './lib/config.js';
 
 function resolveBaseSha(io) {
   try {
@@ -47,6 +49,7 @@ async function cycleIdFrom(cycleId, sort) {
 }
 
 export { resolveAppraiseModel, cleanStageOutputDir };
+export { partitionLawsByGroup, resolveGroupConfigs, recordToUnitId, buildCompletionCoverage, writeCoverageFile };
 
 // ---------------------------------------------------------------------------
 // Stage lifecycle
@@ -83,26 +86,79 @@ function emptyAppraiseResult(io, cycleId, baseSha, historyPath, reason) {
   return { ok: true };
 }
 
-async function dispatchSingleAppraiser(appraiser, opts) {
-  const { client, childSessions, context, worktree, outputType, cfm } = opts;
+// ---------------------------------------------------------------------------
+// Phase 08 helpers — law-group fan-out
+// ---------------------------------------------------------------------------
+
+/**
+ * Partition an array of law objects by their group field.
+ * Laws without a group are placed under the key "default".
+ * @param {{id:string,text:string,group?:string}[]} laws
+ * @returns {Map<string,{id:string,text:string,group:string}[]>}
+ */
+function partitionLawsByGroup(laws) {
+  const groups = new Map();
+  for (const law of laws) {
+    const key = law.group || 'default';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(law);
+  }
+  return groups;
+}
+
+/**
+ * Resolve effective config for every distinct law group.
+ * Calls resolveGroupConfig for each group and collects warnings.
+ * @param {string[]} groupNames
+ * @param {object|null} flowGroups
+ * @param {object|null} typeAppraisers
+ * @param {{id:string}[]} fullAppraiserPool
+ * @param {string} [artefactTypeId]
+ * @returns {{configs:Map, warnings:string[]}}
+ */
+function resolveGroupConfigs(groupNames, flowGroups, typeAppraisers, fullAppraiserPool, artefactTypeId) {
+  const configs = new Map();
+  const warnings = [];
+  for (const name of groupNames) {
+    const resolved = resolveGroupConfig(name, flowGroups, typeAppraisers, fullAppraiserPool, artefactTypeId);
+    warnings.push(...resolved.warnings);
+    configs.set(name, { mode: resolved.mode, passes: resolved.passes, appraisers: resolved.appraisers });
+  }
+  return { configs, warnings };
+}
+
+/**
+ * Dispatch a single (unit, appraiser, pass) evaluation session.
+ * Replaces dispatchSingleAppraiser with a Phase 07 scoped prompt.
+ */
+async function dispatchScopedSession(entry, opts) {
+  const { client, childSessions, context, worktree, outputType, cfm, lawGroups } = opts;
+  const { unit, appraiser, pass } = entry;
+
   const session = await client.session.create({
-    body: { parentID: context.sessionID, title: 'Appraise: ' + (appraiser.name || appraiser.id) },
+    body: {
+      parentID: context.sessionID,
+      title: 'Appraise: ' + appraiser.id + ' [' + unit.unitId + '] pass ' + pass,
+    },
     query: { directory: worktree },
   });
   childSessions.set(session.id, 'appraise');
 
   const resolvedModel = resolveAppraiseModel(appraiser, cfm);
 
-  // STUB: Phase 08 replaces this stub with real unit/identity from dispatch matrix
-  const identity = { group: 'default', appraiser: appraiser.id, pass: 1 };
-  const stubUnit = {
-    mode: 'law-by-law',
-    group: 'default',
-    law: { id: 'STUB', text: 'All artefacts must comply with organisational policy.' },
-  };
+  // Enrich unit with law objects for the Phase 07 prompt builder
+  const groupLaws = lawGroups.get(unit.group) || [];
+  const promptUnit = unit.mode === 'bundle'
+    ? Object.assign({}, unit, { laws: groupLaws })
+    : Object.assign({}, unit, { law: groupLaws.find(function(l) { return l.id === unit.lawIds[0]; }) || { id: unit.lawIds[0], text: '' } });
 
   const promptBody = {
-    system: buildAppraiserPrompt({ appraiser, typeId: outputType, unit: stubUnit, identity }),
+    system: buildAppraiserPrompt({
+      appraiser,
+      typeId: outputType,
+      unit: promptUnit,
+      identity: { group: entry.group, appraiser: appraiser.id, pass: entry.pass },
+    }),
     parts: [],
   };
   if (resolvedModel) promptBody.model = resolvedModel;
@@ -169,57 +225,213 @@ function recordAppraiseHistory(opts) {
 }
 
 /**
+ * Find the unit in law-by-law mode whose lawIds include the given law.
+ * @param {{lawIds:string[]}[]} units
+ * @param {{law:string}} record
+ * @returns {string|undefined}
+ */
+function findLawUnit(units, record) {
+  for (const unit of units) {
+    if (unit.lawIds && unit.lawIds.includes(record.law)) {
+      return unit.unitId;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Map a violation record to the unitId of the evaluation unit that produced it.
+ * Bundle mode maps all violations to the single bundle unit.
+ * Law-by-law mode finds the unit whose lawIds include the record's law.
+ * @param {{group:string,law:string}} record
+ * @param {Map<string,{unitId:string,mode:string,lawIds:string[]}[]>} unitsByGroup
+ * @returns {string|undefined}
+ */
+function recordToUnitId(record, unitsByGroup) {
+  const units = unitsByGroup.get(record.group);
+  if (!units || units.length === 0) return undefined;
+  if (units.length === 1 && units[0].mode === 'bundle') return units[0].unitId;
+  return findLawUnit(units, record);
+}
+
+/**
+ * Safely parse a JSON line, returning null on failure.
+ */
+function tryParseLine(line) {
+  try { return JSON.parse(line); } catch { return null; }
+}
+
+/**
+ * Count violations from stage-output file content and attribute to units.
+ */
+function countViolationsInContent(content, unitsByGroup, coverage) {
+  for (const line of content.trim().split('\n').filter(Boolean)) {
+    const record = tryParseLine(line);
+    if (!record) continue;
+    const unitId = recordToUnitId(record, unitsByGroup);
+    if (unitId && coverage.has(unitId)) {
+      coverage.get(unitId).violations++;
+    }
+  }
+}
+
+/**
+ * Count violations from stage-output files, grouping by evaluation unit.
+ */
+function countViolationsFromFiles(filePaths, io, unitsByGroup, coverage) {
+  for (const fp of filePaths) {
+    let content;
+    try { content = io.readFile(fp); } catch { continue; }
+    countViolationsInContent(content, unitsByGroup, coverage);
+  }
+}
+
+/**
+ * Build per-unit completion coverage from dispatch results and stage outputs.
+ * The violations-only protocol: the executor records completions, not verdicts.
+ * A fulfilled dispatch is a completed evaluation; a rejected dispatch is uncompleted.
+ * @param {object[]} dispatchMatrix
+ * @param {PromiseSettledResult[]} settled
+ * @param {string[]} filePaths
+ * @param {object} io
+ * @param {Map<string,{unitId:string,mode:string,lawIds:string[]}[]>} unitsByGroup
+ * @returns {Map<string,{
+ *   unitId:string,group:string,mode:string,law:string|null,
+ *   evaluations:object[],violations:number
+ * }>}
+ */
+function buildCompletionCoverage(dispatchMatrix, settled, filePaths, io, unitsByGroup) {
+  const coverage = new Map();
+
+  dispatchMatrix.forEach(function(entry, i) {
+    const result = settled[i];
+    const unitId = entry.unit.unitId;
+
+    if (!coverage.has(unitId)) {
+      coverage.set(unitId, {
+        unitId: unitId,
+        group: entry.group,
+        mode: entry.unit.mode,
+        law: entry.unit.mode === 'law-by-law' ? (entry.unit.lawIds?.[0] || null) : null,
+        evaluations: [],
+        violations: 0,
+      });
+    }
+
+    coverage.get(unitId).evaluations.push({
+      appraiser: entry.appraiser.id,
+      pass: entry.pass,
+      completed: result.status === 'fulfilled',
+    });
+  });
+
+  countViolationsFromFiles(filePaths, io, unitsByGroup, coverage);
+
+  return coverage;
+}
+
+/**
+ * Serialise coverage data to a JSON file for the attestation tool.
+ * Writes a sorted JSON array of coverage entries to foundry/.stage/.coverage-<cycleId>.json.
+ */
+function writeCoverageFile(io, coverage, cycleId) {
+  const entries = [...coverage.entries()]
+    .sort(function(a, b) { return a[0].localeCompare(b[0]); })
+    .map(function([unitId, entry]) {
+      return { unitId: unitId, ...entry };
+    });
+  const json = JSON.stringify(entries, null, 2) + '\n';
+  io.writeFile('foundry/.stage/.coverage-' + cycleId + '.json', json);
+}
+
+/**
+ * Extract flow-level groups and artefact-type appraiser config from cycle frontmatter.
+ */
+function extractGroupsAndAppraisers(flowDef, cfm, outputType) {
+  return {
+    flowGroups: flowDef.frontmatter['law-groups'] || {},
+    typeAppraisers: cfm['artefact-types']?.[outputType]?.appraisers || null,
+  };
+}
+
+/**
+ * Post-process appraise results: consolidate, post feedback, build coverage,
+ * persist coverage, close stage, record history.
+ */
+async function postProcessAppraise(opts) {
+  const {
+    io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
+    foundryDir, outputType, worktree, historyPath, baseSha,
+  } = opts;
+  const filePaths = readAppraiseStageOutputs(io);
+  const failures = parseConsolidated(filePaths, io);
+  const store = openFeedbackStore(feedbackPath, io);
+  const stage = 'appraise:' + cycleId;
+  const av = await computeArtefactVersion(foundryDir, outputType, io, worktree)
+    .catch(function() { return undefined; });
+  postConsolidatedFeedback(store, failures, av, stage, cycleId);
+  resolveAppraiseStaleFeedback(store, cycleId);
+  const coverage = buildCompletionCoverage(dispatchMatrix, settled, filePaths, io, unitsByGroup);
+  writeCoverageFile(io, coverage, cycleId);
+  const summary = failures.length === 0 ? 'No issues found' : 'actioned:' + failures.length;
+  writeLastStage(io, { cycle: cycleId, stage, baseSha, summary });
+  clearActiveStage(io);
+  recordAppraiseHistory({
+    historyPath, cycleId, summary,
+    rejected: settled.filter(function(r) { return r.status === 'rejected'; }), io,
+  });
+  return coverage;
+}
+
+/**
  * Execute an appraise stage.
  *
- * Lifecycle: stage_begin (set up active stage, clean output dir), parallel
- * dispatch of appraisers via child sessions, read stage-output files,
- * post consolidated feedback with artefact version, resolve prior appraise
- * feedback, clean up output files, close stage, record history.
+ * Lifecycle: stage_begin, collect and partition laws, resolve group configs,
+ * build dispatch matrix, parallel dispatch via scoped sessions, consolidate,
+ * post feedback, build per-unit coverage, persist coverage for attestation,
+ * close stage, record history.
  */
 export async function executeAppraise(apprOpts) {
   const { client, childSessions, context, io, worktree, historyPath, feedbackPath } = apprOpts;
 
   const setup = await setupAppraiseStage(apprOpts);
   if (setup.error) return { ok: false, error: setup.error };
-
   const { baseSha, cycleId, outputType, cfm } = setup;
   const foundryDir = 'foundry';
 
-  const appraisers = await selectAppraisers(foundryDir, outputType, { io }).catch(function() { return []; });
-  if (appraisers.length === 0) {
-    return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no appraisers');
-  }
+  // Collect laws with group (Phase 01)
+  const laws = await getLaws(foundryDir, io, { typeId: outputType }).catch(function() { return []; });
+  if (laws.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no laws');
 
+  // Partition by group and resolve configs (Phase 03)
+  const lawGroups = partitionLawsByGroup(laws);
+  const fullAppraiserPool = await getAppraisers(foundryDir, io).catch(function() { return []; });
+  const flowDef = await getFlow(foundryDir, cfm['flow-id'], io).catch(function() { return { frontmatter: {} }; });
+  const { flowGroups, typeAppraisers } = extractGroupsAndAppraisers(flowDef, cfm, outputType);
+  const { configs, warnings } = resolveGroupConfigs(
+    [...lawGroups.keys()], flowGroups, typeAppraisers, fullAppraiserPool, outputType
+  );
+  warnings.forEach(function(w) { console.warn('appraise:', w); });
+
+  // Build dispatch matrix (Phase 06)
+  const { unitsByGroup, dispatchMatrix } = buildDispatch(lawGroups, configs);
+  if (dispatchMatrix.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no dispatch entries');
+
+  // Artefacts (unchanged)
   const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch: 'main' }).catch(function() { return []; });
-  if (artefacts.length === 0) {
-    return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no artefacts');
-  }
+  if (artefacts.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no artefacts');
 
-  const dispatchOpts = { client, childSessions, context, worktree, cycleId, outputType, cfm, io };
+  // Parallel dispatch via scoped sessions (Phase 07 prompt)
+  const dispatchOpts = { client, childSessions, context, worktree, outputType, cfm, io, fullAppraiserPool, lawGroups };
   const settled = await Promise.allSettled(
-    appraisers.map(function(a) { return dispatchSingleAppraiser(a, dispatchOpts); })
+    dispatchMatrix.map(function(entry) { return dispatchScopedSession(entry, dispatchOpts); })
   );
 
-  const filePaths = readAppraiseStageOutputs(io);
-  const consolidated = parseConsolidated(filePaths, io);
-
-  const store = openFeedbackStore(feedbackPath, io);
-  const stage = 'appraise:' + cycleId;
-  const av = await computeArtefactVersion(foundryDir, outputType, io, worktree).catch(function() { return undefined; });
-  postConsolidatedFeedback(store, consolidated, av, stage, cycleId);
-  resolveAppraiseStaleFeedback(store, cycleId);
-  // Stage-output files are cleaned by cleanStageOutputDir in setupAppraiseStage.
-  // cleanupStageOutputFiles from appraise-module is not called here so that
-  // per-session output files remain available for debugging after the run.
-
-  const summary = consolidated.length === 0 ? 'No issues found' : 'actioned:' + consolidated.length;
-  writeLastStage(io, { cycle: cycleId, stage, baseSha, summary });
-  clearActiveStage(io);
-
-  recordAppraiseHistory({
-    historyPath, cycleId, summary,
-    rejected: settled.filter(function(r) { return r.status === 'rejected'; }), io,
+  // Post-process: consolidate, feedback, coverage, close
+  const coverage = await postProcessAppraise({
+    io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
+    foundryDir, outputType, worktree, historyPath, baseSha,
   });
 
-  return { ok: true };
+  return { ok: true, coverage };
 }

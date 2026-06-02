@@ -128,7 +128,26 @@ function commitAttestation(cwd, cycle, content, opts) {
   return { ok: true, commitSha };
 }
 
+function readCoverageFile(cwd, cycleId) {
+  const coveragePath = path.join(cwd, 'foundry/.stage/.coverage-' + cycleId + '.json');
+  if (!existsSync(coveragePath)) return undefined;
+  const raw = JSON.parse(readFileSync(coveragePath, 'utf8'));
+  const coverage = new Map();
+  for (const entry of raw) {
+    coverage.set(entry.unitId, {
+      unitId: entry.unitId,
+      group: entry.group,
+      mode: entry.mode,
+      law: entry.law ?? null,
+      evaluations: entry.evaluations,
+      violations: entry.violations,
+    });
+  }
+  return coverage;
+}
+
 function buildAttestationInputs(opts) {
+  const coverage = readCoverageFile(opts.cwd, opts.cycleId);
   return {
     cwd: opts.cwd,
     foundryDir: 'foundry',
@@ -144,6 +163,7 @@ function buildAttestationInputs(opts) {
       exec: (args) => execFileSync(args[0], args.slice(1), { cwd: opts.cwd, encoding: 'utf8' }),
     },
     execGit: opts.execGit,
+    coverage,
   };
 }
 
@@ -182,6 +202,7 @@ function createAttestTool(tool) {
       const inputs = buildAttestationInputs({
         cwd, baseBranch, goalText: args.message,
         archiveBranch, archiveTipSha: tipSha, execGit,
+        cycleId: cycle,
       });
       const result = await buildAttestation(inputs);
       return handleBuildResult(result, cwd, cycle, opts);

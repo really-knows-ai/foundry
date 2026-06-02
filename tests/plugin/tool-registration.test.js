@@ -9,7 +9,6 @@ import { FoundryPlugin } from '../../src/plugin/foundry.js';
 // If this test fails, the public tool API changed — update the snapshot
 // intentionally (and consider whether docs/skills need updating too).
 const EXPECTED_TOOLS = [
-  'foundry_appraisers_select',
   'foundry_artefacts_list',
   'foundry_assay_run',
   'foundry_attest',

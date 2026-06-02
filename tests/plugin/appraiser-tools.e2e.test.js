@@ -1,74 +1,9 @@
-import { describe, it, before, after } from 'node:test';
-import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { FoundryPlugin } from '../../src/plugin/foundry.js';
+// appraiser-tools.e2e.test.js — removed in Phase 08.
+// foundry_appraisers_select was removed because selectAppraisers
+// was removed from config.js in Phase 03.
 
-const GIT_ENV = {
-  ...process.env,
-  GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
-  GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
-};
+import { describe, it } from 'node:test';
 
-function setupWorktree({ count } = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'plug-appr-'));
-  // foundry_appraisers_select is a flow-tier mutation tool: it requires a
-  // work/<x> branch (Phase 4 branch policy). Init a git repo and check
-  // out a work branch so the happy paths exercise the success side of the
-  // branch guard.
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env: GIT_ENV });
-  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: root, env: GIT_ENV });
-  execFileSync('git', ['checkout', '-q', '-b', 'work/appraiser-test'], { cwd: root, env: GIT_ENV });
-  mkdirSync(join(root, 'foundry/artefacts/code'), { recursive: true });
-  mkdirSync(join(root, 'foundry/appraisers'), { recursive: true });
-  const countLine = count !== null ? `\nappraisers:\n  count: ${count}\n` : '\n';
-  writeFileSync(
-    join(root, 'foundry/artefacts/code/definition.md'),
-    `---\nname: Code${countLine}---\nCode artefact.\n`,
-  );
-  writeFileSync(
-    join(root, 'foundry/appraisers/alice.md'),
-    '---\nid: alice\n---\nAlice the appraiser.\n',
-  );
-  writeFileSync(
-    join(root, 'foundry/appraisers/bob.md'),
-    '---\nid: bob\n---\nBob the appraiser.\n',
-  );
-  return root;
-}
-
-describe('plugin appraiser tools', () => {
-  let root, plugin;
-  before(async () => {
-    root = setupWorktree({ count: 4 });
-    plugin = await FoundryPlugin({ directory: root });
-  });
-  after(() => { rmSync(root, { recursive: true, force: true }); });
-
-  it('registers foundry_appraisers_select', () => {
-    assert.ok(plugin.tool.foundry_appraisers_select, 'missing foundry_appraisers_select tool');
-  });
-
-  it('returns appraisers for a typeId using the configured count', async () => {
-    const ctx = { worktree: root };
-    const out = await plugin.tool.foundry_appraisers_select.execute({ typeId: 'code' }, ctx);
-    const arr = JSON.parse(out);
-    assert.ok(Array.isArray(arr), 'expected JSON array');
-    assert.equal(arr.length, 4, 'expected configured count of 4');
-    assert.equal(arr[0].id, 'alice');
-    assert.equal(arr[1].id, 'bob');
-    assert.equal(arr[2].id, 'alice');
-    assert.equal(arr[3].id, 'bob');
-  });
-
-  it('respects the count arg override', async () => {
-    const ctx = { worktree: root };
-    const out = await plugin.tool.foundry_appraisers_select.execute({ typeId: 'code', count: 2 }, ctx);
-    const arr = JSON.parse(out);
-    assert.equal(arr.length, 2);
-    assert.equal(arr[0].id, 'alice');
-    assert.equal(arr[1].id, 'bob');
-  });
+describe('appraiser tools (removed)', function() {
+  it('placeholder — tool was removed in Phase 08', function() {});
 });

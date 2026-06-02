@@ -74,8 +74,6 @@ const FLOW_TIER_MUTATION_CASES = [
   ['foundry_assay_run', { cycle: 'observe', extractors: ['e'] }],
   // validate-tools.js
   ['foundry_validate_run', { typeId: 'code', file: 'x.md' }],
-  // appraiser-tools.js
-  ['foundry_appraisers_select', { typeId: 'code' }],
   // stage-tools.js
   ['foundry_stage_begin', { stage: 'forge:observe', cycle: 'observe', token: 'x' }],
   ['foundry_stage_end', {}],
@@ -131,7 +129,6 @@ describe('flow-tier mutation tools: branch guard also refuses on config branch',
     ['foundry_workfile_create', { flow: 'f', cycle: 'observe', goal: 'g' }],
     ['foundry_memory_put', { type: 'finding', name: 'x', value: 'v' }],
     ['foundry_assay_run', { cycle: 'observe', extractors: ['e'] }],
-    ['foundry_appraisers_select', { typeId: 'code' }],
   ];
 
   for (const [toolName, args] of SPOT_CHECKS) {
@@ -145,22 +142,11 @@ describe('flow-tier mutation tools: branch guard also refuses on config branch',
 });
 
 describe('flow-tier mutation tools: branch guard accepts dry-run/<x>/<y>', () => {
-  let root, plugin;
+  let root;
   before(async () => {
     root = setupWorktreeOnMain();
     execFileSync('git', ['checkout', '-q', '-b', 'dry-run/observe/probe'], { cwd: root, env: GIT_ENV });
-    plugin = await FoundryPlugin({ directory: root });
+    await FoundryPlugin({ directory: root });
   });
   after(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
-
-  it('foundry_appraisers_select: branch guard passes (no /requires a work\\// error)', async () => {
-    // The tool body may still error for unrelated reasons (e.g. no
-    // appraisers configured), but the branch-guard error must not fire.
-    const out = JSON.parse(await plugin.tool.foundry_appraisers_select.execute(
-      { typeId: 'code' }, { worktree: root }));
-    if (out.error) {
-      assert.doesNotMatch(out.error, /requires a work\//,
-        `branch guard should pass on dry-run/<x>/<y>; got: ${out.error}`);
-    }
-  });
 });

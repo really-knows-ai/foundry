@@ -371,8 +371,14 @@ test('AC9: parallel appraiser sessions write per-session stage-output files cons
     writeAppraiser(root, 'style-checker', 'Style Checker');
     writeAppraiser(root, 'law-checker', 'Law Checker');
 
+    // Add a law file so executeAppraise does not short-circuit with "no laws"
+    const lawsDir = join(root, 'foundry/laws');
+    mkdirSync(lawsDir, { recursive: true });
+    writeFileSync(join(lawsDir, 'quality.md'),
+      '---\n---\n## haiku-syllables\nHaikus must follow 5-7-5 syllable structure.\n');
+
     execSync('git checkout -q -b work/ac9-test', { cwd: root, env: GIT_ENV });
-    execSync('git add . && git commit -m "add haiku flow with appraisers" -q', { cwd: root, env: GIT_ENV });
+    execSync('git add . && git commit -m "add haiku flow with appraisers and laws" -q', { cwd: root, env: GIT_ENV });
 
     // Create an artefact file so appraise has something to evaluate
     writeHaikuArtefactFile(root);

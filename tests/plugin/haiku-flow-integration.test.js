@@ -356,7 +356,12 @@ test('D1.7: appraise dispatch uses parallel sessions and consolidates', async ()
       '---\nid: style-checker\nname: Style Checker\n---\nCheck style.\n');
     writeFileSync(join(appraisersDir, 'law-checker.md'),
       '---\nid: law-checker\nname: Law Checker\n---\nCheck laws.\n');
-    execSync('git add . && git commit -m "add appraisers" -q', { cwd: root, env: GIT_ENV });
+    // Add a law file so executeAppraise does not short-circuit with "no laws"
+    const lawsDir = join(root, 'foundry/laws');
+    mkdirSync(lawsDir, { recursive: true });
+    writeFileSync(join(lawsDir, 'quality.md'),
+      '---\n---\n## haiku-syllables\nHaikus must follow 5-7-5 syllable structure.\n');
+    execSync('git add . && git commit -m "add appraisers and laws" -q', { cwd: root, env: GIT_ENV });
 
     // Create an artefact file so appraise has something to evaluate
     const haikusDir = join(root, 'haikus');
