@@ -193,6 +193,54 @@ test('verifyAttestationRef throws descriptive error for malformed JSON in attest
   }
 });
 
+test('verifyAttestationRef round-trips v2 attestation with coverage section', () => {
+  const signedRepoDir = createSignedRepo();
+  let gpgWrapper;
+  try {
+    const gpgConfig = execSync('git config gpg.program', { cwd: signedRepoDir, encoding: 'utf8' }).trim();
+    gpgWrapper = gpgConfig;
+
+    // Amend the commit to use a v2 payload with coverage
+    const v2Payload = JSON.stringify({
+      schema: 'foundry-attestation/v2',
+      coverage: [
+        {
+          group: 'default',
+          mode: 'bundle',
+          evaluations: [{ appraiser: 'skeptic', pass: 1, completed: true }],
+          violations: 0,
+          status: 'pass',
+        },
+      ],
+    });
+    const commitMessage = [
+      'feat: add haiku flow',
+      '',
+      '-----BEGIN FOUNDRY ATTESTATION-----',
+      v2Payload,
+      '-----END FOUNDRY ATTESTATION-----',
+    ].join('\n');
+    execSync(`git commit --amend -S -m "${commitMessage.replace(/"/g, '\\"')}"`, {
+      cwd: signedRepoDir,
+      env: GIT_ENV,
+    });
+
+    const result = verifyAttestationRef({ cwd: signedRepoDir, ref: 'HEAD' });
+    assert.equal(result.status, 'verified');
+    assert.equal(result.schema, 'foundry-attestation/v2');
+    assert.ok(result.payload, 'payload should be returned');
+    assert.ok(Array.isArray(result.payload.coverage), 'coverage should be an array');
+    assert.equal(result.payload.coverage.length, 1);
+    assert.equal(result.payload.coverage[0].group, 'default');
+    assert.equal(result.payload.coverage[0].status, 'pass');
+  } finally {
+    rmSync(signedRepoDir, { recursive: true, force: true });
+    if (gpgWrapper) {
+      try { rmSync(gpgWrapper, { force: true }); } catch {}
+    }
+  }
+});
+
 test('verifyAttestationRef throws when signed commit has no attestation block', () => {
   const dir = mkdtempSync(join(tmpdir(), 'attestation-missing-'));
   const gpgWrapper = join(tmpdir(), `gpg-test-missing-${process.pid}-${Date.now()}`);

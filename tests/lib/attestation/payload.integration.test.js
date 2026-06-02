@@ -22,6 +22,7 @@ test('buildAttestationPayload emits deterministic top-level sections', async () 
     'process',
     'request',
     'schema',
+    'coverage',
     'work_branch_archive',
   ]);
   assert.equal(payload.work_branch_archive.name, 'archive/work/make-haiku-demo-deadbee');
@@ -559,4 +560,304 @@ test('does not include scope or verdict fields', async () => {
   });
   assert.equal(payload.scope, undefined);
   assert.equal(payload.verdict, undefined);
+});
+
+test('schema is foundry-attestation/v2 with or without coverage data', async () => {
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    foundryDir: '/nonexistent',
+    goalText: 'Write a haiku about rain.',
+    archiveBranch: 'archive/work/make-haiku-demo-deadbee',
+    archiveTipSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+  });
+  assert.equal(payload.schema, 'foundry-attestation/v2');
+});
+
+test('coverage section is empty array when no coverage supplied', async () => {
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+  });
+  assert.ok(Array.isArray(payload.coverage));
+  assert.equal(payload.coverage.length, 0);
+});
+
+test('coverage section present with correct fields when coverage provided', async () => {
+  const coverageMap = new Map([
+    ['default::bundle::0', {
+      unitId: 'default::bundle::0',
+      group: 'default',
+      mode: 'bundle',
+      law: null,
+      evaluations: [
+        { appraiser: 'skeptic', pass: 1, completed: true },
+      ],
+      violations: 0,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  assert.equal(payload.schema, 'foundry-attestation/v2');
+  assert.equal(payload.coverage.length, 1);
+
+  const entry = payload.coverage[0];
+  assert.equal(entry.group, 'default');
+  assert.equal(entry.mode, 'bundle');
+  assert.equal(entry.violations, 0);
+  assert.equal(entry.status, 'pass');
+  assert.equal('law' in entry, false);
+  assert.equal('appraisers' in entry, false);
+  assert.equal('passes' in entry, false);
+  assert.equal('verdicts' in entry, false);
+
+  assert.equal(entry.evaluations.length, 1);
+  assert.equal(entry.evaluations[0].appraiser, 'skeptic');
+  assert.equal(entry.evaluations[0].pass, 1);
+  assert.equal(entry.evaluations[0].completed, true);
+});
+
+test('coverage section: law-by-law entry includes law field', async () => {
+  const coverageMap = new Map([
+    ['security::law-by-law::0', {
+      unitId: 'security::law-by-law::0',
+      group: 'security',
+      mode: 'law-by-law',
+      law: 'no-secrets-in-source',
+      evaluations: [
+        { appraiser: 'skeptic', pass: 1, completed: true },
+      ],
+      violations: 0,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  assert.equal(payload.coverage.length, 1);
+  const entry = payload.coverage[0];
+  assert.equal(entry.law, 'no-secrets-in-source');
+  assert.equal('appraisers' in entry, false);
+  assert.equal('passes' in entry, false);
+  assert.equal('verdicts' in entry, false);
+});
+
+test('coverage section: bundle-mode entry omits law field', async () => {
+  const coverageMap = new Map([
+    ['docs::bundle::0', {
+      unitId: 'docs::bundle::0',
+      group: 'docs',
+      mode: 'bundle',
+      law: null,
+      evaluations: [
+        { appraiser: 'skeptic', pass: 1, completed: true },
+      ],
+      violations: 0,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  assert.equal(payload.coverage.length, 1);
+  assert.equal('law' in payload.coverage[0], false);
+});
+
+test('coverage entries sorted by (group, law) with null law sorting first', async () => {
+  const coverageMap = new Map([
+    ['security::law-by-law::1', {
+      unitId: 'security::law-by-law::1',
+      group: 'security',
+      mode: 'law-by-law',
+      law: 'zebra-rule',
+      evaluations: [{ appraiser: 'a', pass: 1, completed: true }],
+      violations: 0,
+    }],
+    ['security::bundle::0', {
+      unitId: 'security::bundle::0',
+      group: 'security',
+      mode: 'bundle',
+      law: null,
+      evaluations: [{ appraiser: 'a', pass: 1, completed: true }],
+      violations: 0,
+    }],
+    ['alpha::bundle::0', {
+      unitId: 'alpha::bundle::0',
+      group: 'alpha',
+      mode: 'bundle',
+      law: null,
+      evaluations: [{ appraiser: 'a', pass: 1, completed: true }],
+      violations: 0,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  // Order by group then law: alpha, security (null law / bundle), security (law-by-law / zebra-rule)
+  assert.equal(payload.coverage.length, 3);
+  assert.equal(payload.coverage[0].group, 'alpha');
+  assert.equal(payload.coverage[1].group, 'security');
+  assert.equal('law' in payload.coverage[1], false);
+  assert.equal(payload.coverage[2].group, 'security');
+  assert.equal(payload.coverage[2].law, 'zebra-rule');
+});
+
+test('evaluations sorted by (appraiser, pass) within each coverage entry', async () => {
+  const coverageMap = new Map([
+    ['test::bundle::0', {
+      unitId: 'test::bundle::0',
+      group: 'test',
+      mode: 'bundle',
+      law: null,
+      evaluations: [
+        { appraiser: 'skeptic', pass: 2, completed: true },
+        { appraiser: 'auditor', pass: 1, completed: true },
+        { appraiser: 'skeptic', pass: 1, completed: true },
+        { appraiser: 'auditor', pass: 2, completed: true },
+        { appraiser: 'auditor', pass: 3, completed: true },
+        { appraiser: 'skeptic', pass: 3, completed: true },
+      ],
+      violations: 0,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  const evals = payload.coverage[0].evaluations;
+  assert.equal(evals.length, 6);
+  // auditor/1, auditor/2, auditor/3, skeptic/1, skeptic/2, skeptic/3
+  assert.equal(evals[0].appraiser, 'auditor'); assert.equal(evals[0].pass, 1);
+  assert.equal(evals[1].appraiser, 'auditor'); assert.equal(evals[1].pass, 2);
+  assert.equal(evals[2].appraiser, 'auditor'); assert.equal(evals[2].pass, 3);
+  assert.equal(evals[3].appraiser, 'skeptic'); assert.equal(evals[3].pass, 1);
+  assert.equal(evals[4].appraiser, 'skeptic'); assert.equal(evals[4].pass, 2);
+  assert.equal(evals[5].appraiser, 'skeptic'); assert.equal(evals[5].pass, 3);
+});
+
+test('status derivation: fail when violations > 0', async () => {
+  const coverageMap = new Map([
+    ['fail::bundle::0', {
+      unitId: 'fail::bundle::0',
+      group: 'fail',
+      mode: 'bundle',
+      law: null,
+      evaluations: [{ appraiser: 'a', pass: 1, completed: true }],
+      violations: 1,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  assert.equal(payload.coverage[0].status, 'fail');
+});
+
+test('status derivation: pass when zero violations and all completed', async () => {
+  const coverageMap = new Map([
+    ['pass::bundle::0', {
+      unitId: 'pass::bundle::0',
+      group: 'pass',
+      mode: 'bundle',
+      law: null,
+      evaluations: [{ appraiser: 'a', pass: 1, completed: true }],
+      violations: 0,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  assert.equal(payload.coverage[0].status, 'pass');
+});
+
+test('status derivation: incomplete when any evaluation not completed', async () => {
+  const coverageMap = new Map([
+    ['incomplete::bundle::0', {
+      unitId: 'incomplete::bundle::0',
+      group: 'incomplete',
+      mode: 'bundle',
+      law: null,
+      evaluations: [
+        { appraiser: 'a', pass: 1, completed: true },
+        { appraiser: 'a', pass: 2, completed: false },
+      ],
+      violations: 0,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  assert.equal(payload.coverage[0].status, 'incomplete');
+});
+
+test('status derivation: violations take precedence over incomplete', async () => {
+  const coverageMap = new Map([
+    ['mixed::bundle::0', {
+      unitId: 'mixed::bundle::0',
+      group: 'mixed',
+      mode: 'bundle',
+      law: null,
+      evaluations: [
+        { appraiser: 'a', pass: 1, completed: true },
+        { appraiser: 'a', pass: 2, completed: false },
+      ],
+      violations: 1,
+    }],
+  ]);
+
+  const payload = await buildAttestationPayload({
+    cwd: fixtureRepo,
+    goalText: 'Test',
+    archiveBranch: 'archive/work/test',
+    archiveTipSha: 'abc123abc123abc123abc123abc123abc123abcd',
+    coverage: coverageMap,
+  });
+
+  assert.equal(payload.coverage[0].status, 'fail');
 });

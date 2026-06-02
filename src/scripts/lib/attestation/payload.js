@@ -2,6 +2,27 @@
  * Attestation payload builder.
  *
  * Constructs a deterministic, cryptographically verifiable record of work completion.
+ *
+ * @typedef {Object} CoverageMapEntry
+ * @property {string} unitId                 - Unit identifier (e.g. "security::law-by-law::0")
+ * @property {string} group                  - Law group name
+ * @property {'bundle'|'law-by-law'} mode    - Evaluation mode
+ * @property {string|null} law               - Law ID (null for bundle-mode entries)
+ * @property {CoverageEvalEntry[]} evaluations - Per-(appraiser,pass) completion records
+ * @property {number} violations             - Count of attributed violations
+ *
+ * @typedef {Object} CoverageEntry
+ * @property {string} group                  - Law group name
+ * @property {'bundle'|'law-by-law'} mode    - Evaluation mode
+ * @property {string} [law]                  - Law ID (absent for bundle-mode entries)
+ * @property {CoverageEvalEntry[]} evaluations - Per-(appraiser,pass) completion records
+ * @property {number} violations             - Count of attributed violations
+ * @property {'pass'|'fail'|'incomplete'} status - Derived unit status
+ *
+ * @typedef {Object} CoverageEvalEntry
+ * @property {string} appraiser              - Appraiser ID
+ * @property {number} pass                   - 1-based pass index
+ * @property {boolean} completed             - Whether the session completed
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -99,8 +120,120 @@ async function discoverCycleOutputs(resolvedFd, cycleId, resolvedIo, options) {
   return [];
 }
 
+/**
+ * Derive coverage status for a single evaluation unit.
+ *
+ * Status is computed deterministically from completion data and violations.
+ * It is never taken from the model, never asserted by an appraiser, and
+ * never stored in a verdict field.
+ *
+ * @param {number} violations - Count of violations attributed to the unit
+ * @param {CoverageEvalEntry[]} evaluations - Per-(appraiser,pass) completion records
+ * @returns {'pass'|'fail'|'incomplete'}
+ */
+function deriveCoverageStatus(violations, evaluations) {
+  if (violations > 0) return 'fail';
+  if (evaluations.some(e => !e.completed)) return 'incomplete';
+  return 'pass';
+}
+
+/**
+ * Sort comparator: by (appraiser asc, pass asc).
+ *
+ * @param {CoverageEvalEntry} a
+ * @param {CoverageEvalEntry} b
+ * @returns {number}
+ */
+function byAppraiserThenPass(a, b) {
+  if (a.appraiser < b.appraiser) return -1;
+  if (a.appraiser > b.appraiser) return 1;
+  return a.pass - b.pass;
+}
+
+/**
+ * Check whether a value is null or undefined.
+ *
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function isNullOrUndefined(v) {
+  return v === null || v === undefined;
+}
+
+/**
+ * Compare law fields for sorting: null/undefined sorts before any string.
+ *
+ * @param {string|null|undefined} la
+ * @param {string|null|undefined} lb
+ * @returns {number}
+ */
+function compareLaw(la, lb) {
+  if (la === lb) return 0;
+  if (isNullOrUndefined(la)) return -1;
+  if (isNullOrUndefined(lb)) return 1;
+  if (la < lb) return -1;
+  return 1;
+}
+
+/**
+ * Sort comparator: by (group asc, law asc) with null law sorting first.
+ *
+ * @param {CoverageEntry} a
+ * @param {CoverageEntry} b
+ * @returns {number}
+ */
+function byGroupThenLaw(a, b) {
+  if (a.group < b.group) return -1;
+  if (a.group > b.group) return 1;
+  return compareLaw(a.law, b.law);
+}
+
+/**
+ * Build a single coverage entry from a coverage map entry.
+ *
+ * Sorts evaluations by (appraiser, pass) and derives status.
+ * Includes law field only for non-null law values.
+ *
+ * @param {CoverageMapEntry} entry
+ * @returns {CoverageEntry}
+ */
+function buildCoverageEntry(entry) {
+  const sortedEvals = entry.evaluations.slice().sort(byAppraiserThenPass);
+  const covEntry = {
+    group: entry.group,
+    mode: entry.mode,
+    evaluations: sortedEvals,
+    violations: entry.violations,
+    status: deriveCoverageStatus(entry.violations, entry.evaluations),
+  };
+  if (entry.law !== null && entry.law !== undefined) {
+    covEntry.law = entry.law;
+  }
+  return covEntry;
+}
+
+/**
+ * Build coverage entries from the Phase 08 coverage map.
+ *
+ * Iterates the coverage Map, derives status per unit, sorts entries by
+ * (group, law), and sorts each evaluations array by (appraiser, pass).
+ *
+ * @param {Map<string, CoverageMapEntry>} [coverage] - Per-unit coverage data
+ * @returns {CoverageEntry[]} Sorted coverage entries ready for the payload
+ */
+function buildCoverageSection(coverage) {
+  if (!coverage) return [];
+
+  const entries = [];
+  for (const entry of coverage.values()) {
+    entries.push(buildCoverageEntry(entry));
+  }
+  entries.sort(byGroupThenLaw);
+  return entries;
+}
+
 export async function buildAttestationPayload(
-  { cwd, foundryDir: fd, goalText, archiveBranch, archiveTipSha, baseBranch, branchBaseSha, io },
+  { cwd, foundryDir: fd, goalText, archiveBranch, archiveTipSha, baseBranch, branchBaseSha, io, coverage },
 ) {
   const resolvedIo = io || defaultIo(cwd);
   const resolvedFd = fd || 'foundry';
@@ -120,13 +253,16 @@ export async function buildAttestationPayload(
   const sortedEntries = parseAndSortHistoryEntries(historyText);
   const stages = buildStagesFromEntries(sortedEntries);
 
+  const sortedCoverageEntries = buildCoverageSection(coverage);
+
   return {
     contract: buildContract(frontmatter),
     governance: buildGovernance(frontmatter, workText, historyText, feedbackText),
     outputs: outputEntries,
     process: { stages },
     request: { goal_text: goalText },
-    schema: 'foundry-attestation/v1',
+    schema: 'foundry-attestation/v2',
+    coverage: sortedCoverageEntries,
     work_branch_archive: { name: archiveBranch, tip_sha: archiveTipSha },
   };
 }

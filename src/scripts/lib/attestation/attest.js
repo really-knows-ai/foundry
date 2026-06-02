@@ -69,6 +69,7 @@ export async function buildAttestation({
   archiveTipSha,
   io,
   execGit,
+  coverage,
 }) {
   const { workText, historyText, feedbackText } = readWorkFiles(cwd, io);
   const frontmatter = parseFrontmatter(workText);
@@ -89,6 +90,7 @@ export async function buildAttestation({
     baseBranch,
     branchBaseSha,
     io,
+    coverage,
   });
 
   const payloadJson = canonicalJson(payload);
