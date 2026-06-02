@@ -120,8 +120,8 @@ async function executeFeedbackAction(args, context) {
   const pre = preflight(io, 'foundry_feedback_action');
   if (!pre.ok) return JSON.stringify({ error: pre.error });
   const { activeStage, stageBase, cycle } = pre;
-  if (stageBase !== 'forge') {
-    return JSON.stringify({ error: `foundry_feedback_action requires active forge stage; current: ${activeStage}` });
+  if (!['forge', 'human-appraise'].includes(stageBase)) {
+    return JSON.stringify({ error: `foundry_feedback_action requires active forge or human-appraise stage; current: ${activeStage}` });
   }
 
   const reason = maybeSubstituteVerbatimReason(args, context.worktree);
@@ -147,8 +147,8 @@ async function executeFeedbackWontfix(args, context) {
   const pre = preflight(io, 'foundry_feedback_wontfix');
   if (!pre.ok) return JSON.stringify({ error: pre.error });
   const { activeStage, stageBase, cycle } = pre;
-  if (stageBase !== 'forge') {
-    return JSON.stringify({ error: `foundry_feedback_wontfix requires active forge stage; current: ${activeStage}` });
+  if (!['forge', 'human-appraise'].includes(stageBase)) {
+    return JSON.stringify({ error: `foundry_feedback_wontfix requires active forge or human-appraise stage; current: ${activeStage}` });
   }
 
   const reason = maybeSubstituteVerbatimReason(args, context.worktree);

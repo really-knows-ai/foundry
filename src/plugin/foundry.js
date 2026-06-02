@@ -70,8 +70,8 @@ const childSessions = new Map();
 // defined here for test access but enforced in Phase 3.
 
 const FORGE_DENIED = [
-  'foundry_orchestrate', 'foundry_feedback_', 'foundry_config_create_',
-  'foundry_workfile_', 'foundry_git_branch', 'foundry_git_finish',
+  'foundry_orchestrate', 'foundry_feedback_*', 'foundry_config_create_*',
+  'foundry_workfile_*', 'foundry_git_branch', 'foundry_git_finish',
   'foundry_stage_retry', 'foundry_stage_begin', 'foundry_stage_end',
   'foundry_assay_run', 'foundry_refresh_agents',
 ];
@@ -217,7 +217,12 @@ function denyError(name, role) {
 
 function isDenied(name, role) {
   const list = role === 'forge' ? FORGE_DENIED : APPRAISE_DENIED;
-  return list.some(function(p) { return name.startsWith(p); });
+  return list.some(function(p) {
+    if (p.endsWith('*')) {
+      return name.startsWith(p.slice(0, -1));
+    }
+    return name === p;
+  });
 }
 
 function enforceToolPolicy(toolCall, context, sessions) {

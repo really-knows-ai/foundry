@@ -206,6 +206,6 @@ What human-appraise CAN do:
 - You do not make decisions for the human — present the state and wait.
 - You do not modify the artefact.
 - You do not skip the pause — the human must respond before continuing.
-- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` owns those (the tools are not registered publicly).
+- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_run` owns those (the tools are not registered publicly).
 - You do not register artefacts — handled by `foundry_stage_end()`.
 - You do not present the full artefact file content — the human can inspect files themselves if curious. Show summaries only.

@@ -54,6 +54,6 @@ You do NOT call `foundry_feedback_add` or `foundry_feedback_resolve`. The orches
 - You do not revise the artefact — that is the forge skill's job.
 - You do not run deterministic validators — that is the quench skill's job.
 - You do not call `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, or `foundry_feedback_resolve`.
-- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` handles those.
+- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_run` handles those.
 - You do not register artefacts — that happens automatically.
 - You do not output YAML, markdown, or prose — use `foundry_stage_output` for structured data.

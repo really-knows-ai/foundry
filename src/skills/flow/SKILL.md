@@ -2,7 +2,6 @@
 name: flow
 type: composite
 description: Runs a defined foundry flow to produce artefacts. Use this whenever the user references a flow by id, name, or paraphrase (e.g. "use the creative flow", "run creative-flow"). Do not brainstorm — the flow's cycles already define the work. The user's request is the goal to pass in.
-composes: [orchestrate]
 ---
 
 # Flow
@@ -44,8 +43,8 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
       >   3. Investigate and fix the root cause of the failure before restarting.
 
       Then return control to the user and stop.
-5. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The `orchestrate` skill will read the cycle definition and handle setup on its first call.
-6. Execute the cycle by invoking the orchestrate skill
+5. Call `foundry_workfile_create` with **only** the flow ID, chosen cycle ID, and goal — do **not** pass `stages` or `maxIterations`. The initial `foundry_run` call will detect it is a new cycle, read the cycle definition, and handle setup automatically.
+6. Execute the relay loop: call `foundry_run({ flow, goal, inputs? })`, then read the returned `action`. If `"prompt_user"`, present the prompt to the user, capture their response, and call `foundry_continue()`. Repeat until the action is `"done"` or `"violation"`.
 
 ## Between cycles
 
@@ -64,9 +63,9 @@ When a cycle completes (sort returns `done`):
    - The user chooses which target to pursue (or which to pursue first)
 5. Set up the next cycle:
    - Call `foundry_workfile_delete` to clear the completed cycle's WORK.md.
-   - Call `foundry_workfile_create` with **only** the flow ID, the next cycle ID, and the goal — do **not** pass `stages` or `maxIterations`. The orchestrate skill will detect `needsSetup` on its first call and bootstrap the rest of the frontmatter from the cycle definition.
-   - Do **not** register the completed cycle's output as an input to the next cycle. The output file is on disk and the next cycle's forge discovers it through the input type's `file-patterns` — see the forge skill's input-discovery protocol.
-   - Execute the cycle by invoking the orchestrate skill.
+    - Call `foundry_workfile_create` with **only** the flow ID, the next cycle ID, and the goal — do **not** pass `stages` or `maxIterations`. The `foundry_run` call will detect `needsSetup` on its first call and bootstrap the rest of the frontmatter from the cycle definition.
+    - Do **not** register the completed cycle's output as an input to the next cycle. The output file is on disk and the next cycle's forge discovers it through the input type's `file-patterns` — see the forge skill's input-discovery protocol.
+    - Execute the relay loop: call `foundry_run({ flow, goal, inputs? })`, then read the returned `action`. If `"prompt_user"`, present the prompt to the user, capture their response, and call `foundry_continue()`. Repeat until the action is `"done"` or `"violation"`.
 
 ## Completing a flow
 

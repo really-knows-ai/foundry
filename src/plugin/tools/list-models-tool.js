@@ -9,7 +9,7 @@ async function getConnectedNames(client) {
   try {
     const providerList = await client.provider.list();
     if (providerList && Array.isArray(providerList.connected)) {
-      return new Set(providerList.connected.map(p => p.name));
+      return new Set(providerList.connected);
     }
   } catch {
     // If provider.list() fails, do not filter by connection status
@@ -56,7 +56,8 @@ export function createListModelsTool({ tool, client }) {
 
         let providers;
         try {
-          providers = await client.config.providers();
+          const response = await client.config.providers();
+          providers = response.providers;
         } catch (err) {
           return JSON.stringify({
             error: `foundry_list_models: failed to enumerate providers: ${err.message ?? String(err)}`,

@@ -67,9 +67,9 @@ function checkDirtyFiles(history, io) {
   const dirty = getDirtyToolManagedFiles(io);
   if (dirty.length === 0) return null;
   return `Uncommitted tool-managed files since last sort: ${dirty.join(', ')}. `
-    + `Each stage's commit is performed internally by foundry_orchestrate; `
+    + `Each stage's commit is performed internally by foundry_run; `
     + `if you see this, the prior stage's commit was skipped or aborted. `
-    + `Re-run foundry_orchestrate or commit the listed files manually before retrying.`;
+    + `Re-run foundry_run or commit the listed files manually before retrying.`;
 }
 
 const SHA256_RE = /^[0-9a-f]{64}$/;

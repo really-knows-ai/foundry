@@ -8,7 +8,7 @@ import { FoundryPlugin } from '../../src/plugin/foundry.js';
 function mockClient({ providers, connected }) {
   return {
     config: {
-      providers: async () => providers,
+      providers: async () => ({ providers, default: {} }),
     },
     provider: {
       list: async () => ({ connected }),
@@ -22,7 +22,7 @@ test('foundry_list_models returns models from connected providers', async () => 
       { name: 'opencode-go', models: { 'deepseek-v4-flash': {}, 'deepseek-v4-lite': {} } },
       { name: 'openai', models: { 'gpt-4': {} } },
     ],
-    connected: [{ name: 'opencode-go' }],
+    connected: ['opencode-go'],
   });
 
   const plugin = await FoundryPlugin({ directory: process.cwd(), client });

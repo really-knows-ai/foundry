@@ -63,14 +63,14 @@ async function makeArtefactVersion(io, outputType, cwd) {
   return result;
 }
 
-function resolveForgeModel(cfm, sort) {
-  return (cfm.models && cfm.models.forge) || sort.model || '';
+function resolveForgeModel(cfm) {
+  return (cfm.models && cfm.models.forge) || '';
 }
 
-function extractForgeCfm(cfm, sort) {
+function extractForgeCfm(cfm) {
   return {
     outputType: cfm['output-type'] || '',
-    forgeModel: resolveForgeModel(cfm, sort),
+    forgeModel: resolveForgeModel(cfm),
     filePatterns: cfm['file-patterns'] || [],
   };
 }
@@ -93,7 +93,8 @@ function finalizeForgeOutcome(opts) {
     changedFiles: [],
   }), io);
 
-  return { ok: true, contractPassed: contractResult.contractPassed, artefactVersion: arV, changedFiles: [] };
+  if (!contractResult.contractPassed) return { ok: false, error: 'Forge contract failed' };
+  return { ok: true, contractPassed: true, artefactVersion: arV, changedFiles: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +110,7 @@ function dispatchForgePrompt(opts) {
       query: { directory: worktree },
       body: {
         system: dispatchPrompt,
-        model: modelParam,
+        ...(modelParam ? { model: modelParam } : {}),
         parts: [{ type: 'text', text: 'Cycle: ' + cycleId + '\nGoal: ' + route }],
       },
     }).then(function() {
@@ -131,14 +132,14 @@ export async function executeForge(forgeOpts) {
   const cfm = await readCfm(cycleId, io).catch(function(err) { return null; });
   if (!cfm) return { ok: false, error: 'executeForge: cycle ' + cycleId + ' not found' };
 
-  const { outputType, forgeModel, filePatterns } = extractForgeCfm(cfm, sort);
+  const { outputType, forgeModel, filePatterns } = extractForgeCfm(cfm);
 
   const dispatchPrompt = renderDispatchPrompt({
     stage: sort.route, cycle: cycleId, token: sort.token || '',
     cwd: cwd2, filePatterns, outputType, forgeItem: null,
   });
 
-  const modelParam = await resolveModel(forgeModel, sort.model);
+  const modelParam = await resolveModel(forgeModel);
 
   const dispatch = await dispatchForgePrompt({
     client, childSessions, context, worktree, cycleId,

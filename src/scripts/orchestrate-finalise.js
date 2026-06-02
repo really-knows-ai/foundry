@@ -122,11 +122,11 @@ export async function finaliseStage(args) {
 export function handleViolation(args) {
   const { lastResult, activeStage, lastStage } = args;
   const failedStage = activeStage || lastStage;
-  if (!failedStage) { return violation('lastResult.ok=false but the orchestrator has no record of which stage failed — no active stage and no last stage on disk. Call foundry_orchestrate() without arguments to sort and get back on track'); }
+  if (!failedStage) { return violation('lastResult.ok=false but the orchestrator has no record of which stage failed — no active stage and no last stage on disk. Call foundry_run() without arguments to sort and get back on track'); }
   clearStageState(activeStage, lastStage, args.io);
   return violation(
     `subagent dispatch failed for stage "${failedStage.stage}": ${lastResult.error || 'unknown error'}. ` +
-    `Call foundry_orchestrate() to get the next action — the orchestrator will sort and route accordingly.`,
+    `Call foundry_run() to get the next action — the orchestrator will sort and route accordingly.`,
     lastResult.affected_files || [],
   );
 }

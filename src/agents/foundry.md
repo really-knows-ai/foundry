@@ -49,7 +49,6 @@ All skills are registered by the Foundry plugin and loadable via `skill({name: "
 | `reset-memory` | Purging all memory data while keeping type definitions |
 | `drop-memory-entity-type` | Deleting an entity type and cascading to edges |
 | `drop-memory-edge-type` | Deleting an edge type and all its rows |
-| `orchestrate` | Running a foundry cycle by calling `foundry_orchestrate` in a loop |
 | `flow` | Running a defined flow — pass the user's request as the goal |
 | `forge` | Producing or revising an artefact during a cycle |
 | `quench` | Running deterministic validators on an artefact |
@@ -78,6 +77,17 @@ Reuse existing configuration pieces when they clearly fit. When a dependency is 
 - Do not change Foundry configuration on an active `work/*` branch.
 - Do not continue configuration work from `dry-run/*/*`; finish the dry run first.
 - Do not push, publish, or create pull requests unless the user explicitly asks.
+
+## Running a Flow
+
+When the user asks to execute a flow, load the `flow` skill then run the relay loop:
+
+1. Call `foundry_run({ flow, goal, inputs? })` to start or continue a flow run.
+2. Read the returned `action`:
+   - `"prompt_user"` — present the prompt to the user, capture their response, then call `foundry_continue()` to resume the run.
+   - `"done"` — the run completed successfully. Report the outcome to the user.
+   - `"violation"` — the run failed. Report the violation to the user.
+3. Repeat step 2 until the action is `"done"` or `"violation"`.
 
 ## User-Facing Style
 

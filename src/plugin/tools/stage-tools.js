@@ -52,7 +52,7 @@ function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pen
   const meta = pending.consume(tokenResult.payload.nonce);
   if (!meta) {
     deleteDispatchToken(io);
-    return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_orchestrate. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
+    return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_run. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
   }
 
   const tokenHash = createHash('sha256').update(token).digest('hex');
@@ -76,7 +76,7 @@ async function executeStageBegin(args, context, pending) {
 
   const current = readActiveStage(io);
   if (current) {
-    return JSON.stringify({ error: `foundry_stage_begin: stage "${current.stage}" is already active — it was set up by the orchestrator and does not need stage_begin. If you received a dispatch_multi or human_appraise action, proceed with the stage work directly (dispatch subagents or present the review)` });
+    return JSON.stringify({ error: `foundry_stage_begin: stage "${current.stage}" is already active — it was set up by the orchestrator and does not need stage_begin. Proceed with the stage work directly` });
   }
 
   const dispatchResult = readDispatchToken(io);
@@ -186,7 +186,7 @@ async function executeStageEnd(args, context) {
 
   const active = readActiveStage(io);
   if (!active) {
-    return JSON.stringify({ error: 'foundry_stage_end: no active stage to close. If you are trying to recover from a tangled state, call foundry_orchestrate() without arguments — it will sort and route to the next stage' });
+    return JSON.stringify({ error: 'foundry_stage_end: no active stage to close. If you are trying to recover from a tangled state, call foundry_run() without arguments — it will sort and route to the next stage' });
   }
 
   verifyForgeToolsIfApplicable(io, active);

@@ -3,7 +3,7 @@ import { refreshAgents } from './agent-refresh.js';
 export function createRefreshAgentsTool({ tool }) {
   return {
     foundry_refresh_agents: tool({
-      description: 'Regenerate .opencode/agents/foundry-*.md stage-agent files from the currently available models.',
+      description: 'Delete stale .opencode/agents/foundry-*.md stage files. Generates no new agent files.',
       args: {},
       async execute(_args, context) {
         try {

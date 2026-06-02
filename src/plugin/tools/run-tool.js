@@ -1,13 +1,12 @@
 // src/plugin/tools/run-tool.js
 // foundry_run — starts a run, bootstraps WORK.md, and executes the state machine.
 
-import { execFileSync } from 'child_process';
 import { createWorkfile, parseFrontmatter } from '../../scripts/lib/workfile.js';
 import { setupWorkfile } from '../../scripts/orchestrate-setup.js';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { runRun } from '../../scripts/run.js';
-import { resolveGit } from '../../scripts/lib/tool-paths.js';
+import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
 import { makeIO, makeExec } from './helpers.js';
 
 function validateInputs(args) {
@@ -25,21 +24,14 @@ function readFlowDefinition(foundryDir, flowId, io) {
 }
 
 function resolveStartCycles(fm) {
-  const raw = fm.start || fm['starting-cycles'] || null;
+  const raw = fm.start || null;
   if (!raw) return [];
   return Array.isArray(raw) ? raw : [raw];
 }
 
-function resolveSingleCycle(startCycles, args) {
+function resolveSingleCycle(startCycles) {
   if (startCycles.length === 0) return { error: 'flow has no start cycle' };
-  if (startCycles.length === 1) return { cycle: startCycles[0] };
-  if (!args.cycle) {
-    return { error: 'flow has multiple start cycles (' + startCycles.join(', ') + '); specify cycle' };
-  }
-  if (!startCycles.includes(args.cycle)) {
-    return { error: 'flow does not have a start cycle named ' + args.cycle + '. Available: ' + startCycles.join(', ') };
-  }
-  return { cycle: args.cycle };
+  return { cycle: startCycles[0] };
 }
 
 function buildGuardedResponse(branchIo, io) {
@@ -67,14 +59,10 @@ function isSetupViolation(result) {
 }
 
 function makeGit(worktree) {
-  const git = resolveGit();
+  const execFile = makeExec(worktree);
   return {
-    commit: function(message, _opts) {
-      execFileSync(git, ['add', '-A'], { cwd: worktree, encoding: 'utf8', stdio: 'pipe' });
-      execFileSync(git, ['commit', '-m', message], {
-        cwd: worktree, encoding: 'utf8', stdio: 'pipe',
-        env: { ...process.env, GIT_COMMITTER_NAME: 'foundry', GIT_COMMITTER_EMAIL: 'foundry@local', GIT_AUTHOR_NAME: 'foundry', GIT_AUTHOR_EMAIL: 'foundry@local' },
-      });
+    commit: function(message, opts) {
+      return commitWithPolicy({ message, allowedPatterns: (opts && opts.allowedPatterns) || [], execFile });
     },
   };
 }
@@ -83,7 +71,7 @@ function resolveFlowStartCycle(args, io) {
   const flowFm = readFlowDefinition('foundry', args.flow, io);
   if (!flowFm) return { error: 'foundry_run: flow ' + args.flow + ' not found' };
   const startCycles = resolveStartCycles(flowFm);
-  const resolved = resolveSingleCycle(startCycles, args);
+  const resolved = resolveSingleCycle(startCycles);
   if (resolved.error) return { error: 'foundry_run: ' + resolved.error };
   return { startCycle: resolved.cycle };
 }
@@ -96,7 +84,6 @@ export function createRunTool(pluginOpts) {
       args: {
         flow: tool.schema.string().describe('Flow name (id of a flow file in foundry/flows/)'),
         goal: tool.schema.string().describe('Goal text for this run'),
-        cycle: tool.schema.string().optional().describe('Explicit cycle name (required when the flow has multiple start cycles)'),
         inputs: tool.schema.object({}).optional().describe('Upstream artefacts when the start cycle declares an input contract'),
       },
       async execute(args, context) {
@@ -130,6 +117,7 @@ export function createRunTool(pluginOpts) {
           cwd: context.worktree, client, childSessions, context, io,
           worktree: context.worktree, git,
         });
+        childSessions.clear();
         return JSON.stringify(result);
       },
     }),

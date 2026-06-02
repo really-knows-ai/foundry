@@ -16,9 +16,9 @@ export const FORGE_FORBIDDEN_TOOLS = [
 ];
 
 function describeTokenError(reason) {
-  if (reason === 'bad_signature') return `token was copied incorrectly — re-read it from the dispatch prompt exactly, character-by-character. The token must match what foundry_orchestrate gave you`;
+  if (reason === 'bad_signature') return `token was copied incorrectly — re-read it from the dispatch prompt exactly, character-by-character. The token must match what foundry_run gave you`;
   if (reason === 'malformed') return `token is garbled — re-read it from the dispatch prompt. The token is the long string after "Token: " in the orchestrate dispatch`;
-  if (reason === 'expired') return `token expired — this dispatch is stale. Call foundry_orchestrate({lastResult: {ok: false, error: "timed out"}}) to get a fresh dispatch`;
+  if (reason === 'expired') return `token expired — this dispatch is stale. Call foundry_run({lastResult: {ok: false, error: "timed out"}}) to get a fresh dispatch`;
   return `token ${reason}`;
 }
 
@@ -35,7 +35,7 @@ function checkTokenAgentBinding(payload, agent) {
   if (!payload.model) return { payload };
   if (!agent) return { payload };
   if (agent === 'foundry') {
-    return { error: `foundry_stage_begin: this token is meant for a task subagent (${payload.model}), not for you to call directly. Use the task tool with the dispatch prompt to spawn a subagent, and let the subagent call foundry_stage_begin`, fatal: false };
+    return { error: `foundry_stage_begin: this token is meant for a task subagent (${payload.model}), not for you to call directly. Create a child session via the SDK and prompt it with the dispatch instructions, and let the subagent call foundry_stage_begin`, fatal: false };
   }
   return { payload };
 }
@@ -43,7 +43,7 @@ function checkTokenAgentBinding(payload, agent) {
 export function readDispatchToken(io) {
   const tokenPath = '.foundry/dispatch-token';
   if (!io.exists(tokenPath)) {
-    return { error: 'foundry_stage_begin: no dispatch token found — the orchestrator has not produced a dispatch for this worktree. Call foundry_orchestrate() to get a dispatch' };
+    return { error: 'foundry_stage_begin: no dispatch token found — the orchestrator has not produced a dispatch for this worktree. Call foundry_run() to get a dispatch' };
   }
   return { token: io.readFile(tokenPath).trim() };
 }

@@ -98,7 +98,7 @@ test('forgeDenied symbol is defined and contains expected tools', () => {
   const forgeDenied = plugin[Symbol.for('foundry.test.forgeDenied')];
   assert.ok(Array.isArray(forgeDenied));
   assert.ok(forgeDenied.includes('foundry_orchestrate'));
-  assert.ok(forgeDenied.includes('foundry_feedback_'));
+  assert.ok(forgeDenied.includes('foundry_feedback_*'));
   assert.ok(forgeDenied.includes('foundry_stage_begin'));
   assert.ok(forgeDenied.includes('foundry_stage_end'));
 });

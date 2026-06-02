@@ -139,13 +139,27 @@ async function dispatchRouteHandler(opts, s, cycleId, hp) {
 }
 
 /**
+ * When sort determines a cycle transition, handle it and return the
+ * appropriate result for the caller. Returns null when there are no
+ * cycle targets (caller should proceed to terminal violation).
+ */
+async function handleCycleTargets(opts, fm, historyPath) {
+  const io = opts.io;
+  const targets = await readCycleTargets(fm.cycle, io)
+    .catch(function() { return []; });
+  if (!Array.isArray(targets) || targets.length === 0) return null;
+  const transitionResult = await handleCycleTransition(io, fm.cycle, fm, historyPath);
+  if (transitionResult === null) return { done: false };
+  return { done: true, result: transitionResult };
+}
+
+/**
  * When the sort route is not a known stage handler, check for human-appraise
  * or cycle targets. Returns a terminal result on human-appraise, transition,
  * violation, or null when the route is a known stage handler (caller should
  * dispatch normally).
  */
 async function handleUnknownRoute(opts, s, fm, historyPath, prefix) {
-  const io = opts.io;
   const route = s.route;
   const base = routeBaseOf(route);
   if (getHandler(base)) return null;
@@ -154,11 +168,9 @@ async function handleUnknownRoute(opts, s, fm, historyPath, prefix) {
     return { done: true, result: await handleHumanAppraiseInit(opts, s, fm.cycle, historyPath, 'WORK.feedback.yaml') };
   }
 
-  const targets = await readCycleTargets(fm.cycle, io)
-    .catch(function() { return []; });
-  if (Array.isArray(targets) && targets.length > 0) {
-    return { done: true, result: await handleCycleTransition(io, fm.cycle, fm, historyPath) };
-  }
+  const cycleResult = await handleCycleTargets(opts, fm, historyPath);
+  if (cycleResult) return cycleResult;
+
   return { done: true, result: terminalViolation(prefix + ': unknown route ' + route, false) };
 }
 
@@ -206,6 +218,8 @@ async function continueDispatch(opts, s, cycle, hp) {
   if (!handler) return { done: true, result: terminalViolation('continueRun: unknown route ' + s.route, false) };
   const result = await handler(opts, s, cycle, hp, 'WORK.feedback.yaml');
   if (result.action) return { done: true, result: result };
+  const commitErr = tryCommitStage(opts.git, '[' + cycle + '] ' + routeBaseOf(s.route));
+  if (commitErr) return { done: true, result: commitErr };
   return { done: false };
 }
 
@@ -250,7 +264,7 @@ async function handleCycleTransition(io, cycleId, fm, historyPath) {
     comment: 'Transition from ' + cycleId + ' to ' + nextCycle,
   }, io);
 
-  return { action: 'continue-run' };
+  return null;
 }
 
 function checkContinuePreconditions(io) {

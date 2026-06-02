@@ -128,7 +128,7 @@ export async function handleHumanAppraiseInit(opts, sortResult, cycleId, hp, fp)
 
     const feedbackList = loadUnresolvedFeedback(io, fp);
     return terminalPromptUser(
-      'human-appraise:' + cycleId,
+      'human-appraise',
       artefactPath(fm),
       feedbackList,
       fm.goal || '',
@@ -233,6 +233,15 @@ function handleEmptyCapture(io, activeStage, cycleId, capturedText) {
   return { action: 'continue-run' };
 }
 
+function handleApprovalCapture(io, activeStage, cycleId, capturedText) {
+  const trimmed = capturedText.trim();
+  if (/^(looks good|approved|ok|fine|pass|lgtm)[.!]*$/i.test(trimmed)) {
+    closeHumanAppraiseStage(io, activeStage, cycleId, 'no feedback (approval)');
+    return { action: 'continue-run' };
+  }
+  return null;
+}
+
 function handleFreeFormCapture(io, activeStage, cycleId, capturedText, fm) {
   storeFeedbackFromCapture(io, cycleId, capturedText, fm);
   closeHumanAppraiseStage(io, activeStage, cycleId, 'human feedback captured');
@@ -242,7 +251,7 @@ function handleFreeFormCapture(io, activeStage, cycleId, capturedText, fm) {
 function handleDeadlockCapture(io, cycleId, fm) {
   const feedbackList = collectUnresolvedFeedback(io);
   return terminalPromptUser(
-    'human-appraise:' + cycleId,
+    'human-appraise',
     fm['artefact-path'] || fm.artefact || '',
     feedbackList,
     fm.goal || '',
@@ -250,20 +259,30 @@ function handleDeadlockCapture(io, cycleId, fm) {
 }
 
 /**
+ * Fetch messages and return captured user text after the boundary marker.
+ */
+async function captureUserText(client, context, worktree, boundaryMarker) {
+  try {
+    const messages = await fetchSessionMessages(client, context, worktree);
+    return capturePostMarkerText(messages, boundaryMarker);
+  } catch (err) {
+    return terminalViolation('verbatim capture failed: ' + (err.message || String(err)), true);
+  }
+}
+
+/**
  * Perform verbatim capture on first human-appraise resume.
  */
 async function doCapture(cap) {
   const { io, client, context, worktree, activeStage, cycleId, boundaryMarker, fm } = cap;
-  let capturedText;
-  try {
-    const messages = await fetchSessionMessages(client, context, worktree);
-    capturedText = capturePostMarkerText(messages, boundaryMarker);
-  } catch (err) {
-    return terminalViolation('verbatim capture failed: ' + (err.message || String(err)), true);
-  }
+  const capturedText = await captureUserText(client, context, worktree, boundaryMarker);
+  if (typeof capturedText !== 'string') return capturedText;
 
   const emptyResult = handleEmptyCapture(io, activeStage, cycleId, capturedText);
   if (emptyResult) return emptyResult;
+
+  const approvalResult = handleApprovalCapture(io, activeStage, cycleId, capturedText);
+  if (approvalResult) return approvalResult;
 
   writeVerbatimCapture(io, capturedText);
 

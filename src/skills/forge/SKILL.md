@@ -106,7 +106,7 @@ items in the list output.
 - You normally do not add feedback — that is the quench and appraise skills' job.
 - You do not `foundry_feedback_resolve` — that belongs to quench/appraise/human-appraise.
 - You do not register artefacts — the orchestrator's internal finalise step handles that automatically.
-- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_orchestrate` does (those tools are not registered publicly).
+- You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_run` does (those tools are not registered publicly).
 - You do not evaluate or score the artefact.
 - You do not mark feedback as actioned or wont-fix via tool calls — the orchestrator handles feedback transitions based on your artefact changes and stage output.
 - You do not write to any file outside the output artefact type's `file-patterns` (plus `WORK.md` / `WORK.feedback.yaml` / `WORK.history.yaml`). Input files are read-only unless the output type's patterns happen to cover them.

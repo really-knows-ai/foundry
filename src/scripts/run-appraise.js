@@ -7,7 +7,6 @@
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { appendEntry } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
-import { resolveStaleFeedback } from './quench-module.js';
 import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.js';
 import { buildAppraiserPrompt, parseConsolidated } from './appraise-module.js';
 
@@ -36,14 +35,6 @@ function cleanStageOutputDir(io) {
     }
   }
   io.mkdir(outDir);
-}
-
-function readStageOutputDir(io) {
-  const outDir = '.foundry/stage-outputs/';
-  if (!io.exists(outDir)) return [];
-  return io.readDir(outDir)
-    .filter(function(f) { return f.endsWith('.jsonl'); })
-    .map(function(f) { return outDir + f; });
 }
 
 async function readCfm(cycleId, io) {
@@ -113,53 +104,65 @@ async function dispatchSingleAppraiser(appraiser, opts) {
   return session;
 }
 
-function consolidateAndPostFeedback(io, feedbackPath, cycleId) {
-  const filePaths = readStageOutputDir(io);
-  const consolidated = parseConsolidated(filePaths, io);
-  const store = openFeedbackStore(feedbackPath, io);
+function readAppraiseStageOutputs(io) {
+  const outDir = '.foundry/stage-outputs/';
+  if (!io.exists(outDir)) return [];
+  return io.readDir(outDir)
+    .filter(function(f) { return f.endsWith('.jsonl'); })
+    .map(function(f) { return outDir + f; });
+}
+
+function postConsolidatedFeedback(store, consolidated, av, stage, cycleId) {
   for (const issue of consolidated) {
     store.add({
-      file: issue.file,
-      tag: 'law:' + issue.law,
-      text: issue.issue,
-      source: 'appraise:' + cycleId,
-      cycle: cycleId,
+      file: issue.file, tag: 'law:' + issue.law, text: issue.issue,
+      source: stage, cycle: cycleId, artefact_version: av,
     });
   }
-  return { consolidated, store };
 }
 
-async function resolveAppraiseStaleFeedback(opts) {
-  const { io, cycleId, store, foundryDir, outputType, worktree } = opts;
-  const av = await computeArtefactVersion(foundryDir, outputType, io, worktree)
-    .catch(function() { return undefined; });
-  if (av) resolveStaleFeedback(store.list(), av, 'appraise', store, cycleId);
+function isAppraiseItem(prior) {
+  if (typeof prior.source !== 'string') return false;
+  return prior.source.split(':')[0] === 'appraise';
 }
 
-function recordAppraiseHistory(io, cycleId, historyPath, consolidated, results) {
-  const summary = consolidated.length === 0 ? 'No issues found' : 'actioned:' + consolidated.length;
-  appendEntry(historyPath, { cycle: cycleId, stage: 'appraise:' + cycleId, iteration: 1, comment: summary }, io);
+function isNotResolvedFeedback(prior) {
+  return !(prior.history && prior.history[0] && prior.history[0].state === 'resolved');
+}
 
-  const rejected = results.filter(function(r) { return r.status === 'rejected'; });
-  if (rejected.length > 0 && consolidated.length === 0) {
+function resolveAppraiseStaleFeedback(store, cycleId) {
+  for (const item of store.list()) {
+    if (!isAppraiseItem(item)) continue;
+    if (!isNotResolvedFeedback(item)) continue;
+    store.autoResolve({ id: item.id, reason: 'superseded by re-appraisal', cycle: cycleId });
+  }
+}
+
+function cleanupStageOutputFiles(filePaths, io) {
+  for (const fp of filePaths) {
+    try { io.unlink(fp); } catch (err) { if (err.code !== 'ENOENT') console.warn('appraise: failed to delete output file', fp, err.message); }
+  }
+}
+
+function recordAppraiseHistory(opts) {
+  const { historyPath, cycleId, summary, rejected, io } = opts;
+  const stage = 'appraise:' + cycleId;
+  appendEntry(historyPath, { cycle: cycleId, stage, iteration: 1, comment: summary || 'appraise: completed' }, io);
+  if (rejected.length > 0) {
     appendEntry(historyPath, {
-      cycle: cycleId, stage: 'appraise:' + cycleId, iteration: 1,
+      cycle: cycleId, stage, iteration: 1,
       comment: 'appraise: ' + rejected.length + ' appraiser(s) failed',
     }, io);
   }
-}
-
-async function closeAppraiseStage(io, cycleId, baseSha) {
-  writeLastStage(io, { cycle: cycleId, stage: 'appraise:' + cycleId, baseSha: baseSha, summary: '' });
-  clearActiveStage(io);
 }
 
 /**
  * Execute an appraise stage.
  *
  * Lifecycle: stage_begin (set up active stage, clean output dir), parallel
- * dispatch of appraisers via child sessions, collect stage-output files from
- * the in-memory buffer, persist to disk, consolidate, post feedback, stage_end.
+ * dispatch of appraisers via child sessions, read stage-output files,
+ * post consolidated feedback with artefact version, resolve prior appraise
+ * feedback, clean up output files, close stage, record history.
  */
 export async function executeAppraise(apprOpts) {
   const { client, childSessions, context, io, worktree, historyPath, feedbackPath } = apprOpts;
@@ -181,15 +184,30 @@ export async function executeAppraise(apprOpts) {
   }
 
   const dispatchOpts = { client, childSessions, context, worktree, cycleId, outputType, cfm, io };
-  const results = await Promise.allSettled(
+  const settled = await Promise.allSettled(
     appraisers.map(function(a) { return dispatchSingleAppraiser(a, dispatchOpts); })
   );
 
-  await closeAppraiseStage(io, cycleId, baseSha);
+  const filePaths = readAppraiseStageOutputs(io);
+  const consolidated = parseConsolidated(filePaths, io);
 
-  const { consolidated, store } = consolidateAndPostFeedback(io, feedbackPath, cycleId);
-  await resolveAppraiseStaleFeedback({ io, cycleId, store, foundryDir, outputType, worktree });
-  recordAppraiseHistory(io, cycleId, historyPath, consolidated, results);
+  const store = openFeedbackStore(feedbackPath, io);
+  const stage = 'appraise:' + cycleId;
+  const av = await computeArtefactVersion(foundryDir, outputType, io, worktree).catch(function() { return undefined; });
+  postConsolidatedFeedback(store, consolidated, av, stage, cycleId);
+  resolveAppraiseStaleFeedback(store, cycleId);
+  // Stage-output files are cleaned by cleanStageOutputDir in setupAppraiseStage.
+  // cleanupStageOutputFiles from appraise-module is not called here so that
+  // per-session output files remain available for debugging after the run.
+
+  const summary = consolidated.length === 0 ? 'No issues found' : 'actioned:' + consolidated.length;
+  writeLastStage(io, { cycle: cycleId, stage, baseSha, summary });
+  clearActiveStage(io);
+
+  recordAppraiseHistory({
+    historyPath, cycleId, summary,
+    rejected: settled.filter(function(r) { return r.status === 'rejected'; }), io,
+  });
 
   return { ok: true };
 }

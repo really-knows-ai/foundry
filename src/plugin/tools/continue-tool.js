@@ -1,22 +1,17 @@
 // src/plugin/tools/continue-tool.js
 // foundry_continue — advances an existing run by reading state from disk.
 
-import { execFileSync } from 'child_process';
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { continueRun } from '../../scripts/run.js';
-import { resolveGit } from '../../scripts/lib/tool-paths.js';
+import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
 import { makeIO, makeExec } from './helpers.js';
 
 function makeGit(worktree) {
-  const git = resolveGit();
+  const execFile = makeExec(worktree);
   return {
-    commit: function(message, _opts) {
-      execFileSync(git, ['add', '-A'], { cwd: worktree, encoding: 'utf8', stdio: 'pipe' });
-      execFileSync(git, ['commit', '-m', message], {
-        cwd: worktree, encoding: 'utf8', stdio: 'pipe',
-        env: { ...process.env, GIT_COMMITTER_NAME: 'foundry', GIT_COMMITTER_EMAIL: 'foundry@local', GIT_AUTHOR_NAME: 'foundry', GIT_AUTHOR_EMAIL: 'foundry@local' },
-      });
+    commit: function(message, opts) {
+      return commitWithPolicy({ message, allowedPatterns: (opts && opts.allowedPatterns) || [], execFile });
     },
   };
 }
@@ -51,6 +46,7 @@ export function createContinueTool(pluginOpts) {
           cwd: context.worktree, client, childSessions, context, io,
           worktree: context.worktree, git,
         });
+        childSessions.clear();
         return JSON.stringify(result);
       },
     }),
