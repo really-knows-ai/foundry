@@ -233,6 +233,37 @@ test('assembleFlowMarkdown: handles description with special chars', () => {
   assert.match(result, /`code`/);
 });
 
+test('assembleFlowMarkdown: with law-groups configuration', () => {
+  const result = assembleFlowMarkdown({
+    id: 'lawgroup-flow',
+    name: 'LawGroup Flow',
+    startingCycles: ['draft'],
+    description: 'A flow with law groups.',
+    lawGroups: {
+      security: { mode: 'bundle', passes: 3, appraisers: ['skeptic', 'auditor'] },
+      default: { mode: 'law-by-law' },
+    },
+  });
+
+  assert.match(result, /law-groups:/);
+  assert.match(result, / {2}security:/);
+  assert.match(result, / {4}mode: bundle/);
+  assert.match(result, / {4}passes: 3/);
+  assert.match(result, / {4}appraisers:\n {6}- skeptic/);
+  assert.match(result, / {2}default:\n {4}mode: law-by-law/);
+});
+
+test('assembleFlowMarkdown: omits law-groups when not provided', () => {
+  const result = assembleFlowMarkdown({
+    id: 'simple',
+    name: 'Simple',
+    startingCycles: ['draft'],
+    description: 'Simple flow.',
+  });
+
+  assert.doesNotMatch(result, /law-groups/);
+});
+
 // ---------------------------------------------------------------------------
 // assembleCycleMarkdown
 // ---------------------------------------------------------------------------

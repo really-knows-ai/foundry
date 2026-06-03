@@ -134,10 +134,7 @@ function artefactTypeArgs(s) { return {
   filePatterns: s.array(s.string()).describe('Glob patterns defining forge write scope (written to frontmatter.file-patterns)'),
   description: s.string().describe('Prose description placed under ## Definition'),
   example: s.string().optional().describe('Example artefact structure (markdown with code blocks). Written to example.md alongside definition.md. Guides forge agents on the expected output format.'),
-  appraisers: s.object({
-    count: s.number().optional().describe('Number of appraisers per cycle'),
-    allowed: s.array(s.string()).optional().describe('Restrict to specific appraiser IDs'),
-  }).optional().describe('Appraiser selection config'),
+  appraisers: s.record(s.string(), s.array(s.string())).optional().describe('Per-group appraiser pool overrides, keyed by group name (e.g. { "default": ["generalist"], "security": ["skeptic", "auditor"] })'),
 }; }
 
 function appraiserArgs(s) { return {
@@ -152,6 +149,7 @@ function flowArgs(s) { return {
   name: s.string().describe('Human-readable display name written to frontmatter.name'),
   startingCycles: s.array(s.string()).describe('Non-empty array of cycle IDs that can start this flow'),
   description: s.string().describe('Prose description placed under ## Cycles'),
+  lawGroups: s.object({}).optional().describe('Optional law-group configuration keyed by group name. Each group may set mode ("bundle"|"law-by-law"), passes (integer >= 1), and appraisers (list of appraiser IDs).'),
 }; }
 
 function cycleArgs(s) { return {

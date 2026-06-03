@@ -38,8 +38,8 @@ Do not tell the user to call branch tools directly.
 
 When invoked with pre-filled fields matching the `foundry_config_add_law` tool args, skip questions for provided fields. Missing fields trigger clarifying questions.
 
-Context fields (global): `{id, name, description, passing, failing, target: {kind: "global", file}, validators?}`
-Context fields (type-specific): `{id, name, description, passing, failing, target: {kind: "type-specific", typeId}, validators?}`
+Context fields (global): `{id, name, description, passing, failing, target: {kind: "global", file}, group?, validators?}`
+Context fields (type-specific): `{id, name, description, passing, failing, target: {kind: "type-specific", typeId}, group?, validators?}`
 
 When invoked with a context:
 - If all required fields are present, skip the Understand phase and proceed to Plan → Confirm → Build.
@@ -50,6 +50,10 @@ When invoked with a context:
 **Scope**: Ask "Should this law apply globally to all artefact types, or to a specific type?" If the user names a type-specific law for an artefact type that does not exist, create the artefact type first when that supports the user's stated goal using the `add-artefact-type` workflow internally.
 
 If global, ask for the `file` (the filename under `foundry/laws/`, e.g. `rules.md`). If type-specific, ask for the `typeId`.
+
+**Law groups**: Ask whether this law belongs to a named law group. Law groups control how laws are evaluated during appraise — each group gets its own evaluation contract (mode, passes, and appraiser pool) configured in the flow's `law-groups` frontmatter block. When no group is specified, the law belongs to the `default` group which evaluates all laws together as one bundle.
+
+If the law should join an existing group, set the `group` field to that group name. If the user wants a new group, set the `group` field to the new name — the group is created implicitly and will resolve from built-in defaults (`mode: bundle`, `passes: 1`, all appraisers) unless configured explicitly in the flow's `law-groups` block. A group referenced by a law's `group` field but absent from the flow's `law-groups` is not an error — it resolves from built-in defaults.
 
 **Fields**: Ask for `id`, `name`, `description`, `passing` criteria, and `failing` criteria one at a time.
 
@@ -118,6 +122,7 @@ Ask: "Proceed with this plan?" — wait for user answer before building. If the 
      description: "<description>",
      passing: "<passing>",
      failing: "<failing>",
+     group: "<group-name>",  // optional — omit for default bundle evaluation
      target: { kind: "global", file: "<file-name>.md" }
               // or { kind: "type-specific", typeId: "<artefact-type>" }
    })
@@ -159,7 +164,7 @@ After the validator implementation changes, update the companion test file. Run 
 
 #### 5e. Apply the update
 
-Call `foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>", validators: [...] })` with the full updated fields.
+Call `foundry_config_edit_law({ id: "<law-id>", description: "<updated>", passing: "<updated>", failing: "<updated>", group: "<updated-group>", validators: [...] })` with the full updated fields.
 
 Validate the result. If the tool returns `{ ok: true }`, show the user the commit hash. If it returns `{ ok: false, errors }`, address each error and retry.
 

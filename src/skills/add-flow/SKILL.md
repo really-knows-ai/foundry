@@ -49,6 +49,25 @@ Extract or ask for the flow purpose, expected final artefact, output location, a
 
 **Appraisers**: Ask about the appraisers that evaluate quality. Determine how many are needed and whether existing appraisers fit or new ones are needed.
 
+**Law groups**: Ask whether the laws should be split into named groups with different evaluation contracts. When no groups are configured, all laws fall under the `default` group with bundle mode, 1 pass, and all appraisers. Each group can set:
+
+- `mode`: `bundle` (evaluate all group laws together — default) or `law-by-law` (evaluate each law individually)
+- `passes`: how many times each appraiser evaluates each unit (default 1)
+- `appraisers`: a subset of appraiser IDs for this group (default: all appraisers)
+
+A group referenced by a law's `group` field but absent from `law-groups` resolves from built-in defaults — this is not an error. The `law-groups` block lives in the flow's YAML frontmatter:
+
+```yaml
+law-groups:
+  security:
+    mode: law-by-law
+    passes: 3
+    appraisers: [skeptic, auditor]
+  style:
+    mode: bundle
+    appraisers: [generalist]
+```
+
 **Cycles**: Ask about the cycles that process the artefact. Determine how many cycles there are and what each produces.
 
 **Starting cycles**: Identify which cycle IDs begin the flow.
@@ -65,7 +84,7 @@ Create missing dependencies in validation order:
 
 1. **Artefact types** (no sub-dependencies): For each new artefact type, gather `id`, `name`, `filePatterns`, `description`, and whether it needs type-specific laws or appraiser configuration. Context object: `{id, name, filePatterns, description, appraisers?}`.
 
-2. **Laws** (may reference artefact types): For each new law, gather `id`, `name`, `description`, `passing`, `failing`, the target (global file or type-specific with `typeId`), and which elements can be checked with validators. Determine whether validators are needed. Context object: `{id, name, description, passing, failing, target: {kind, file|typeId}, validators?}`.
+2. **Laws** (may reference artefact types): For each new law, gather `id`, `name`, `description`, `passing`, `failing`, the target (global file or type-specific with `typeId`), optional `group` for law-group assignment, and which elements can be checked with validators. Determine whether validators are needed. Context object: `{id, name, description, passing, failing, target: {kind, file|typeId}, group?, validators?}`.
 
 3. **Appraisers** (may reference models): For each new appraiser, gather `id`, `name`, `description`, and optional `model` preference. Context object: `{id, name, description, model?}`.
 
@@ -83,10 +102,12 @@ Show the full dependency tree as a structured summary:
 Flow: <id> — <name>
   Starting cycles: <cycle-id>, ...
   Description: <description>
+  Law groups:
+    · <group-name> (mode: <bundle|law-by-law>, passes: <n>, appraisers: [<ids>])
   Artefact Types:
     · <id> (<name>) — <filePatterns>
   Laws:
-    · <id> — <description>
+    · <id> [group: <name>] — <description>
       validators: <validator-id> (if any)
   Appraisers:
     · <id> — <description>
@@ -114,7 +135,7 @@ Build order (dependency order):
 
 2. **Laws**: For each new law, invoke the `add-law` protocol with the captured context. Example:
 
-   > Invoke the add-law protocol with context: `{id: "three-lines", name: "Three Lines", description: "must have exactly three lines", passing: "...", failing: "...", target: {kind: "type-specific", typeId: "haiku"}}`.
+   > Invoke the add-law protocol with context: `{id: "three-lines", name: "Three Lines", description: "must have exactly three lines", passing: "...", failing: "...", target: {kind: "type-specific", typeId: "haiku"}, group: "style"}`.
    > If all required fields are present, the sub-skill proceeds directly to Build. Otherwise it asks only for the missing required fields, then proceeds to Build.
 
 3. **Appraisers**: For each new appraiser, invoke the `add-appraiser` protocol with the captured context.
@@ -143,14 +164,16 @@ After all dependencies are built, create the flow itself:
 
 1. **Validate**: Call `foundry_config_validate_flow({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the frontmatter format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types or cycles that do not exist yet.
 
-2. **Create**: Call `foundry_config_create_flow({ id: "<id>", name: "<name>", startingCycles: ["<cycle-id>", ...], description: "<description>" })`. The tool:
+2. **Create**: Call `foundry_config_create_flow({ id: "<id>", name: "<name>", startingCycles: ["<cycle-id>", ...], description: "<description>", lawGroups: { "<group-name>": { mode: "<bundle|law-by-law>", passes: <number>, appraisers: ["<id>", ...] }, ... } })`. The tool:
    - re-validates the body (TOCTOU);
    - writes `foundry/flows/<id>.md`;
    - produces one git commit on the current `config/*` branch.
 
    If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing flow file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
 
-3. **Report and offer next steps**: Show the user the flow file and the commit hash. Summarise each dependency that was created, with its commit hash. Then present these options:
+3. **Post-edit validation**: If you directly edit the flow file's frontmatter (for example, to add or modify `law-groups` after the flow was created), read the full file content and call `foundry_config_validate_flow({ name: "<id>", body: "<full file content>" })`. Confirm `{ ok: true }` before finishing. Direct edits bypass tool-level validation and must be explicitly validated.
+
+4. **Report and offer next steps**: Show the user the flow file and the commit hash. Summarise each dependency that was created, with its commit hash. Then present these options:
 
 > The flow is built on the `config/*` branch. Before merging to main, you can:
 >

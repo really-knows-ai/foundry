@@ -2,12 +2,14 @@
 // Validates cycle definitions, resolves stages, and bootstraps WORK.md.
 // Extracted from orchestrate-phases.js during the SDK orchestration cleanup.
 
+import { join } from 'node:path';
 import {
   getArtefactType,
   getCycleDefinition,
   getLawsForQuench,
 } from './lib/config.js';
 import { parseFrontmatter, writeFrontmatter } from './lib/workfile.js';
+import { validate as validateFlow } from './lib/config-validators/flow.js';
 import matter from 'gray-matter';
 import { loadExtractor } from './lib/assay/loader.js';
 import { checkExtractorAgainstCycle } from './lib/assay/permissions.js';
@@ -118,11 +120,29 @@ async function runAssayValidation(cfm, cycleId, io, foundryDir) {
   return { ok: true, extractors: assayResult.extractors };
 }
 
+async function checkCycleFlow(flowId, io) {
+  let rawFlow;
+  try {
+    rawFlow = await io.readFile(join('foundry', 'flows', `${flowId}.md`));
+  } catch {
+    return violation(`flow not found: ${flowId}`, ['WORK.md']);
+  }
+  const flowValidation = await validateFlow({ name: flowId, body: rawFlow, io });
+  if (!flowValidation.ok) {
+    return violation(`flow validation failed: ${flowValidation.errors.join('; ')}`, ['WORK.md']);
+  }
+  return null;
+}
+
 export async function setupWorkfile(args) {
   const { cycleId, workContent, io, git, foundryDir } = args;
   const cycleDefDoc = await getCycleDefinition(foundryDir, cycleId, io).catch(() => null);
   if (!cycleDefDoc) return violation(`cycle definition not found for id: ${cycleId}`, ['WORK.md']);
   const cfm = cycleDefDoc.frontmatter || {};
+  if (cfm['flow-id']) {
+    const flowErr = await checkCycleFlow(cfm['flow-id'], io);
+    if (flowErr) return flowErr;
+  }
   return runSetupPipeline({ cfm, cycleId, workContent, io, git, foundryDir });
 }
 

@@ -22,8 +22,7 @@ function contentContainsLaw(content, lawId) {
 
 function findLawStart(lines, lawId) {
   for (let i = 0; i < lines.length; i++) {
-    const heading = lines[i].match(/^## (.+)/);
-    if (heading && heading[1].trim() === lawId) return i;
+    if (lines[i].match(/^## (.+)/)?.[1]?.trim() === lawId) return i;
   }
   return -1;
 }
@@ -135,8 +134,7 @@ function validateTypeSpecLawTarget(target) {
 }
 
 function computeTargetPath(target) {
-  if (target?.kind === 'global') return join('foundry', 'laws', target.file);
-  return join('foundry', 'artefacts', target.typeId, 'laws.md');
+  return target?.kind === 'global' ? join('foundry', 'laws', target.file) : join('foundry', 'artefacts', target.typeId, 'laws.md');
 }
 
 // --- add law executor --------------------------------------------------------
@@ -192,7 +190,7 @@ async function executeAddLaw(args, context) {
 
   const body = assembleLawMarkdown({
     id: args.id, name: args.name, description: args.description,
-    passing: args.passing, failing: args.failing, validators: args.validators,
+    passing: args.passing, failing: args.failing, validators: args.validators, group: args.group,
   });
 
   const addArgs = { name: args.id, body, target: args.target };
@@ -248,8 +246,8 @@ class EditLawResponse extends Error {
 }
 
 function hasEditLawFields(args) {
-  return args.name !== undefined || args.description !== undefined ||
-    args.passing !== undefined || args.failing !== undefined || args.validators !== undefined;
+  return ['name', 'description', 'passing', 'failing', 'group', 'validators']
+    .some(f => args[f] !== undefined);
 }
 
 async function findAndExtractEditLaw(io, lawId) {
@@ -263,7 +261,7 @@ async function findAndExtractEditLaw(io, lawId) {
 async function assembleEditLawBody(existingBody, args, io) {
   const newBody = assembleEditLawMarkdown(existingBody, {
     name: args.name, description: args.description,
-    passing: args.passing, failing: args.failing, validators: args.validators,
+    passing: args.passing, failing: args.failing, group: args.group, validators: args.validators,
   });
   const validation = await validateLaw({ body: newBody, io });
   if (!validation.ok) throw new EditLawResponse(validation);
@@ -286,7 +284,7 @@ async function executeEditLaw(args, context) {
   try {
     if (!hasEditLawFields(args)) throw new EditLawResponse({
       ok: false,
-      errors: ['at least one field to update must be provided (name, description, passing, failing, validators)'],
+      errors: ['at least one field to update must be provided (name, description, passing, failing, group, validators)'],
     });
 
     const { result, existingBody } = await findAndExtractEditLaw(io, args.id);
@@ -325,6 +323,7 @@ function makeAddLawTool(tool) {
       description: tool.schema.string().describe('Prose describing what the law covers.'),
       passing: tool.schema.string().describe('Criteria that define a passing artefact.'),
       failing: tool.schema.string().describe('Criteria that define a failing artefact.'),
+      group: tool.schema.string().optional().describe('Optional group name for law-group appraise granularity'),
       target: tool.schema.object({
         kind: tool.schema.enum(['global', 'type-specific']).describe('Target kind: global or type-specific'),
         file: tool.schema.string().optional().describe('Filename for global laws (e.g. rules.md)'),
@@ -343,13 +342,14 @@ function makeAddLawTool(tool) {
 function makeEditLawTool(tool) {
   return tool({
     description: 'Edit an existing law by ID (config-tier; requires a config/* branch). ' +
-      'At least one optional field must be provided. Fields: id, name?, description?, passing?, failing?, validators?.',
+      'At least one optional field must be provided. Fields: id, name?, description?, passing?, failing?, group?, validators?.',
     args: {
       id: tool.schema.string().describe('Law ID to edit'),
       name: tool.schema.string().optional().describe('Updated human-readable name'),
       description: tool.schema.string().optional().describe('Updated description'),
       passing: tool.schema.string().optional().describe('Updated passing criteria'),
       failing: tool.schema.string().optional().describe('Updated failing criteria'),
+      group: tool.schema.string().optional().describe('Updated group name for law-group appraise granularity'),
       validators: tool.schema.array(tool.schema.object({
         id: tool.schema.string(), command: tool.schema.string(), failureMeans: tool.schema.string().optional(),
       })).optional().nullable().describe('Updated validators (replaces existing; null removes validators block; omitted leaves unchanged)'),

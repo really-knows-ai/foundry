@@ -174,6 +174,37 @@ test('foundry_config_create_flow happy path on config/* branch', async () => {
   } finally { cleanup(dir); }
 });
 
+test('foundry_config_create_flow with lawGroups', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/add-flow-lawgroups', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'foundry/cycles/start.md'), 'placeholder\n');
+    execSync('git add . && git commit -qm cycle', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_config_create_flow.execute(
+      {
+        id: 'lawgroup-flow',
+        name: 'LawGroup Flow',
+        startingCycles: ['start'],
+        description: '- start',
+        lawGroups: {
+          security: { mode: 'bundle', passes: 3, appraisers: ['skeptic', 'auditor'] },
+          default: { mode: 'law-by-law' },
+        },
+      },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true, JSON.stringify(res));
+    const content = execSync('git show HEAD:foundry/flows/lawgroup-flow.md', { cwd: dir, env: GIT_ENV, encoding: 'utf8' });
+    assert.ok(content.includes('law-groups:'), 'expected law-groups in flow frontmatter');
+    assert.ok(content.includes('security:'), 'expected security group');
+    assert.ok(content.includes('mode: bundle'), 'expected bundle mode');
+    assert.ok(content.includes('passes: 3'), 'expected passes: 3');
+    assert.ok(content.includes('skeptic'), 'expected skeptic appraiser');
+  } finally { cleanup(dir); }
+});
+
 test('foundry_config_create_flow rejects missing startingCycles', async () => {
   const dir = setupRepoWithFoundry();
   try {

@@ -376,6 +376,54 @@ test('foundry_config_add_law with validators array', async () => {
   } finally { cleanup(dir); }
 });
 
+test('foundry_config_add_law with group parameter', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/add-group-law', { cwd: dir, env: GIT_ENV });
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_config_add_law.execute(
+      {
+        id: 'grouped-law',
+        name: 'Grouped Law',
+        description: 'A law with a group.',
+        passing: 'Pass.',
+        failing: 'Fail.',
+        target: { kind: 'global', file: 'rules.md' },
+        group: 'security',
+      },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true, JSON.stringify(res));
+
+    const content = readFileSync(join(dir, 'foundry/laws/rules.md'), 'utf-8');
+    assert.ok(content.includes('group: security'), 'expected group: security in output');
+  } finally { cleanup(dir); }
+});
+
+test('foundry_config_add_law with default group omitted from output', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/add-default-group', { cwd: dir, env: GIT_ENV });
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_config_add_law.execute(
+      {
+        id: 'default-group-law',
+        name: 'Default Group Law',
+        description: 'A law with default group.',
+        passing: 'Pass.',
+        failing: 'Fail.',
+        target: { kind: 'global', file: 'rules.md' },
+        group: 'default',
+      },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true, JSON.stringify(res));
+
+    const content = readFileSync(join(dir, 'foundry/laws/rules.md'), 'utf-8');
+    assert.ok(!content.includes('group:'), 'expected no group: line for default group');
+  } finally { cleanup(dir); }
+});
+
 test('foundry_config_add_law with validators omitting failureMeans', async () => {
   const dir = setupRepoWithFoundry();
   try {
@@ -573,6 +621,29 @@ test('foundry_config_edit_law updates multiple fields simultaneously', async () 
     assert.ok(rereadRes.markdown.includes('Updated Name'));
     assert.ok(rereadRes.markdown.includes('New passing criteria.'));
     assert.ok(rereadRes.markdown.includes('New failing criteria.'));
+  } finally { cleanup(dir); }
+});
+
+test('foundry_config_edit_law updates group', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/edit-group', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'foundry/laws/rules.md'), TEST_LAW_BODY);
+    execSync('git add . && git commit -qm "add law"', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const editRes = JSON.parse(await plugin.tool.foundry_config_edit_law.execute(
+      { id: 'test-law', group: 'security' },
+      makeCtx(dir),
+    ));
+    assert.equal(editRes.ok, true, JSON.stringify(editRes));
+
+    const rereadRes = JSON.parse(await plugin.tool.foundry_config_read_law.execute(
+      { id: 'test-law' },
+      makeCtx(dir),
+    ));
+    assert.equal(rereadRes.ok, true);
+    assert.ok(rereadRes.markdown.includes('group: security'), 'expected group: security in edited law');
   } finally { cleanup(dir); }
 });
 
