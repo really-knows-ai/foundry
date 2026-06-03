@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.11.0] - 2026-06-03
+
+### Added
+
+- Law groups tooling, skills, and runtime flow validation
+
 ## [3.10.0] - 2026-06-03
 
 ### Added
