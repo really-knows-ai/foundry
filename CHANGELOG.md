@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.11.1] - 2026-06-03
+
+### Fixed
+
+- Empty `startingCycles` array now rejected at the tool boundary via Zod `.nonempty()`, providing a clear error before any I/O occurs.
+- `startingCycles` surfaced in the add-flow skill's "Flow basics" gather list so the LLM collects it with the other required fields.
+
 ## [3.11.0] - 2026-06-03
 
 ### Added
