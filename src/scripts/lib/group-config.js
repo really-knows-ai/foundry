@@ -47,16 +47,19 @@ export function resolveGroupConfig(groupName, flowGroups, typeAppraisers, fullAp
  * Overlay flow-level group definition fields onto the accumulator.
  * Validates `passes` and collects unknown-appraiser warnings.
  */
+function validateMode(value, groupName) {
+  if (value !== 'bundle' && value !== 'law-by-law') {
+    throw new Error(`Group "${groupName}": mode must be "bundle" or "law-by-law", got "${value}"`);
+  }
+}
+
 function applyFlowOverride(groupName, flowGroups, acc, warnings, fullAppraiserPool) {
-  // Object.hasOwn is safe with null/undefined — returns false
   if (!Object.hasOwn(flowGroups, groupName)) return;
 
   const flowDef = flowGroups[groupName];
 
   if (flowDef.mode !== undefined) {
-    if (flowDef.mode !== 'bundle' && flowDef.mode !== 'law-by-law') {
-      throw new Error(`Group "${groupName}": mode must be "bundle" or "law-by-law", got "${flowDef.mode}"`);
-    }
+    validateMode(flowDef.mode, groupName);
     acc.mode = flowDef.mode;
   }
 
@@ -127,6 +130,15 @@ function detectLegacyKeys(typeAppraisers, artefactTypeId) {
  * value is not an array (including plain objects).
  * @throws {Error} when the value is not an array
  */
+function validateAppraiserIds(value, groupName, artefactTypeId) {
+  for (let i = 0; i < value.length; i++) {
+    if (typeof value[i] !== 'string') {
+      const typePart = artefactTypeId ? ` (artefact type "${artefactTypeId}")` : '';
+      throw new Error(`Group "${groupName}"${typePart}: invalid appraisers value — expected an array of strings, got ${typeof value[i]} at index ${i}`);
+    }
+  }
+}
+
 function validateTypeAppraisersValue(value, groupName, artefactTypeId) {
   if (!Array.isArray(value)) {
     const typePart = artefactTypeId ? ` (artefact type "${artefactTypeId}")` : '';
@@ -134,12 +146,7 @@ function validateTypeAppraisersValue(value, groupName, artefactTypeId) {
     throw new Error(`Group "${groupName}"${typePart}: invalid appraisers value — expected an array, got ${valueType}`);
   }
 
-  for (let i = 0; i < value.length; i++) {
-    if (typeof value[i] !== 'string') {
-      const typePart = artefactTypeId ? ` (artefact type "${artefactTypeId}")` : '';
-      throw new Error(`Group "${groupName}"${typePart}: invalid appraisers value — expected an array of strings, got ${typeof value[i]} at index ${i}`);
-    }
-  }
+  validateAppraiserIds(value, groupName, artefactTypeId);
 }
 
 /**

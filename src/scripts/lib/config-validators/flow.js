@@ -65,47 +65,65 @@ async function checkCycleRefsExist(ids, io, label) {
  * @param {object} fm
  * @returns {string[]} Array of error messages (empty if valid)
  */
+function collectGroupErrors(lawGroups) {
+  const errors = [];
+  for (const [groupName, groupConfig] of Object.entries(lawGroups)) {
+    errors.push(...checkLawGroupEntry(groupName, groupConfig));
+  }
+  return errors;
+}
+
 function checkLawGroups(fm) {
   const lawGroups = fm['law-groups'];
   if (lawGroups === null || lawGroups === undefined) return [];
 
-  const errors = [];
-
   if (typeof lawGroups !== 'object' || Array.isArray(lawGroups)) {
-    errors.push('frontmatter.law-groups must be an object with group names as keys');
-    return errors;
+    return ['frontmatter.law-groups must be an object with group names as keys'];
   }
 
-  for (const [groupName, groupConfig] of Object.entries(lawGroups)) {
-    if (typeof groupConfig !== 'object' || groupConfig === null || Array.isArray(groupConfig)) {
-      errors.push(`frontmatter.law-groups.${groupName} must be an object with mode, passes, and/or appraisers`);
-      continue;
-    }
+  return collectGroupErrors(lawGroups);
+}
 
-    if (groupConfig.mode !== undefined) {
-      if (groupConfig.mode !== 'bundle' && groupConfig.mode !== 'law-by-law') {
-        errors.push(`frontmatter.law-groups.${groupName}.mode must be "bundle" or "law-by-law"`);
-      }
-    }
+function checkGroupAppraisers(groupName, appraisers) {
+  if (!Array.isArray(appraisers)) {
+    return [`frontmatter.law-groups.${groupName}.appraisers must be an array of non-empty strings`];
+  }
+  const err = validateStringArrayEntries(appraisers, `frontmatter.law-groups.${groupName}.appraisers`);
+  return err ? [err] : [];
+}
 
-    if (groupConfig.passes !== undefined) {
-      if (!Number.isInteger(groupConfig.passes) || groupConfig.passes < 1) {
-        errors.push(`frontmatter.law-groups.${groupName}.passes must be an integer >= 1`);
-      }
-    }
+function checkGroupMode(groupName, mode) {
+  if (mode === 'bundle' || mode === 'law-by-law') return null;
+  return `frontmatter.law-groups.${groupName}.mode must be "bundle" or "law-by-law"`;
+}
 
-    if (groupConfig.appraisers !== undefined) {
-      if (!Array.isArray(groupConfig.appraisers)) {
-        errors.push(`frontmatter.law-groups.${groupName}.appraisers must be an array of non-empty strings`);
-      } else {
-        const apprErr = validateStringArrayEntries(
-          groupConfig.appraisers,
-          `frontmatter.law-groups.${groupName}.appraisers`,
-        );
-        if (apprErr) errors.push(apprErr);
-      }
-    }
+function checkGroupPasses(groupName, passes) {
+  if (Number.isInteger(passes) && passes >= 1) return null;
+  return `frontmatter.law-groups.${groupName}.passes must be an integer >= 1`;
+}
+
+function isPlainObject(v) {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function checkGroupFields(groupName, groupConfig) {
+  const errors = [];
+  if (groupConfig.mode !== undefined) {
+    errors.push(checkGroupMode(groupName, groupConfig.mode));
+  }
+  if (groupConfig.passes !== undefined) {
+    errors.push(checkGroupPasses(groupName, groupConfig.passes));
+  }
+  if (groupConfig.appraisers !== undefined) {
+    errors.push(...checkGroupAppraisers(groupName, groupConfig.appraisers));
+  }
+  return errors.filter(Boolean);
+}
+
+function checkLawGroupEntry(groupName, groupConfig) {
+  if (!isPlainObject(groupConfig)) {
+    return [`frontmatter.law-groups.${groupName} must be an object with mode, passes, and/or appraisers`];
   }
 
-  return errors;
+  return checkGroupFields(groupName, groupConfig);
 }

@@ -189,19 +189,7 @@ function parseLawProse(proseContent) {
 
   i = skipBlankLines(lines, i);
 
-  // Remaining lines form failing (may include optional group: line)
-  let failing = lines.slice(i).join('\n').trimEnd();
-
-  // Extract optional group from failing text (same pattern as extractGroup in config.js)
-  let group = 'default';
-  const groupMatch = failing.match(/^group:\s*(.+)/m);
-  if (groupMatch) {
-    const g = groupMatch[1].trim();
-    if (g) {
-      group = g;
-      failing = failing.replace(groupMatch[0], '').trimEnd();
-    }
-  }
+  const { failing, group } = extractGroupFromFailing(lines.slice(i).join('\n').trimEnd());
 
   return {
     name: nd.name,
@@ -210,6 +198,14 @@ function parseLawProse(proseContent) {
     failing,
     group,
   };
+}
+
+function extractGroupFromFailing(failing) {
+  const match = failing.match(/^group:\s*(.+)/m);
+  if (!match) return { failing, group: 'default' };
+  const g = match[1].trim();
+  if (!g) return { failing, group: 'default' };
+  return { failing: failing.replace(match[0], '').trimEnd(), group: g };
 }
 
 /**
