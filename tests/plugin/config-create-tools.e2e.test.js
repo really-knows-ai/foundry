@@ -222,6 +222,23 @@ test('foundry_config_create_flow rejects missing startingCycles', async () => {
   } finally { cleanup(dir); }
 });
 
+test('foundry_config_create_flow rejects empty startingCycles', async () => {
+  const dir = setupRepoWithFoundry();
+  try {
+    execSync('git checkout -q -b config/add-flow', { cwd: dir, env: GIT_ENV });
+    writeFileSync(join(dir, 'foundry/cycles/start.md'), 'placeholder\n');
+    execSync('git add . && git commit -qm cycle', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_config_create_flow.execute(
+      { id: 'my-flow', name: 'My Flow', startingCycles: [], description: '- start' },
+      makeCtx(dir),
+    ));
+    // Empty startingCycles is rejected by Zod at the tool boundary
+    assert.ok(res.error || res.ok === false, JSON.stringify(res));
+  } finally { cleanup(dir); }
+});
+
 // ---------------------------------------------------------------------------
 // foundry_config_create_cycle (needs an artefact-type file in place)
 // ---------------------------------------------------------------------------

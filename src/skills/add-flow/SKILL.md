@@ -41,6 +41,7 @@ Extract or ask for the flow purpose, expected final artefact, output location, a
 **Flow basics**: Gather the flow's own required fields:
 - `id` — lowercase, hyphenated identifier. Reject duplicate IDs — if a flow with the same ID already exists, choose a different ID. Warn about semantic duplicates (different ID but near-identical purpose) and ask whether the new flow is genuinely distinct.
 - `name` — human-readable name
+- `startingCycles` — non-empty array of cycle IDs that begin the flow. Every flow must have at least one starting cycle.
 - `description` — prose description of the flow purpose
 
 **What the flow produces**: Ask about the artefact type the flow should produce. Determine whether it needs a new artefact type or whether an existing one fits.

@@ -147,7 +147,7 @@ function appraiserArgs(s) { return {
 function flowArgs(s) { return {
   id: s.string().describe('Slugged identifier matching the filename under foundry/flows/'),
   name: s.string().describe('Human-readable display name written to frontmatter.name'),
-  startingCycles: s.array(s.string()).describe('Non-empty array of cycle IDs that can start this flow'),
+  startingCycles: s.array(s.string()).nonempty().describe('Non-empty array of cycle IDs that can start this flow'),
   description: s.string().describe('Prose description placed under ## Cycles'),
   lawGroups: s.object({}).optional().describe('Optional law-group configuration keyed by group name. Each group may set mode ("bundle"|"law-by-law"), passes (integer >= 1), and appraisers (list of appraiser IDs).'),
 }; }
