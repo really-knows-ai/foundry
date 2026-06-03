@@ -1,5 +1,37 @@
 # Changelog
 
+## [3.10.0] - 2026-06-03
+
+### Added
+
+- Law groups primitive: named sets of laws with shared evaluation contracts (`mode`, `passes`, `appraisers`).
+- Two evaluation modes: `bundle` (whole group as one unit) and `law-by-law` (one law per unit).
+- Implicit default group preserving today's behaviour as zero-configuration default.
+- `group` field on law definitions assigning a law to a group.
+- Flow-level `law-groups` frontmatter block for defining named groups.
+- Per-artefact-type override of a group's appraiser pool via `appraisers` frontmatter map.
+- Config resolution cascade: built-in defaults → flow override → artefact-type pool override.
+- Scoped appraiser prompts: each dispatch carries exactly its evaluation unit's law(s) and uses a violations-only protocol with no verdict.
+- Stage-output violation schema with identity fields (`group`, `appraiser`, `pass`).
+- `foundry-attestation/v2` payload with per-unit coverage records, derived status, and deterministic verification.
+- Deterministic coverage tracking: executor records completions; pass/fail derived from violations, never asserted by the model.
+- `upgrade-foundry` flagging of removed artefact-type `appraisers.count` and `appraisers.allowed` keys.
+- Validation in config creators and validators for `group`, `law-groups`, and `appraisers` fields.
+- Mode validation at config load: invalid mode values are rejected with a clear error.
+- Element-type validation in `typeAppraisers` arrays: non-string appraiser IDs are rejected at config load.
+
+### Fixed
+
+- Artefact-type creator no longer renders legacy `count`/`allowed` keys — uses the new group-keyed `appraisers` map.
+- Artefact-type `appraisers` overrides read from the artefact-type definition file, not the cycle definition frontmatter.
+- Stale `appraisers.allowed` reference in `add-appraiser` skill updated to the new group-keyed format.
+- JSDoc type annotation for `typeAppraisers` narrowed to `Record<string, string[]> | null | undefined`.
+
+### Changed
+
+- `extractGroupsAndAppraisers` reads appraiser overrides from artefact-type definition via `getArtefactType`.
+- Complexity lint compliance enforced across all modified modules.
+
 ## [3.9.2] - 2026-05-30
 
 ### Fixed
