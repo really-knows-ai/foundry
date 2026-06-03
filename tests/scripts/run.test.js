@@ -182,13 +182,13 @@ test('executeForge creates child session and dispatches prompt', async function(
   const client = {
     session: {
       create: async function(opts) {
-        assert.equal(opts.body.parentID, 'main-session');
-        assert.equal(opts.body.title, 'Forge: test');
+        assert.equal(opts.parentID, 'main-session');
+        assert.equal(opts.title, 'Forge: test');
         return { id: 'forge-session-3' };
       },
       prompt: async function(opts) {
-        assert.equal(opts.path.id, 'forge-session-3');
-        assert.ok(opts.body.system);
+        assert.equal(opts.sessionID, 'forge-session-3');
+        assert.ok(opts.system);
         return {};
       },
     },

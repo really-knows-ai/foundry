@@ -90,15 +90,14 @@ function createMockClient() {
   const client = {
     _callLog: callLog,
     session: {
-      create: async function({ body, query }) {
+      create: async function({ parentID, title, directory }) {
         const id = 'mock-session-' + (sessions.size + 1);
-        sessions.set(id, { body, query });
-        callLog.create.push({ id, body, query });
+        sessions.set(id, { parentID, title, directory });
+        callLog.create.push({ id, parentID, title, directory });
         return { id };
       },
-      prompt: async function({ path, query, body }) {
-        const id = path.id;
-        callLog.prompt.push({ id, query, body });
+      prompt: async function({ sessionID, system, parts, model, directory }) {
+        callLog.prompt.push({ sessionID, system, parts, model, directory });
         // Always succeed — no violations
         return { ok: true };
       },

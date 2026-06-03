@@ -87,9 +87,9 @@ function createMockClient() {
   const sessions = new Map();
   return {
     session: {
-      create: async function({ body, query }) {
+      create: async function({ parentID, title, directory }) {
         const id = 'mock-session-' + (sessions.size + 1);
-        sessions.set(id, { body, query });
+        sessions.set(id, { parentID, title, directory });
         return { id };
       },
       prompt: async function() { return { ok: true }; },
@@ -162,7 +162,7 @@ test('D2.2: trace records each stage with tool call entries', async () => {
     const origCreate = client.session.create;
     client.session.create = async function(opts) {
       const result = await origCreate.call(this, opts);
-      sessionCreates.push({ id: result.id, title: opts.body?.title || '' });
+      sessionCreates.push({ id: result.id, title: opts.title || '' });
       return result;
     };
 

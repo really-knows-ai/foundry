@@ -136,11 +136,9 @@ async function dispatchScopedSession(entry, opts) {
   const { unit, appraiser, pass } = entry;
 
   const session = await client.session.create({
-    body: {
-      parentID: context.sessionID,
-      title: 'Appraise: ' + appraiser.id + ' [' + unit.unitId + '] pass ' + pass,
-    },
-    query: { directory: worktree },
+    parentID: context.sessionID,
+    title: 'Appraise: ' + appraiser.id + ' [' + unit.unitId + '] pass ' + pass,
+    directory: worktree,
   });
   childSessions.set(session.id, 'appraise');
 
@@ -164,9 +162,9 @@ async function dispatchScopedSession(entry, opts) {
   if (resolvedModel) promptBody.model = resolvedModel;
 
   await client.session.prompt({
-    path: { id: session.id },
-    query: { directory: worktree },
-    body: promptBody,
+    sessionID: session.id,
+    directory: worktree,
+    ...promptBody,
   });
 
   return session;

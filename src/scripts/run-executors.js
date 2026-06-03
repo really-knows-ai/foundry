@@ -51,8 +51,9 @@ async function readCfm(cycleId, io) {
 
 async function makeForgeSession(client, context, worktree, cycleId, childSessions) {
   const session = await client.session.create({
-    body: { parentID: context.sessionID, title: 'Forge: ' + cycleId },
-    query: { directory: worktree },
+    parentID: context.sessionID,
+    title: 'Forge: ' + cycleId,
+    directory: worktree,
   });
   childSessions.set(session.id, 'forge');
   return session;
@@ -106,13 +107,11 @@ function dispatchForgePrompt(opts) {
   return makeForgeSession(client, context, worktree, cycleId, childSessions).then(function(session) {
     if (!session) return { error: 'executeForge: failed to create child session' };
     return client.session.prompt({
-      path: { id: session.id },
-      query: { directory: worktree },
-      body: {
-        system: dispatchPrompt,
-        ...(modelParam ? { model: modelParam } : {}),
-        parts: [{ type: 'text', text: 'Cycle: ' + cycleId + '\nGoal: ' + route }],
-      },
+      sessionID: session.id,
+      directory: worktree,
+      system: dispatchPrompt,
+      ...(modelParam ? { model: modelParam } : {}),
+      parts: [{ type: 'text', text: 'Cycle: ' + cycleId + '\nGoal: ' + route }],
     }).then(function() {
       return { session };
     }).catch(function(err) {

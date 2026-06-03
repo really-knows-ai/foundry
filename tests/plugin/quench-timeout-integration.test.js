@@ -109,14 +109,14 @@ function createAppraiseMockClient(root) {
   const sessions = [];
   return {
     session: {
-      create: async function({ body, query }) {
+      create: async function({ parentID, title, directory }) {
         const id = 'mock-session-' + (sessions.length + 1);
         sessions.push(id);
         return { id };
       },
-      prompt: async function({ path, query, body }) {
+      prompt: async function({ sessionID, parts, system, directory }) {
         // Simulate appraiser writing a stage-output file
-        const sessionId = path.id;
+        const sessionId = sessionID;
         const outDir = join(root, '.foundry/stage-outputs');
         mkdirSync(outDir, { recursive: true });
         writeFileSync(join(outDir, sessionId + '.jsonl'),
