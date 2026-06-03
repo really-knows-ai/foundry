@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.11.2] - 2026-06-03
+
+### Fixed
+
+- `foundry_run` "flow has no start cycle" error: `resolveStartCycles` in `run-tool.js` read `fm.start` instead of `fm['starting-cycles']`, causing all flow runs to fail. Updated the read key and aligned 5 test fixtures to use the correct `starting-cycles:` YAML key.
+
 ## [3.11.1] - 2026-06-03
 
 ### Fixed
