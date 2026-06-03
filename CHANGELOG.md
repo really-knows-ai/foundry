@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.11.3] - 2026-06-03
+
+### Fixed
+
+- Forge and appraise subagents silently producing no output: the v2 SDK
+  expects flat parameters (`{ parentID, title, directory }`) but Foundry
+  was passing v1-style wrapped params (`{ body: {...}, query: {...} }`).
+  The wrapper keys were silently dropped by `buildClientParams`, so child
+  sessions were created with empty bodies and no agent was ever
+  dispatched. Updated `executeForge` and `executeAppraise` to use v2's
+  flat parameter format for `session.create` and `session.prompt`.
+
 ## [3.11.2] - 2026-06-03
 
 ### Fixed
