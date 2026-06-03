@@ -64,3 +64,40 @@ x.
   assert.equal(out.ok, false);
   assert.ok(out.errors.some((e) => /file-patterns/.test(e)));
 });
+
+test('artefact-type validator: rejects legacy appraisers.count', async () => {
+  const body = `---
+name: x
+file-patterns:
+  - x/*.md
+appraisers:
+  count: 3
+---
+
+## Definition
+
+x.
+`;
+  const out = await validate({ name: 'x', body, io: passIO });
+  assert.equal(out.ok, false);
+  assert.ok(out.errors.some((e) => /count/.test(e)), 'should mention count');
+});
+
+test('artefact-type validator: rejects legacy appraisers.allowed', async () => {
+  const body = `---
+name: x
+file-patterns:
+  - x/*.md
+appraisers:
+  allowed:
+    - skeptic
+---
+
+## Definition
+
+x.
+`;
+  const out = await validate({ name: 'x', body, io: passIO });
+  assert.equal(out.ok, false);
+  assert.ok(out.errors.some((e) => /allowed/.test(e)), 'should mention allowed');
+});

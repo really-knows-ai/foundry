@@ -27,6 +27,7 @@ export async function validate({ name, body, io }) {
     requireNonEmptyString(fm.name, 'frontmatter.name'),
     await checkStartingCycles(fm, io),
     requireHeading(body, 'Cycles'),
+    ...checkLawGroups(fm),
   ].filter(Boolean);
 
   return errors.length ? { ok: false, errors } : { ok: true };
@@ -54,4 +55,57 @@ async function checkCycleRefsExist(ids, io, label) {
     }
   }
   return null;
+}
+
+/**
+ * Validate the optional law-groups frontmatter field.
+ * Each key must map to an object with optional fields:
+ *   mode (bundle | law-by-law), passes (integer >= 1),
+ *   appraisers (array of non-empty strings).
+ * @param {object} fm
+ * @returns {string[]} Array of error messages (empty if valid)
+ */
+function checkLawGroups(fm) {
+  const lawGroups = fm['law-groups'];
+  if (lawGroups === null || lawGroups === undefined) return [];
+
+  const errors = [];
+
+  if (typeof lawGroups !== 'object' || Array.isArray(lawGroups)) {
+    errors.push('frontmatter.law-groups must be an object with group names as keys');
+    return errors;
+  }
+
+  for (const [groupName, groupConfig] of Object.entries(lawGroups)) {
+    if (typeof groupConfig !== 'object' || groupConfig === null || Array.isArray(groupConfig)) {
+      errors.push(`frontmatter.law-groups.${groupName} must be an object with mode, passes, and/or appraisers`);
+      continue;
+    }
+
+    if (groupConfig.mode !== undefined) {
+      if (groupConfig.mode !== 'bundle' && groupConfig.mode !== 'law-by-law') {
+        errors.push(`frontmatter.law-groups.${groupName}.mode must be "bundle" or "law-by-law"`);
+      }
+    }
+
+    if (groupConfig.passes !== undefined) {
+      if (!Number.isInteger(groupConfig.passes) || groupConfig.passes < 1) {
+        errors.push(`frontmatter.law-groups.${groupName}.passes must be an integer >= 1`);
+      }
+    }
+
+    if (groupConfig.appraisers !== undefined) {
+      if (!Array.isArray(groupConfig.appraisers)) {
+        errors.push(`frontmatter.law-groups.${groupName}.appraisers must be an array of non-empty strings`);
+      } else {
+        const apprErr = validateStringArrayEntries(
+          groupConfig.appraisers,
+          `frontmatter.law-groups.${groupName}.appraisers`,
+        );
+        if (apprErr) errors.push(apprErr);
+      }
+    }
+  }
+
+  return errors;
 }

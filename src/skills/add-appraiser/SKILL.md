@@ -83,7 +83,7 @@ Ask: "Proceed with this plan?" — wait for user answer before building. If the 
 
    If the tool returns `{ ok: false, errors }` because the target file already exists, read the existing file, incorporate the user's requested changes into the current body, propose the merged result for review, then write and commit the updated file.
 
-3. **Artefact type configuration**: After creating the appraiser, offer to connect it to relevant artefact-type configuration when doing so supports the user's stated goal. If the user confirms, update the artefact type's `appraisers.allowed` list on the same config branch.
+3. **Artefact type configuration**: After creating the appraiser, offer to connect it to relevant artefact-type configuration when doing so supports the user's stated goal. If the user confirms, add the appraiser id to the relevant group's `appraisers` list in the artefact type's frontmatter on the same config branch.
 
 ## What you do NOT do
 

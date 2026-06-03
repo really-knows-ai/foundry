@@ -39,8 +39,12 @@ function buildValidatorsBlock(validators) {
  * @returns {string} Assembled law block (no trailing newline).
  */
 export function assembleLawMarkdown(args) {
-  const { id, name, description, passing, failing } = args;
+  const { id, name, description, passing, failing, group } = args;
   let block = `## ${id}\n\n${name} — ${description}\n\n${passing}\n\n${failing}`;
+
+  if (group && group !== 'default') {
+    block += `\n\ngroup: ${group}`;
+  }
 
   if (args.validators && args.validators.length > 0) {
     block += '\n\n' + buildValidatorsBlock(args.validators);
@@ -155,11 +159,14 @@ function collectNonBlank(lines, start) {
  *   <passing>
  *   (blank line)
  *   <failing>
+ *   (blank line)
+ *   group: <name>
  *
- * Each of passing/failing may be multi-line prose.
+ * Each of passing/failing may be multi-line prose. The group line is
+ * optional; it is extracted from the failing section if present.
  *
  * @param {string} proseContent  Block content from heading to validators.
- * @returns {{ name: string, description: string, passing: string, failing: string }}
+ * @returns {{ name: string, description: string, passing: string, failing: string, group: string }}
  */
 function parseLawProse(proseContent) {
   const lines = proseContent.split('\n');
@@ -182,14 +189,26 @@ function parseLawProse(proseContent) {
 
   i = skipBlankLines(lines, i);
 
-  // Remaining lines form failing
-  const failingLines = lines.slice(i);
+  // Remaining lines form failing (may include optional group: line)
+  let failing = lines.slice(i).join('\n').trimEnd();
+
+  // Extract optional group from failing text (same pattern as extractGroup in config.js)
+  let group = 'default';
+  const groupMatch = failing.match(/^group:\s*(.+)/m);
+  if (groupMatch) {
+    const g = groupMatch[1].trim();
+    if (g) {
+      group = g;
+      failing = failing.replace(groupMatch[0], '').trimEnd();
+    }
+  }
 
   return {
     name: nd.name,
     description: nd.description,
     passing: passing.lines.join('\n'),
-    failing: failingLines.join('\n').trimEnd(),
+    failing,
+    group,
   };
 }
 
@@ -237,7 +256,7 @@ function pickField(updates, existing, field) {
  *
  * @param {string} existingBody  Full file content (may contain multiple law blocks).
  * @param {{ name?: string, description?: string, passing?: string,
- *          failing?: string, validators?: object[] | null }} updates
+ *          failing?: string, group?: string, validators?: object[] | null }} updates
  * @returns {string}  Updated full body with the first law block modified.
  */
 export function assembleEditLawMarkdown(existingBody, updates) {
@@ -253,8 +272,13 @@ export function assembleEditLawMarkdown(existingBody, updates) {
   const description = pickField(updates, existing, 'description');
   const passing = pickField(updates, existing, 'passing');
   const failing = pickField(updates, existing, 'failing');
+  const group = pickField(updates, existing, 'group');
 
-  const newProse = `${heading}\n\n${name} — ${description}\n\n${passing}\n\n${failing}`;
+  let newProse = `${heading}\n\n${name} — ${description}\n\n${passing}\n\n${failing}`;
+
+  if (group && group !== 'default') {
+    newProse += `\n\ngroup: ${group}`;
+  }
   const result = appendValidators(newProse, updates, parsed.validatorsContent);
 
   // If there are subsequent blocks, insert a newline separator so the gap

@@ -327,6 +327,39 @@ describe('validateAppraiseOutput — pass field integer validation', () => {
   });
 });
 
+describe('validateAppraiseOutput — verdict field not recognised', () => {
+  test('accepts required fields plus verdict (verdict tolerated but not recognised)', () => {
+    assert.deepEqual(
+      validateAppraiseOutput({
+        file: 'f', law: 'l', text: 't', group: 'g', appraiser: 'a', pass: 0,
+        verdict: 'approved',
+      }),
+      { ok: true },
+    );
+  });
+
+  test('rejects verdict-only object — missing required fields (not verdict)', () => {
+    const r = validateAppraiseOutput({ verdict: 'approved' });
+    assert.equal(r.ok, false);
+    assert.equal(r.errors.length, 6);
+    assert.ok(r.errors.some(e => e.includes('file')));
+    assert.ok(r.errors.some(e => e.includes('law')));
+    assert.ok(r.errors.some(e => e.includes('text')));
+    assert.ok(r.errors.some(e => e.includes('group')));
+    assert.ok(r.errors.some(e => e.includes('appraiser')));
+    assert.ok(r.errors.some(e => e.includes('pass')));
+  });
+
+  test('accepts valid appraise record without verdict (verdict not required)', () => {
+    assert.deepEqual(
+      validateAppraiseOutput({
+        file: 'f', law: 'l', text: 't', group: 'g', appraiser: 'a', pass: 0,
+      }),
+      { ok: true },
+    );
+  });
+});
+
 // ── Human-Appraise ─────────────────────────────────────────────────
 
 describe('validateHumanAppraiseOutput — valid object', () => {

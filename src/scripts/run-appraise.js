@@ -13,7 +13,7 @@ import { resolveGroupConfig } from './lib/group-config.js';
 import { buildDispatch } from './lib/evaluation-units.js';
 
 import { parseModelId } from './lib/parse-model-id.js';
-import { getCycleDefinition, getLaws, getAppraisers, getFlow } from './lib/config.js';
+import { getCycleDefinition, getLaws, getAppraisers, getFlow, getArtefactType } from './lib/config.js';
 
 function resolveBaseSha(io) {
   try {
@@ -345,12 +345,21 @@ function writeCoverageFile(io, coverage, cycleId) {
 }
 
 /**
- * Extract flow-level groups and artefact-type appraiser config from cycle frontmatter.
+ * Extract flow-level groups and artefact-type appraiser config.
+ * Flow groups come from the flow definition; appraisers come from the
+ * artefact-type definition file.
  */
-function extractGroupsAndAppraisers(flowDef, cfm, outputType) {
+async function extractGroupsAndAppraisers(flowDef, cfm, outputType, io, foundryDir) {
+  let typeAppraisers = null;
+  try {
+    const artefactType = await getArtefactType(foundryDir, outputType, io);
+    typeAppraisers = artefactType.frontmatter?.appraisers || null;
+  } catch (err) {
+    console.warn('appraise:', err.message);
+  }
   return {
     flowGroups: flowDef.frontmatter['law-groups'] || {},
-    typeAppraisers: cfm['artefact-types']?.[outputType]?.appraisers || null,
+    typeAppraisers,
   };
 }
 
@@ -407,7 +416,7 @@ export async function executeAppraise(apprOpts) {
   const lawGroups = partitionLawsByGroup(laws);
   const fullAppraiserPool = await getAppraisers(foundryDir, io).catch(function() { return []; });
   const flowDef = await getFlow(foundryDir, cfm['flow-id'], io).catch(function() { return { frontmatter: {} }; });
-  const { flowGroups, typeAppraisers } = extractGroupsAndAppraisers(flowDef, cfm, outputType);
+  const { flowGroups, typeAppraisers } = await extractGroupsAndAppraisers(flowDef, cfm, outputType, io, foundryDir);
   const { configs, warnings } = resolveGroupConfigs(
     [...lawGroups.keys()], flowGroups, typeAppraisers, fullAppraiserPool, outputType
   );

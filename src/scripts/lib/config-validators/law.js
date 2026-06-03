@@ -57,15 +57,45 @@ export async function validate({ body }) {
     return { ok: false, errors: ['body must contain at least one law block (## <law-id>)'] };
   }
 
-  errors = checkForDuplicateIds(blocks);
+  errors = [...checkForDuplicateIds(blocks), ...checkLawGroups(blocks)];
   return errors.length ? { ok: false, errors } : { ok: true };
+}
+
+/**
+ * Extract the optional `group:` field from law text.
+ * @param {string} text
+ * @returns {string|null} The group name or null if absent.
+ */
+function extractGroupFromText(text) {
+  const match = text.match(/^group:\s*(.+)/m);
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Check law groups for validity.
+ * Each block may have an optional `group:` line. If present, the value must
+ * be a non-empty string matching the slug pattern (lowercase alphanumeric
+ * and hyphens only).
+ * @param {{id: string, group: string|null}[]} blocks
+ * @returns {string[]} Array of error messages (empty if valid)
+ */
+function checkLawGroups(blocks) {
+  const errors = [];
+  for (const block of blocks) {
+    if (block.group) {
+      if (!/^[a-z0-9-]+$/.test(block.group)) {
+        errors.push(`law "${block.id}": group "${block.group}" is not a valid slug (lowercase alphanumeric and hyphens only)`);
+      }
+    }
+  }
+  return errors;
 }
 
 /**
  * Parse law blocks from the body.
  * Each block is a ## heading followed by its content until the next heading.
  * @param {string} body
- * @returns {{id: string, text: string}[]}
+ * @returns {{id: string, text: string, group: string|null}[]}
  */
 function parseLawBlocks(body) {
   const blocks = [];
@@ -75,7 +105,8 @@ function parseLawBlocks(body) {
 
   const flushBlock = () => {
     if (currentId) {
-      blocks.push({ id: currentId, text: currentLines.join('\n') });
+      const text = currentLines.join('\n');
+      blocks.push({ id: currentId, text, group: extractGroupFromText(text) });
     }
   };
 

@@ -435,6 +435,12 @@ describe('executeAppraise pipeline — zero-config regression', () => {
     assert.ok(entry.evaluations.every(e => e.completed === true));
     // Each evaluation records appraiser id (string)
     assert.equal(typeof entry.evaluations[0].appraiser, 'string');
+    // Zero config means no violations (mock produces no output), same as bundle path
+    assert.equal(entry.violations, 0);
+    const feedbackFiles = existsSync(join(tmpDir, 'feedback'))
+      ? readdirSync(join(tmpDir, 'feedback')).filter(f => f !== '.gitkeep')
+      : [];
+    assert.equal(feedbackFiles.length, 0, 'no feedback items with zero config');
   });
 
   it('stage output stays as appraise:<cycle>', async () => {

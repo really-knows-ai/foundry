@@ -106,12 +106,12 @@ test('foundry_config_create_artefact_type with optional appraisers', async () =>
     execSync('git checkout -q -b config/init-types', { cwd: dir, env: GIT_ENV });
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_config_create_artefact_type.execute(
-      { id: 'essay', name: 'Essay', filePatterns: ['essays/**/*.md'], description: 'An essay.', appraisers: { count: 3, allowed: ['skeptic'] } },
+      { id: 'essay', name: 'Essay', filePatterns: ['essays/**/*.md'], description: 'An essay.', appraisers: { default: ['generalist'], security: ['skeptic'] } },
       makeCtx(dir),
     ));
     assert.equal(res.ok, true, JSON.stringify(res));
     const { assembleArtefactTypeMarkdown } = await import('../../src/scripts/lib/config-creators/artefact-type.js');
-    const expected = assembleArtefactTypeMarkdown({ id: 'essay', name: 'Essay', filePatterns: ['essays/**/*.md'], description: 'An essay.', appraisers: { count: 3, allowed: ['skeptic'] } });
+    const expected = assembleArtefactTypeMarkdown({ id: 'essay', name: 'Essay', filePatterns: ['essays/**/*.md'], description: 'An essay.', appraisers: { default: ['generalist'], security: ['skeptic'] } });
     const written = execSync('git show HEAD:foundry/artefacts/essay/definition.md', { cwd: dir, env: GIT_ENV, encoding: 'utf8' });
     assert.equal(written, expected);
   } finally { cleanup(dir); }

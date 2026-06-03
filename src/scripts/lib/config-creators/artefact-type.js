@@ -5,18 +5,19 @@ import { makeCreator } from './factory.js';
 /**
  * Render the optional appraisers block as YAML lines.
  *
- * @param {{ count?: number, allowed?: string[] } | undefined} appraisers
+ * @param {Record<string, string[]> | undefined} appraisers
  * @returns {string}
  */
 function renderAppraisers(appraisers) {
   if (!appraisers) return '';
+  const entries = Object.entries(appraisers);
+  if (entries.length === 0) return '';
   let block = 'appraisers:\n';
-  if (appraisers.count !== undefined) {
-    block += `  count: ${appraisers.count}\n`;
-  }
-  if (appraisers.allowed && appraisers.allowed.length > 0) {
-    block += '  allowed:\n';
-    block += appraisers.allowed.map((a) => `    - ${a}`).join('\n') + '\n';
+  for (const [group, list] of entries) {
+    block += `  ${group}:\n`;
+    for (const id of list) {
+      block += `    - ${id}\n`;
+    }
   }
   return block;
 }
@@ -29,7 +30,7 @@ function renderAppraisers(appraisers) {
  * @param {string} args.name            Human-readable display name (not persisted).
  * @param {string[]} args.filePatterns  Glob patterns for write scope.
  * @param {string} args.description     Prose under ## Definition.
- * @param {{ count?: number, allowed?: string[] }} [args.appraisers]  Optional appraiser config.
+ * @param {Record<string, string[]>} [args.appraisers]  Optional appraiser config, keyed by group name.
  * @returns {string} Assembled markdown body.
  */
 export function assembleArtefactTypeMarkdown(args) {

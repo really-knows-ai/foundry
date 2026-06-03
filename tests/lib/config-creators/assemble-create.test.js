@@ -29,13 +29,13 @@ A short story.
 `);
 });
 
-test('assembleArtefactTypeMarkdown: with appraisers count', () => {
+test('assembleArtefactTypeMarkdown: with appraisers map', () => {
   const result = assembleArtefactTypeMarkdown({
     id: 'essay',
     name: 'Essay',
     filePatterns: ['artefacts/essay/*.md'],
     description: 'An essay.',
-    appraisers: { count: 3 },
+    appraisers: { default: ['generalist'] },
   });
 
   assert.equal(result, `---
@@ -43,7 +43,8 @@ name: essay
 file-patterns:
   - artefacts/essay/*.md
 appraisers:
-  count: 3
+  default:
+    - generalist
 ---
 
 ## Definition
@@ -52,17 +53,20 @@ An essay.
 `);
 });
 
-test('assembleArtefactTypeMarkdown: with appraisers allowed list', () => {
+test('assembleArtefactTypeMarkdown: with appraisers multi-group map', () => {
   const result = assembleArtefactTypeMarkdown({
     id: 'poem',
     name: 'Poem',
     filePatterns: ['artefacts/poem/*.md'],
     description: 'A poem.',
-    appraisers: { allowed: ['skeptic', 'enthusiast'] },
+    appraisers: {
+      default: ['generalist'],
+      security: ['skeptic', 'auditor'],
+    },
   });
 
   assert.match(result,
-    /appraisers:\n {2}allowed:\n {4}- skeptic\n {4}- enthusiast/);
+    /appraisers:\n {2}default:\n {4}- generalist\n {2}security:\n {4}- skeptic\n {4}- auditor/);
 });
 
 test('assembleArtefactTypeMarkdown: without appraisers field', () => {
