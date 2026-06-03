@@ -24,7 +24,7 @@ function readFlowDefinition(foundryDir, flowId, io) {
 }
 
 function resolveStartCycles(fm) {
-  const raw = fm.start || null;
+  const raw = fm['starting-cycles'] || null;
   if (!raw) return [];
   return Array.isArray(raw) ? raw : [raw];
 }

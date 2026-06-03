@@ -28,7 +28,7 @@ function writeFlowDef(root, flowId) {
   const dir = join(root, 'foundry/flows');
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, flowId + '.md'),
-    '---\nstart: write-haiku\n---\n# Haiku Flow\n');
+    '---\nstarting-cycles: write-haiku\n---\n# Haiku Flow\n');
 }
 
 function writeCycleDef(root, cycleId) {

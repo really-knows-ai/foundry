@@ -43,8 +43,8 @@ function initGitRepoAndCheckout(dir, branch = 'work/test-flow-desc') {
 function writeFlowDef(dir, flowId, overrides = {}) {
   const flowsDir = join(dir, 'foundry', 'flows');
   mkdirSync(flowsDir, { recursive: true });
-  const start = overrides.start || 'test-cycle';
-  const startYaml = Array.isArray(start) ? '\nstart:\n' + start.map(function(s) { return '  - ' + s; }).join('\n') : '\nstart: ' + start;
+  const start = overrides.startingCycles || overrides.start || 'test-cycle';
+  const startYaml = Array.isArray(start) ? '\nstarting-cycles:\n' + start.map(function(s) { return '  - ' + s; }).join('\n') : '\nstarting-cycles: ' + start;
   writeFileSync(
     join(flowsDir, `${flowId}.md`),
     `---\nid: ${flowId}\nname: ${overrides.name || 'Test Flow'}${startYaml}\n---\n`,
