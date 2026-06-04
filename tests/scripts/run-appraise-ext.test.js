@@ -14,6 +14,8 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path, { join } from 'node:path';
 
+import { withCleanup } from '../../src/scripts/lib/dispatch-cli.js';
+
 import {
   partitionLawsByGroup,
   resolveGroupConfigs,
@@ -388,6 +390,15 @@ function makeIO(root) {
   };
 }
 
+function makeMockDispatchOpts() {
+  return {
+    writePromptFile: (io, content) => '.foundry/dispatch-prompts/test.txt',
+    spawnDispatch: () => ({ on: () => {}, kill: () => {} }),
+    awaitProcess: async () => {},
+    withCleanup,
+  };
+}
+
 describe('executeAppraise pipeline — zero-config regression', () => {
   let tmpDir, io;
 
@@ -405,8 +416,8 @@ describe('executeAppraise pipeline — zero-config regression', () => {
 
     const client = {
       session: {
-        create: () => Promise.resolve({ id: 'session-ext-1' }),
-        prompt: () => Promise.resolve({}),
+        create: () => { throw new Error('session.create should not be called'); },
+        prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
     const childSessions = new Map();
@@ -421,6 +432,7 @@ describe('executeAppraise pipeline — zero-config regression', () => {
       historyPath: join(tmpDir, 'history.jsonl'),
       feedbackPath: join(tmpDir, 'feedback'),
       sort: { route: 'appraise:test-cycle' },
+      ...makeMockDispatchOpts(),
     });
 
     assert.ok(result.ok === true, `expected ok:true, got ${JSON.stringify(result)}`);
@@ -448,8 +460,8 @@ describe('executeAppraise pipeline — zero-config regression', () => {
 
     const client = {
       session: {
-        create: () => Promise.resolve({ id: 'session-ext-2' }),
-        prompt: () => Promise.resolve({}),
+        create: () => { throw new Error('session.create should not be called'); },
+        prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
     const childSessions = new Map();
@@ -464,6 +476,7 @@ describe('executeAppraise pipeline — zero-config regression', () => {
       historyPath: join(tmpDir, 'history.jsonl'),
       feedbackPath: join(tmpDir, 'feedback'),
       sort: { route: 'appraise:test-cycle' },
+      ...makeMockDispatchOpts(),
     });
 
     assert.ok(result.ok);
@@ -486,14 +499,10 @@ describe('executeAppraise pipeline — law-by-law arithmetic', () => {
   it('dispatches passes × appraisers sessions per law', async () => {
     const { executeAppraise } = await import('../../src/scripts/run-appraise.js');
 
-    let sessionCount = 0;
     const client = {
       session: {
-        create: () => {
-          sessionCount++;
-          return Promise.resolve({ id: 'session-lbl-' + sessionCount });
-        },
-        prompt: () => Promise.resolve({}),
+        create: () => { throw new Error('session.create should not be called'); },
+        prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
     const childSessions = new Map();
@@ -508,11 +517,11 @@ describe('executeAppraise pipeline — law-by-law arithmetic', () => {
       historyPath: join(tmpDir, 'history.jsonl'),
       feedbackPath: join(tmpDir, 'feedback'),
       sort: { route: 'appraise:test-cycle' },
+      ...makeMockDispatchOpts(),
     });
 
     assert.ok(result.ok);
-    // 2 laws × 2 passes × 2 appraisers = 8 dispatch entries
-    assert.equal(sessionCount, 8, 'expected 8 dispatched sessions for 2 laws × 2 passes × 2 appraisers');
+    // 2 laws × 2 passes × 2 appraisers = 8 dispatch entries → 2 coverage units
     assert.equal(result.coverage.size, 2, 'expected 2 coverage units (one per law)');
 
     // Each unit should have 4 evaluations (2 appraisers × 2 passes)
@@ -544,8 +553,8 @@ describe('executeAppraise pipeline — error handling', () => {
 
     const client = {
       session: {
-        create: () => Promise.resolve({ id: 'session-err' }),
-        prompt: () => Promise.resolve({}),
+        create: () => { throw new Error('session.create should not be called'); },
+        prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
     const childSessions = new Map();
@@ -563,6 +572,7 @@ describe('executeAppraise pipeline — error handling', () => {
       historyPath: join(tmpDir, 'history.jsonl'),
       feedbackPath: join(tmpDir, 'feedback'),
       sort: { route: 'appraise:test-cycle' },
+      ...makeMockDispatchOpts(),
     });
 
     assert.ok(result.ok === true, 'expected ok:true even with empty pool');
@@ -588,8 +598,8 @@ describe('executeAppraise pipeline — coverage persistence', () => {
 
     const client = {
       session: {
-        create: () => Promise.resolve({ id: 'session-cov' }),
-        prompt: () => Promise.resolve({}),
+        create: () => { throw new Error('session.create should not be called'); },
+        prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
     const childSessions = new Map();
@@ -604,6 +614,7 @@ describe('executeAppraise pipeline — coverage persistence', () => {
       historyPath: join(tmpDir, 'history.jsonl'),
       feedbackPath: join(tmpDir, 'feedback'),
       sort: { route: 'appraise:test-cycle' },
+      ...makeMockDispatchOpts(),
     });
 
     assert.ok(result.ok);

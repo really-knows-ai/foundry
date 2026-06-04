@@ -8,12 +8,15 @@ import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { appendEntry } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.js';
-import { buildAppraiserPrompt, parseConsolidated } from './appraise-module.js';
+import { parseConsolidated } from './appraise-module.js';
 import { resolveGroupConfig } from './lib/group-config.js';
 import { buildDispatch } from './lib/evaluation-units.js';
 
 import { parseModelId } from './lib/parse-model-id.js';
 import { getCycleDefinition, getLaws, getAppraisers, getFlow, getArtefactType } from './lib/config.js';
+
+import { writePromptFile as _writePromptFile, spawnDispatch as _spawnDispatch, awaitProcess as _awaitProcess, withCleanup as _withCleanup } from './lib/dispatch-cli.js';
+import { dispatchAppraisePrompt, batchAppraiseDispatch } from './lib/appraise-dispatch.js';
 
 function resolveBaseSha(io) {
   try {
@@ -47,9 +50,25 @@ async function readCfm(cycleId, io) {
 async function cycleIdFrom(cycleId, sort) {
   return sort.cycleId || cycleId || (sort.route ? sort.route.split(':')[1] : null);
 }
-
 export { resolveAppraiseModel, cleanStageOutputDir };
+
 export { partitionLawsByGroup, resolveGroupConfigs, recordToUnitId, buildCompletionCoverage, writeCoverageFile };
+
+export { dispatchAppraisePrompt, batchAppraiseDispatch };
+
+// Catch-only helpers to reduce cyclomatic complexity in executeAppraise
+function catchEmptyArray() { return []; }
+function catchEmptyFlow() { return { frontmatter: {} }; }
+
+// Extract injectable dispatch helpers from apprOpts with defaults
+function extractDispatchHelpers(apprOpts) {
+  return {
+    writePromptFile: apprOpts.writePromptFile || _writePromptFile,
+    spawnDispatch: apprOpts.spawnDispatch || _spawnDispatch,
+    awaitProcess: apprOpts.awaitProcess || _awaitProcess,
+    withCleanup: apprOpts.withCleanup || _withCleanup,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Stage lifecycle
@@ -127,48 +146,8 @@ function resolveGroupConfigs(groupNames, flowGroups, typeAppraisers, fullApprais
   return { configs, warnings };
 }
 
-/**
- * Dispatch a single (unit, appraiser, pass) evaluation session.
- * Replaces dispatchSingleAppraiser with a Phase 07 scoped prompt.
- */
-async function dispatchScopedSession(entry, opts) {
-  const { client, childSessions, context, worktree, outputType, cfm, lawGroups } = opts;
-  const { unit, appraiser, pass } = entry;
-
-  const session = await client.session.create({
-    parentID: context.sessionID,
-    title: 'Appraise: ' + appraiser.id + ' [' + unit.unitId + '] pass ' + pass,
-    directory: worktree,
-  });
-  childSessions.set(session.id, 'appraise');
-
-  const resolvedModel = resolveAppraiseModel(appraiser, cfm);
-
-  // Enrich unit with law objects for the Phase 07 prompt builder
-  const groupLaws = lawGroups.get(unit.group) || [];
-  const promptUnit = unit.mode === 'bundle'
-    ? Object.assign({}, unit, { laws: groupLaws })
-    : Object.assign({}, unit, { law: groupLaws.find(function(l) { return l.id === unit.lawIds[0]; }) || { id: unit.lawIds[0], text: '' } });
-
-  const promptBody = {
-    system: buildAppraiserPrompt({
-      appraiser,
-      typeId: outputType,
-      unit: promptUnit,
-      identity: { group: entry.group, appraiser: appraiser.id, pass: entry.pass },
-    }),
-    parts: [],
-  };
-  if (resolvedModel) promptBody.model = resolvedModel;
-
-  await client.session.prompt({
-    sessionID: session.id,
-    directory: worktree,
-    ...promptBody,
-  });
-
-  return session;
-}
+// dispatchAppraisePrompt and batchAppraiseDispatch are now in
+// lib/appraise-dispatch.js and imported at the top of this module.
 
 function readAppraiseStageOutputs(io) {
   const outDir = '.foundry/stage-outputs/';
@@ -399,7 +378,12 @@ async function postProcessAppraise(opts) {
  * close stage, record history.
  */
 export async function executeAppraise(apprOpts) {
-  const { client, childSessions, context, io, worktree, historyPath, feedbackPath } = apprOpts;
+  const { io, worktree, historyPath, feedbackPath } = apprOpts;
+  // client, childSessions, and context are still accepted for backward compat
+  // but are no longer used for dispatch (replaced by CLI spawn).
+
+  // Accept injectable dispatch helpers via opts for testing
+  const { writePromptFile, spawnDispatch, awaitProcess, withCleanup } = extractDispatchHelpers(apprOpts);
 
   const setup = await setupAppraiseStage(apprOpts);
   if (setup.error) return { ok: false, error: setup.error };
@@ -407,13 +391,18 @@ export async function executeAppraise(apprOpts) {
   const foundryDir = 'foundry';
 
   // Collect laws with group (Phase 01)
-  const laws = await getLaws(foundryDir, io, { typeId: outputType }).catch(function() { return []; });
+  const laws = await getLaws(foundryDir, io, { typeId: outputType }).catch(catchEmptyArray);
   if (laws.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no laws');
 
   // Partition by group and resolve configs (Phase 03)
   const lawGroups = partitionLawsByGroup(laws);
-  const fullAppraiserPool = await getAppraisers(foundryDir, io).catch(function() { return []; });
-  const flowDef = await getFlow(foundryDir, cfm['flow-id'], io).catch(function() { return { frontmatter: {} }; });
+  const fullAppraiserPool = await getAppraisers(foundryDir, io).catch(catchEmptyArray);
+  const flowDef = await getFlow(foundryDir, cfm['flow-id'], io).catch(catchEmptyFlow);
+
+  // Artefacts (unchanged, needed for flowGroups/typeAppraisers)
+  const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch: 'main' }).catch(catchEmptyArray);
+  if (artefacts.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no artefacts');
+
   const { flowGroups, typeAppraisers } = await extractGroupsAndAppraisers(flowDef, cfm, outputType, io, foundryDir);
   const { configs, warnings } = resolveGroupConfigs(
     [...lawGroups.keys()], flowGroups, typeAppraisers, fullAppraiserPool, outputType
@@ -424,15 +413,15 @@ export async function executeAppraise(apprOpts) {
   const { unitsByGroup, dispatchMatrix } = buildDispatch(lawGroups, configs);
   if (dispatchMatrix.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no dispatch entries');
 
-  // Artefacts (unchanged)
-  const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch: 'main' }).catch(function() { return []; });
-  if (artefacts.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no artefacts');
-
-  // Parallel dispatch via scoped sessions (Phase 07 prompt)
-  const dispatchOpts = { client, childSessions, context, worktree, outputType, cfm, io, fullAppraiserPool, lawGroups };
-  const settled = await Promise.allSettled(
-    dispatchMatrix.map(function(entry) { return dispatchScopedSession(entry, dispatchOpts); })
-  );
+  // Parallel dispatch via CLI spawn (Phase 03)
+  const dispatchOpts = {
+    io, worktree, lawGroups, outputType,
+    writePromptFile,
+    spawnDispatch,
+    awaitProcess,
+    withCleanup,
+  };
+  const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);
 
   // Post-process: consolidate, feedback, coverage, close
   const coverage = await postProcessAppraise({

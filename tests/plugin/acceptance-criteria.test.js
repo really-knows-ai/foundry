@@ -335,21 +335,11 @@ function createAppraiseMockClient(root) {
   const sessions = [];
   return {
     session: {
-      create: async function({ parentID, title, directory }) {
-        const id = 'mock-session-' + (sessions.length + 1);
-        sessions.push(id);
-        return { id };
+      create: async function() {
+        throw new Error('session.create should not be called');
       },
-      prompt: async function({ sessionID, parts, system, directory }) {
-        // Simulate the subagent writing a stage-output file during its session.
-        // Each appraiser session produces its own .jsonl file in stage-outputs/.
-        const sessionId = sessionID;
-        const outDir = join(root, '.foundry/stage-outputs');
-        mkdirSync(outDir, { recursive: true });
-        writeFileSync(join(outDir, sessionId + '.jsonl'),
-          '{"file":"haikus/test.md","text":"needs more seasoning","law":"shape","evidence":"line 1"}\n' +
-          '{"file":"haikus/test.md","text":"line too short","law":"metrics","evidence":"line 3"}\n');
-        return { ok: true };
+      prompt: async function() {
+        throw new Error('session.prompt should not be called');
       },
       messages: async function() { return []; },
     },
@@ -357,6 +347,17 @@ function createAppraiseMockClient(root) {
     provider: { list: function() { return { connected: [] }; } },
     _sessionIds: sessions,
   };
+}
+
+function writeStageOutputFiles(root) {
+  const outDir = join(root, '.foundry/stage-outputs');
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, 'appraiser-1.jsonl'),
+    '{"file":"haikus/test.md","text":"needs more seasoning","law":"shape","evidence":"line 1"}\n' +
+    '{"file":"haikus/test.md","text":"line too short","law":"metrics","evidence":"line 3"}\n');
+  writeFileSync(join(outDir, 'appraiser-2.jsonl'),
+    '{"file":"haikus/test.md","text":"needs more seasoning","law":"shape","evidence":"line 1"}\n' +
+    '{"file":"haikus/test.md","text":"line too short","law":"metrics","evidence":"line 3"}\n');
 }
 
 function writeAppraiser(root, id, name) {
@@ -396,7 +397,11 @@ test('AC9: parallel appraiser sessions write per-session stage-output files cons
     execSync('git add . && git commit -m "add haiku artefact" -q', { cwd: root, env: GIT_ENV });
 
     const client = createAppraiseMockClient(root);
-    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    const execFileMock = mock.fn(() => {
+      // Simulate the child process writing stage-output files
+      writeStageOutputFiles(root);
+      return makeChildProcess({ exitCode: 0 });
+    });
     _setExecFile(execFileMock);
     const plugin = await FoundryPlugin({ directory: root, client });
 
