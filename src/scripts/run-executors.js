@@ -8,13 +8,13 @@
 import { getCycleDefinition, getLawsForQuench } from './lib/config.js';
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
 import { appendEntry } from './lib/history.js';
-import { renderDispatchPrompt } from './orchestrate-cycle.js';
 import { enforceForgeContract } from './lib/forge-contract.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { resolveStaleFeedback } from './quench-module.js';
 import { spawnWithTimeout } from './lib/assay/spawn-with-timeout.js';
 import { readActiveStage } from './lib/state.js';
 import { buildForgeHistoryEntry } from './lib/workfile.js';
+import { forgeDispatch } from './lib/forge-dispatch.js';
 
 const QUILL_TIMEOUT_MS = 60_000;
 const MAX_QUILL_TIMEOUT_MS = 600_000;
@@ -25,15 +25,6 @@ async function resolveModel(forgeModel, sortModel) {
   if (model.indexOf('/') === -1) return { providerID: '', modelID: model };
   const mod = await import('./lib/parse-model-id.js');
   return mod.parseModelId(model);
-}
-
-function readStageOutput(io, sessionId) {
-  const path = '.foundry/stage-outputs/' + sessionId + '.jsonl';
-  if (!io.exists(path)) return [];
-  const raw = io.readFile(path);
-  return raw.trim().split('\n').filter(Boolean).map(function(l) {
-    return tryParseJson(l);
-  }).filter(Boolean);
 }
 
 function tryParseJson(str) {
@@ -47,16 +38,6 @@ function cycleIdFrom(cycleId, sort) {
 async function readCfm(cycleId, io) {
   const def = await getCycleDefinition('foundry', cycleId, io);
   return def.frontmatter || {};
-}
-
-async function makeForgeSession(client, context, worktree, cycleId, childSessions) {
-  const session = await client.session.create({
-    parentID: context.sessionID,
-    title: 'Forge: ' + cycleId,
-    directory: worktree,
-  });
-  childSessions.set(session.id, 'forge');
-  return session;
 }
 
 async function makeArtefactVersion(io, outputType, cwd) {
@@ -98,31 +79,11 @@ function finalizeForgeOutcome(opts) {
   return { ok: true, contractPassed: true, artefactVersion: arV, changedFiles: [] };
 }
 
-// ---------------------------------------------------------------------------
-// executeForge
-// ---------------------------------------------------------------------------
 
-function dispatchForgePrompt(opts) {
-  const { client, childSessions, context, worktree, cycleId, dispatchPrompt, modelParam, route } = opts;
-  return makeForgeSession(client, context, worktree, cycleId, childSessions).then(function(session) {
-    if (!session) return { error: 'executeForge: failed to create child session' };
-    return client.session.prompt({
-      sessionID: session.id,
-      directory: worktree,
-      system: dispatchPrompt,
-      ...(modelParam ? { model: modelParam } : {}),
-      parts: [{ type: 'text', text: 'Cycle: ' + cycleId + '\nGoal: ' + route }],
-    }).then(function() {
-      return { session };
-    }).catch(function(err) {
-      return { error: 'executeForge: dispatch failed: ' + (err.message || String(err)) };
-    });
-  });
-}
 
 /** Execute a forge stage. */
 export async function executeForge(forgeOpts) {
-  const { sort, client, childSessions, context, io, worktree, historyPath, feedbackPath } = forgeOpts;
+  const { sort, io, worktree, historyPath, feedbackPath } = forgeOpts;
   const cwd2 = forgeOpts.cwd;
 
   const cycleId = cycleIdFrom(forgeOpts.cycleId, sort);
@@ -133,25 +94,23 @@ export async function executeForge(forgeOpts) {
 
   const { outputType, forgeModel, filePatterns } = extractForgeCfm(cfm);
 
-  const dispatchPrompt = renderDispatchPrompt({
+  const promptContext = {
     stage: sort.route, cycle: cycleId, token: sort.token || '',
     cwd: cwd2, filePatterns, outputType, forgeItem: null,
-  });
+  };
 
   const modelParam = await resolveModel(forgeModel);
 
-  const dispatch = await dispatchForgePrompt({
-    client, childSessions, context, worktree, cycleId,
-    dispatchPrompt, modelParam, route: sort.route,
+  const dispatch = await forgeDispatch({
+    sort, io, worktree, cycleId, dispatchPrompt: promptContext, modelParam,
   });
   if (dispatch.error) return { ok: false, error: dispatch.error };
 
-  const stageOutputLines = readStageOutput(io, dispatch.session.id);
   const store = openFeedbackStore(feedbackPath, io);
   const arV = await makeArtefactVersion(io, outputType, cwd2);
 
   return finalizeForgeOutcome({
-    cycleId, historyPath, io, stageOutputLines, store, arV, route: sort.route,
+    cycleId, historyPath, io, stageOutputLines: dispatch.stageOutputLines, store, arV, route: sort.route,
   });
 }
 
@@ -392,5 +351,6 @@ export async function executeAssay(assayOpts) {
   return buildAssaySummary(issues, cycleId, sort.route, historyPath, io);
 }
 
-// Re-export executeAppraise from the dedicated appraise executor module.
+// Re-export executeAppraise and forgeDispatch from their dedicated modules.
 export { executeAppraise } from './run-appraise.js';
+export { forgeDispatch } from './lib/forge-dispatch.js';

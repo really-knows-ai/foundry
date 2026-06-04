@@ -217,7 +217,7 @@ function buildForgePromptLines({ cycle, outputType, forgeItem }) {
   return lines;
 }
 
-export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, outputType, forgeItem }) {
+export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, outputType, forgeItem, tokenFile }) {
   const base = stage.split(':')[0];
   const lines = [
     `You are a Foundry stage agent. Invoke the ${base} skill and follow its instructions exactly.`,
@@ -230,13 +230,24 @@ export function renderDispatchPrompt({ stage, cycle, token, cwd, filePatterns, o
     lines.push(`File patterns (forge only): ${JSON.stringify(filePatterns)}`);
   }
   if (base === 'forge') {
+    let tokenArg = '';
     lines.push(...buildForgePromptLines({ cycle, outputType, forgeItem }));
+    if (tokenFile) {
+      tokenArg = `, tokenFile: "${tokenFile}"`;
+      lines.push(`{tokenFile}: ${tokenFile}`);
+    }
+    lines.push(
+      ``,
+      `Your FIRST tool call MUST be foundry_stage_begin({stage: "${stage}", cycle: "${cycle}"${tokenArg}}).`,
+      `Your LAST tool call MUST be foundry_stage_end().`,
+    );
+  } else {
+    lines.push(
+      ``,
+      `Your FIRST tool call MUST be foundry_stage_begin({stage: "${stage}", cycle: "${cycle}"}).`,
+      `Your LAST tool call MUST be foundry_stage_end().`,
+    );
   }
-  lines.push(
-    ``,
-    `Your FIRST tool call MUST be foundry_stage_begin({stage: "${stage}", cycle: "${cycle}"}).`,
-    `Your LAST tool call MUST be foundry_stage_end().`,
-  );
   return lines.join('\n');
 }
 

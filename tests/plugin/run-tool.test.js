@@ -1,13 +1,21 @@
 // tests/plugin/run-tool.test.js
 // Integration tests for the foundry_run tool.
 
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { createRunTool } from '../../src/plugin/tools/run-tool.js';
+import { _setExecFile } from '../../src/scripts/lib/dispatch-cli.js';
+
+function makeChildProcess({ exitCode = 0 } = {}) {
+  const handlers = {};
+  const child = { on: (e, h) => { handlers[e] = h; }, kill: mock.fn() };
+  process.nextTick(() => { if (handlers.exit) handlers.exit(exitCode, null); });
+  return child;
+}
 
 // ── Mock tool factory ───────────────────────────────────────────────
 
@@ -152,10 +160,13 @@ test('foundry_run with multiple start cycles and explicit cycle bootstraps WORK.
     writeFlowDef(dir, 'multi-flow', { start: ['cycle-a', 'cycle-b'] });
     writeCycleDef(dir, 'cycle-a');
     writeArtefactDef(dir);
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
     await handler.execute({ flow: 'multi-flow', cycle: 'cycle-a', goal: 'test goal' }, { worktree: dir, sessionID: 'main-session' });
     // Should have created WORK.md
     assert.ok(existsSync(join(dir, 'WORK.md')));
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     rmSync(dir, { recursive: true, force: true });
   }
 });

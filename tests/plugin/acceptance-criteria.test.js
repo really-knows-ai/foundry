@@ -6,7 +6,7 @@
  * pass/fail signal for the full specification.
  */
 
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync,
@@ -15,6 +15,14 @@ import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { _setExecFile } from '../../src/scripts/lib/dispatch-cli.js';
+
+function makeChildProcess({ exitCode = 0 } = {}) {
+  const handlers = {};
+  const child = { on: (e, h) => { handlers[e] = h; }, kill: mock.fn() };
+  process.nextTick(() => { if (handlers.exit) handlers.exit(exitCode, null); });
+  return child;
+}
 
 // ── AC1: Tool registration ──────────────────────────────────────────
 
@@ -94,6 +102,8 @@ test('AC2: haiku flow completes with only prompt_user/done/violation actions', a
     writeFileSync(join(haikusDir, 'test.md'), 'sausages and eggs\nsizzling in the morning sun\na perfect breakfast\n');
     execSync('git add . && git commit -m "add haiku artefact" -q', { cwd: root, env: GIT_ENV });
 
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
     const client = {
       session: {
         create: async function() { return { id: 'mock-session-1' }; },
@@ -145,6 +155,7 @@ test('AC2: haiku flow completes with only prompt_user/done/violation actions', a
     assert.ok(toolNames.includes('foundry_continue'));
     assert.ok(!toolNames.includes('foundry_orchestrate'));
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -385,6 +396,8 @@ test('AC9: parallel appraiser sessions write per-session stage-output files cons
     execSync('git add . && git commit -m "add haiku artefact" -q', { cwd: root, env: GIT_ENV });
 
     const client = createAppraiseMockClient(root);
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
     const plugin = await FoundryPlugin({ directory: root, client });
 
     await plugin.tool.foundry_run.execute(
@@ -418,6 +431,7 @@ test('AC9: parallel appraiser sessions write per-session stage-output files cons
     assert.ok(feedbackContent.includes('source: appraise:'),
       'feedback items should have appraise source, got: ' + feedbackContent);
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     rmSync(root, { recursive: true, force: true });
   }
 });

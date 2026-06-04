@@ -7,7 +7,7 @@
  * files. All stages execute deterministically via canned SDK responses.
  */
 
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync,
@@ -16,6 +16,14 @@ import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { _setExecFile } from '../../src/scripts/lib/dispatch-cli.js';
+
+function makeChildProcess({ exitCode = 0 } = {}) {
+  const handlers = {};
+  const child = { on: (e, h) => { handlers[e] = h; }, kill: mock.fn() };
+  process.nextTick(() => { if (handlers.exit) handlers.exit(exitCode, null); });
+  return child;
+}
 
 const GIT_ENV = {
   ...process.env,
@@ -123,6 +131,8 @@ test('D1.1: full haiku flow completes end-to-end', async () => {
   try {
     setupHaikuRepo(root, 'work/haiku-test');
     const client = createMockClient();
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
     const plugin = await FoundryPlugin({ directory: root, client });
 
     // First call: foundry_run starts the flow
@@ -182,6 +192,7 @@ test('D1.1: full haiku flow completes end-to-end', async () => {
       assert.equal(continueResult.flow, 'haiku');
     }
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     cleanup(root);
   }
 });
@@ -191,6 +202,8 @@ test('D1.2: foundry_continue resume captures verbatim user reply', async () => {
   try {
     setupHaikuRepo(root, 'work/haiku-capture');
     const client = createMockClient();
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
 
     // Mock session.messages to return post-marker user messages
     client.session.messages = async function() {
@@ -234,6 +247,7 @@ test('D1.2: foundry_continue resume captures verbatim user reply', async () => {
       'unexpected action: ' + result.action,
     );
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     cleanup(root);
   }
 });
@@ -243,6 +257,8 @@ test('D1.3: flow returns done when no feedback after human-appraise', async () =
   try {
     setupHaikuRepo(root, 'work/haiku-empty');
     const client = createMockClient();
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
 
     // Mock session.messages to return NO post-marker user messages
     client.session.messages = async function() {
@@ -275,6 +291,7 @@ test('D1.3: flow returns done when no feedback after human-appraise', async () =
       'expected done, violation, or prompt_user, got: ' + result.action);
     assert.ok(!seenActions.has('continue'), 'action set must not include continue');
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     cleanup(root);
   }
 });
@@ -370,6 +387,8 @@ test('D1.7: appraise dispatch uses parallel sessions and consolidates', async ()
 
     const sessionIds = [];
     const client = createMockClient();
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
     // Override create to track session IDs
     const origCreate = client.session.create;
     client.session.create = async function(opts) {
@@ -397,14 +416,14 @@ test('D1.7: appraise dispatch uses parallel sessions and consolidates', async ()
       { worktree: root, sessionID: 'main-session' },
     );
 
-    // Session IDs should have been created for forge and appraise stages
-    // Forge creates 1 session, appraise creates 2 sessions = 3 total
-    assert.ok(sessionIds.length >= 3,
-      'expected at least 3 child sessions (forge + 2 appraisers), got: ' + sessionIds.length);
+    // Appraise sessions should have been created
+    assert.ok(sessionIds.length >= 2,
+      'expected at least 2 appraise sessions, got: ' + sessionIds.length);
 
     assert.ok(appraiseSessions.length >= 2,
       'expected at least 2 appraise sessions, got: ' + appraiseSessions.length);
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     cleanup(root);
   }
 });
@@ -414,6 +433,8 @@ test('D1.8: action set is exactly prompt_user, done, violation', async () => {
   try {
     setupHaikuRepo(root, 'work/haiku-actions');
     const client = createMockClient();
+    const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
+    _setExecFile(execFileMock);
 
     // Return prompt_user for the first continue and done for the second
     const plugin = await FoundryPlugin({ directory: root, client });
@@ -446,6 +467,7 @@ test('D1.8: action set is exactly prompt_user, done, violation', async () => {
     }
     assert.ok(!actions.has('continue'), 'action set must not include continue');
   } finally {
+    _setExecFile((await import('node:child_process')).execFile);
     cleanup(root);
   }
 });

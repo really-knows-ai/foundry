@@ -2,13 +2,32 @@
 // Unit tests for the run.js state machine with injectable IO, mock client,
 // and deterministic assertions on routing decisions.
 
-import { test, beforeEach } from 'node:test';
+import { test, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { _setExecFile } from '../../src/scripts/lib/dispatch-cli.js';
 
 let runRun;
 let executeForge;
 let executeQuench;
 let executeAssay;
+
+function makeChildProcess({ exitCode = 0 } = {}) {
+  const handlers = {};
+  const child = {
+    on: (event, handler) => { handlers[event] = handler; },
+    kill: mock.fn(),
+  };
+  process.nextTick(() => {
+    if (handlers.exit) handlers.exit(exitCode, null);
+  });
+  return child;
+}
+
+// Restore the real execFile after each test so other tests are unaffected.
+afterEach(async () => {
+  const { execFile } = await import('node:child_process');
+  _setExecFile(execFile);
+});
 
 // ── Mock IO factory ─────────────────────────────────────────────────
 
@@ -126,6 +145,10 @@ test('runRun dispatches appraise instead of returning done for appraise sort', a
 });
 
 test('runRun executes forge when sort routes to forge', async function() {
+  const execFileMock = mock.fn();
+  _setExecFile(execFileMock);
+  execFileMock.mock.mockImplementation(() => makeChildProcess({ exitCode: 0 }));
+
   let callCount = 0;
   const sortFn = function() {
     callCount++;
@@ -138,17 +161,18 @@ test('runRun executes forge when sort routes to forge', async function() {
     'WORK.feedback.yaml': '',
     'foundry/cycles/test.md': '---\nid: test\noutput-type: test-artefact\n---\nForge persona\n',
   });
-  const client = { session: { create: async function() { return { id: 'forge-session-1' }; }, prompt: async function() {} } };
-  const childSessions = new Map();
-  const context = { sessionID: 'main-session', worktree: '/tmp' };
 
-  await runRun({ io, client, childSessions, context, sortFn }).catch(function() {});
+  const result = await runRun({ io, sortFn }).catch(function() {});
 
-  assert.equal(childSessions.has('forge-session-1'), true);
-  assert.equal(childSessions.get('forge-session-1'), 'forge');
+  assert.equal(execFileMock.mock.callCount(), 1);
+  assert.ok(result);
 });
 
 test('runRun executes quench after forge', async function() {
+  const execFileMock = mock.fn();
+  _setExecFile(execFileMock);
+  execFileMock.mock.mockImplementation(() => makeChildProcess({ exitCode: 0 }));
+
   const routeOrder = ['forge:test', 'quench:test', 'done'];
   let idx = 0;
   const sortFn = function() {
@@ -164,70 +188,49 @@ test('runRun executes quench after forge', async function() {
     'WORK.feedback.yaml': '',
     'foundry/cycles/test.md': '---\nid: test\noutput-type: test-artefact\n---\nForge persona\n',
   });
-  const client = { session: { create: async function() { return { id: 'forge-session-2' }; }, prompt: async function() {} } };
-  const childSessions = new Map();
-  const context = { sessionID: 'main-session', worktree: '/tmp' };
 
-  const result = await runRun({ io, client, childSessions, context, sortFn });
+  const result = await runRun({ io, sortFn });
   assert.equal(result.action, 'done');
   assert.ok(idx >= 2);
 });
 
-test('executeForge creates child session and dispatches prompt', async function() {
+test('executeForge dispatches via CLI spawn', async function() {
   const io = makeMockIo({
     'foundry/cycles/test.md': '---\nid: test\noutput-type: test-artefact\nmodels:\n  forge: openai/gpt-4o\n---\nForge persona\n',
     'WORK.history.yaml': '',
     'WORK.feedback.yaml': '',
   });
-  const client = {
-    session: {
-      create: async function(opts) {
-        assert.equal(opts.parentID, 'main-session');
-        assert.equal(opts.title, 'Forge: test');
-        return { id: 'forge-session-3' };
-      },
-      prompt: async function(opts) {
-        assert.equal(opts.sessionID, 'forge-session-3');
-        assert.ok(opts.system);
-        return {};
-      },
-    },
-  };
-  const childSessions = new Map();
-  const context = { sessionID: 'main-session', worktree: '/tmp' };
+  const execFileMock = mock.fn();
+  _setExecFile(execFileMock);
+  execFileMock.mock.mockImplementation(() => makeChildProcess({ exitCode: 0 }));
 
   const result = await executeForge({
     sort: { route: 'forge:test', cycleId: 'test', model: 'openai/gpt-4o', token: 'tok-1' },
-    cwd: '/tmp', client, childSessions, context, io, worktree: '/tmp',
+    cwd: '/tmp', io, worktree: '/tmp',
     historyPath: 'WORK.history.yaml', feedbackPath: 'WORK.feedback.yaml', cycleId: 'test',
   });
 
-  assert.equal(childSessions.get('forge-session-3'), 'forge');
+  assert.equal(execFileMock.mock.callCount(), 1);
   assert.equal(result.ok, true);
 });
 
-test('executeForge handles dispatch failure', async function() {
+test('executeForge handles dispatch failure (non-zero exit)', async function() {
   const io = makeMockIo({
     'foundry/cycles/test.md': '---\nid: test\noutput-type: test-artefact\n---\nForge persona\n',
     'WORK.history.yaml': '', 'WORK.feedback.yaml': '',
   });
-  const client = {
-    session: {
-      create: async function() { return { id: 'forge-session-4' }; },
-      prompt: async function() { throw new Error('model unavailable'); },
-    },
-  };
-  const childSessions = new Map();
-  const context = { sessionID: 'main-session', worktree: '/tmp' };
+  const execFileMock = mock.fn();
+  _setExecFile(execFileMock);
+  execFileMock.mock.mockImplementation(() => makeChildProcess({ exitCode: 1 }));
 
   const result = await executeForge({
     sort: { route: 'forge:test', cycleId: 'test', model: 'openai/gpt-4o', token: 'tok-2' },
-    cwd: '/tmp', client, childSessions, context, io, worktree: '/tmp',
+    cwd: '/tmp', io, worktree: '/tmp',
     historyPath: 'WORK.history.yaml', feedbackPath: 'WORK.feedback.yaml', cycleId: 'test',
   });
 
   assert.equal(result.ok, false);
-  assert.ok(result.error.includes('dispatch failed'));
+  assert.ok(result.error.includes('child process exited with code'));
 });
 
 test('executeQuench runs validators via spawnWithTimeout', async function() {
