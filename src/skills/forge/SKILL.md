@@ -20,14 +20,14 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 Forge runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
-1. **First:** `foundry_stage_begin({stage, cycle, token})` — the orchestrator hands you `stage`, `cycle`, and an opaque `token` string in the dispatch prompt. Copy the token verbatim; never invent, edit, or re-sign it. No other tool call is permitted before this one. Any writes before `stage_begin` will be blocked by preconditions.
+1. **First:** `foundry_stage_begin({stage, cycle, tokenFile})` — the orchestrator hands you `stage`, `cycle`, and a `tokenFile` filename in the dispatch prompt. Pass the filename verbatim; never invent or edit it. No other tool call is permitted before this one. Any writes before `stage_begin` will be blocked by preconditions.
 2. **Last:** `foundry_stage_end()` — return control to the orchestrator. After `stage_end`, the orchestrator's internal finalise step scans the disk and registers your output artefact. **You do not register artefacts yourself.**
 
 ## Protocol
 
 ### First generation (no artefact registered yet)
 
-1. `foundry_stage_begin(...)` with the token from the dispatch prompt.
+1. `foundry_stage_begin({stage, cycle, tokenFile})` with the `tokenFile` from the dispatch prompt.
 2. `foundry_workfile_get` — understand the goal.
 
    **Check for failed flow state.** If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do not call any other tool. Tell the user:

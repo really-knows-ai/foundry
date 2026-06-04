@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -258,6 +258,101 @@ describe('foundry_stage_end', () => {
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.match(res.error, /no active stage to close/);
+  });
+});
+
+describe('foundry_stage_begin with tokenFile parameter', () => {
+  let dir;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'foundry-tokenfile-'));
+    initRepo(dir);
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  // T1: valid tokenFile reads token from .foundry/tokens/<filename>
+  it('reads token from .foundry/tokens/<tokenFile> when tokenFile is provided', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = readOrCreateSecret(dir);
+    const payload = { route: 'forge:c', cycle: 'c', nonce: 'tf1', exp: Date.now() + 60_000 };
+    pending.add('tf1', payload);
+    const token = signToken(payload, secret);
+    const tokenDir = join(dir, '.foundry/tokens');
+    mkdirSync(tokenDir, { recursive: true });
+    writeFileSync(join(tokenDir, 'test-cycle.token'), token);
+    const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+      { stage: 'forge:c', cycle: 'c', tokenFile: 'test-cycle.token' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+    assert.ok(existsSync(join(dir, '.foundry/active-stage.json')));
+  });
+
+  // T2: tokenFile absent falls back to .foundry/dispatch-token
+  it('falls back to .foundry/dispatch-token when tokenFile is absent', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = readOrCreateSecret(dir);
+    const payload = { route: 'forge:c', cycle: 'c', nonce: 'tf2', exp: Date.now() + 60_000 };
+    pending.add('tf2', payload);
+    const token = signToken(payload, secret);
+    writeFileSync(join(dir, '.foundry/dispatch-token'), token);
+    const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+      { stage: 'forge:c', cycle: 'c' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+    assert.ok(existsSync(join(dir, '.foundry/active-stage.json')));
+  });
+
+  // T3: tokenFile containing / is rejected
+  it('rejects tokenFile containing forward slash (path traversal)', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+      { stage: 'forge:c', cycle: 'c', tokenFile: 'subdir/token.file' },
+      makeCtx(dir),
+    ));
+    assert.match(res.error, /tokenFile must not contain/);
+    assert.equal(existsSync(join(dir, '.foundry/active-stage.json')), false);
+  });
+
+  // T4: tokenFile containing .. is rejected
+  it('rejects tokenFile containing .. (parent directory reference)', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+      { stage: 'forge:c', cycle: 'c', tokenFile: '../dispatch-token' },
+      makeCtx(dir),
+    ));
+    assert.match(res.error, /tokenFile must not contain/);
+    assert.equal(existsSync(join(dir, '.foundry/active-stage.json')), false);
+  });
+
+  // T5: token file exists after beginStage, absent after stageEnd
+  it('token file exists after beginStage and is deleted after stageEnd', async () => {
+    const plugin = await FoundryPlugin({ directory: dir });
+    const pending = plugin[Symbol.for('foundry.test.pending')];
+    const secret = readOrCreateSecret(dir);
+    const nonce = 'tf5';
+    const payload = { route: 'forge:c', cycle: 'c', nonce, exp: Date.now() + 60_000 };
+    pending.add(nonce, payload);
+    const token = signToken(payload, secret);
+    const tokenDir = join(dir, '.foundry/tokens');
+    mkdirSync(tokenDir, { recursive: true });
+    const tokenFilePath = join(tokenDir, 'test-cycle.token');
+    writeFileSync(tokenFilePath, token);
+    const beginRes = JSON.parse(await plugin.tool.foundry_stage_begin.execute(
+      { stage: 'forge:c', cycle: 'c', tokenFile: 'test-cycle.token' },
+      makeCtx(dir),
+    ));
+    assert.equal(beginRes.ok, true);
+    // Token file should still exist on disk after beginStage
+    assert.ok(existsSync(tokenFilePath), 'token file should exist after beginStage');
+    // Satisfy forge contract: exactly 1 output
+    await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, makeCtx(dir));
+    const endRes = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
+    assert.equal(endRes.ok, true);
+    // Token file should be deleted after stageEnd
+    assert.equal(existsSync(tokenFilePath), false, 'token file should be deleted after stageEnd');
   });
 });
 

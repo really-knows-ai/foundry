@@ -32,15 +32,15 @@ function resolveBaseSha(worktree) {
   }
 }
 
-function deleteDispatchToken(io) {
-  const p = '.foundry/dispatch-token';
+function deleteDispatchToken(io, tokenFile) {
+  const p = tokenFile ? `.foundry/tokens/${tokenFile}` : '.foundry/dispatch-token';
   if (io.exists(p)) io.unlink(p);
 }
 
-function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pending }) {
+function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pending, tokenFile }) {
   const tokenResult = verifyStageToken(token, secret, stage, cycle, agent);
   if (tokenResult.error) {
-    if (tokenResult.fatal) deleteDispatchToken(io);
+    if (tokenResult.fatal) deleteDispatchToken(io, tokenFile);
     return { error: tokenResult.error };
   }
 
@@ -51,7 +51,7 @@ function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pen
 
   const meta = pending.consume(tokenResult.payload.nonce);
   if (!meta) {
-    deleteDispatchToken(io);
+    deleteDispatchToken(io, tokenFile);
     return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_run. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
   }
 
@@ -62,12 +62,27 @@ function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pen
     tokenHash,
     baseSha,
     startedAt: new Date().toISOString(),
+    tokenFile,
   };
   writeActiveStage(io, active);
   initForgeIfApplicable(io, active.stage);
   cleanStageOutputDir(io);
 
   return { active };
+}
+
+function resolveTokenForStageBegin(args, io) {
+  if (args.tokenFile) {
+    if (args.tokenFile.includes('/') || args.tokenFile.includes('..')) {
+      return { error: 'foundry_stage_begin: tokenFile must not contain "/" or ".." — use the filename from the dispatch prompt verbatim' };
+    }
+    const tokenPath = `.foundry/tokens/${args.tokenFile}`;
+    if (!io.exists(tokenPath)) {
+      return { error: `foundry_stage_begin: no dispatch token found at .foundry/tokens/${args.tokenFile}` };
+    }
+    return { token: io.readFile(tokenPath).trim() };
+  }
+  return readDispatchToken(io);
 }
 
 async function executeStageBegin(args, context, pending) {
@@ -79,13 +94,13 @@ async function executeStageBegin(args, context, pending) {
     return JSON.stringify({ error: `foundry_stage_begin: stage "${current.stage}" is already active — it was set up by the orchestrator and does not need stage_begin. Proceed with the stage work directly` });
   }
 
-  const dispatchResult = readDispatchToken(io);
-  if (dispatchResult.error) return JSON.stringify({ error: dispatchResult.error });
-  const token = dispatchResult.token;
+  const tokenResult = resolveTokenForStageBegin(args, io);
+  if (tokenResult.error) return JSON.stringify({ error: tokenResult.error });
 
   const opts = {
-    token, secret, stage: args.stage, cycle: args.cycle,
+    token: tokenResult.token, secret, stage: args.stage, cycle: args.cycle,
     agent: context.agent, worktree: context.worktree, io, pending,
+    tokenFile: args.tokenFile,
   };
   const beginResult = beginTokenStage(opts);
   if (beginResult.error) return JSON.stringify({ error: beginResult.error });
@@ -204,7 +219,7 @@ async function executeStageEnd(args, context) {
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);
 
-  deleteDispatchToken(io);
+  deleteDispatchToken(io, active.tokenFile);
 
   return JSON.stringify({ ok: true });
 }
@@ -268,10 +283,11 @@ async function executeStageRetry(_args, context) {
 export function createStageTools({ tool, pending }) {
   return {
     foundry_stage_begin: tool({
-      description: 'Open a subagent work stage. The orchestrator writes a dispatch token to .foundry/dispatch-token — this tool reads it automatically.',
+      description: 'Open a subagent work stage. The orchestrator provides the dispatch token via a tokenFile or .foundry/dispatch-token — this tool reads it automatically.',
       args: {
         stage: tool.schema.string().describe('Stage alias, e.g. "forge:create-haiku"'),
         cycle: tool.schema.string().describe('Cycle name'),
+        tokenFile: tool.schema.string().optional().describe('Filename of the dispatch token under .foundry/tokens/. Pass the filename verbatim from the dispatch prompt.'),
       },
       execute: guarded('foundry_stage_begin', [flowBranchGuard, gateNotFailed],
         (args, context) => executeStageBegin(args, context, pending),
