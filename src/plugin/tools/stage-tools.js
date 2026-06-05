@@ -78,7 +78,7 @@ function resolveTokenForStageBegin(args, io) {
     }
     const tokenPath = `.foundry/tokens/${args.tokenFile}`;
     if (!io.exists(tokenPath)) {
-      return { error: `foundry_stage_begin: no dispatch token found at .foundry/tokens/${args.tokenFile}` };
+      return { error: 'foundry_stage_begin: no dispatch token found.' };
     }
     return { token: io.readFile(tokenPath).trim() };
   }
@@ -229,6 +229,8 @@ async function executeStageEnd(args, context) {
   if (violation) {
     return JSON.stringify({ error: violation });
   }
+
+  deleteDispatchToken(io, active.tokenFile);
 
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);

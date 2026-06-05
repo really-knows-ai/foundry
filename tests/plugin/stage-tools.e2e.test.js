@@ -351,8 +351,8 @@ describe('foundry_stage_begin with tokenFile parameter', () => {
     await plugin.tool.foundry_stage_output.execute({ data: { status: 'done' } }, makeCtx(dir));
     const endRes = JSON.parse(await plugin.tool.foundry_stage_end.execute({}, makeCtx(dir)));
     assert.equal(endRes.ok, true);
-    // Token file is not deleted by stageEnd (orchestrator handles cleanup)
-    assert.equal(existsSync(tokenFilePath), true, 'token file should remain after stageEnd, orchestrator cleans it up');
+    // Token file is deleted by stageEnd (per forge token lifecycle step 8)
+    assert.equal(existsSync(tokenFilePath), false, 'token file should be deleted by stageEnd');
   });
 });
 

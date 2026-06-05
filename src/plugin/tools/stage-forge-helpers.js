@@ -43,7 +43,7 @@ function checkTokenAgentBinding(payload, agent) {
 export function readDispatchToken(io) {
   const tokenPath = '.foundry/dispatch-token';
   if (!io.exists(tokenPath)) {
-    return { error: 'foundry_stage_begin: no dispatch token found — the orchestrator has not produced a dispatch for this worktree. Call foundry_run() to get a dispatch' };
+    return { error: 'foundry_stage_begin: no dispatch token found.' };
   }
   return { token: io.readFile(tokenPath).trim() };
 }
