@@ -1,12 +1,6 @@
 /**
- * Appraise dispatch — CLI spawn dispatch for appraise stages.
- *
- * Exports: dispatchAppraisePrompt, batchAppraiseDispatch
- *
- * Each appraiser dispatch spawns `opencode run --attach` as a child process.
- * The prompt is written to a temp file to avoid shell injection. Batches
- * dispatch at most 4 concurrent processes with sequential fallback on failure.
- * Appraisers do not use tokens — the orchestrator manages stage lifecycle.
+ * Appraise dispatch — build wrapped prompts, dispatch evaluations,
+ * batch with bounded concurrency, and check for all-failure.
  */
 
 import { buildAppraiserPrompt } from '../appraise-module.js';
@@ -35,11 +29,12 @@ function buildWrappedPrompt(entry, lawGroups, outputType) {
 
   return [
     '<appraiser_instructions>',
+    'Your task is to evaluate the artefact according to your persona below.',
+    'Call foundry_stage_output for each finding, then foundry_stage_end.',
+    '',
     '<persona>',
     promptStr,
     '</persona>',
-    'Your task is to evaluate the artefact according to your persona above.',
-    'Call foundry_stage_output for each finding, then foundry_stage_end.',
     '</appraiser_instructions>',
   ].join('\n');
 }
@@ -55,7 +50,7 @@ function buildWrappedPrompt(entry, lawGroups, outputType) {
  * Accepts dispatch helpers via opts for test injection.
  * Returns nothing — stage output is collected later by readAppraiseStageOutputs.
  */
-export async function dispatchAppraisePrompt(entry, opts) {
+async function dispatchAppraisePrompt(entry, opts) {
   const {
     io, worktree, lawGroups, outputType, timeoutMs = 300_000,
     writePromptFile, spawnDispatch, awaitProcess, withCleanup,
@@ -81,7 +76,7 @@ export async function dispatchAppraisePrompt(entry, opts) {
  *
  * Returns a flat PromiseSettledResult[] array matching dispatchMatrix order.
  */
-export async function batchAppraiseDispatch(dispatchMatrix, opts) {
+async function batchAppraiseDispatch(dispatchMatrix, opts) {
   const BATCH_SIZE = 4;
   const results = [];
   let sequential = false;
@@ -110,3 +105,16 @@ export async function batchAppraiseDispatch(dispatchMatrix, opts) {
 
   return results;
 }
+
+/**
+ * Check if all appraise dispatches failed and return an error result.
+ * Returns null if at least one dispatch succeeded.
+ */
+function checkAppraiseDispatchFailure(settled) {
+  const allRejected = settled.every(function(r) { return r.status === 'rejected'; });
+  if (!allRejected) return null;
+  const reasons = settled.map(function(r) { return r.reason ? r.reason.message || String(r.reason) : 'unknown'; });
+  return { ok: false, error: 'all appraise dispatches failed: ' + reasons.join('; ') };
+}
+
+export { buildWrappedPrompt, dispatchAppraisePrompt, batchAppraiseDispatch, checkAppraiseDispatchFailure };

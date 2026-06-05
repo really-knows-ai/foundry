@@ -1,8 +1,7 @@
 /**
- * Forge dispatch — CLI spawn dispatch for forge stages.
+ * Forge dispatch functions used by the run state machine.
  *
  * Exports: forgeDispatch
- * Uses the Phase 1 CLI spawn infrastructure to dispatch forge stages.
  */
 
 import { renderDispatchPrompt } from '../orchestrate-cycle.js';

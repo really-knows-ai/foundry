@@ -88,8 +88,8 @@ test('artefact-discovery tools are still listed', () => {
 });
 
 test('stage lifecycle constraints are preserved', () => {
-  assert.ok(bundlePrompt.includes('foundry_stage_begin'), 'should mention not to call foundry_stage_begin');
-  assert.ok(lawPrompt.includes('foundry_stage_begin'), 'should mention not to call foundry_stage_begin');
+  assert.ok(bundlePrompt.includes('foundry_stage_end'), 'should mention to call foundry_stage_end');
+  assert.ok(lawPrompt.includes('foundry_stage_end'), 'should mention to call foundry_stage_end');
 });
 
 test('appraiser.id appears in the identity', () => {

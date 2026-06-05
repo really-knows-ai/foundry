@@ -16,7 +16,7 @@ import { parseModelId } from './lib/parse-model-id.js';
 import { getCycleDefinition, getLaws, getAppraisers, getFlow, getArtefactType } from './lib/config.js';
 
 import { writePromptFile as _writePromptFile, spawnDispatch as _spawnDispatch, awaitProcess as _awaitProcess, withCleanup as _withCleanup } from './lib/dispatch-cli.js';
-import { dispatchAppraisePrompt, batchAppraiseDispatch } from './lib/appraise-dispatch.js';
+import { dispatchAppraisePrompt, batchAppraiseDispatch, checkAppraiseDispatchFailure } from './lib/appraise-dispatch.js';
 
 function resolveBaseSha(io) {
   try {
@@ -146,8 +146,6 @@ function resolveGroupConfigs(groupNames, flowGroups, typeAppraisers, fullApprais
   return { configs, warnings };
 }
 
-// dispatchAppraisePrompt and batchAppraiseDispatch are now in
-// lib/appraise-dispatch.js and imported at the top of this module.
 
 function readAppraiseStageOutputs(io) {
   const outDir = '.foundry/stage-outputs/';
@@ -377,29 +375,20 @@ async function postProcessAppraise(opts) {
  * post feedback, build per-unit coverage, persist coverage for attestation,
  * close stage, record history.
  */
-export async function executeAppraise(apprOpts) {
-  const { io, worktree, historyPath, feedbackPath } = apprOpts;
-  // client, childSessions, and context are still accepted for backward compat
-  // but are no longer used for dispatch (replaced by CLI spawn).
-
-  // Accept injectable dispatch helpers via opts for testing
-  const { writePromptFile, spawnDispatch, awaitProcess, withCleanup } = extractDispatchHelpers(apprOpts);
-
+async function prepareAppraiseContext(apprOpts) {
+  const { io, historyPath } = apprOpts;
   const setup = await setupAppraiseStage(apprOpts);
-  if (setup.error) return { ok: false, error: setup.error };
+  if (setup.error) return { error: setup.error };
   const { baseSha, cycleId, outputType, cfm } = setup;
   const foundryDir = 'foundry';
 
-  // Collect laws with group (Phase 01)
   const laws = await getLaws(foundryDir, io, { typeId: outputType }).catch(catchEmptyArray);
   if (laws.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no laws');
 
-  // Partition by group and resolve configs (Phase 03)
   const lawGroups = partitionLawsByGroup(laws);
   const fullAppraiserPool = await getAppraisers(foundryDir, io).catch(catchEmptyArray);
   const flowDef = await getFlow(foundryDir, cfm['flow-id'], io).catch(catchEmptyFlow);
 
-  // Artefacts (unchanged, needed for flowGroups/typeAppraisers)
   const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch: 'main' }).catch(catchEmptyArray);
   if (artefacts.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no artefacts');
 
@@ -409,21 +398,31 @@ export async function executeAppraise(apprOpts) {
   );
   warnings.forEach(function(w) { console.warn('appraise:', w); });
 
-  // Build dispatch matrix (Phase 06)
   const { unitsByGroup, dispatchMatrix } = buildDispatch(lawGroups, configs);
   if (dispatchMatrix.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no dispatch entries');
 
-  // Parallel dispatch via CLI spawn (Phase 03)
+  return { baseSha, cycleId, outputType, foundryDir, io, unitsByGroup, dispatchMatrix, lawGroups };
+}
+
+export async function executeAppraise(apprOpts) {
+  const { io, worktree, historyPath, feedbackPath } = apprOpts;
+
+  const { writePromptFile, spawnDispatch, awaitProcess, withCleanup } = extractDispatchHelpers(apprOpts);
+
+  const ctx = await prepareAppraiseContext(apprOpts);
+  if (ctx.ok) return ctx;
+  if (ctx.error) return { ok: false, error: ctx.error };
+  const { baseSha, cycleId, outputType, foundryDir, unitsByGroup, dispatchMatrix } = ctx;
+
   const dispatchOpts = {
-    io, worktree, lawGroups, outputType,
-    writePromptFile,
-    spawnDispatch,
-    awaitProcess,
-    withCleanup,
+    io, worktree, lawGroups: ctx.lawGroups, outputType,
+    writePromptFile, spawnDispatch, awaitProcess, withCleanup,
   };
   const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);
 
-  // Post-process: consolidate, feedback, coverage, close
+  const dispatchError = checkAppraiseDispatchFailure(settled);
+  if (dispatchError) return dispatchError;
+
   const coverage = await postProcessAppraise({
     io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
     foundryDir, outputType, worktree, historyPath, baseSha,

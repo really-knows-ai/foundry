@@ -63,8 +63,8 @@ function makeWorkMd(overrides) {
 function makeMockClient() {
   return {
     session: {
-      create: async function() { return { id: 'mock-session-' + Date.now() }; },
-      prompt: async function() {},
+      create: async function() { throw new Error('SDK session.create should not be called — CLI spawn replaces it'); },
+      prompt: async function() { throw new Error('SDK session.prompt should not be called — CLI spawn replaces it'); },
       messages: async function() {
         return [
           { info: { id: 'msg_1', role: 'user' }, parts: [{ type: 'text', text: 'hello' }] },

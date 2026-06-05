@@ -92,22 +92,16 @@ function cleanup(dir) {
 // ── Mock client factory ─────────────────────────────────────────────
 
 function createMockClient() {
-  const sessions = new Map();
   const callLog = { create: [], prompt: [], messages: [] };
 
   const client = {
     _callLog: callLog,
     session: {
-      create: async function({ parentID, title, directory }) {
-        const id = 'mock-session-' + (sessions.size + 1);
-        sessions.set(id, { parentID, title, directory });
-        callLog.create.push({ id, parentID, title, directory });
-        return { id };
+      create: async function() {
+        throw new Error('SDK session.create should not be called — CLI spawn replaces it');
       },
-      prompt: async function({ sessionID, system, parts, model, directory }) {
-        callLog.prompt.push({ sessionID, system, parts, model, directory });
-        // Always succeed — no violations
-        return { ok: true };
+      prompt: async function() {
+        throw new Error('SDK session.prompt should not be called — CLI spawn replaces it');
       },
       messages: async function() {
         callLog.messages.push({ args: arguments });

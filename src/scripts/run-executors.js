@@ -80,7 +80,6 @@ function finalizeForgeOutcome(opts) {
 }
 
 
-
 /** Execute a forge stage. */
 export async function executeForge(forgeOpts) {
   const { sort, io, worktree, historyPath, feedbackPath } = forgeOpts;
@@ -351,6 +350,8 @@ export async function executeAssay(assayOpts) {
   return buildAssaySummary(issues, cycleId, sort.route, historyPath, io);
 }
 
-// Re-export executeAppraise and forgeDispatch from their dedicated modules.
+// Re-export executeAppraise from its dedicated module.
 export { executeAppraise } from './run-appraise.js';
+
+// Re-export forgeDispatch from its dedicated module.
 export { forgeDispatch } from './lib/forge-dispatch.js';

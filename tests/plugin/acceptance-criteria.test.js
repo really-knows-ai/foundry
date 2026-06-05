@@ -106,8 +106,8 @@ test('AC2: haiku flow completes with only prompt_user/done/violation actions', a
     _setExecFile(execFileMock);
     const client = {
       session: {
-        create: async function() { return { id: 'mock-session-1' }; },
-        prompt: async function() { return { ok: true }; },
+        create: async function() { throw new Error('SDK session.create should not be called — CLI spawn replaces it'); },
+        prompt: async function() { throw new Error('SDK session.prompt should not be called — CLI spawn replaces it'); },
         messages: async function() { return []; },
       },
       config: { providers: async function() { return []; } },
@@ -168,8 +168,8 @@ test('AC3: plugin does not use task tool for dispatch (uses SDK sessions)', asyn
   // pass with the mock client proves no task calls are made.
   const client = {
     session: {
-      create: async function() { return { id: 'mock-session' }; },
-      prompt: async function() { return { ok: true }; },
+      create: async function() { throw new Error('SDK session.create should not be called — CLI spawn replaces it'); },
+      prompt: async function() { throw new Error('SDK session.prompt should not be called — CLI spawn replaces it'); },
       messages: async function() { return []; },
     },
     config: {

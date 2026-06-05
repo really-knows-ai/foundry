@@ -7,6 +7,8 @@ import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { runRun } from '../../scripts/run.js';
 import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
+import { signToken } from '../../scripts/lib/token.js';
+import { readOrCreateSecret } from '../../scripts/lib/secret.js';
 import { makeIO, makeExec, makeExecGit } from './helpers.js';
 
 function validateInputs(args) {
@@ -86,7 +88,7 @@ function resolveFlowStartCycle(args, io) {
 }
 
 async function executeRun(args, context, deps) {
-  const { client, childSessions } = deps;
+  const { client, childSessions, pending } = deps;
   const error = validateInputs(args);
   if (error) return JSON.stringify({ action: 'violation', details: error, recoverable: false });
 
@@ -113,16 +115,22 @@ async function executeRun(args, context, deps) {
   if (isSetupViolation(setupResult)) return JSON.stringify(setupResult);
 
   const git = makeGit(context.worktree);
+  const secret = readOrCreateSecret(context.worktree);
+  const mint = (payload) => {
+    const token = signToken(payload, secret);
+    pending.add(payload.nonce, payload);
+    return token;
+  };
   const result = await runRun({
     cwd: context.worktree, client, childSessions, context, io,
-    worktree: context.worktree, git,
+    worktree: context.worktree, git, mint,
   });
   childSessions.clear();
   return JSON.stringify(result);
 }
 
 export function createRunTool(pluginOpts) {
-  const { tool, client, childSessions } = pluginOpts;
+  const { tool, client, childSessions, pending } = pluginOpts;
   return {
     foundry_run: tool({
       description: 'Start a Foundry run on the current work branch.',
@@ -133,7 +141,7 @@ export function createRunTool(pluginOpts) {
         inputs: tool.schema.object({}).optional().describe('Upstream artefacts when the start cycle declares an input contract'),
       },
       async execute(args, context) {
-        return executeRun(args, context, { client, childSessions });
+        return executeRun(args, context, { client, childSessions, pending });
       },
     }),
   };

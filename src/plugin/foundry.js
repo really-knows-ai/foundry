@@ -249,7 +249,7 @@ function buildTools(createTool, pending, client, sessions) {
     ...createHistoryTools({ tool: createTool }),
     ...createStageTools({ tool: createTool, pending }),
     ...createWorkfileTools({ tool: createTool }),
-    ...createRunTool({ tool: createTool, client, childSessions: sessions }),
+    ...createRunTool({ tool: createTool, client, childSessions: sessions, pending }),
     ...createContinueTool({ tool: createTool, client, childSessions: sessions }),
     ...createListModelsTool({ tool: createTool, client }),
     ...createArtefactTools({ tool: createTool }),

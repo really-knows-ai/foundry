@@ -81,7 +81,15 @@ function writeArtefactDef(dir) {
 }
 
 const mockTool = createMockTool();
-const mockClient = { session: { create: async () => ({ id: 'mock-session-1' }), prompt: async () => {} } };
+const mockClient = { 
+  session: { 
+    create: async () => { throw new Error('SDK session.create should not be called'); }, 
+    prompt: async () => { throw new Error('SDK session.prompt should not be called'); },
+    messages: async () => [],
+  },
+  config: { providers: async () => [] },
+  provider: { list: () => ({ connected: [] }) },
+};
 const childSessions = new Map();
 /** @type {{ execute: Function }} */
 const handler = createRunTool({ tool: mockTool, client: mockClient, childSessions }).foundry_run;

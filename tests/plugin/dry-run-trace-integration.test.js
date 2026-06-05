@@ -92,15 +92,12 @@ function cleanup(dir) {
 // ── Mock client factory ─────────────────────────────────────────────
 
 function createMockClient() {
-  const sessions = new Map();
   return {
     session: {
-      create: async function({ parentID, title, directory }) {
-        const id = 'mock-session-' + (sessions.size + 1);
-        sessions.set(id, { parentID, title, directory });
-        return { id };
+      create: async function() {
+        throw new Error('SDK session.create should not be called');
       },
-      prompt: async function() { return { ok: true }; },
+      prompt: async function() { throw new Error('SDK session.prompt should not be called'); },
       messages: async function() { return []; },
     },
     config: {

@@ -237,8 +237,7 @@ function buildViolationInstruction(identity) {
     'produce no output. The system collects your findings from stage-output',
     'files. An empty result means the artefact passed.',
     '',
-    'The stage lifecycle is managed by the orchestrator. Do NOT call',
-    'foundry_stage_begin or foundry_stage_end.',
+    'Call foundry_stage_output for each finding, then foundry_stage_end.',
     'Do NOT write JSONL as text. Call the tool.',
   ].join('\n');
 }

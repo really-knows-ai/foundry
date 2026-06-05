@@ -54,9 +54,9 @@ function readWork(io) {
   return { fm };
 }
 
-function doSort(runSort, historyPath, io) {
+function doSort(runSort, historyPath, io, mint) {
   try {
-    return runSort({ workPath: 'WORK.md', historyPath, io });
+    return runSort({ workPath: 'WORK.md', historyPath, io, ...(mint ? { mint } : {}) });
   } catch (err) {
     return { error: terminalViolation('runRun: sort error -- ' + err.message, false) };
   }
@@ -175,13 +175,13 @@ async function handleUnknownRoute(opts, s, fm, historyPath, prefix) {
 }
 
 async function runOneIteration(opts, runSort, hp) {
-  const { io } = opts;
+  const { io, mint } = opts;
 
   const r = readWork(io);
   if (r.error) return { done: true, result: r.error };
 
   const fm = r.fm;
-  const s = doSort(runSort, hp, io);
+  const s = doSort(runSort, hp, io, mint);
   if (s.error) return { done: true, result: s.error };
 
   const terminal = checkTerminalRoute(s.route, fm, s);
@@ -227,7 +227,7 @@ async function continueOneIteration(opts, runSort, hp, io) {
   const r = readWork(io);
   if (r.error) return { done: true, result: r.error };
 
-  const s = doSort(runSort, hp, io);
+  const s = doSort(runSort, hp, io, opts.mint);
   if (s.error) return { done: true, result: s.error };
 
   const terminal = checkTerminalRoute(s.route, r.fm, s);
@@ -288,7 +288,7 @@ async function handleHumanAppraiseResumeIfNeeded(io, opts) {
 async function processRunLoop(opts, runSort, hp, io) {
   const iter = await continueOneIteration(opts, runSort, hp, io);
   if (iter.done) return iter.result;
-  const postSort = doSort(runSort, hp, io);
+  const postSort = doSort(runSort, hp, io, opts.mint);
   if (postSort.error) return postSort.error;
   return processRunLoop(opts, runSort, hp, io);
 }

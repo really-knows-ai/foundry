@@ -219,7 +219,7 @@ async function executeStageEnd(args, context) {
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);
 
-  deleteDispatchToken(io, active.tokenFile);
+  if (active.tokenFile) deleteDispatchToken(io, active.tokenFile);
 
   return JSON.stringify({ ok: true });
 }

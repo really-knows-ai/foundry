@@ -134,7 +134,7 @@ test('runRun dispatches appraise instead of returning done for appraise sort', a
     'foundry/cycles/test.md': '---\nid: test\noutput-type: test-artefact\n---\nCycle body\n',
     'foundry/artefacts/test-artefact/definition.md': '---\nid: test-artefact\nfile-patterns:\n  - "*.md"\nappraisers:\n  count: 0\n---\n',
   });
-  const client = { session: { create: async function() { return { id: 'appr-session' }; }, prompt: async function() {} } };
+  const client = { session: { create: async function() { throw new Error('SDK session.create should not be called — CLI spawn replaces it'); }, prompt: async function() { throw new Error('SDK session.prompt should not be called — CLI spawn replaces it'); }, messages: async function() { return []; } } };
   const childSessions = new Map();
   const context = { sessionID: 'main-session', worktree: '/tmp' };
 

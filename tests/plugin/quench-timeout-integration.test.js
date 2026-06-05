@@ -109,20 +109,8 @@ function createAppraiseMockClient(root) {
   const sessions = [];
   return {
     session: {
-      create: async function({ parentID, title, directory }) {
-        const id = 'mock-session-' + (sessions.length + 1);
-        sessions.push(id);
-        return { id };
-      },
-      prompt: async function({ sessionID, parts, system, directory }) {
-        // Simulate appraiser writing a stage-output file
-        const sessionId = sessionID;
-        const outDir = join(root, '.foundry/stage-outputs');
-        mkdirSync(outDir, { recursive: true });
-        writeFileSync(join(outDir, sessionId + '.jsonl'),
-          '{"file":"haikus/test.md","text":"needs work","law":"shape","evidence":"line 1"}\n');
-        return { ok: true };
-      },
+      create: async () => { throw new Error('SDK session.create should not be called — CLI spawn replaces it'); },
+      prompt: async () => { throw new Error('SDK session.prompt should not be called — CLI spawn replaces it'); },
       messages: async function() { return []; },
     },
     config: { providers: async function() { return []; } },
