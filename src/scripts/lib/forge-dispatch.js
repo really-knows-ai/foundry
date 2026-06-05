@@ -7,13 +7,12 @@
 import { renderDispatchPrompt } from '../orchestrate-cycle.js';
 import { spawnDispatch, awaitProcess, writePromptFile, withCleanup } from './dispatch-cli.js';
 
-function writeTokenFile(io, sort, cycleId, paths) {
+function writeTokenFile(io, sort, cycleId) {
   const tokenFileName = cycleId + '.token';
   const tokenPath = '.foundry/tokens/' + tokenFileName;
   io.mkdir('.foundry/tokens');
   io.writeFile(tokenPath, sort.token || '');
-  paths.push(tokenPath);
-  return tokenFileName;
+  return { tokenFileName, tokenPath };
 }
 
 function cleanStageOutputDir(io) {
@@ -68,11 +67,12 @@ function collectStageOutputLines(io) {
 export async function forgeDispatch({ sort, io, worktree, cycleId, dispatchPrompt, modelParam, timeoutMs }) {
   try {
     return await withCleanup(io, async (paths) => {
-      const tokenFileName = writeTokenFile(io, sort, cycleId, paths);
+      const { tokenFileName, tokenPath } = writeTokenFile(io, sort, cycleId);
 
       const prompt = renderDispatchPrompt({ ...dispatchPrompt, tokenFile: tokenFileName });
       const promptPath = writePromptFile(io, prompt);
       paths.push(promptPath);
+      paths.push(tokenPath);
 
       cleanStageOutputDir(io);
 

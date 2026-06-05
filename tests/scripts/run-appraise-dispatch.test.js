@@ -123,7 +123,7 @@ test('T1 - dispatchAppraisePrompt wraps persona in <appraiser_instructions> XML 
     'should contain opening persona tag');
   assert.ok(writtenContent.includes('</persona>'),
     'should contain closing persona tag');
-  assert.ok(writtenContent.includes('Your task is to evaluate the artefact according to your persona below.'),
+  assert.ok(writtenContent.includes('Your task is to evaluate the artefact according to your persona above.'),
     'should contain the evaluation instruction');
   assert.ok(writtenContent.includes('Call foundry_stage_output for each finding, then foundry_stage_end.'),
     'should contain the output instruction');

@@ -18,7 +18,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 Human-appraise runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
 
-1. **First:** `foundry_stage_begin({stage, cycle, token})` — copy the token verbatim from the dispatch prompt.
+1. **First:** `foundry_stage_begin({stage, cycle})`.
 2. **Last:** `foundry_stage_end()`.
 
 Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. `foundry_stage_end` flags unexpected writes as a violation.
@@ -33,7 +33,7 @@ When invoked from orchestrate, you receive `{cycle, token, context}`:
 - `context.artefact_file` — the target artefact
 - `context.recent_feedback` — recent unresolved feedback items to present to the user
 
-Your FIRST tool call must be `foundry_stage_begin({stage: 'human-appraise:<cycle>', cycle, token})`.
+Your FIRST tool call must be `foundry_stage_begin({stage: 'human-appraise:<cycle>', cycle})`.
 
 Your last tool calls must be `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`. The verdict is communicated through `foundry_stage_output` before the stage is closed.
 

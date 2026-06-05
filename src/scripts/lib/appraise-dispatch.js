@@ -29,12 +29,11 @@ function buildWrappedPrompt(entry, lawGroups, outputType) {
 
   return [
     '<appraiser_instructions>',
-    'Your task is to evaluate the artefact according to your persona below.',
-    'Call foundry_stage_output for each finding, then foundry_stage_end.',
-    '',
     '<persona>',
     promptStr,
     '</persona>',
+    'Your task is to evaluate the artefact according to your persona above.',
+    'Call foundry_stage_output for each finding, then foundry_stage_end.',
     '</appraiser_instructions>',
   ].join('\n');
 }

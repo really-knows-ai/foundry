@@ -196,6 +196,23 @@ async function finishStageAndSync(io, active, context) {
   }
 }
 
+function collectStageOutputFromDir(io) {
+  const dir = '.foundry/stage-outputs/';
+  let files;
+  try {
+    files = io.readDir(dir);
+  } catch {
+    return [];
+  }
+  const outputs = [];
+  for (const f of files) {
+    if (!f.endsWith('.jsonl')) continue;
+    const parsed = readOutputLinesFrom(io, dir + f);
+    for (const item of parsed) outputs.push(item);
+  }
+  return outputs;
+}
+
 async function executeStageEnd(args, context) {
   const io = makeIO(context.worktree);
 
@@ -206,10 +223,7 @@ async function executeStageEnd(args, context) {
 
   verifyForgeToolsIfApplicable(io, active);
 
-  // Read outputs from the session's JSONL file on disk (source of truth)
-  const sessionId = context.sessionID;
-  const outputPath = '.foundry/stage-outputs/' + sessionId + '.jsonl';
-  const outputs = readOutputLinesFrom(io, outputPath);
+  const outputs = collectStageOutputFromDir(io);
   const base = stageBaseOf(active.stage);
   const violation = checkContractViolation(outputs, base);
   if (violation) {
@@ -218,8 +232,6 @@ async function executeStageEnd(args, context) {
 
   const result = await finishStageAndSync(io, active, context);
   if (result.error) return JSON.stringify(result);
-
-  if (active.tokenFile) deleteDispatchToken(io, active.tokenFile);
 
   return JSON.stringify({ ok: true });
 }
