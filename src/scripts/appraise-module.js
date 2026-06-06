@@ -126,6 +126,7 @@ function parseConsolidatedLine(line) {
       pass: passField(obj),
     };
   } catch {
+    console.warn('appraise: failed to parse output line — skipping:', line.slice(0, 200));
     return null;
   }
 }
