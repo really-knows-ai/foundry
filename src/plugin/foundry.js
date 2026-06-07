@@ -59,26 +59,6 @@ let restartNeeded = false;
 // SDK client captured from plugin input, used by tool handlers.
 let pluginClient = null;
 
-// Map of child session IDs to roles, used by the tool.execute.before lockdown hook.
-const childSessions = new Map();
-
-// ── Role-based tool deny lists (R4) ──────────────────────────────────
-// These lists define which tools are denied to subagent sessions based on
-// their role. The forge deny list is enforced in Phase 2; appraise is
-// defined here for test access but enforced in Phase 3.
-
-const FORGE_DENIED = [
-  'foundry_orchestrate', 'foundry_feedback_*', 'foundry_config_create_*',
-  'foundry_workfile_*', 'foundry_git_branch', 'foundry_git_finish',
-  'foundry_stage_retry', 'foundry_stage_begin', 'foundry_stage_end',
-  'foundry_assay_run',
-];
-
-const APPRAISE_DENIED = [
-  ...FORGE_DENIED,
-  'foundry_validate_run', 'edit', 'bash',
-];
-
 // -- Bootstrap helpers --
 
 function bootstrapDirectories(worktree) {
@@ -254,47 +234,21 @@ async function configurePlugin(config, directory) {
   }
 }
 
-function denyError(name, role) {
-  throw new Error('Tool ' + name + ' is not available to ' + role + ' subagents');
-}
-
-function isDenied(name, role) {
-  const list = role === 'forge' ? FORGE_DENIED : APPRAISE_DENIED;
-  return list.some(function(p) {
-    if (p.endsWith('*')) {
-      return name.startsWith(p.slice(0, -1));
-    }
-    return name === p;
-  });
-}
-
-function enforceToolPolicy(toolCall, context, sessions) {
-  if (!context) return;
-  const role = sessions.get(context.sessionID);
-  if (!role) return;
-  const name = toolCall.name;
-  if (!name) return;
-  if (isDenied(name, role)) denyError(name, role);
-}
-
-function attachTestSymbols(plugin, pending, client, sessions, denyLists) {
+function attachTestSymbols(plugin, pending, client) {
   Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
   Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
     get: () => restartNeeded, configurable: true,
   });
   Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: client });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.childSessions'), { value: sessions });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.forgeDenied'), { value: denyLists.forge });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.appraiseDenied'), { value: denyLists.appraise });
 }
 
-function buildTools(createTool, pending, client, sessions) {
+function buildTools(createTool, pending, client) {
   return {
     ...createHistoryTools({ tool: createTool }),
     ...createStageTools({ tool: createTool, pending }),
     ...createWorkfileTools({ tool: createTool }),
-    ...createRunTool({ tool: createTool, client, childSessions: sessions, pending }),
-    ...createContinueTool({ tool: createTool, client, childSessions: sessions }),
+    ...createRunTool({ tool: createTool, client, pending }),
+    ...createContinueTool({ tool: createTool, client }),
     ...createListModelsTool({ tool: createTool, client }),
     ...createArtefactTools({ tool: createTool }),
     ...createFeedbackTools({ tool: createTool }),
@@ -346,13 +300,9 @@ export const FoundryPlugin = async ({ directory, client }) => {
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
     },
 
-    'tool.execute.before': async (toolCall, context) => {
-      enforceToolPolicy(toolCall, context, childSessions);
-    },
-
-    tool: buildTools(tool, pending, pluginClient, childSessions),
+    tool: buildTools(tool, pending, pluginClient),
   };
 
-  attachTestSymbols(plugin, pending, pluginClient, childSessions, { forge: FORGE_DENIED, appraise: APPRAISE_DENIED });
+  attachTestSymbols(plugin, pending, pluginClient);
   return plugin;
 };

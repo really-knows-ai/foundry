@@ -90,9 +90,8 @@ const mockClient = {
   config: { providers: async () => [] },
   provider: { list: () => ({ connected: [] }) },
 };
-const childSessions = new Map();
 /** @type {{ execute: Function }} */
-const handler = createRunTool({ tool: mockTool, client: mockClient, childSessions }).foundry_run;
+const handler = createRunTool({ tool: mockTool, client: mockClient }).foundry_run;
 
 test('foundry_run requires flow and goal', async () => {
   const dir = tmpDir();

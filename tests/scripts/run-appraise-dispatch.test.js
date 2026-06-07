@@ -527,12 +527,10 @@ test('T11 + T12 - executeAppraise no longer calls client.session.create/prompt',
         }),
       },
     };
-    const childSessions = new Map();
     const context = { sessionID: 'parent-test' };
 
     const result = await executeAppraise({
       client,
-      childSessions,
       context,
       io: realIo,
       worktree: root,

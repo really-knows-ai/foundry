@@ -9,13 +9,6 @@ test('plugin captures client reference from PluginInput', async () => {
   assert.equal(captured, mockClient);
 });
 
-test('childSessions map is initialised as an empty Map', async () => {
-  const plugin = await FoundryPlugin({ directory: process.cwd(), client: {} });
-  const map = plugin[Symbol.for('foundry.test.childSessions')];
-  assert.ok(map instanceof Map);
-  assert.equal(map.size, 0);
-});
-
 test('tool can access client via closure — null client returns error', async () => {
   const plugin = await FoundryPlugin({ directory: process.cwd(), client: null });
   const result = JSON.parse(await plugin.tool.foundry_list_models.execute({}, { worktree: process.cwd() }));

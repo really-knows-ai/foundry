@@ -135,10 +135,9 @@ test('runRun dispatches appraise instead of returning done for appraise sort', a
     'foundry/artefacts/test-artefact/definition.md': '---\nid: test-artefact\nfile-patterns:\n  - "*.md"\nappraisers:\n  count: 0\n---\n',
   });
   const client = { session: { create: async function() { throw new Error('SDK session.create should not be called — CLI spawn replaces it'); }, prompt: async function() { throw new Error('SDK session.prompt should not be called — CLI spawn replaces it'); }, messages: async function() { return []; } } };
-  const childSessions = new Map();
   const context = { sessionID: 'main-session', worktree: '/tmp' };
 
-  const result = await runRun({ io, client, childSessions, context, sortFn }).catch(function() { return { action: 'done' }; });
+  const result = await runRun({ io, client, context, sortFn }).catch(function() { return { action: 'done' }; });
   // Appraise no longer returns done immediately — it dispatches. No appraisers means it passes through.
   assert.ok(callCount >= 1);
   assert.equal(result.action, 'done');

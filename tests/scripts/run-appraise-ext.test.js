@@ -420,12 +420,10 @@ describe('executeAppraise pipeline — zero-config regression', () => {
         prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
-    const childSessions = new Map();
     const context = { sessionID: 'parent-ext-1' };
 
     const result = await executeAppraise({
       client,
-      childSessions,
       context,
       io,
       worktree: tmpDir,
@@ -464,12 +462,10 @@ describe('executeAppraise pipeline — zero-config regression', () => {
         prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
-    const childSessions = new Map();
     const context = { sessionID: 'parent-ext-2' };
 
     const result = await executeAppraise({
       client,
-      childSessions,
       context,
       io,
       worktree: tmpDir,
@@ -505,12 +501,10 @@ describe('executeAppraise pipeline — law-by-law arithmetic', () => {
         prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
-    const childSessions = new Map();
     const context = { sessionID: 'parent-lbl' };
 
     const result = await executeAppraise({
       client,
-      childSessions,
       context,
       io,
       worktree: tmpDir,
@@ -557,7 +551,6 @@ describe('executeAppraise pipeline — error handling', () => {
         prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
-    const childSessions = new Map();
     const context = { sessionID: 'parent-err' };
 
     // Go back to main to avoid branch issues
@@ -565,7 +558,6 @@ describe('executeAppraise pipeline — error handling', () => {
 
     const result = await executeAppraise({
       client,
-      childSessions,
       context,
       io,
       worktree: tmpDir,
@@ -602,12 +594,10 @@ describe('executeAppraise pipeline — coverage persistence', () => {
         prompt: () => { throw new Error('session.prompt should not be called'); },
       },
     };
-    const childSessions = new Map();
     const context = { sessionID: 'parent-cov' };
 
     const result = await executeAppraise({
       client,
-      childSessions,
       context,
       io,
       worktree: tmpDir,

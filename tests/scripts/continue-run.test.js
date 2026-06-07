@@ -126,10 +126,9 @@ test('5. Executes appraise when sort routes to appraise (no appraisers = passes)
     'foundry/artefacts/test-artefact/definition.md': '---\nid: test-artefact\nfile-patterns:\n  - "*.md"\nappraisers:\n  count: 0\n---\n',
   });
   const client = makeMockClient();
-  const childSessions = new Map();
   const context = { sessionID: 'main-session', worktree: '/tmp' };
 
-  const result = await continueRun({ io, client, childSessions, context, sortFn });
+  const result = await continueRun({ io, client, context, sortFn });
   assert.equal(result.action, 'done');
   assert.ok(callCount >= 1);
 });
@@ -143,10 +142,9 @@ test('6. Returns prompt_user for human-appraise sort', async function() {
     'foundry/cycles/test.md': '---\nid: test\noutput-type: test-artefact\n---\nCycle body\n',
   });
   const client = makeMockClient();
-  const childSessions = new Map();
   const context = { sessionID: 'main-session', worktree: '/tmp' };
 
-  const result = await continueRun({ io, client, childSessions, context, sortFn });
+  const result = await continueRun({ io, client, context, sortFn });
   assert.equal(result.action, 'prompt_user');
   assert.ok(result.stage.startsWith('human-appraise'));
 });

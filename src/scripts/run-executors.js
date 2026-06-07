@@ -353,5 +353,4 @@ export async function executeAssay(assayOpts) {
 // Re-export executeAppraise from its dedicated module.
 export { executeAppraise } from './run-appraise.js';
 
-// Re-export forgeDispatch from its dedicated module.
-export { forgeDispatch } from './lib/forge-dispatch.js';
+

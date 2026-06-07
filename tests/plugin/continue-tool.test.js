@@ -48,9 +48,8 @@ const mockClient = {
   config: { providers: async () => [] },
   provider: { list: () => ({ connected: [] }) },
 };
-const childSessions = new Map();
 /** @type {{ execute: Function }} */
-const handler = createContinueTool({ tool: mockTool, client: mockClient, childSessions }).foundry_continue;
+const handler = createContinueTool({ tool: mockTool, client: mockClient }).foundry_continue;
 
 test('foundry_continue returns violation when no WORK.md exists', async () => {
   const dir = tmpDir();

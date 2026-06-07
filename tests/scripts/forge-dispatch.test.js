@@ -47,7 +47,7 @@ function makeChildProcess({ exitCode = 0 } = {}) {
 }
 
 test.before(async () => {
-  const mod = await import('../../src/scripts/run-executors.js');
+  const mod = await import('../../src/scripts/lib/forge-dispatch.js');
   forgeDispatch = mod.forgeDispatch;
 });
 

@@ -182,38 +182,6 @@ test('D2.2: trace records each stage with tool call entries', async () => {
   }
 });
 
-test('D2.3: trace has no subagent confusion entries', async () => {
-  const root = tmpDir();
-  try {
-    setupDryRunRepo(root);
-    const client = createMockClient();
-
-    const plugin = await FoundryPlugin({ directory: root, client });
-
-    // The lockdown hook is at plugin['tool.execute.before']
-    // Subagent sessions get registered in childSessions during forge/appraise
-    // dispatch. We verify the hook exists and is functional.
-    const hook = plugin['tool.execute.before'];
-    assert.ok(typeof hook === 'function', 'tool.execute.before hook should exist');
-
-    // Verify the hook denies the lockdown tools for forge role
-    const testChildSessions = plugin[Symbol.for('foundry.test.childSessions')];
-    testChildSessions.set('test-forge-session', 'forge');
-
-    await assert.rejects(
-      function() { return hook({ name: 'foundry_orchestrate' }, { sessionID: 'test-forge-session' }); },
-      { message: /not available to forge subagents/ },
-    );
-
-    // Verify the hook does NOT deny allowed tools
-    await assert.doesNotReject(
-      function() { return hook({ name: 'read' }, { sessionID: 'test-forge-session' }); },
-    );
-  } finally {
-    cleanup(root);
-  }
-});
-
 test('D2.4: dry-run branch is cleaned up after git_finish', async () => {
   const root = tmpDir();
   try {

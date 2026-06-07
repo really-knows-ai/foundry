@@ -190,58 +190,6 @@ test('AC3: plugin does not use task tool for dispatch (uses SDK sessions)', asyn
   assert.ok(plugin.tool.foundry_continue, 'foundry_continue should be registered');
 });
 
-// ── AC4: Lockdown denies foundry_orchestrate ────────────────────────
-
-test('AC4: tool.execute.before denies foundry_orchestrate for forge and appraise roles', async () => {
-  const plugin = await FoundryPlugin({ directory: process.cwd(), client: {} });
-  const childSessions = plugin[Symbol.for('foundry.test.childSessions')];
-  childSessions.set('forge-session', 'forge');
-  childSessions.set('appraise-session', 'appraise');
-
-  const hook = plugin['tool.execute.before'];
-  assert.ok(typeof hook === 'function', 'hook should be a function');
-
-  // Forge role should be denied
-  await assert.rejects(
-    function() { return hook({ name: 'foundry_orchestrate' }, { sessionID: 'forge-session' }); },
-    { message: /not available to forge subagents/ },
-  );
-
-  // Appraise role should be denied
-  await assert.rejects(
-    function() { return hook({ name: 'foundry_orchestrate' }, { sessionID: 'appraise-session' }); },
-    { message: /not available to appraise subagents/ },
-  );
-});
-
-// ── AC5: Lockdown denies stage_begin / stage_end for appraise ───────
-
-test('AC5: tool.execute.before denies stage_begin and stage_end for appraise role', async () => {
-  const plugin = await FoundryPlugin({ directory: process.cwd(), client: {} });
-  const childSessions = plugin[Symbol.for('foundry.test.childSessions')];
-  childSessions.set('session', 'appraise');
-
-  const hook = plugin['tool.execute.before'];
-
-  // Denied tools
-  await assert.rejects(
-    function() { return hook({ name: 'foundry_stage_begin' }, { sessionID: 'session' }); },
-    { message: /not available to appraise subagents/ },
-  );
-  await assert.rejects(
-    function() { return hook({ name: 'foundry_stage_end' }, { sessionID: 'session' }); },
-    { message: /not available to appraise subagents/ },
-  );
-
-  // Allowed tools
-  await assert.doesNotReject(
-    function() { return hook({ name: 'foundry_stage_output' }, { sessionID: 'session' }); },
-  );
-  await assert.doesNotReject(
-    function() { return hook({ name: 'read' }, { sessionID: 'session' }); },
-  );
-});
-
 // ── AC6: foundry_list_models ────────────────────────────────────────
 
 test('AC6: foundry_list_models returns models from connected providers', async () => {

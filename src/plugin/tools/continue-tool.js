@@ -17,7 +17,7 @@ function makeGit(worktree) {
 }
 
 export function createContinueTool(pluginOpts) {
-  const { tool, client, childSessions } = pluginOpts;
+  const { tool, client } = pluginOpts;
   return {
     foundry_continue: tool({
       description: 'Advance an existing run. Reads state from disk and runs until blocked.',
@@ -43,10 +43,9 @@ export function createContinueTool(pluginOpts) {
 
         const git = makeGit(context.worktree);
         const result = await continueRun({
-          cwd: context.worktree, client, childSessions, context, io,
+          cwd: context.worktree, client, context, io,
           worktree: context.worktree, git,
         });
-        childSessions.clear();
         return JSON.stringify(result);
       },
     }),
