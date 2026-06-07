@@ -163,19 +163,19 @@ function isFoundryPopulated(worktree) {
   return readdirSync(foundryDir).some(e => e !== '.gitkeep');
 }
 
-function resolveGuideSource(packageRoot) {
-  const distPath = path.join(packageRoot, 'dist', 'agents', 'foundry.md');
+function resolveGuideSource(pkgRoot) {
+  const distPath = path.join(pkgRoot, 'dist', 'agents', 'foundry.md');
   if (existsSync(distPath)) return distPath;
-  return path.join(packageRoot, 'src', 'agents', 'foundry.md');
+  return path.join(pkgRoot, 'src', 'agents', 'foundry.md');
 }
 
-function writeFoundryGuideAgent(worktree, packageRoot) {
+function writeFoundryGuideAgent(worktree, pkgRoot) {
   const targetDir = path.join(worktree, '.opencode', 'agents');
   const targetPath = path.join(targetDir, 'foundry.md');
   let written = false;
 
   if (!existsSync(targetPath)) {
-    const sourcePath = resolveGuideSource(packageRoot);
+    const sourcePath = resolveGuideSource(pkgRoot);
     try {
       const content = readFileSync(sourcePath, 'utf8');
       mkdirSync(targetDir, { recursive: true });
