@@ -21,4 +21,4 @@ foundry-<provider>-<model>  →  <provider>/<model>
 
 If no `foundry-*.md` files are found, output:
 
-> No foundry agent files found. Call `foundry_refresh_agents()` to generate them.
+> No foundry agent files found. The plugin deploys agent files during configuration.

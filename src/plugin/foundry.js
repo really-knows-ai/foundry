@@ -17,7 +17,7 @@ import { execFileSync } from 'child_process';
 import { tool } from '@opencode-ai/plugin';
 import { createPendingStore } from '../scripts/lib/pending.js';
 import { getBootstrapContent } from './tools/helpers.js';
-import { refreshAgents, detectChanges, writeFoundryGuideAgent, writeFoundrySkills } from './tools/agent-refresh.js';
+import { writeFoundrySkills } from './tools/skill-deploy.js';
 import { createHistoryTools } from './tools/history-tools.js';
 import { createStageTools } from './tools/stage-tools.js';
 import { createWorkfileTools } from './tools/workfile-tools.js';
@@ -36,7 +36,6 @@ import { createMemoryTools } from './tools/memory-tools.js';
 import { createMemoryAdminTools } from './tools/memory-admin-tools.js';
 import { createSnapshotTools } from './tools/snapshot-tools.js';
 import { createAttestationTools } from './tools/attestation-tools.js';
-import { createRefreshAgentsTool } from './tools/refresh-agents-tool.js';
 import { createStageOutputTool } from './tools/stage-output-tool.js';
 import { resolveGit, resolvePnpm } from '../scripts/lib/tool-paths.js';
 
@@ -72,7 +71,7 @@ const FORGE_DENIED = [
   'foundry_orchestrate', 'foundry_feedback_*', 'foundry_config_create_*',
   'foundry_workfile_*', 'foundry_git_branch', 'foundry_git_finish',
   'foundry_stage_retry', 'foundry_stage_begin', 'foundry_stage_end',
-  'foundry_assay_run', 'foundry_refresh_agents',
+  'foundry_assay_run',
 ];
 
 const APPRAISE_DENIED = [
@@ -141,7 +140,6 @@ function runBootstrapSequence(worktree, pkgRoot) {
   ensurePackageJson(worktree);
   bootstrapDirectories(worktree);
   bootstrapGitignore(worktree);
-  refreshAgents(worktree);
   writeFoundryGuideAgent(worktree, pkgRoot);
   writeFoundrySkills(worktree, pkgRoot);
   const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
@@ -165,6 +163,32 @@ function isFoundryPopulated(worktree) {
   return readdirSync(foundryDir).some(e => e !== '.gitkeep');
 }
 
+function resolveGuideSource(packageRoot) {
+  const distPath = path.join(packageRoot, 'dist', 'agents', 'foundry.md');
+  if (existsSync(distPath)) return distPath;
+  return path.join(packageRoot, 'src', 'agents', 'foundry.md');
+}
+
+function writeFoundryGuideAgent(worktree, packageRoot) {
+  const targetDir = path.join(worktree, '.opencode', 'agents');
+  const targetPath = path.join(targetDir, 'foundry.md');
+  let written = false;
+
+  if (!existsSync(targetPath)) {
+    const sourcePath = resolveGuideSource(packageRoot);
+    try {
+      const content = readFileSync(sourcePath, 'utf8');
+      mkdirSync(targetDir, { recursive: true });
+      writeFileSync(targetPath, content, 'utf8');
+      written = true;
+    } catch (err) {
+      return { ok: false, error: `Failed to write guide agent: ${err.message ?? String(err)}` };
+    }
+  }
+
+  return { ok: true, written };
+}
+
 function ensureGuideAgent(worktree, pkgRoot) {
   const guideAgentPath = path.join(worktree, '.opencode', 'agents', 'foundry.md');
   if (!existsSync(guideAgentPath)) {
@@ -186,10 +210,7 @@ function runConfigBootstrap(worktree, pkgRoot) {
     return true;
   }
 
-  const result = detectChanges(worktree);
-  const changed = result.ok && result.changed;
-  const guideWritten = ensureGuideAgent(worktree, pkgRoot);
-  return changed || guideWritten;
+  return ensureGuideAgent(worktree, pkgRoot);
 }
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
@@ -264,7 +285,6 @@ function buildTools(createTool, pending, client, sessions) {
     ...createMemoryAdminTools({ tool: createTool }),
     ...createSnapshotTools({ tool: createTool }),
     ...createAttestationTools({ tool: createTool }),
-    ...createRefreshAgentsTool({ tool: createTool }),
     ...createStageOutputTool({ tool: createTool }),
   };
 }

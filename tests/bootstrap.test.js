@@ -109,7 +109,7 @@ describe('bootstrap — config hook', () => {
     assert.equal(restartNeeded, true);
   });
 
-  test('existing project with correct VERSION but stale agent set: agents refreshed, not full bootstrap', async () => {
+  test('existing project with correct VERSION and guide agent present: no full bootstrap', async () => {
     // Pre-seed foundry/ with correct VERSION (needed to pass version check)
     const foundryDir = join(dir, 'foundry');
     mkdirSync(foundryDir, { recursive: true });
@@ -132,15 +132,15 @@ describe('bootstrap — config hook', () => {
     // VERSION unchanged (full bootstrap did not run)
     assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), PKG_VERSION);
 
-    // Stale agent deleted, no new model agent written
-    assert.equal(existsSync(join(agentsDir, 'foundry-stale-model.md')), false);
+    // Pre-existing stale file remains (stale-agent deletion removed)
+    assert.equal(existsSync(join(agentsDir, 'foundry-stale-model.md')), true);
 
     // Guide agent preserved
     assert.ok(existsSync(join(agentsDir, 'foundry.md')));
 
-    // restartNeeded set because agents changed
+    // restartNeeded not set (no agent-change detection)
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
-    assert.equal(restartNeeded, true);
+    assert.equal(restartNeeded, false);
   });
 
   test('plugin loads even in empty project with no opencode binary', async () => {

@@ -119,9 +119,6 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - [`foundry_attestation_verify`](#foundry_attestation_verify)
 - [`foundry_attest`](#foundry_attest)
 
-**Maintenance**
-- [`foundry_refresh_agents`](#foundry_refresh_agents)
-
 **Memory — Data**
 - [`foundry_memory_put`](#foundry_memory_put)
 - [`foundry_memory_relate`](#foundry_memory_relate)
@@ -771,23 +768,6 @@ success. `{ error: ... }` when verification fails.
 - Git commit fails → `foundry_attest: commit failed. <stderr>`.
 
 **Side effects (when confirmed):** writes `ATTEST.md` to the work branch, commits it with message `[<cycle>] attest: cycle complete`.
-
----
-
-## Maintenance
-
-### `foundry_refresh_agents`
-
-> Regenerate `.opencode/agents/foundry-*.md` stage-agent files from the currently available models.
-
-**Args:** none.
-
-**Returns:** `{ ok: true, count: <n> }` on success. `{ ok: false, error: "..." }` on failure.
-
-**Failure modes:**
-- `opencode models` exits non-zero or produces no output → returns an error describing the issue.
-
-**Side effects:** creates `.opencode/agents/` if absent; deletes stale generated `.opencode/agents/foundry-*.md` stage agents; writes one fresh stage-agent file per model returned by `opencode models`.
 
 ---
 

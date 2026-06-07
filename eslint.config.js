@@ -303,14 +303,6 @@ export default [
     },
   },
 
-  // Agent refresh utility and tool: requires OS command execution via PATH
-  {
-    files: ['src/plugin/tools/refresh-agents-tool.js'],
-    rules: {
-      'sonarjs/no-os-command-from-path': 'off',
-    },
-  },
-
   // Build and release scripts: requires OS command execution via PATH
   {
     files: ['scripts/seal.js', 'scripts/verify-seal.js', 'scripts/build.js'],
