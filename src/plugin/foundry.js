@@ -12,7 +12,7 @@
 
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { tool } from '@opencode-ai/plugin';
 import { createPendingStore } from '../scripts/lib/pending.js';
@@ -140,7 +140,7 @@ function runBootstrapSequence(worktree, pkgRoot) {
   ensurePackageJson(worktree);
   bootstrapDirectories(worktree);
   bootstrapGitignore(worktree);
-  writeFoundryGuideAgent(worktree, pkgRoot);
+  writeAllFoundryAgents(worktree, pkgRoot);
   writeFoundrySkills(worktree, pkgRoot);
   const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
   writeFileSync(path.join(worktree, 'foundry', 'VERSION'), pkg.version, 'utf8');
@@ -163,39 +163,60 @@ function isFoundryPopulated(worktree) {
   return readdirSync(foundryDir).some(e => e !== '.gitkeep');
 }
 
-function resolveGuideSource(pkgRoot) {
-  const distPath = path.join(pkgRoot, 'dist', 'agents', 'foundry.md');
-  if (existsSync(distPath)) return distPath;
-  return path.join(pkgRoot, 'src', 'agents', 'foundry.md');
+const AGENT_NAMES = [
+  'foundry-guide',
+  'foundry-admin',
+  'foundry-forge',
+  'foundry-appraise',
+  'foundry-assay',
+];
+
+function resolveAgentSources(pkgRoot) {
+  const sources = new Map();
+  for (const name of AGENT_NAMES) {
+    const distPath = path.join(pkgRoot, 'dist', 'agents', `${name}.md`);
+    if (existsSync(distPath)) {
+      sources.set(name, distPath);
+    } else {
+      const srcPath = path.join(pkgRoot, 'src', 'agents', `${name}.md`);
+      sources.set(name, existsSync(srcPath) ? srcPath : null);
+    }
+  }
+  return sources;
 }
 
-function writeFoundryGuideAgent(worktree, pkgRoot) {
+function writeAllFoundryAgents(worktree, pkgRoot) {
   const targetDir = path.join(worktree, '.opencode', 'agents');
-  const targetPath = path.join(targetDir, 'foundry.md');
-  let written = false;
+  const sources = resolveAgentSources(pkgRoot);
+  let written = 0;
 
-  if (!existsSync(targetPath)) {
-    const sourcePath = resolveGuideSource(pkgRoot);
+  for (const [name, sourcePath] of sources) {
+    if (!sourcePath) {
+      console.warn(`Warning: Agent source not found for '${name}' — skipping`);
+      continue;
+    }
     try {
       const content = readFileSync(sourcePath, 'utf8');
       mkdirSync(targetDir, { recursive: true });
-      writeFileSync(targetPath, content, 'utf8');
-      written = true;
+      writeFileSync(path.join(targetDir, `${name}.md`), content, 'utf8');
+      written++;
     } catch (err) {
-      return { ok: false, error: `Failed to write guide agent: ${err.message ?? String(err)}` };
+      return { ok: false, error: `Failed to write agent '${name}': ${err.message ?? String(err)}` };
     }
   }
 
   return { ok: true, written };
 }
 
-function ensureGuideAgent(worktree, pkgRoot) {
-  const guideAgentPath = path.join(worktree, '.opencode', 'agents', 'foundry.md');
-  if (!existsSync(guideAgentPath)) {
-    writeFoundryGuideAgent(worktree, pkgRoot);
-    return true;
+function migrateOldAgent(worktree) {
+  const oldPath = path.join(worktree, '.opencode', 'agents', 'foundry.md');
+  if (existsSync(oldPath)) {
+    try {
+      rmSync(oldPath, { force: true });
+    } catch (err) {
+      console.warn(`Warning: Could not remove old agent file ${oldPath}: ${err.message}`);
+    }
   }
-  return false;
 }
 
 function runConfigBootstrap(worktree, pkgRoot) {
@@ -210,10 +231,11 @@ function runConfigBootstrap(worktree, pkgRoot) {
     return true;
   }
 
-  return ensureGuideAgent(worktree, pkgRoot);
+  return false;
 }
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
+export { resolveAgentSources, writeAllFoundryAgents, migrateOldAgent, AGENT_NAMES };
 
 async function configurePlugin(config, directory) {
   config.skills = config.skills || {};
@@ -221,7 +243,8 @@ async function configurePlugin(config, directory) {
   if (!config.skills.paths.includes(allSkillsDir)) {
     config.skills.paths.push(allSkillsDir);
   }
-  ensureGuideAgent(directory, packageRoot);
+  migrateOldAgent(directory);
+  writeAllFoundryAgents(directory, packageRoot);
   writeFoundrySkills(directory, packageRoot);
   try {
     restartNeeded = runConfigBootstrap(directory, packageRoot);

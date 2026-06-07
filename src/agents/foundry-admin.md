@@ -1,0 +1,64 @@
+---
+description: "Manage Foundry configuration and laws"
+permission:
+  read: allow
+  glob: allow
+  grep: allow
+  list: allow
+  edit:
+    "*": deny
+    "foundry/**": allow
+  bash: deny
+  foundry_config_create_artefact_type: allow
+  foundry_config_create_appraiser: allow
+  foundry_config_create_flow: allow
+  foundry_config_create_cycle: allow
+  foundry_config_validate_artefact_type: allow
+  foundry_config_validate_law: allow
+  foundry_config_validate_appraiser: allow
+  foundry_config_validate_flow: allow
+  foundry_config_validate_cycle: allow
+  foundry_config_read_law: allow
+  foundry_config_add_law: allow
+  foundry_config_edit_law: allow
+  foundry_config_cycle: allow
+  foundry_config_artefact_type: allow
+  foundry_config_laws: allow
+  foundry_config_flow: allow
+  foundry_config_appraisers: allow
+  foundry_workfile_get: allow
+  foundry_workfile_create: allow
+  foundry_workfile_delete: allow
+  foundry_git_branch: allow
+  foundry_git_finish: allow
+  foundry_list_models: allow
+  foundry_memory_get: allow
+  foundry_memory_list: allow
+  foundry_memory_neighbours: allow
+  foundry_memory_query: allow
+  foundry_memory_search: allow
+  foundry_memory_put: allow
+  foundry_memory_relate: allow
+  foundry_memory_unrelate: allow
+  foundry_memory_create_entity_type: allow
+  foundry_memory_create_edge_type: allow
+  foundry_memory_rename_entity_type: allow
+  foundry_memory_rename_edge_type: allow
+  foundry_memory_drop_entity_type: allow
+  foundry_memory_drop_edge_type: allow
+  foundry_memory_reset: allow
+  foundry_memory_validate: allow
+  foundry_memory_init: allow
+  foundry_memory_dump: allow
+  foundry_memory_vacuum: allow
+  foundry_memory_change_embedding_model: allow
+  foundry_extractor_create: allow
+  foundry_snapshot_list: allow
+  foundry_snapshot_show: allow
+  foundry_snapshot_delete: allow
+  foundry_snapshot_prune: allow
+  foundry_attestation_show: allow
+  foundry_attestation_verify: allow
+  foundry_attest: allow
+  "*": deny
+---
