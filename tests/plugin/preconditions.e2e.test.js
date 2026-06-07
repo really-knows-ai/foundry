@@ -174,7 +174,7 @@ describe('foundry_artefacts_add removed', () => {
   });
 });
 
-describe('foundry_artefacts_list', () => {
+describe('foundry_artefact_list', () => {
   let dir, plugin;
   beforeEach(async () => {
     dir = initRepo();
@@ -183,7 +183,7 @@ describe('foundry_artefacts_list', () => {
 
   it('returns artefact file changes when on a work branch', async () => {
     // With no git changes detected, the tool returns an empty list
-    const res = JSON.parse(await plugin.tool.foundry_artefacts_list.execute({}, makeCtx(dir)));
+    const res = JSON.parse(await plugin.tool.foundry_artefact_list.execute({}, makeCtx(dir)));
     // New implementation uses branch discovery; with no changes, returns []
     assert.ok(Array.isArray(res), 'result should be an array');
   });

@@ -34,7 +34,7 @@ function specPermittedTools(agentName) {
       'foundry_config_cycle', 'foundry_config_artefact_type',
       'foundry_config_laws', 'foundry_config_flow', 'foundry_config_appraisers',
       'foundry_config_read_law', 'foundry_workfile_get', 'foundry_feedback_list',
-      'foundry_list_models', 'foundry_snapshot_list', 'foundry_snapshot_show',
+      'foundry_models_list', 'foundry_snapshot_list', 'foundry_snapshot_show',
       'foundry_attestation_show', 'foundry_attestation_verify',
     ],
     'foundry-admin': [
@@ -48,7 +48,7 @@ function specPermittedTools(agentName) {
       'foundry_config_cycle', 'foundry_config_artefact_type',
       'foundry_config_laws', 'foundry_config_flow', 'foundry_config_appraisers',
       'foundry_workfile_get', 'foundry_workfile_create', 'foundry_workfile_delete',
-      'foundry_git_branch', 'foundry_git_finish', 'foundry_list_models',
+      'foundry_git_branch', 'foundry_git_finish', 'foundry_models_list',
       'foundry_memory_get', 'foundry_memory_list', 'foundry_memory_neighbours',
       'foundry_memory_query', 'foundry_memory_search', 'foundry_memory_put',
       'foundry_memory_relate', 'foundry_memory_unrelate',
@@ -58,7 +58,7 @@ function specPermittedTools(agentName) {
       'foundry_memory_reset', 'foundry_memory_validate', 'foundry_memory_init',
       'foundry_memory_dump', 'foundry_memory_vacuum',
       'foundry_memory_change_embedding_model',
-      'foundry_extractor_create',
+      'foundry_memory_extractor_create',
       'foundry_snapshot_list', 'foundry_snapshot_show', 'foundry_snapshot_delete',
       'foundry_snapshot_prune',
       'foundry_attestation_show', 'foundry_attestation_verify', 'foundry_attest',
@@ -72,7 +72,7 @@ function specPermittedTools(agentName) {
     'foundry-appraise': [
       'read', 'glob', 'grep', 'list',
       'foundry_stage_begin', 'foundry_stage_end', 'foundry_stage_output',
-      'foundry_artefacts_list', 'foundry_config_artefact_type',
+      'foundry_artefact_list', 'foundry_config_artefact_type',
     ],
     'foundry-assay': [
       'read', 'glob', 'grep', 'list',

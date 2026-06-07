@@ -409,7 +409,7 @@ describe('plugin memory admin tools: config branch guard', () => {
   // is irrelevant — the guard fires before reaching it.
   const cases = [
     ['foundry_memory_create_entity_type',     { name: 'finding', body: 'A finding.' }],
-    ['foundry_extractor_create',              { name: 'ex', command: 'scripts/x.sh', memoryWrite: ['class'], body: 'b' }],
+    ['foundry_memory_extractor_create',              { name: 'ex', command: 'scripts/x.sh', memoryWrite: ['class'], body: 'b' }],
     ['foundry_memory_create_edge_type',       { name: 'depends_on', sources: ['class'], targets: ['class'], body: 'b' }],
     ['foundry_memory_rename_entity_type',     { from: 'class', to: 'klass' }],
     ['foundry_memory_rename_edge_type',       { from: 'calls', to: 'invokes' }],

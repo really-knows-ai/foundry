@@ -82,9 +82,9 @@ test('existing personality is preserved', () => {
 
 test('artefact-discovery tools are still listed', () => {
   assert.ok(bundlePrompt.includes('foundry_config_artefact_type'), 'should keep foundry_config_artefact_type');
-  assert.ok(bundlePrompt.includes('foundry_artefacts_list'), 'should keep foundry_artefacts_list');
+  assert.ok(bundlePrompt.includes('foundry_artefact_list'), 'should keep foundry_artefact_list');
   assert.ok(lawPrompt.includes('foundry_config_artefact_type'), 'should keep foundry_config_artefact_type');
-  assert.ok(lawPrompt.includes('foundry_artefacts_list'), 'should keep foundry_artefacts_list');
+  assert.ok(lawPrompt.includes('foundry_artefact_list'), 'should keep foundry_artefact_list');
 });
 
 test('stage lifecycle constraints are preserved', () => {

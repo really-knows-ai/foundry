@@ -151,7 +151,7 @@ Foundry partitions mutation across three branch namespaces. The plugin enforces 
 
 Every mutating tool composes one of three guards before its handler runs:
 
-- **`requireOnConfigBranch`** — accepts only `config/<description>`. Used by schema-mutation tools (`foundry_config_create_*`, `foundry_memory_create_*`, `foundry_extractor_create`, memory admin tools). Dry-run is rejected by design — schema must change on a real config branch.
+- **`requireOnConfigBranch`** — accepts only `config/<description>`. Used by schema-mutation tools (`foundry_config_create_*`, `foundry_memory_create_*`, `foundry_memory_extractor_create`, memory admin tools). Dry-run is rejected by design — schema must change on a real config branch.
 - **`requireOnFlowBranch`** — accepts `work/<flow>-<desc>` or `dry-run/<x>/<y>`. Used by flow-data tools (`foundry_orchestrate`, workfile/feedback/artefact-status/assay/appraisers families, `foundry_memory_put`/`_relate`/`_unrelate`).
 - **`requireOnConfigOrFlowBranch`** — accepts any of the three namespaces. Used by read-only diagnostic tools.
 
@@ -266,7 +266,7 @@ When an unrecoverable error occurs (e.g. assay extractor abort, invalid JSONL, o
   - **Feedback writes:** `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, `foundry_feedback_resolve` (`foundry_feedback_list` remains callable)
   - **Appraiser selection:** `foundry_appraisers_select`
   - **Memory writes:** `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`
-  - **Memory admin:** `foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type`, `foundry_extractor_create` (read-only `foundry_memory_validate` and `foundry_memory_dump` remain callable)
+  - **Memory admin:** `foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`, `foundry_memory_change_embedding_model`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_entity_type`, `foundry_memory_rename_edge_type`, `foundry_memory_drop_entity_type`, `foundry_memory_drop_edge_type`, `foundry_memory_extractor_create` (read-only `foundry_memory_validate` and `foundry_memory_dump` remain callable)
   - **Config schema mutation:** `foundry_config_create_artefact_type`, `foundry_config_add_law`, `foundry_config_edit_law`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle` (read-only `foundry_config_validate_*` and `foundry_config_read_law` remain callable)
 - **Escape hatches.** `foundry_workfile_get` (to read the reason) and `foundry_workfile_delete({confirm: true})` (to abandon the cycle) remain callable. `foundry_git_finish` sits outside the failed-flow guard, allowing the user to exit the failed branch.
 - **Recovery.** Read the reason via `foundry_workfile_get`, fix the root cause, then either call `foundry_stage_retry()` to clear the failed state and re-run the blocked stage, or abandon the cycle with `foundry_workfile_delete({confirm: true})` and start again.
@@ -326,7 +326,7 @@ Different stages can run on different models for cognitive diversity. Cycle defi
 
 ### Agent files
 
-The user-facing `Foundry` agent is installed by the plugin's `config` hook as `.opencode/agents/foundry.md`. Users switch to this agent after restarting OpenCode. It guides authoring and flow execution while stage agents (`foundry-forge`, `foundry-appraise`, etc.) handle sub-dispatch.
+Foundry uses five fixed agents deployed by the plugin. The user-facing **guide** agent is installed as `.opencode/agents/foundry-guide.md`. The **admin** agent (`foundry-admin`) is invoked via `task` for config changes. The **forge**, **appraise**, and **assay** agents (`foundry-forge`, `foundry-appraise`, `foundry-assay`) are dispatched automatically by the flow execution system.
 
 ### Dispatch behaviour
 
@@ -454,8 +454,11 @@ your-project/
 │   └── .secret                 # per-worktree HMAC key (mode 0600)
 ├── .opencode/
 │   └── agents/
-│       ├── foundry.md          # user-facing Foundry guide agent
-│       └── foundry-*.md        # generated stage agents for model routing
+│       ├── foundry-guide.md    # user-facing conversational orchestrator
+│       ├── foundry-admin.md    # configuration management (invoked via task)
+│       ├── foundry-forge.md    # artefact generation (auto-dispatched)
+│       ├── foundry-appraise.md # evaluation (auto-dispatched)
+│       └── foundry-assay.md    # memory population (auto-dispatched)
 ├── opencode.json
 └── ...
 ```

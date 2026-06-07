@@ -15,6 +15,7 @@ import { spawnWithTimeout } from './lib/assay/spawn-with-timeout.js';
 import { readActiveStage } from './lib/state.js';
 import { buildForgeHistoryEntry } from './lib/workfile.js';
 import { forgeDispatch } from './lib/forge-dispatch.js';
+import { assayDispatch } from './lib/assay-dispatch.js';
 
 const QUILL_TIMEOUT_MS = 60_000;
 const MAX_QUILL_TIMEOUT_MS = 600_000;
@@ -327,9 +328,20 @@ async function run1Extractor(name, eOpts) {
   processExtractorIssues(name, output, store, cycleId, issues);
 }
 
+function processAssayStageOutput(stageOutputLines, store, cycleId) {
+  const issues = [];
+  for (const line of stageOutputLines) {
+    if (line.extractor && line.issues) {
+      processExtractorIssues(line.extractor, line, store, cycleId, issues);
+    }
+  }
+  return issues;
+}
+
 /** Execute an assay stage. */
 export async function executeAssay(assayOpts) {
-  const { sort, io, historyPath, feedbackPath } = assayOpts;
+  const { sort, io, worktree, historyPath, feedbackPath } = assayOpts;
+  const cwd2 = assayOpts.cwd;
 
   const cycleId = cycleIdFrom(assayOpts.cycleId, sort);
   if (!cycleId) return { ok: false, error: 'executeAssay: no cycleId in sort result' };
@@ -337,15 +349,20 @@ export async function executeAssay(assayOpts) {
   const cfm = await readCfm(cycleId, io).catch(function() { return null; });
   if (!cfm) return { ok: false, error: 'executeAssay: cycle ' + cycleId + ' not found' };
 
-  const artefacts = cfm['output-type']
-    ? await discoverQuenchArtefacts(io, cfm['output-type']).catch(function() { return []; })
-    : [];
-  const store = openFeedbackStore(feedbackPath, io);
   const extractors = getAssayExtractors(cfm);
-  const issues = [];
-  const eOpts = { io, artefacts, store, cycleId, issues };
 
-  await runAllExtractors(extractors, eOpts);
+  const promptContext = {
+    stage: sort.route, cycle: cycleId, token: sort.token || '',
+    cwd: cwd2, extractors,
+  };
+
+  const dispatch = await assayDispatch({
+    sort, io, worktree, cycleId, dispatchPrompt: promptContext,
+  });
+  if (dispatch.error) return { ok: false, error: dispatch.error };
+
+  const store = openFeedbackStore(feedbackPath, io);
+  const issues = processAssayStageOutput(dispatch.stageOutputLines, store, cycleId);
 
   return buildAssaySummary(issues, cycleId, sort.route, historyPath, io);
 }

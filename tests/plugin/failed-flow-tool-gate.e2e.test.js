@@ -167,7 +167,7 @@ describe('failed-flow tool gate (config-tier on config branch)', () => {
   });
 
   it('extractor_create refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_extractor_create.execute(
+    expectFailedError(await plugin.tool.foundry_memory_extractor_create.execute(
       { name: 'ex', command: 'echo', memoryWrite: ['finding'], body: 'doc' }, ctx()),
       'extractor_create');
   });

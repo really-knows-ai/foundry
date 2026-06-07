@@ -39,7 +39,7 @@ Quench makes **no disk writes**. You produce feedback via `foundry_feedback_add`
    >   3. Investigate and fix the root cause of the failure before restarting.
 
    Then return control to the user and stop.
-3. `foundry_artefacts_list({})` — enumerate the current cycle's branch artefact changes as `[{ file, state }]` entries.
+3. `foundry_artefact_list({})` — enumerate the current cycle's branch artefact changes as `[{ file, state }]` entries.
 4. For each artefact change:
     a. `foundry_validate_run({ typeId: '<type-id>' })` — executes all law-based validators for the artefact type. The tool returns `{ ok, validatorsRun, items, errors }`. `items` is the array of parsed feedback items; each entry carries `lawId`, `validatorId`, `file`, and `text` (plus optional `location` and `severity`). `errors` carries validator-level failures with `lawId`, `validatorId`, `type` (`parse` or `pattern-mismatch`), and `message`.
    b. For each entry in `items`: call `foundry_feedback_add` with `{ file: item.file, text: item.text, tag: 'law:' + item.lawId + ':' + item.validatorId }`. The tag uses the law ID and validator ID returned by the tool so operators reading `WORK.feedback.yaml` can identify exactly which validator produced each item.

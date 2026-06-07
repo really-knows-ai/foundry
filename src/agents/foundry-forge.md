@@ -1,6 +1,7 @@
 ---
 description: "Generate artefacts for forge stages"
 permission:
+  "*": deny
   read: allow
   glob: allow
   grep: allow
@@ -16,5 +17,4 @@ permission:
   foundry_config_cycle: allow
   foundry_config_artefact_type: allow
   foundry_config_laws: allow
-  "*": deny
 ---

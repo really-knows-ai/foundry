@@ -25,7 +25,6 @@ export function spawnDispatch(worktree, promptPath, agentName) {
     '--file', promptPath,
   ], {
     cwd: worktree,
-    stdio: 'pipe',
   });
 }
 

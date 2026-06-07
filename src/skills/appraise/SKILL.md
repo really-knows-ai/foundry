@@ -16,11 +16,12 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 > Restart OpenCode to initialise Foundry, then retry this command.
 
-## Stage lifecycle
+## Stage lifecycle (mandatory)
 
-The stage lifecycle is managed by the orchestrator. Do NOT call
-`foundry_stage_begin` or `foundry_stage_end`. The orchestrator opens
-the stage before dispatching you and closes it after you complete.
+Appraise runs inside an enforced stage. Your **first** and **last** tool calls are fixed:
+
+1. **First:** `foundry_stage_begin({stage, cycle, tokenFile})` — the orchestrator hands you `stage`, `cycle`, and a `tokenFile` filename in the dispatch prompt. Pass the filename verbatim.
+2. **Last:** `foundry_stage_end()` — return control to the orchestrator.
 
 Appraise makes **no disk writes**. Report violations through
 `foundry_stage_output` calls. The orchestrator's consolidate step reads
@@ -28,11 +29,12 @@ the outputs, posts feedback, and resolves prior items.
 
 ## Protocol
 
-1. `foundry_config_artefact_type` with the type ID — get the artefact type definition and `file-patterns`.
-2. `foundry_artefacts_list` — enumerate the current cycle's branch artefact changes.
-3. For each artefact file that matches the type's `file-patterns`, read the file from the worktree.
-4. Your dispatch prompt embeds the law or laws you must evaluate (the *scoped unit*). If the prompt contains multiple laws (bundle mode), evaluate every artefact against every law in the unit. If it contains a single law (law-by-law mode), evaluate against that specific law only.
-5. For each violation of a scoped law, call `foundry_stage_output` with a violation record:
+1. `foundry_stage_begin({stage, cycle, tokenFile})` with the `tokenFile` from the dispatch prompt.
+2. `foundry_config_artefact_type` with the type ID — get the artefact type definition and `file-patterns`.
+3. `foundry_artefact_list` — enumerate the current cycle's branch artefact changes.
+4. For each artefact file that matches the type's `file-patterns`, read the file from the worktree.
+5. Your dispatch prompt embeds the law or laws you must evaluate (the *scoped unit*). If the prompt contains multiple laws (bundle mode), evaluate every artefact against every law in the unit. If it contains a single law (law-by-law mode), evaluate against that specific law only.
+6. For each violation of a scoped law, call `foundry_stage_output` with a violation record:
 
    ```json
    {
@@ -55,6 +57,8 @@ the outputs, posts feedback, and resolves prior items.
    When the artefact complies with every scoped law, produce **no output** — call no tool. The executor records completion; you emit no verdict.
 
    Do NOT write JSONL as text. Call the tool.
+
+7. Call `foundry_stage_end()` to complete.
 
 ## Feedback handling
 

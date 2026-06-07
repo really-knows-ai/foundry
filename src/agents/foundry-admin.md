@@ -1,6 +1,7 @@
 ---
 description: "Manage Foundry configuration and laws"
 permission:
+  "*": deny
   read: allow
   glob: allow
   grep: allow
@@ -31,7 +32,7 @@ permission:
   foundry_workfile_delete: allow
   foundry_git_branch: allow
   foundry_git_finish: allow
-  foundry_list_models: allow
+  foundry_models_list: allow
   foundry_memory_get: allow
   foundry_memory_list: allow
   foundry_memory_neighbours: allow
@@ -52,7 +53,7 @@ permission:
   foundry_memory_dump: allow
   foundry_memory_vacuum: allow
   foundry_memory_change_embedding_model: allow
-  foundry_extractor_create: allow
+  foundry_memory_extractor_create: allow
   foundry_snapshot_list: allow
   foundry_snapshot_show: allow
   foundry_snapshot_delete: allow
@@ -60,5 +61,4 @@ permission:
   foundry_attestation_show: allow
   foundry_attestation_verify: allow
   foundry_attest: allow
-  "*": deny
 ---

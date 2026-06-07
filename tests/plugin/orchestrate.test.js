@@ -22,8 +22,8 @@ test('plugin registers foundry_continue', () => {
   assert.ok(toolNames.has('foundry_continue'));
 });
 
-test('plugin registers foundry_list_models', () => {
-  assert.ok(toolNames.has('foundry_list_models'));
+test('plugin registers foundry_models_list', () => {
+  assert.ok(toolNames.has('foundry_models_list'));
 });
 
 test('plugin does NOT register foundry_sort', () => {

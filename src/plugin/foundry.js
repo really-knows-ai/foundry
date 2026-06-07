@@ -234,14 +234,6 @@ async function configurePlugin(config, directory) {
   }
 }
 
-function attachTestSymbols(plugin, pending, client) {
-  Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
-    get: () => restartNeeded, configurable: true,
-  });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: client });
-}
-
 function buildTools(createTool, pending, client) {
   return {
     ...createHistoryTools({ tool: createTool }),
@@ -303,6 +295,5 @@ export const FoundryPlugin = async ({ directory, client }) => {
     tool: buildTools(tool, pending, pluginClient),
   };
 
-  attachTestSymbols(plugin, pending, pluginClient);
   return plugin;
 };

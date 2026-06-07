@@ -159,7 +159,7 @@ Every mutating memory tool — both data writes (`foundry_memory_put`,
 `foundry_memory_create_entity_type` / `_create_edge_type`,
 `foundry_memory_rename_entity_type` / `_rename_edge_type`,
 `foundry_memory_drop_entity_type` / `_drop_edge_type`,
-`foundry_extractor_create`) — refuses to run when `WORK.md`
+`foundry_memory_extractor_create`) — refuses to run when `WORK.md`
 frontmatter has `status: failed`. Each tool returns a tool-name-prefixed
 error referencing the failure reason.
 
