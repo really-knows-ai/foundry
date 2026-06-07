@@ -295,5 +295,11 @@ export const FoundryPlugin = async ({ directory, client }) => {
     tool: buildTools(tool, pending, pluginClient),
   };
 
+  Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
+    get: () => restartNeeded, configurable: true,
+  });
+  Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: pluginClient });
+
   return plugin;
 };
