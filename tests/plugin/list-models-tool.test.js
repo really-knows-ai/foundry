@@ -16,7 +16,7 @@ function mockClient({ providers, connected }) {
   };
 }
 
-test('foundry_list_models returns models from connected providers', async () => {
+test('foundry_models_list returns models from connected providers', async () => {
   const client = mockClient({
     providers: [
       { name: 'opencode-go', models: { 'deepseek-v4-flash': {}, 'deepseek-v4-lite': {} } },
@@ -26,7 +26,7 @@ test('foundry_list_models returns models from connected providers', async () => 
   });
 
   const plugin = await FoundryPlugin({ directory: process.cwd(), client });
-  const result = JSON.parse(await plugin.tool.foundry_list_models.execute({}, { worktree: process.cwd() }));
+  const result = JSON.parse(await plugin.tool.foundry_models_list.execute({}, { worktree: process.cwd() }));
 
   assert.ok(Array.isArray(result.models));
   assert.equal(result.models.length, 2);
@@ -42,28 +42,28 @@ test('foundry_list_models returns models from connected providers', async () => 
   });
 });
 
-test('foundry_list_models returns empty array when no connected providers', async () => {
+test('foundry_models_list returns empty array when no connected providers', async () => {
   const client = mockClient({
     providers: [],
     connected: [],
   });
 
   const plugin = await FoundryPlugin({ directory: process.cwd(), client });
-  const result = JSON.parse(await plugin.tool.foundry_list_models.execute({}, { worktree: process.cwd() }));
+  const result = JSON.parse(await plugin.tool.foundry_models_list.execute({}, { worktree: process.cwd() }));
 
   assert.ok(Array.isArray(result.models));
   assert.equal(result.models.length, 0);
 });
 
-test('foundry_list_models returns error when client is null', async () => {
+test('foundry_models_list returns error when client is null', async () => {
   const plugin = await FoundryPlugin({ directory: process.cwd(), client: null });
-  const result = JSON.parse(await plugin.tool.foundry_list_models.execute({}, { worktree: process.cwd() }));
+  const result = JSON.parse(await plugin.tool.foundry_models_list.execute({}, { worktree: process.cwd() }));
 
   assert.ok(result.error);
   assert.ok(result.error.includes('client not available'));
 });
 
-test('foundry_list_models handles provider enumeration failure', async () => {
+test('foundry_models_list handles provider enumeration failure', async () => {
   const client = {
     config: {
       providers: async () => { throw new Error('Connection refused'); },
@@ -74,9 +74,9 @@ test('foundry_list_models handles provider enumeration failure', async () => {
   };
 
   const plugin = await FoundryPlugin({ directory: process.cwd(), client });
-  const result = JSON.parse(await plugin.tool.foundry_list_models.execute({}, { worktree: process.cwd() }));
+  const result = JSON.parse(await plugin.tool.foundry_models_list.execute({}, { worktree: process.cwd() }));
 
   assert.ok(result.error);
-  assert.ok(result.error.includes('foundry_list_models: failed to enumerate providers'));
+  assert.ok(result.error.includes('foundry_models_list: failed to enumerate providers'));
   assert.ok(result.error.includes('Connection refused'));
 });

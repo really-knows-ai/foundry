@@ -63,10 +63,10 @@ function doSort(runSort, historyPath, io, mint) {
 }
 
 async function handleForge(opts, sortResult, cycleId, hp, fp) {
-  const { client, childSessions, context, io, worktree, cwd } = opts;
+  const { client, context, io, worktree, cwd } = opts;
   try {
     const fResult = await executeForge({
-      sort: sortResult, cwd, client, childSessions, context, io,
+      sort: sortResult, cwd, client, context, io,
       worktree, historyPath: hp, feedbackPath: fp, cycleId,
     });
     if (fResult.ok) return {};
@@ -91,10 +91,10 @@ async function handleAssay(opts, sortResult, cycleId, hp, fp) {
 }
 
 async function handleAppraise(opts, sortResult, cycleId, hp, fp) {
-  const { client, childSessions, context, io, worktree, cwd } = opts;
+  const { client, context, io, worktree, cwd } = opts;
   try {
     const aResult = await executeAppraise({
-      sort: sortResult, cwd, client, childSessions, context, io,
+      sort: sortResult, cwd, client, context, io,
       worktree, historyPath: hp, feedbackPath: fp, cycleId,
     });
     if (aResult.ok) return {};

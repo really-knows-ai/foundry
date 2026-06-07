@@ -56,7 +56,7 @@ Your last tool calls must be `foundry_stage_output({ verdict: "approved" })` the
 
    Then call `foundry_stage_end()`, return control to the user, and stop.
 
-3. `foundry_artefacts_list({})` — this cycle's branch artefact changes as `[{ file, state }]` entries.
+3. `foundry_artefact_list({})` — this cycle's branch artefact changes as `[{ file, state }]` entries.
 4. `foundry_feedback_list` — all existing feedback items.
 5. `foundry_history_list({cycle: <current-cycle>})` — what has happened so far.
 

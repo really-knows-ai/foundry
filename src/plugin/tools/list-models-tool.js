@@ -1,5 +1,5 @@
 // src/plugin/tools/list-models-tool.js
-// foundry_list_models — enumerates models via the SDK client.
+// foundry_models_list — enumerates models via the SDK client.
 
 /**
  * Determine the set of connected provider names from the SDK client.
@@ -44,13 +44,13 @@ function buildModels(providers, connectedNames) {
 
 export function createListModelsTool({ tool, client }) {
   return {
-    foundry_list_models: tool({
+    foundry_models_list: tool({
       description: 'List available models from configured and connected providers via the SDK.',
       args: {},
       async execute(_args, _context) {
         if (!client) {
           return JSON.stringify({
-            error: 'foundry_list_models: client not available. Ensure the plugin is loaded with SDK access.',
+            error: 'foundry_models_list: client not available. Ensure the plugin is loaded with SDK access.',
           });
         }
 
@@ -60,7 +60,7 @@ export function createListModelsTool({ tool, client }) {
           providers = response.providers;
         } catch (err) {
           return JSON.stringify({
-            error: `foundry_list_models: failed to enumerate providers: ${err.message ?? String(err)}`,
+            error: `foundry_models_list: failed to enumerate providers: ${err.message ?? String(err)}`,
           });
         }
 

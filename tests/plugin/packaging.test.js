@@ -12,6 +12,14 @@ function readJSON(filename) {
   return JSON.parse(raw);
 }
 
+const AGENT_NAMES = [
+  'foundry-guide',
+  'foundry-admin',
+  'foundry-forge',
+  'foundry-appraise',
+  'foundry-assay',
+];
+
 test('package.json files includes dist/agents/', () => {
   const pkg = readJSON('package.json');
   assert.ok(
@@ -20,19 +28,31 @@ test('package.json files includes dist/agents/', () => {
   );
   assert.ok(
     pkg.files.includes('dist/agents/'),
-    'package.json files must include dist/agents/ to ship the guide agent template'
+    'package.json files must include dist/agents/ to ship agent files'
   );
 });
 
-test('build produces dist/agents/foundry.md', () => {
-  let found;
-  try {
-    readFileSync(join(REPO_ROOT, 'dist', 'agents', 'foundry.md'), 'utf8');
-    found = true;
-  } catch {
-    found = false;
+test('T2.1 — build produces all five agent files in dist/agents/', () => {
+  for (const name of AGENT_NAMES) {
+    const filePath = join(REPO_ROOT, 'dist', 'agents', `${name}.md`);
+    let found;
+    try {
+      readFileSync(filePath, 'utf8');
+      found = true;
+    } catch {
+      found = false;
+    }
+    assert.ok(found, `dist/agents/${name}.md must exist after build — run pnpm run build first`);
   }
-  assert.ok(found, 'dist/agents/foundry.md must exist after build — run pnpm run build first');
+});
+
+test('T2.2 — build does not produce old foundry.md in dist/agents/', () => {
+  const oldPath = join(REPO_ROOT, 'dist', 'agents', 'foundry.md');
+  assert.equal(
+    existsSync(oldPath),
+    false,
+    'dist/agents/foundry.md must not exist — the old single-agent file is replaced by the five new agent files'
+  );
 });
 
 // Walk .js files in dist/ and collect all relative import paths

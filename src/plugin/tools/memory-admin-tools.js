@@ -280,7 +280,7 @@ function toolChangeEmbeddingModel({ tool }) {
 export function createMemoryAdminTools({ tool }) {
   return {
     foundry_memory_create_entity_type: toolCreateEntityType({ tool }),
-    foundry_extractor_create: toolExtractorCreate({ tool }),
+    foundry_memory_extractor_create: toolExtractorCreate({ tool }),
     foundry_memory_create_edge_type: toolCreateEdgeType({ tool }),
     foundry_memory_rename_entity_type: toolRenameEntityType({ tool }),
     foundry_memory_rename_edge_type: toolRenameEdgeType({ tool }),

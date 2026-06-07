@@ -43,7 +43,7 @@ test('T3 - writePromptFile generates unique filenames across calls', () => {
   assert.notEqual(a, b);
 });
 
-test('T4 - spawnDispatch calls execFile with correct args', () => {
+test('T4 - spawnDispatch calls execFile with correct args including agent name', () => {
   const execFileMock = mock.fn();
   _setExecFile(execFileMock);
   const fakeChild = { on: () => {} };
@@ -51,12 +51,12 @@ test('T4 - spawnDispatch calls execFile with correct args', () => {
 
   const worktree = '/path/to/worktree';
   const promptPath = '.foundry/dispatch-prompts/abc.txt';
-  const result = spawnDispatch(worktree, promptPath);
+  const result = spawnDispatch(worktree, promptPath, 'test-agent');
 
   assert.equal(execFileMock.mock.callCount(), 1);
   const [cmd, args, opts] = execFileMock.mock.calls[0].arguments;
   assert.equal(cmd, 'opencode');
-  assert.deepEqual(args, ['run', '--attach', '--agent', 'foundry', '--dir', worktree, '--file', promptPath]);
+  assert.deepEqual(args, ['run', '--attach', '--agent', 'test-agent', '--dir', worktree, '--file', promptPath]);
   assert.equal(opts.cwd, worktree);
   assert.equal(opts.stdio, 'pipe');
   assert.equal(result, fakeChild);
@@ -68,7 +68,7 @@ test('T5 - spawnDispatch returns a ChildProcess object', () => {
   const fakeChild = { on: () => {}, kill: () => {} };
   execFileMock.mock.mockImplementation(() => fakeChild);
 
-  const result = spawnDispatch('/w', '/p');
+  const result = spawnDispatch('/w', '/p', 'test-agent');
   assert.equal(result, fakeChild);
   assert.equal(typeof result.on, 'function');
 });

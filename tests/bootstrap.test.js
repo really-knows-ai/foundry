@@ -14,6 +14,25 @@ import { getBootstrapContent } from '../src/plugin/tools/helpers.js';
 
 const PKG_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
+const AGENT_NAMES = [
+  'foundry-guide',
+  'foundry-admin',
+  'foundry-forge',
+  'foundry-appraise',
+  'foundry-assay',
+];
+
+function assertAllFiveAgentsExist(agentsDir) {
+  for (const name of AGENT_NAMES) {
+    const exists = existsSync(join(agentsDir, `${name}.md`));
+    assert.ok(exists, `${name}.md must exist under ${agentsDir}`);
+  }
+}
+
+function assertOldAgentDeleted(agentsDir) {
+  assert.equal(existsSync(join(agentsDir, 'foundry.md')), false, 'old foundry.md must be deleted');
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -47,22 +66,23 @@ describe('bootstrap — config hook', () => {
     const version = readFileSync(versionPath, 'utf8').trim();
     assert.equal(version, PKG_VERSION);
 
-    // Guide agent written (model-specific agent files no longer generated)
+    // All five agent files written
     const agentsDir = join(dir, '.opencode', 'agents');
-    assert.ok(existsSync(join(agentsDir, 'foundry.md')));
+    assertOldAgentDeleted(agentsDir);
+    assertAllFiveAgentsExist(agentsDir);
 
     // restartNeeded flag set
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
     assert.equal(restartNeeded, true);
   });
 
-  test('existing project with correct VERSION and no agent changes: no bootstrap', async () => {
+  test('existing project with correct VERSION: no full bootstrap but agents deployed', async () => {
     // Pre-seed foundry/ with correct VERSION
     const foundryDir = join(dir, 'foundry');
     mkdirSync(foundryDir, { recursive: true });
     writeFileSync(join(foundryDir, 'VERSION'), PKG_VERSION, 'utf8');
 
-    // Pre-seed guide agent only
+    // Pre-seed old guide agent
     const agentsDir = join(dir, '.opencode', 'agents');
     mkdirSync(agentsDir, { recursive: true });
     writeFileSync(join(agentsDir, 'foundry.md'), 'guide', 'utf8');
@@ -77,8 +97,9 @@ describe('bootstrap — config hook', () => {
     // VERSION unchanged
     assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), PKG_VERSION);
 
-    // Guide agent intact
-    assert.ok(existsSync(join(agentsDir, 'foundry.md')));
+    // Old foundry.md deleted and five new agents deployed unconditionally
+    assertOldAgentDeleted(agentsDir);
+    assertAllFiveAgentsExist(agentsDir);
 
     // restartNeeded stays false
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
@@ -101,26 +122,27 @@ describe('bootstrap — config hook', () => {
     // VERSION overwritten
     assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), PKG_VERSION);
 
-    // Guide agent written
-    assert.ok(existsSync(join(dir, '.opencode', 'agents', 'foundry.md')));
+    // Old agent deleted and five new agents written
+    assertOldAgentDeleted(join(dir, '.opencode', 'agents'));
+    assertAllFiveAgentsExist(join(dir, '.opencode', 'agents'));
 
     // restartNeeded set
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
     assert.equal(restartNeeded, true);
   });
 
-  test('existing project with correct VERSION and guide agent present: no full bootstrap', async () => {
+  test('existing project with correct VERSION: migration deletes old agent, writes all five', async () => {
     // Pre-seed foundry/ with correct VERSION (needed to pass version check)
     const foundryDir = join(dir, 'foundry');
     mkdirSync(foundryDir, { recursive: true });
     writeFileSync(join(foundryDir, 'VERSION'), PKG_VERSION, 'utf8');
 
-    // Pre-seed stale agent files
+    // Pre-seed stale agent files (stale file unrelated to the five new agents)
     const agentsDir = join(dir, '.opencode', 'agents');
     mkdirSync(agentsDir, { recursive: true });
     writeFileSync(join(agentsDir, 'foundry-stale-model.md'), 'stale content', 'utf8');
-    // Guide agent pre-seeded so ensureGuideAgent short-circuits
-    writeFileSync(join(agentsDir, 'foundry.md'), 'guide', 'utf8');
+    // Pre-seed old foundry.md — migration should delete it
+    writeFileSync(join(agentsDir, 'foundry.md'), 'old guide content', 'utf8');
 
     const plugin = await FoundryPlugin({ directory: dir });
     await plugin.config({ skills: {} });
@@ -132,13 +154,16 @@ describe('bootstrap — config hook', () => {
     // VERSION unchanged (full bootstrap did not run)
     assert.equal(readFileSync(join(foundryDir, 'VERSION'), 'utf8').trim(), PKG_VERSION);
 
-    // Pre-existing stale file remains (stale-agent deletion removed)
+    // Pre-existing stale file remains (unrelated to migration)
     assert.equal(existsSync(join(agentsDir, 'foundry-stale-model.md')), true);
 
-    // Guide agent preserved
-    assert.ok(existsSync(join(agentsDir, 'foundry.md')));
+    // Old foundry.md deleted by migration
+    assertOldAgentDeleted(agentsDir);
 
-    // restartNeeded not set (no agent-change detection)
+    // All five new agent files written unconditionally
+    assertAllFiveAgentsExist(agentsDir);
+
+    // restartNeeded not set (no version match, no full bootstrap)
     const restartNeeded = plugin[Symbol.for('foundry.test.restartNeeded')];
     assert.equal(restartNeeded, false);
   });

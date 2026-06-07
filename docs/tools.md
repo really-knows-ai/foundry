@@ -25,7 +25,7 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
   (`forge`, `quench`, `appraise`, `human-appraise`, `assay`).
 - **Failed flow**: when `WORK.md` frontmatter has `status: failed`:
   - Mutating families refuse to run and return an error prefixed with the tool name. This covers work-branch FS writers, memory writers and mutating memory admin tools (`memory_put`, `memory_reset`, `memory_drop_*`, `memory_rename_*`, `memory_create_*`, `memory_init`, `memory_vacuum`, `memory_change_embedding_model`), the config-creator family (`foundry_config_create_artefact_type`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle`), and the law mutators (`foundry_config_add_law`, `foundry_config_edit_law`).
-  - Read-only diagnostics remain callable: `foundry_workfile_get`; list tools such as `foundry_artefacts_list`, `foundry_feedback_list`, `foundry_history_list`, and `foundry_memory_list`; every `foundry_config_*` read tool; every `foundry_config_validate_*` schema validator; every memory read tool (`_get`, `_neighbours`, `_query`, `_search`, `_dump`, `_validate`); and every `foundry_snapshot_*` tool.
+  - Read-only diagnostics remain callable: `foundry_workfile_get`; list tools such as `foundry_artefact_list`, `foundry_feedback_list`, `foundry_history_list`, and `foundry_memory_list`; every `foundry_config_*` read tool; every `foundry_config_validate_*` schema validator; every memory read tool (`_get`, `_neighbours`, `_query`, `_search`, `_dump`, `_validate`); and every `foundry_snapshot_*` tool.
   - `foundry_git_branch` and `foundry_git_finish` sit outside this guard so the caller can leave the failed branch. The escape hatch is `foundry_workfile_delete`.
 - **Worktree context**: every tool reads `context.worktree` (the project
   root) and operates on `foundry/`, `WORK.md`, `WORK.feedback.yaml`,
@@ -39,9 +39,9 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 
   | Namespace | Applies to | Notes |
   |-----------|------------|-------|
-  | `config/<description>` | `foundry_config_create_artefact_type`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle`, `foundry_config_add_law`, `foundry_config_edit_law`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_*`, `foundry_memory_drop_*`, `foundry_memory_reset`, `foundry_memory_init`, `foundry_memory_change_embedding_model`, `foundry_extractor_create` | Config and schema mutation only. |
+  | `config/<description>` | `foundry_config_create_artefact_type`, `foundry_config_create_appraiser`, `foundry_config_create_flow`, `foundry_config_create_cycle`, `foundry_config_add_law`, `foundry_config_edit_law`, `foundry_memory_create_entity_type`, `foundry_memory_create_edge_type`, `foundry_memory_rename_*`, `foundry_memory_drop_*`, `foundry_memory_reset`, `foundry_memory_init`, `foundry_memory_change_embedding_model`, `foundry_memory_extractor_create` | Config and schema mutation only. |
   | `work/<flow>-<desc>` or `dry-run/<x>/<y>` | `foundry_orchestrate`, `foundry_stage_begin`, `foundry_stage_end`, `foundry_stage_retry`, `foundry_workfile_*`, `foundry_artefacts_*`, `foundry_feedback_*`, `foundry_assay_run`, `foundry_validate_run`, `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate` | Flow-data mutation only. |
-  | Any branch | `foundry_workfile_get`, `foundry_artefacts_list`, `foundry_feedback_list`, `foundry_history_list`, `foundry_config_*` read tools, `foundry_config_validate_*`, `foundry_appraisers_select`, `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, `foundry_memory_search`, `foundry_memory_dump`, `foundry_memory_validate`, `foundry_snapshot_*` | No branch guard and no failed-flow guard. |
+  | Any branch | `foundry_workfile_get`, `foundry_artefact_list`, `foundry_feedback_list`, `foundry_history_list`, `foundry_config_*` read tools, `foundry_config_validate_*`, `foundry_appraisers_select`, `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, `foundry_memory_search`, `foundry_memory_dump`, `foundry_memory_validate`, `foundry_snapshot_*` | No branch guard and no failed-flow guard. |
   | Self-classifying | `foundry_git_branch`, `foundry_git_finish` | Each tool checks its own branch rules. Leaving the failed branch is the recovery path. |
 
   Off-namespace calls return a structured refusal envelope naming the required namespace and the current branch.
@@ -60,7 +60,7 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - [`foundry_workfile_delete`](#foundry_workfile_delete)
 
 **Artefacts**
-- [`foundry_artefacts_list`](#foundry_artefacts_list)
+- [`foundry_artefact_list`](#foundry_artefact_list)
 
 **Feedback**
 - [`foundry_feedback_add`](#foundry_feedback_add)
@@ -142,7 +142,7 @@ state machine, see [`docs/concepts.md`](./concepts.md) and
 - [`foundry_memory_rename_edge_type`](#foundry_memory_rename_edge_type)
 - [`foundry_memory_drop_entity_type`](#foundry_memory_drop_entity_type)
 - [`foundry_memory_drop_edge_type`](#foundry_memory_drop_edge_type)
-- [`foundry_extractor_create`](#foundry_extractor_create)
+- [`foundry_memory_extractor_create`](#foundry_memory_extractor_create)
 
 ---
 
@@ -329,7 +329,7 @@ flow** (escape hatch).
 
 ## Artefacts
 
-### `foundry_artefacts_list`
+### `foundry_artefact_list`
 
 > List artefact changes on the current work branch for the current cycle. Artefacts are discovered from branch diff status (git diff against base branch), filtered by the current cycle's output-type file patterns.
 
@@ -1422,7 +1422,7 @@ purges rows, drops dependent edges. **Destructive.**
 **Side effects (confirm:true only):** removes the edge-type file and
 its rows. **Destructive.**
 
-### `foundry_extractor_create`
+### `foundry_memory_extractor_create`
 
 > Create a new extractor definition under
 > `foundry/memory/extractors/`.

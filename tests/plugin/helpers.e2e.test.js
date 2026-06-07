@@ -432,3 +432,121 @@ describe('buildCyclePromptExtras', () => {
     }
   });
 });
+
+describe('bootstrap message content — Phase 04 updates', () => {
+  test('buildFoundryNotInitializedMessage contains deploy the five Foundry agents', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-msg-update-'));
+    try {
+      const content = getBootstrapContent(dir, '/fake/pkg');
+      assert.ok(
+        content.includes('deploy the five Foundry agents (guide, admin, forge, appraise, assay)'),
+        'not-initialised message must mention deploying five Foundry agents'
+      );
+      assert.ok(
+        !content.includes('generate stage agents'),
+        'not-initialised message must not contain old "generate stage agents" phrasing'
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('buildFoundryInitializedMessage contains new Agent model paragraph', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-msg-init-'));
+    try {
+      mkdirSync(path.join(dir, 'foundry', 'flows'), { recursive: true });
+
+      const content = getBootstrapContent(dir, '/fake/pkg');
+
+      // New paragraph heading present
+      assert.ok(
+        content.includes('## Agent model'),
+        'initialised message must have Agent model heading'
+      );
+
+      // Each agent referenced (some cross line-breaks in the template literal)
+      assert.ok(
+        content.includes('Foundry uses five fixed agents for cycle stage dispatch:'),
+        'initialised message must mention five fixed agents'
+      );
+      assert.ok(
+        content.includes('foundry-guide'),
+        'initialised message must mention foundry-guide'
+      );
+      assert.ok(
+        content.includes('foundry-admin'),
+        'initialised message must mention foundry-admin'
+      );
+      assert.ok(
+        content.includes('foundry-forge'),
+        'initialised message must mention foundry-forge'
+      );
+      assert.ok(
+        content.includes('foundry-appraise'),
+        'initialised message must mention foundry-appraise'
+      );
+      assert.ok(
+        content.includes('foundry-assay'),
+        'initialised message must mention foundry-assay'
+      );
+
+      // Role descriptions
+      assert.ok(
+        content.includes('user-facing'),
+        'initialised message must mention user-facing role'
+      );
+      assert.ok(
+        content.includes('config changes'),
+        'initialised message must mention config changes role'
+      );
+      assert.ok(
+        content.includes('artefact generation'),
+        'initialised message must mention artefact generation role'
+      );
+      assert.ok(
+        content.includes('memory population'),
+        'initialised message must mention memory population role'
+      );
+
+      // Guide agent install location
+      assert.ok(
+        content.includes('The guide agent is installed as'),
+        'initialised message must mention guide agent install location'
+      );
+      assert.ok(
+        content.includes('`.opencode/agents/foundry-guide.md`'),
+        'initialised message must mention foundry-guide.md path'
+      );
+
+      // Old content absent
+      assert.ok(
+        !content.includes('Multi-model routing'),
+        'initialised message must not contain old "Multi-model routing" heading'
+      );
+      assert.ok(
+        !content.includes('generated `foundry-*` stage agents'),
+        'initialised message must not contain old "generated foundry-* stage agents"'
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('getBootstrapContent restart-needed branch contains Foundry agent files', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fdy-msg-restart-'));
+    try {
+      const content = getBootstrapContent(dir, '/fake/pkg', true);
+
+      assert.ok(
+        content.includes('Foundry agent files'),
+        'restart-needed message must contain "Foundry agent files"'
+      );
+      assert.ok(
+        !content.includes('stage agent files'),
+        'restart-needed message must not contain old "stage agent files"'
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

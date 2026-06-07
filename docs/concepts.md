@@ -135,7 +135,7 @@ plugin enforces the split at tool-call time.
   `foundry/`. Typically created from `main` via
   `foundry_git_branch({ kind: "config", description })`. The
   `foundry_config_create_*`, `foundry_memory_create_*`,
-  `foundry_extractor_create`, and the schema-mutating memory admin
+  `foundry_memory_extractor_create`, and the schema-mutating memory admin
   tools all refuse off this kind.
 - **`work/<flowId>-<description>`** — flow-data mutation. Owns
   `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, and
@@ -168,7 +168,7 @@ runs:
 
 - **`requireOnConfigBranch`** — accepts only `config/<description>`.
   Schema-mutation tools (`foundry_config_create_*`,
-  `foundry_memory_create_*`, `foundry_extractor_create`, the memory
+  `foundry_memory_create_*`, `foundry_memory_extractor_create`, the memory
   admin family) use this guard. `dry-run/<x>/<y>` is rejected by
   design — schema must change on a real config branch so the change
   can be merged to `main`.

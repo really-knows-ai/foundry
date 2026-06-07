@@ -176,7 +176,7 @@ never committed by foundry. See the `dry-run` skill for the full loop.
 
 While a flow is running, the state of the world is in four places:
 
-- `WORK.md` — current cycle, goal, and frontmatter state. Artefacts are discovered from branch diffs against the current cycle output type; see `foundry_artefacts_list`.
+- `WORK.md` — current cycle, goal, and frontmatter state. Artefacts are discovered from branch diffs against the current cycle output type; see `foundry_artefact_list`.
 - `WORK.feedback.yaml` — feedback items and their lifecycle history.
 - `WORK.history.yaml` — append-only stage execution log.
 - `git log` — one commit per stage.

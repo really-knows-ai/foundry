@@ -47,7 +47,7 @@ function makeChildProcess({ exitCode = 0 } = {}) {
 }
 
 test.before(async () => {
-  const mod = await import('../../src/scripts/run-executors.js');
+  const mod = await import('../../src/scripts/lib/forge-dispatch.js');
   forgeDispatch = mod.forgeDispatch;
 });
 
@@ -144,7 +144,7 @@ test('D1.3 - forgeDispatch calls execFile with correct args', async () => {
   assert.equal(args[0], 'run');
   assert.equal(args[1], '--attach');
   assert.equal(args[2], '--agent');
-  assert.equal(args[3], 'foundry');
+  assert.equal(args[3], 'foundry-forge');
   assert.equal(args[4], '--dir');
   assert.equal(args[5], '/w');
   assert.equal(args[6], '--file');

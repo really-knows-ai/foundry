@@ -44,12 +44,28 @@ describe('Build script import path rewriting', () => {
       'Should not have 4 levels up for scripts imports'
     );
 
-    // Verify the Foundry guide agent template is packaged
-    const builtGuideAgent = path.join(projectRoot, 'dist', 'agents', 'foundry.md');
-    const builtGuideAgentContent = readFileSync(builtGuideAgent, 'utf-8');
-    assert.ok(
-      builtGuideAgentContent.includes('You are the Foundry agent.'),
-      'Expected built Foundry guide agent template'
+    // Verify the five Foundry agent files are packaged
+    const agentNames = ['foundry-guide', 'foundry-admin', 'foundry-forge', 'foundry-appraise', 'foundry-assay'];
+    const descriptions = [
+      'Guide users through Foundry authoring and flow execution',
+      'Manage Foundry configuration and laws',
+      'Generate artefacts for forge stages',
+      'Evaluate artefacts during appraise stages',
+      'Run extractors to populate memory',
+    ];
+    for (let i = 0; i < agentNames.length; i++) {
+      const agentPath = path.join(projectRoot, 'dist', 'agents', agentNames[i] + '.md');
+      const content = readFileSync(agentPath, 'utf-8');
+      assert.ok(
+        content.includes(descriptions[i]),
+        'Expected ' + agentNames[i] + ' agent template with description: ' + descriptions[i]
+      );
+    }
+    // Verify old single-agent file is not present
+    assert.throws(
+      () => readFileSync(path.join(projectRoot, 'dist', 'agents', 'foundry.md'), 'utf-8'),
+      { code: 'ENOENT' },
+      'Old foundry.md should not be present in dist/agents/'
     );
 
     // Most importantly: verify the built plugin is actually importable

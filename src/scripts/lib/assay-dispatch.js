@@ -1,7 +1,7 @@
 /**
- * Forge dispatch functions used by the run state machine.
+ * Assay dispatch function used by the run state machine.
  *
- * Exports: forgeDispatch
+ * Exports: assayDispatch
  */
 
 import { renderDispatchPrompt } from '../orchestrate-cycle.js';
@@ -54,29 +54,40 @@ function collectStageOutputLines(io) {
 }
 
 /**
- * Dispatch a forge stage by spawning `opencode run --attach` as a child
+ * Dispatch an assay stage by spawning `opencode run --attach` as a child
  * process. Writes the sort token to `.foundry/tokens/<cycleId>.token`,
- * renders the dispatch prompt with `{tokenFile}` set, writes the prompt
- * to a temp file, cleans stale stage output, spawns the child, waits
- * for it to exit (with configurable timeout), collects stage output
- * from `.foundry/stage-outputs/*.jsonl`, and cleans up temp files.
+ * renders the dispatch prompt with `{tokenFile}` set and assay-specific
+ * extractor instructions, writes the prompt to a temp file, cleans stale
+ * stage output, spawns the child, waits for it to exit (with configurable
+ * timeout), collects stage output from `.foundry/stage-outputs/*.jsonl`,
+ * and cleans up temp files.
  *
  * Returns `{ stageOutputLines }` on success or `{ error: <message> }`
  * on failure.
  */
-export async function forgeDispatch({ sort, io, worktree, cycleId, dispatchPrompt, modelParam, timeoutMs }) {
+export async function assayDispatch({ sort, io, worktree, cycleId, dispatchPrompt, timeoutMs }) {
   try {
     return await withCleanup(io, async (paths) => {
       const { tokenFileName, tokenPath } = writeTokenFile(io, sort, cycleId);
 
       const prompt = renderDispatchPrompt({ ...dispatchPrompt, tokenFile: tokenFileName });
-      const promptPath = writePromptFile(io, prompt);
+
+      const extractors = dispatchPrompt.extractors || [];
+      const assayLines = [
+        '',
+        'Run each configured extractor using foundry_assay_run.',
+        'Extractors: ' + JSON.stringify(extractors),
+        'After all extractors complete, call foundry_stage_output({ status: "done" }).',
+      ];
+      const fullPrompt = prompt + '\n' + assayLines.join('\n');
+
+      const promptPath = writePromptFile(io, fullPrompt);
       paths.push(promptPath);
       paths.push(tokenPath);
 
       cleanStageOutputDir(io);
 
-      const child = spawnDispatch(worktree, promptPath, 'foundry-forge');
+      const child = spawnDispatch(worktree, promptPath, 'foundry-assay');
       await awaitProcess(child, timeoutMs);
 
       const stageOutputLines = collectStageOutputLines(io);

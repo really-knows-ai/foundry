@@ -9,7 +9,7 @@ import { FoundryPlugin } from '../../src/plugin/foundry.js';
 // If this test fails, the public tool API changed — update the snapshot
 // intentionally (and consider whether docs/skills need updating too).
 const EXPECTED_TOOLS = [
-  'foundry_artefacts_list',
+  'foundry_artefact_list',
   'foundry_assay_run',
   'foundry_attest',
   'foundry_attestation_show',
@@ -32,7 +32,7 @@ const EXPECTED_TOOLS = [
   'foundry_config_validate_flow',
   'foundry_config_validate_law',
   'foundry_continue',
-  'foundry_extractor_create',
+  'foundry_memory_extractor_create',
   'foundry_feedback_action',
   'foundry_feedback_add',
   'foundry_feedback_list',
@@ -41,7 +41,7 @@ const EXPECTED_TOOLS = [
   'foundry_git_branch',
   'foundry_git_finish',
   'foundry_history_list',
-  'foundry_list_models',
+  'foundry_models_list',
   'foundry_memory_change_embedding_model',
   'foundry_memory_create_edge_type',
   'foundry_memory_create_entity_type',

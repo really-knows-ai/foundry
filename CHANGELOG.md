@@ -22,6 +22,53 @@
 
 - Ignored `documents/` directory.
 
+## [3.13.0] - 2026-06-07
+
+### Breaking Changes
+
+- **Agent architecture migration.** The single `foundry.md` agent has been replaced by five purpose-built agents: `foundry-guide.md`, `foundry-admin.md`, `foundry-forge.md`, `foundry-appraise.md`, and `foundry-assay.md`. The plugin now deploys all five agents unconditionally on every plugin update. If you customised the old `.opencode/agents/foundry.md` agent persona, instructions, or prompt, back up your changes before updating. Custom behaviour should be implemented through skills or plugin configuration rather than by editing agent files directly — agent content is now managed by the plugin.
+- `childSessions` Map, `FORGE_DENIED`/`APPRAISE_DENIED` lists, `enforceToolPolicy`, `isDenied`, `denyError`, and the `tool.execute.before` hook are removed. The `childSessions` parameter is removed from `buildTools`, `createRunTool`, `createContinueTool`, `runRun`, `continueRun`, `executeRun`, `handleForge`, `handleAppraise`, `executeForge`, and `executeAppraise`. Any code passing `childSessions` to these functions will break.
+- `spawnDispatch` now requires an `agentName` parameter (no default). All callers must pass a specific agent name (`foundry-forge`, `foundry-appraise`, or `foundry-assay`).
+- `resolveGuideSource` is replaced by `resolveAgentSources(pkgRoot)` returning paths for all five agents.
+- `writeFoundryGuideAgent` is replaced by `writeAllFoundryAgents(worktree, pkgRoot)` which writes all five agent files unconditionally (previous behaviour was skip-if-exists).
+- `attachTestSymbols` is removed from `foundry.js`.
+
+### Added
+
+- Five agent markdown files with permission whitelists: `foundry-guide.md` (primary), `foundry-admin.md`, `foundry-forge.md`, `foundry-appraise.md`, `foundry-assay.md`.
+- `writeAllFoundryAgents` function that deploys all five agents to `.opencode/agents/`.
+- `resolveAgentSources(pkgRoot)` — per-agent source resolution with `dist/` → `src/` fallback.
+- `migrateOldAgent(worktree)` — deletes legacy `.opencode/agents/foundry.md` on plugin load.
+- `assay-dispatch.js` module dispatching to `foundry-assay` agent via `spawnDispatch`.
+- `list-agents` skill updated to statically list the five fixed agents and their roles.
+
+### Changed
+
+- `spawnDispatch` now requires `agentName` parameter — no default.
+- `forgeDispatch` dispatches to `foundry-forge` agent.
+- `batchAppraiseDispatch` dispatches to `foundry-appraise` agent.
+- Guide agent prompt updated to delegate config changes via `task({subagent_type: "foundry-admin"})`.
+- Bootstrap messages in `helpers.js` reference the five fixed agents.
+- Agent frontmatter uses `"*": "deny"` catch-all with specific allow rules (last matching rule wins).
+
+### Removed
+
+- Dead `childSessions` Map, `FORGE_DENIED`/`APPRAISE_DENIED` lists, `enforceToolPolicy`, `isDenied`, `denyError`, `tool.execute.before` hook.
+- `childSessions` parameter from `buildTools`, `createRunTool`, `createContinueTool`, `runRun`, `continueRun`, `executeRun`, `handleForge`, `handleAppraise`, `executeForge`, `executeAppraise`.
+- `childSessions.clear()` calls in `run-tool.js` and `continue-tool.js`.
+- `attachTestSymbols` function.
+- Old `ensureGuideAgent`/`resolveGuideSource` functions.
+- `foundry.md` agent file (migrated to `foundry-guide.md`).
+- Old `src/agents/foundry.md` source file.
+- `forgeDispatch` re-export from `run-executors.js`.
+- Test files: `lockdown-hook.test.js`, `acceptance-criteria.test.js`, `plugin-client-capture.test.js`, `dry-run-trace-integration.test.js`, `run.test.js`, `continue-run.test.js`, `run-appraise-dispatch.test.js`, `run-appraise-ext.test.js`, `run-tool.test.js`, `continue-tool.test.js`.
+
+### Tool renames
+
+- `foundry_extractor_create` → `foundry_memory_extractor_create` (consistent with `foundry_memory_*` naming convention).
+- `foundry_list_models` → `foundry_models_list` (consistent verb-last convention).
+- `foundry_artefacts_list` → `foundry_artefact_list` (singular noun, consistent with other tools).
+
 ## [3.11.3] - 2026-06-03
 
 ### Fixed
@@ -154,7 +201,7 @@
 
 ### Changed
 
-- Appraise subagents no longer receive artefact content or laws in their prompt. The dispatch prompt contains only the appraiser's personality and the artefact type ID. The subagent discovers artefact files, laws, and file-patterns via tool calls (`foundry_config_artefact_type`, `foundry_config_laws`, `foundry_artefacts_list`) and reads files from the worktree.
+- Appraise subagents no longer receive artefact content or laws in their prompt. The dispatch prompt contains only the appraiser's personality and the artefact type ID. The subagent discovers artefact files, laws, and file-patterns via tool calls (`foundry_config_artefact_type`, `foundry_config_laws`, `foundry_artefact_list`) and reads files from the worktree.
 
 - Appraise subagent output format changed from YAML to JSONL (one JSON object per line), matching the quench validator protocol. Required fields: `file`, `text`. Recommended: `law`, `evidence`. Optional: `severity`, `location`. The consolidate phase parses JSONL and posts feedback with tag `law:<slug>`.
 
@@ -381,7 +428,7 @@
 - Add branch-based artefact discovery with `getArtefactFiles` and git change-state tracking.
 - Remove the `WORK.md` artefact table, artefact registration side effects, and per-artefact status updates.
 - Update quench, appraise, orchestration, plugin tools, and attestation to use branch artefact discovery.
-- Remove `foundry_artefacts_set_status` and update `foundry_artefacts_list` to return `{file, state}` entries.
+- Remove `foundry_artefacts_set_status` and update `foundry_artefact_list` to return `{file, state}` entries.
 - Remove artefact table generation from new `WORK.md` files.
 - Update tests and docs for branch artefact discovery.
 
@@ -991,7 +1038,7 @@ entry documents the 3.0.0 end-state only.
   `foundry_config_add_law`, `foundry_config_edit_law`,
   `foundry_memory_create_entity_type` / `_create_edge_type` /
   `_rename_entity_type` / `_rename_edge_type` / `_drop_entity_type` /
-  `_drop_edge_type`, `foundry_extractor_create`, `foundry_memory_init`,
+  `_drop_edge_type`, `foundry_memory_extractor_create`, `foundry_memory_init`,
   `foundry_memory_reset`, `foundry_memory_change_embedding_model`. All
   refuse on any branch other than `config/<description>`.
 - **Flow-data mutation now requires a `work/*` or `dry-run/*/*`
@@ -1144,9 +1191,9 @@ entry documents the 3.0.0 end-state only.
   forge starts. Opt-in per cycle via `assay: { extractors: [...] }`
   in cycle frontmatter. Iteration-0-only. See
   [docs/concepts.md](docs/concepts.md#assay).
-- **`foundry_assay_run` and `foundry_extractor_create` plugin tools.**
+- **`foundry_assay_run` and `foundry_memory_extractor_create` plugin tools.**
   `foundry_assay_run` executes the extractors declared by the active
-  assay stage. `foundry_extractor_create` registers a new extractor
+  assay stage. `foundry_memory_extractor_create` registers a new extractor
   definition at `foundry/memory/extractors/<name>.md`.
 - **`add-extractor` skill.** Authoring loop for extractor definitions.
 - **Flow memory subsystem.** A typed, graph-shaped knowledge store
@@ -1190,7 +1237,7 @@ entry documents the 3.0.0 end-state only.
   `_reset`, `_vacuum`, `_change_embedding_model`,
   `_create_entity_type`, `_create_edge_type`, `_rename_entity_type`,
   `_rename_edge_type`, `_drop_entity_type`, `_drop_edge_type`, and
-  `foundry_extractor_create`) refuse on a failed workfile. Read-only
+  `foundry_memory_extractor_create`) refuse on a failed workfile. Read-only
   memory tools (`_dump`, `_validate`) remain callable.
 - **Deterministic orchestration.** `foundry_orchestrate` owns the
   sort → history → dispatch → finalize → history → commit loop in
@@ -1397,12 +1444,12 @@ Follow-up patch addressing the five bugs deferred from v2.2.0 (see `HARDEN.md` �
 ### New
 
 - **`foundry_workfile_configure_from_cycle({cycleId, stages})`** — populates WORK.md frontmatter from a cycle definition in one call. Replaces the prior 6–7 sequential `foundry_workfile_set` calls at cycle start. Defaults for `max-iterations`, `human-appraise`, `deadlock-appraise`, `deadlock-iterations`, and `models` now live in plugin code rather than skill prose.
-- **`foundry_artefacts_list({cycle})`** — optional cycle filter. Callers should always pass the current cycle to avoid picking up stale rows from prior aborted sessions.
+- **`foundry_artefact_list({cycle})`** — optional cycle filter. Callers should always pass the current cycle to avoid picking up stale rows from prior aborted sessions.
 
 ### Fixed
 
 - **Bug B — deadlock routing.** Sort now reads the flat deadlock keys from WORK.md frontmatter and routes to `human-appraise` on deadlock (either an existing `human-appraise:<cycle>` stage in `stages`, or a synthesized one). When `deadlock-appraise: false`, deadlock marks the cycle `blocked`.
-- **Bug C — stale artefact validation.** `quench`, `appraise`, and `human-appraise` skills now pass the current cycle to `foundry_artefacts_list`, scoping validation to artefacts produced by the current cycle.
+- **Bug C — stale artefact validation.** `quench`, `appraise`, and `human-appraise` skills now pass the current cycle to `foundry_artefact_list`, scoping validation to artefacts produced by the current cycle.
 - **Bug D — overwriting WORK.md.** The `flow` skill now calls `foundry_workfile_get` before `foundry_workfile_create` and prompts the user to resume, discard, or abort when an existing workfile is detected. Silent overwrite is not offered; resume requires matching `flow` and `cycle`.
 - **Bug E — missing micro-commits.** `foundry_sort` now returns `{route: 'violation'}` when `WORK.md`, `WORK.history.yaml`, or anything under `.foundry/` has uncommitted changes at the start of a sort call and history is non-empty. Structurally enforces the one-commit-per-stage contract that previously lived only in skill prose. First sort of a cycle is exempt (empty history).
 - **Bug G — workfile setup boilerplate.** See `foundry_workfile_configure_from_cycle` above.

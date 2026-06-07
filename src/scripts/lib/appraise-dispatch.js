@@ -33,7 +33,7 @@ function buildWrappedPrompt(entry, lawGroups, outputType) {
     promptStr,
     '</persona>',
     'Your task is to evaluate the artefact according to your persona above.',
-    'Call foundry_stage_output for each finding, then foundry_stage_end.',
+    'Call foundry_stage_begin to start, foundry_stage_output for each finding, then foundry_stage_end.',
     '</appraiser_instructions>',
   ].join('\n');
 }
@@ -60,7 +60,7 @@ async function dispatchAppraisePrompt(entry, opts) {
   return withCleanup(io, async (paths) => {
     const promptPath = writePromptFile(io, wrappedContent);
     paths.push(promptPath);
-    const child = spawnDispatch(worktree, promptPath);
+    const child = spawnDispatch(worktree, promptPath, 'foundry-appraise');
     await awaitProcess(child, timeoutMs);
   });
 }

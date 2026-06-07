@@ -18,14 +18,13 @@ export function _setExecFile(fn) {
   _execFile = fn;
 }
 
-export function spawnDispatch(worktree, promptPath) {
+export function spawnDispatch(worktree, promptPath, agentName) {
   return _execFile('opencode', [
-    'run', '--attach', '--agent', 'foundry',
+    'run', '--attach', '--agent', agentName,
     '--dir', worktree,
     '--file', promptPath,
   ], {
     cwd: worktree,
-    stdio: 'pipe',
   });
 }
 

@@ -12,7 +12,7 @@
 
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { tool } from '@opencode-ai/plugin';
 import { createPendingStore } from '../scripts/lib/pending.js';
@@ -58,26 +58,6 @@ let restartNeeded = false;
 
 // SDK client captured from plugin input, used by tool handlers.
 let pluginClient = null;
-
-// Map of child session IDs to roles, used by the tool.execute.before lockdown hook.
-const childSessions = new Map();
-
-// ── Role-based tool deny lists (R4) ──────────────────────────────────
-// These lists define which tools are denied to subagent sessions based on
-// their role. The forge deny list is enforced in Phase 2; appraise is
-// defined here for test access but enforced in Phase 3.
-
-const FORGE_DENIED = [
-  'foundry_orchestrate', 'foundry_feedback_*', 'foundry_config_create_*',
-  'foundry_workfile_*', 'foundry_git_branch', 'foundry_git_finish',
-  'foundry_stage_retry', 'foundry_stage_begin', 'foundry_stage_end',
-  'foundry_assay_run',
-];
-
-const APPRAISE_DENIED = [
-  ...FORGE_DENIED,
-  'foundry_validate_run', 'edit', 'bash',
-];
 
 // -- Bootstrap helpers --
 
@@ -140,7 +120,7 @@ function runBootstrapSequence(worktree, pkgRoot) {
   ensurePackageJson(worktree);
   bootstrapDirectories(worktree);
   bootstrapGitignore(worktree);
-  writeFoundryGuideAgent(worktree, pkgRoot);
+  writeAllFoundryAgents(worktree, pkgRoot);
   writeFoundrySkills(worktree, pkgRoot);
   const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
   writeFileSync(path.join(worktree, 'foundry', 'VERSION'), pkg.version, 'utf8');
@@ -163,39 +143,60 @@ function isFoundryPopulated(worktree) {
   return readdirSync(foundryDir).some(e => e !== '.gitkeep');
 }
 
-function resolveGuideSource(pkgRoot) {
-  const distPath = path.join(pkgRoot, 'dist', 'agents', 'foundry.md');
-  if (existsSync(distPath)) return distPath;
-  return path.join(pkgRoot, 'src', 'agents', 'foundry.md');
+const AGENT_NAMES = [
+  'foundry-guide',
+  'foundry-admin',
+  'foundry-forge',
+  'foundry-appraise',
+  'foundry-assay',
+];
+
+function resolveAgentSources(pkgRoot) {
+  const sources = new Map();
+  for (const name of AGENT_NAMES) {
+    const distPath = path.join(pkgRoot, 'dist', 'agents', `${name}.md`);
+    if (existsSync(distPath)) {
+      sources.set(name, distPath);
+    } else {
+      const srcPath = path.join(pkgRoot, 'src', 'agents', `${name}.md`);
+      sources.set(name, existsSync(srcPath) ? srcPath : null);
+    }
+  }
+  return sources;
 }
 
-function writeFoundryGuideAgent(worktree, pkgRoot) {
+function writeAllFoundryAgents(worktree, pkgRoot) {
   const targetDir = path.join(worktree, '.opencode', 'agents');
-  const targetPath = path.join(targetDir, 'foundry.md');
-  let written = false;
+  const sources = resolveAgentSources(pkgRoot);
+  let written = 0;
 
-  if (!existsSync(targetPath)) {
-    const sourcePath = resolveGuideSource(pkgRoot);
+  for (const [name, sourcePath] of sources) {
+    if (!sourcePath) {
+      console.warn(`Warning: Agent source not found for '${name}' — skipping`);
+      continue;
+    }
     try {
       const content = readFileSync(sourcePath, 'utf8');
       mkdirSync(targetDir, { recursive: true });
-      writeFileSync(targetPath, content, 'utf8');
-      written = true;
+      writeFileSync(path.join(targetDir, `${name}.md`), content, 'utf8');
+      written++;
     } catch (err) {
-      return { ok: false, error: `Failed to write guide agent: ${err.message ?? String(err)}` };
+      return { ok: false, error: `Failed to write agent '${name}': ${err.message ?? String(err)}` };
     }
   }
 
   return { ok: true, written };
 }
 
-function ensureGuideAgent(worktree, pkgRoot) {
-  const guideAgentPath = path.join(worktree, '.opencode', 'agents', 'foundry.md');
-  if (!existsSync(guideAgentPath)) {
-    writeFoundryGuideAgent(worktree, pkgRoot);
-    return true;
+function migrateOldAgent(worktree) {
+  const oldPath = path.join(worktree, '.opencode', 'agents', 'foundry.md');
+  if (existsSync(oldPath)) {
+    try {
+      rmSync(oldPath, { force: true });
+    } catch (err) {
+      console.warn(`Warning: Could not remove old agent file ${oldPath}: ${err.message}`);
+    }
   }
-  return false;
 }
 
 function runConfigBootstrap(worktree, pkgRoot) {
@@ -210,10 +211,11 @@ function runConfigBootstrap(worktree, pkgRoot) {
     return true;
   }
 
-  return ensureGuideAgent(worktree, pkgRoot);
+  return false;
 }
 
 export { buildCyclePromptExtras } from './tools/helpers.js';
+export { resolveAgentSources, writeAllFoundryAgents, migrateOldAgent, AGENT_NAMES };
 
 async function configurePlugin(config, directory) {
   config.skills = config.skills || {};
@@ -221,7 +223,8 @@ async function configurePlugin(config, directory) {
   if (!config.skills.paths.includes(allSkillsDir)) {
     config.skills.paths.push(allSkillsDir);
   }
-  ensureGuideAgent(directory, packageRoot);
+  migrateOldAgent(directory);
+  writeAllFoundryAgents(directory, packageRoot);
   writeFoundrySkills(directory, packageRoot);
   try {
     restartNeeded = runConfigBootstrap(directory, packageRoot);
@@ -231,47 +234,13 @@ async function configurePlugin(config, directory) {
   }
 }
 
-function denyError(name, role) {
-  throw new Error('Tool ' + name + ' is not available to ' + role + ' subagents');
-}
-
-function isDenied(name, role) {
-  const list = role === 'forge' ? FORGE_DENIED : APPRAISE_DENIED;
-  return list.some(function(p) {
-    if (p.endsWith('*')) {
-      return name.startsWith(p.slice(0, -1));
-    }
-    return name === p;
-  });
-}
-
-function enforceToolPolicy(toolCall, context, sessions) {
-  if (!context) return;
-  const role = sessions.get(context.sessionID);
-  if (!role) return;
-  const name = toolCall.name;
-  if (!name) return;
-  if (isDenied(name, role)) denyError(name, role);
-}
-
-function attachTestSymbols(plugin, pending, client, sessions, denyLists) {
-  Object.defineProperty(plugin, Symbol.for('foundry.test.pending'), { value: pending });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.restartNeeded'), {
-    get: () => restartNeeded, configurable: true,
-  });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.client'), { value: client });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.childSessions'), { value: sessions });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.forgeDenied'), { value: denyLists.forge });
-  Object.defineProperty(plugin, Symbol.for('foundry.test.appraiseDenied'), { value: denyLists.appraise });
-}
-
-function buildTools(createTool, pending, client, sessions) {
+function buildTools(createTool, pending, client) {
   return {
     ...createHistoryTools({ tool: createTool }),
     ...createStageTools({ tool: createTool, pending }),
     ...createWorkfileTools({ tool: createTool }),
-    ...createRunTool({ tool: createTool, client, childSessions: sessions, pending }),
-    ...createContinueTool({ tool: createTool, client, childSessions: sessions }),
+    ...createRunTool({ tool: createTool, client, pending }),
+    ...createContinueTool({ tool: createTool, client }),
     ...createListModelsTool({ tool: createTool, client }),
     ...createArtefactTools({ tool: createTool }),
     ...createFeedbackTools({ tool: createTool }),
@@ -323,13 +292,8 @@ export const FoundryPlugin = async ({ directory, client }) => {
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
     },
 
-    'tool.execute.before': async (toolCall, context) => {
-      enforceToolPolicy(toolCall, context, childSessions);
-    },
-
-    tool: buildTools(tool, pending, pluginClient, childSessions),
+    tool: buildTools(tool, pending, pluginClient),
   };
 
-  attachTestSymbols(plugin, pending, pluginClient, childSessions, { forge: FORGE_DENIED, appraise: APPRAISE_DENIED });
   return plugin;
 };

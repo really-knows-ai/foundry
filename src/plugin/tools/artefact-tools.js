@@ -42,6 +42,6 @@ function makeListTool(tool) {
 
 export function createArtefactTools({ tool }) {
   return {
-    foundry_artefacts_list: makeListTool(tool),
+    foundry_artefact_list: makeListTool(tool),
   };
 }

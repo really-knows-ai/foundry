@@ -191,7 +191,7 @@ function buildAppraiserPrompt({ appraiser, typeId, unit, identity }) {
     '',
     'Use tools to discover context:',
     `- foundry_config_artefact_type with typeId "${typeId}" for file-patterns`,
-    '- foundry_artefacts_list for changed files',
+    '- foundry_artefact_list for changed files',
     '- Read matching files from the worktree',
   ].join('\n');
 
@@ -238,7 +238,7 @@ function buildViolationInstruction(identity) {
     'produce no output. The system collects your findings from stage-output',
     'files. An empty result means the artefact passed.',
     '',
-    'Call foundry_stage_output for each finding, then foundry_stage_end.',
+    'Call foundry_stage_begin to start, foundry_stage_output for each finding, then foundry_stage_end.',
     'Do NOT write JSONL as text. Call the tool.',
   ].join('\n');
 }

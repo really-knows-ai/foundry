@@ -88,7 +88,7 @@ function resolveFlowStartCycle(args, io) {
 }
 
 async function executeRun(args, context, deps) {
-  const { client, childSessions, pending } = deps;
+  const { client, pending } = deps;
   const error = validateInputs(args);
   if (error) return JSON.stringify({ action: 'violation', details: error, recoverable: false });
 
@@ -122,15 +122,14 @@ async function executeRun(args, context, deps) {
     return token;
   };
   const result = await runRun({
-    cwd: context.worktree, client, childSessions, context, io,
+    cwd: context.worktree, client, context, io,
     worktree: context.worktree, git, mint,
   });
-  childSessions.clear();
   return JSON.stringify(result);
 }
 
 export function createRunTool(pluginOpts) {
-  const { tool, client, childSessions, pending } = pluginOpts;
+  const { tool, client, pending } = pluginOpts;
   return {
     foundry_run: tool({
       description: 'Start a Foundry run on the current work branch.',
@@ -141,7 +140,7 @@ export function createRunTool(pluginOpts) {
         inputs: tool.schema.object({}).optional().describe('Upstream artefacts when the start cycle declares an input contract'),
       },
       async execute(args, context) {
-        return executeRun(args, context, { client, childSessions, pending });
+        return executeRun(args, context, { client, pending });
       },
     }),
   };
