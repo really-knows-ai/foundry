@@ -60,7 +60,7 @@ async function dispatchAppraisePrompt(entry, opts) {
   return withCleanup(io, async (paths) => {
     const promptPath = writePromptFile(io, wrappedContent);
     paths.push(promptPath);
-    const child = spawnDispatch(worktree, promptPath);
+    const child = spawnDispatch(worktree, promptPath, 'foundry-appraise');
     await awaitProcess(child, timeoutMs);
   });
 }

@@ -187,7 +187,7 @@ test('T3 - dispatchAppraisePrompt calls writePromptFile with (io, wrappedContent
 // T4 — spawnDispatch called with (worktree, promptPath)
 // ---------------------------------------------------------------------------
 
-test('T4 - dispatchAppraisePrompt calls spawnDispatch(worktree, promptPath)', async () => {
+test('T4 - dispatchAppraisePrompt calls spawnDispatch(worktree, promptPath, "foundry-appraise")', async () => {
   const io = makeMockIO();
   const expectedPath = '.foundry/dispatch-prompts/unique-path.txt';
   const spawnMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
@@ -198,9 +198,11 @@ test('T4 - dispatchAppraisePrompt calls spawnDispatch(worktree, promptPath)', as
   }));
 
   assert.equal(spawnMock.mock.callCount(), 1);
-  const [worktreeArg, pathArg] = spawnMock.mock.calls[0].arguments;
-  assert.equal(worktreeArg, '/w', 'should pass worktree as first arg');
-  assert.equal(pathArg, expectedPath, 'should pass promptPath as second arg');
+  const args = spawnMock.mock.calls[0].arguments;
+  assert.equal(args.length, 3, 'spawnDispatch should receive three arguments');
+  assert.equal(args[0], '/w', 'first arg should be worktree');
+  assert.equal(args[1], expectedPath, 'second arg should be promptPath');
+  assert.equal(args[2], 'foundry-appraise', 'third arg should be the agent name');
 });
 
 // ---------------------------------------------------------------------------
