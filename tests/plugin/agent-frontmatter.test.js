@@ -122,15 +122,15 @@ describe('agent frontmatter — T1.2: permitted tools present', () => {
   }
 });
 
-describe('agent frontmatter — T1.3: catch-all deny is last rule', () => {
+describe('agent frontmatter — T1.3: catch-all deny is first rule ("last matching rule wins")', () => {
   for (const name of AGENT_NAMES) {
-    test(`${name}: "*" is the final permission key`, () => {
+    test(`${name}: "*" is the first permission key`, () => {
       const filePath = join(AGENTS_DIR, `${name}.md`);
       const raw = readFileSync(filePath, 'utf8');
       const parsed = matter(raw);
       const keys = Object.keys(parsed.data.permission);
-      const lastKey = keys[keys.length - 1];
-      assert.equal(lastKey, '*', `${name}: last permission key must be "*", got "${lastKey}"`);
+      const firstKey = keys[0];
+      assert.equal(firstKey, '*', `${name}: first permission key must be "*", got "${firstKey}"`);
     });
   }
 });
