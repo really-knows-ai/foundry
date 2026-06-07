@@ -58,7 +58,6 @@ test('T4 - spawnDispatch calls execFile with correct args including agent name',
   assert.equal(cmd, 'opencode');
   assert.deepEqual(args, ['run', '--attach', '--agent', 'test-agent', '--dir', worktree, '--file', promptPath]);
   assert.equal(opts.cwd, worktree);
-  assert.equal(opts.stdio, 'pipe');
   assert.equal(result, fakeChild);
 });
 

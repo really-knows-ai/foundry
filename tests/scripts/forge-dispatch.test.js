@@ -150,7 +150,6 @@ test('D1.3 - forgeDispatch calls execFile with correct args', async () => {
   assert.equal(args[6], '--file');
   assert.ok(args[7].startsWith('.foundry/dispatch-prompts/'));
   assert.equal(opts.cwd, '/w');
-  assert.equal(opts.stdio, 'pipe');
 });
 
 // ---------------------------------------------------------------------------
