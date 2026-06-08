@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.13.3] - 2026-06-08
+
+### Added
+
+- Restored comprehensive guide agent prompt scaffolding that was lost during the agent architecture refactor in 3.13.0. The guide prompt now includes operating principles, foundry concepts, the full skill table, authoring posture, safety boundaries, the flow execution relay loop, and the critical "keep tool call syntax out of user-facing instructions" rule.
+- Added body content to the foundry-admin agent covering its role, config tools reference, memory tools reference, workflow steps, and safety boundaries.
+- Added body content to the forge, appraise, and assay agents covering their role, stage lifecycle, and guidelines.
+
 ## [3.13.2] - 2026-06-08
 
 ### Fixed
