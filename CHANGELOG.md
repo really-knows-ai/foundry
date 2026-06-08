@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.13.2] - 2026-06-08
+
+### Fixed
+
+- Plugin module now exports `default { server: FoundryPlugin }` matching the v1 plugin format required by OpenCode 1.16.x. The v1 path checks `mod.default` first; without it, the legacy scan hits non-plugin exports like `AGENT_NAMES` and throws, silently failing the entire plugin load.
+
 ## [3.13.1] - 2026-06-08
 
 ### Fixed
