@@ -17,10 +17,15 @@ permission:
   foundry_stage_retry: allow
   foundry_git_branch: allow
   foundry_git_finish: allow
+  foundry_config_read_appraisers: allow
+  foundry_config_read_artefact_type: allow
+  foundry_config_read_cycle: allow
+  foundry_config_read_flow: allow
   foundry_config_read_law: allow
+  foundry_config_read_laws: allow
   foundry_workfile_get: allow
   foundry_feedback_list: allow
-  foundry_list_models: allow
+  foundry_models_list: allow
   foundry_snapshot_list: allow
   foundry_snapshot_show: allow
   foundry_attestation_show: allow

@@ -90,10 +90,10 @@ describe('forge tool call verification on stage_end', () => {
     const logPath = join(dir, '.foundry/.forge-tool-calls.jsonl');
     const lines = [
       JSON.stringify({ tool: 'foundry_stage_begin', ts: Date.now() }),
-      JSON.stringify({ tool: 'foundry_config_cycle', ts: Date.now() }),
+      JSON.stringify({ tool: 'foundry_config_read_cycle', ts: Date.now() }),
       JSON.stringify({ tool: 'foundry_workfile_get', ts: Date.now() }),
-      JSON.stringify({ tool: 'foundry_config_artefact_type', ts: Date.now() }),
-      JSON.stringify({ tool: 'foundry_config_laws', ts: Date.now() }),
+      JSON.stringify({ tool: 'foundry_config_read_artefact_type', ts: Date.now() }),
+      JSON.stringify({ tool: 'foundry_config_read_laws', ts: Date.now() }),
       JSON.stringify({ tool: 'foundry_feedback_list', ts: Date.now() }),
     ].join('\n') + '\n';
     writeFileSync(logPath, lines);
@@ -135,7 +135,7 @@ describe('forge tool call verification on stage_end', () => {
         id: '01KS_TEST_SYSTEM_ITEM_00000',
         file: '(forge)',
         tag: 'system:missing-tool-calls',
-        text: 'Missing required forge tools: foundry_config_laws',
+        text: 'Missing required forge tools: foundry_config_read_laws',
         source: 'forge:c',
         history: [{ state: 'open', stage: 'forge:c', cycle: 'c', timestamp: '2026-05-23T00:00:00.000Z' }],
       }],
@@ -144,10 +144,10 @@ describe('forge tool call verification on stage_end', () => {
     // Simulate all required tool calls in the log.
     const logPath = join(dir, '.foundry/.forge-tool-calls.jsonl');
     writeFileSync(logPath, [
-      JSON.stringify({ tool: 'foundry_config_cycle', ts: Date.now() }),
+      JSON.stringify({ tool: 'foundry_config_read_cycle', ts: Date.now() }),
       JSON.stringify({ tool: 'foundry_workfile_get', ts: Date.now() }),
-      JSON.stringify({ tool: 'foundry_config_artefact_type', ts: Date.now() }),
-      JSON.stringify({ tool: 'foundry_config_laws', ts: Date.now() }),
+      JSON.stringify({ tool: 'foundry_config_read_artefact_type', ts: Date.now() }),
+      JSON.stringify({ tool: 'foundry_config_read_laws', ts: Date.now() }),
       JSON.stringify({ tool: 'foundry_feedback_list', ts: Date.now() }),
     ].join('\n') + '\n');
 

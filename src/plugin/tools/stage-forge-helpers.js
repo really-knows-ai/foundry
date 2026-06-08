@@ -3,10 +3,10 @@ import { readForgeCallSet } from '../../scripts/lib/stage-calls.js';
 import { verifyToken } from '../../scripts/lib/token.js';
 
 export const FORGE_REQUIRED_TOOLS = [
-  'foundry_config_cycle',
+  'foundry_config_read_cycle',
   'foundry_workfile_get',
-  'foundry_config_artefact_type',
-  'foundry_config_laws',
+  'foundry_config_read_artefact_type',
+  'foundry_config_read_laws',
 ];
 
 export const FORGE_FORBIDDEN_TOOLS = [

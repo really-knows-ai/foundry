@@ -198,9 +198,10 @@ describe('deployment — T3.4: writeAllFoundryAgents writes unconditionally', ()
   });
 });
 
-describe('deployment — T3.5: writeAllFoundryAgents returns error on write failure', () => {
+describe('deployment — T3.5: writeAllFoundryAgents per-agent resilience on write failure', () => {
   let tmpDir;
   let worktree;
+  const warnings = [];
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'deploy-error-'));
@@ -216,18 +217,27 @@ describe('deployment — T3.5: writeAllFoundryAgents returns error on write fail
     for (const name of AGENT_NAMES) {
       writeFileSync(join(distDir, `${name}.md`), `content for ${name}\n`, 'utf8');
     }
+
+    // Capture console.warn calls
+    warnings.length = 0;
+    mock.method(console, 'warn', (msg) => { warnings.push(msg); });
   });
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
     rmSync(worktree, { recursive: true, force: true });
+    mock.reset();
   });
 
-  test('returns error object when write fails', () => {
+  test('logs warning for each agent and returns ok with written=0', () => {
     const result = writeAllFoundryAgents(worktree, tmpDir);
 
-    assert.equal(result.ok, false);
-    assert.ok(typeof result.error === 'string', 'error must be a string');
-    assert.ok(result.error.length > 0, 'error must not be empty');
+    assert.deepEqual(result, { ok: true, written: 0 });
+
+    // Should emit one warning per agent
+    assert.equal(warnings.length, 5, 'console.warn must have been called 5 times');
+    for (const name of AGENT_NAMES) {
+      assert.ok(warnings.some(w => w.includes(name)), `warning must mention ${name}`);
+    }
   });
 });

@@ -30,7 +30,7 @@ the outputs, posts feedback, and resolves prior items.
 ## Protocol
 
 1. `foundry_stage_begin({stage, cycle, tokenFile})` with the `tokenFile` from the dispatch prompt.
-2. `foundry_config_artefact_type` with the type ID — get the artefact type definition and `file-patterns`.
+2. `foundry_config_read_artefact_type` with the type ID — get the artefact type definition and `file-patterns`.
 3. `foundry_artefact_list` — enumerate the current cycle's branch artefact changes.
 4. For each artefact file that matches the type's `file-patterns`, read the file from the worktree.
 5. Your dispatch prompt embeds the law or laws you must evaluate (the *scoped unit*). If the prompt contains multiple laws (bundle mode), evaluate every artefact against every law in the unit. If it contains a single law (law-by-law mode), evaluate against that specific law only.

@@ -18,7 +18,7 @@ Before running this skill, verify that the `foundry/` directory exists in the pr
 
 ## Starting a flow
 
-1. Call `foundry_config_flow` with the flow ID — get the flow definition
+1. Call `foundry_config_read_flow` with the flow ID — get the flow definition
 2. Create a work branch for the flow using the flow ID and a short description
 3. Determine the starting cycle:
    - Any cycle listed in the flow can be the starting cycle. The flow's `starting-cycles` list is a hint for when the user's request is ambiguous.

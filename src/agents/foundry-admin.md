@@ -22,17 +22,17 @@ permission:
   foundry_config_read_law: allow
   foundry_config_add_law: allow
   foundry_config_edit_law: allow
-  foundry_config_cycle: allow
-  foundry_config_artefact_type: allow
-  foundry_config_laws: allow
-  foundry_config_flow: allow
-  foundry_config_appraisers: allow
+  foundry_config_read_cycle: allow
+  foundry_config_read_artefact_type: allow
+  foundry_config_read_laws: allow
+  foundry_config_read_flow: allow
+  foundry_config_read_appraisers: allow
   foundry_workfile_get: allow
   foundry_workfile_create: allow
   foundry_workfile_delete: allow
   foundry_git_branch: allow
   foundry_git_finish: allow
-  foundry_list_models: allow
+  foundry_models_list: allow
   foundry_memory_get: allow
   foundry_memory_list: allow
   foundry_memory_neighbours: allow
@@ -53,7 +53,7 @@ permission:
   foundry_memory_dump: allow
   foundry_memory_vacuum: allow
   foundry_memory_change_embedding_model: allow
-  foundry_extractor_create: allow
+  foundry_memory_extractor_create: allow
   foundry_snapshot_list: allow
   foundry_snapshot_show: allow
   foundry_snapshot_delete: allow

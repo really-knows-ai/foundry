@@ -182,14 +182,14 @@ function buildForgePromptLines({ cycle, outputType, forgeItem }) {
     ``,
     `Before producing output you MUST call these tools to understand the context:`,
     outputType
-      ? `  - foundry_config_cycle({ cycleId: "${cycle}" }) — to learn the cycle definition, including its output type "${outputType}"`
-      : `  - foundry_config_cycle({ cycleId: "${cycle}" }) — to learn the cycle definition`,
+      ? `  - foundry_config_read_cycle({ cycleId: "${cycle}" }) — to learn the cycle definition, including its output type "${outputType}"`
+      : `  - foundry_config_read_cycle({ cycleId: "${cycle}" }) — to learn the cycle definition`,
     outputType
-      ? `  - foundry_config_artefact_type({ typeId: "${outputType}" }) — to learn the artefact type definition and file patterns`
-      : `  - foundry_config_artefact_type({ typeId: "<output type>" }) — to learn the artefact type definition and file patterns`,
+      ? `  - foundry_config_read_artefact_type({ typeId: "${outputType}" }) — to learn the artefact type definition and file patterns`
+      : `  - foundry_config_read_artefact_type({ typeId: "<output type>" }) — to learn the artefact type definition and file patterns`,
     outputType
-      ? `  - foundry_config_laws({ typeId: "${outputType}" }) — to learn all applicable quality laws`
-      : `  - foundry_config_laws({ typeId: "<output type>" }) — to learn all applicable quality laws`,
+      ? `  - foundry_config_read_laws({ typeId: "${outputType}" }) — to learn all applicable quality laws`
+      : `  - foundry_config_read_laws({ typeId: "<output type>" }) — to learn all applicable quality laws`,
     `  - foundry_workfile_get({}) — to learn the goal`,
   ];
   if (forgeItem) {

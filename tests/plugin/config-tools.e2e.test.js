@@ -18,10 +18,10 @@ function cleanup(dir) {
 }
 
 // ---------------------------------------------------------------------------
-// foundry_config_cycle
+// foundry_config_read_cycle
 // ---------------------------------------------------------------------------
 
-test('foundry_config_cycle returns parsed cycle definition when present', async () => {
+test('foundry_config_read_cycle returns parsed cycle definition when present', async () => {
   const dir = makeFoundry();
   try {
     mkdirSync(join(dir, 'foundry', 'cycles'), { recursive: true });
@@ -31,7 +31,7 @@ test('foundry_config_cycle returns parsed cycle definition when present', async 
     );
 
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_cycle.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_cycle.execute(
       { cycleId: 'creative' }, makeCtx(dir),
     ));
 
@@ -41,22 +41,22 @@ test('foundry_config_cycle returns parsed cycle definition when present', async 
   } finally { cleanup(dir); }
 });
 
-test('foundry_config_cycle surfaces a clear error when cycle missing', async () => {
+test('foundry_config_read_cycle surfaces a clear error when cycle missing', async () => {
   const dir = makeFoundry();
   try {
     const plugin = await FoundryPlugin({ directory: dir });
     await assert.rejects(
-      () => plugin.tool.foundry_config_cycle.execute({ cycleId: 'nope' }, makeCtx(dir)),
+      () => plugin.tool.foundry_config_read_cycle.execute({ cycleId: 'nope' }, makeCtx(dir)),
       /Cycle not found: nope/,
     );
   } finally { cleanup(dir); }
 });
 
 // ---------------------------------------------------------------------------
-// foundry_config_artefact_type
+// foundry_config_read_artefact_type
 // ---------------------------------------------------------------------------
 
-test('foundry_config_artefact_type returns parsed type definition when present', async () => {
+test('foundry_config_read_artefact_type returns parsed type definition when present', async () => {
   const dir = makeFoundry();
   try {
     mkdirSync(join(dir, 'foundry', 'artefacts', 'haiku'), { recursive: true });
@@ -66,7 +66,7 @@ test('foundry_config_artefact_type returns parsed type definition when present',
     );
 
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_artefact_type.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_artefact_type.execute(
       { typeId: 'haiku' }, makeCtx(dir),
     ));
 
@@ -75,22 +75,22 @@ test('foundry_config_artefact_type returns parsed type definition when present',
   } finally { cleanup(dir); }
 });
 
-test('foundry_config_artefact_type surfaces a clear error when type missing', async () => {
+test('foundry_config_read_artefact_type surfaces a clear error when type missing', async () => {
   const dir = makeFoundry();
   try {
     const plugin = await FoundryPlugin({ directory: dir });
     await assert.rejects(
-      () => plugin.tool.foundry_config_artefact_type.execute({ typeId: 'ghost' }, makeCtx(dir)),
+      () => plugin.tool.foundry_config_read_artefact_type.execute({ typeId: 'ghost' }, makeCtx(dir)),
       /Artefact type not found: ghost/,
     );
   } finally { cleanup(dir); }
 });
 
 // ---------------------------------------------------------------------------
-// foundry_config_laws
+// foundry_config_read_laws
 // ---------------------------------------------------------------------------
 
-test('foundry_config_laws returns global laws when present', async () => {
+test('foundry_config_read_laws returns global laws when present', async () => {
   const dir = makeFoundry();
   try {
     mkdirSync(join(dir, 'foundry', 'laws'), { recursive: true });
@@ -100,7 +100,7 @@ test('foundry_config_laws returns global laws when present', async () => {
     );
 
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_laws.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_laws.execute(
       {}, makeCtx(dir),
     ));
 
@@ -112,7 +112,7 @@ test('foundry_config_laws returns global laws when present', async () => {
   } finally { cleanup(dir); }
 });
 
-test('foundry_config_laws includes type-specific laws when typeId provided', async () => {
+test('foundry_config_read_laws includes type-specific laws when typeId provided', async () => {
   const dir = makeFoundry();
   try {
     mkdirSync(join(dir, 'foundry', 'laws'), { recursive: true });
@@ -127,7 +127,7 @@ test('foundry_config_laws includes type-specific laws when typeId provided', asy
     );
 
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_laws.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_laws.execute(
       { typeId: 'haiku' }, makeCtx(dir),
     ));
 
@@ -139,11 +139,11 @@ test('foundry_config_laws includes type-specific laws when typeId provided', asy
   } finally { cleanup(dir); }
 });
 
-test('foundry_config_laws returns empty array when no laws defined', async () => {
+test('foundry_config_read_laws returns empty array when no laws defined', async () => {
   const dir = makeFoundry();
   try {
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_laws.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_laws.execute(
       {}, makeCtx(dir),
     ));
     assert.deepEqual(out, []);
@@ -151,10 +151,10 @@ test('foundry_config_laws returns empty array when no laws defined', async () =>
 });
 
 // ---------------------------------------------------------------------------
-// foundry_config_appraisers
+// foundry_config_read_appraisers
 // ---------------------------------------------------------------------------
 
-test('foundry_config_appraisers returns list of appraisers', async () => {
+test('foundry_config_read_appraisers returns list of appraisers', async () => {
   const dir = makeFoundry();
   try {
     mkdirSync(join(dir, 'foundry', 'appraisers'), { recursive: true });
@@ -168,7 +168,7 @@ test('foundry_config_appraisers returns list of appraisers', async () => {
     );
 
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_appraisers.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_appraisers.execute(
       {}, makeCtx(dir),
     ));
 
@@ -183,11 +183,11 @@ test('foundry_config_appraisers returns list of appraisers', async () => {
   } finally { cleanup(dir); }
 });
 
-test('foundry_config_appraisers returns empty array when none defined', async () => {
+test('foundry_config_read_appraisers returns empty array when none defined', async () => {
   const dir = makeFoundry();
   try {
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_appraisers.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_appraisers.execute(
       {}, makeCtx(dir),
     ));
     assert.deepEqual(out, []);
@@ -195,10 +195,10 @@ test('foundry_config_appraisers returns empty array when none defined', async ()
 });
 
 // ---------------------------------------------------------------------------
-// foundry_config_flow
+// foundry_config_read_flow
 // ---------------------------------------------------------------------------
 
-test('foundry_config_flow returns parsed flow definition when present', async () => {
+test('foundry_config_read_flow returns parsed flow definition when present', async () => {
   const dir = makeFoundry();
   try {
     mkdirSync(join(dir, 'foundry', 'flows'), { recursive: true });
@@ -208,7 +208,7 @@ test('foundry_config_flow returns parsed flow definition when present', async ()
     );
 
     const plugin = await FoundryPlugin({ directory: dir });
-    const out = JSON.parse(await plugin.tool.foundry_config_flow.execute(
+    const out = JSON.parse(await plugin.tool.foundry_config_read_flow.execute(
       { flowId: 'creative-flow' }, makeCtx(dir),
     ));
 
@@ -218,12 +218,12 @@ test('foundry_config_flow returns parsed flow definition when present', async ()
   } finally { cleanup(dir); }
 });
 
-test('foundry_config_flow surfaces a clear error when flow missing', async () => {
+test('foundry_config_read_flow surfaces a clear error when flow missing', async () => {
   const dir = makeFoundry();
   try {
     const plugin = await FoundryPlugin({ directory: dir });
     await assert.rejects(
-      () => plugin.tool.foundry_config_flow.execute({ flowId: 'missing' }, makeCtx(dir)),
+      () => plugin.tool.foundry_config_read_flow.execute({ flowId: 'missing' }, makeCtx(dir)),
       /Flow not found: missing/,
     );
   } finally { cleanup(dir); }

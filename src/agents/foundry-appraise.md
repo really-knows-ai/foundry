@@ -11,6 +11,6 @@ permission:
   foundry_stage_begin: allow
   foundry_stage_end: allow
   foundry_stage_output: allow
-  foundry_artefacts_list: allow
-  foundry_config_artefact_type: allow
+  foundry_artefact_list: allow
+  foundry_config_read_artefact_type: allow
 ---

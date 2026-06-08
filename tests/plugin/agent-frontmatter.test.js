@@ -31,8 +31,8 @@ function specPermittedTools(agentName) {
       'read', 'glob', 'grep', 'list', 'question', 'skill', 'webfetch', 'task',
       'foundry_run', 'foundry_continue', 'foundry_stage_retry',
       'foundry_git_branch', 'foundry_git_finish',
-      'foundry_config_cycle', 'foundry_config_artefact_type',
-      'foundry_config_laws', 'foundry_config_flow', 'foundry_config_appraisers',
+      'foundry_config_read_appraisers', 'foundry_config_read_artefact_type',
+      'foundry_config_read_cycle', 'foundry_config_read_flow', 'foundry_config_read_laws',
       'foundry_config_read_law', 'foundry_workfile_get', 'foundry_feedback_list',
       'foundry_models_list', 'foundry_snapshot_list', 'foundry_snapshot_show',
       'foundry_attestation_show', 'foundry_attestation_verify',
@@ -45,8 +45,8 @@ function specPermittedTools(agentName) {
       'foundry_config_validate_appraiser', 'foundry_config_validate_flow',
       'foundry_config_validate_cycle', 'foundry_config_read_law',
       'foundry_config_add_law', 'foundry_config_edit_law',
-      'foundry_config_cycle', 'foundry_config_artefact_type',
-      'foundry_config_laws', 'foundry_config_flow', 'foundry_config_appraisers',
+      'foundry_config_read_cycle', 'foundry_config_read_artefact_type',
+      'foundry_config_read_laws', 'foundry_config_read_flow', 'foundry_config_read_appraisers',
       'foundry_workfile_get', 'foundry_workfile_create', 'foundry_workfile_delete',
       'foundry_git_branch', 'foundry_git_finish', 'foundry_models_list',
       'foundry_memory_get', 'foundry_memory_list', 'foundry_memory_neighbours',
@@ -66,18 +66,18 @@ function specPermittedTools(agentName) {
     'foundry-forge': [
       'read', 'glob', 'grep', 'list',
       'foundry_stage_begin', 'foundry_stage_end', 'foundry_stage_output',
-      'foundry_workfile_get', 'foundry_config_cycle',
-      'foundry_config_artefact_type', 'foundry_config_laws',
+      'foundry_workfile_get', 'foundry_config_read_cycle',
+      'foundry_config_read_artefact_type', 'foundry_config_read_laws',
     ],
     'foundry-appraise': [
       'read', 'glob', 'grep', 'list',
       'foundry_stage_begin', 'foundry_stage_end', 'foundry_stage_output',
-      'foundry_artefact_list', 'foundry_config_artefact_type',
+      'foundry_artefact_list', 'foundry_config_read_artefact_type',
     ],
     'foundry-assay': [
       'read', 'glob', 'grep', 'list',
       'foundry_stage_begin', 'foundry_stage_end', 'foundry_assay_run',
-      'foundry_workfile_get', 'foundry_config_cycle',
+      'foundry_workfile_get', 'foundry_config_read_cycle',
     ],
   };
   return tables[agentName] || [];
@@ -122,15 +122,26 @@ describe('agent frontmatter — T1.2: permitted tools present', () => {
   }
 });
 
-describe('agent frontmatter — T1.3: catch-all deny is first rule ("last matching rule wins")', () => {
+describe('agent frontmatter — T1.3: catch-all deny rule', () => {
   for (const name of AGENT_NAMES) {
-    test(`${name}: "*" is the first permission key`, () => {
-      const filePath = join(AGENTS_DIR, `${name}.md`);
-      const raw = readFileSync(filePath, 'utf8');
-      const parsed = matter(raw);
-      const keys = Object.keys(parsed.data.permission);
-      const firstKey = keys[0];
-      assert.equal(firstKey, '*', `${name}: first permission key must be "*", got "${firstKey}"`);
-    });
+    if (name === 'foundry-guide') {
+      test('foundry-guide: "*" is the last permission key', () => {
+        const filePath = join(AGENTS_DIR, 'foundry-guide.md');
+        const raw = readFileSync(filePath, 'utf8');
+        const parsed = matter(raw);
+        const keys = Object.keys(parsed.data.permission);
+        const lastKey = keys[keys.length - 1];
+        assert.equal(lastKey, '*', 'foundry-guide: last permission key must be "*", got "' + lastKey + '"');
+      });
+    } else {
+      test(`${name}: "*" is the first permission key`, () => {
+        const filePath = join(AGENTS_DIR, `${name}.md`);
+        const raw = readFileSync(filePath, 'utf8');
+        const parsed = matter(raw);
+        const keys = Object.keys(parsed.data.permission);
+        const firstKey = keys[0];
+        assert.equal(firstKey, '*', `${name}: first permission key must be "*", got "${firstKey}"`);
+      });
+    }
   }
 });

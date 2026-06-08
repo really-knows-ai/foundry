@@ -190,7 +190,7 @@ function buildAppraiserPrompt({ appraiser, typeId, unit, identity }) {
     `Evaluate artefacts of type "${typeId}" against applicable laws.`,
     '',
     'Use tools to discover context:',
-    `- foundry_config_artefact_type with typeId "${typeId}" for file-patterns`,
+    `- foundry_config_read_artefact_type with typeId "${typeId}" for file-patterns`,
     '- foundry_artefact_list for changed files',
     '- Read matching files from the worktree',
   ].join('\n');

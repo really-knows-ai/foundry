@@ -32,15 +32,15 @@ describe('writeCall', () => {
   it('appends a properly formatted entry when the log file exists', () => {
     const io = makeMockIO();
     initForgeCallLog(io);
-    writeCall(io, 'foundry_config_laws');
+    writeCall(io, 'foundry_config_read_laws');
     const content = io._get(LOG);
-    assert.ok(content.includes('"tool":"foundry_config_laws"'));
+    assert.ok(content.includes('"tool":"foundry_config_read_laws"'));
     assert.ok(content.includes('"ts":'));
   });
 
   it('is a no-op when the log file does not exist', () => {
     const io = makeMockIO();
-    writeCall(io, 'foundry_config_laws');
+    writeCall(io, 'foundry_config_read_laws');
     assert.equal(io.exists(LOG), false);
   });
 
@@ -61,8 +61,8 @@ describe('verifyAndClearForgeCallLog', () => {
     const io = makeMockIO();
     initForgeCallLog(io);
     writeCall(io, 'foundry_workfile_get');
-    writeCall(io, 'foundry_config_laws');
-    const result = verifyAndClearForgeCallLog(io, ['foundry_workfile_get', 'foundry_config_laws']);
+    writeCall(io, 'foundry_config_read_laws');
+    const result = verifyAndClearForgeCallLog(io, ['foundry_workfile_get', 'foundry_config_read_laws']);
     assert.deepEqual(result, { ok: true, missing: [] });
   });
 
@@ -70,9 +70,9 @@ describe('verifyAndClearForgeCallLog', () => {
     const io = makeMockIO();
     initForgeCallLog(io);
     writeCall(io, 'foundry_workfile_get');
-    const result = verifyAndClearForgeCallLog(io, ['foundry_workfile_get', 'foundry_config_laws', 'foundry_config_artefact_type']);
+    const result = verifyAndClearForgeCallLog(io, ['foundry_workfile_get', 'foundry_config_read_laws', 'foundry_config_read_artefact_type']);
     assert.equal(result.ok, false);
-    assert.deepEqual(result.missing, ['foundry_config_laws', 'foundry_config_artefact_type']);
+    assert.deepEqual(result.missing, ['foundry_config_read_laws', 'foundry_config_read_artefact_type']);
   });
 
   it('returns all tools as missing when the log file is empty', () => {
@@ -93,8 +93,8 @@ describe('verifyAndClearForgeCallLog', () => {
   it('deletes the log file after a successful verification', () => {
     const io = makeMockIO();
     initForgeCallLog(io);
-    writeCall(io, 'foundry_config_laws');
-    verifyAndClearForgeCallLog(io, ['foundry_config_laws']);
+    writeCall(io, 'foundry_config_read_laws');
+    verifyAndClearForgeCallLog(io, ['foundry_config_read_laws']);
     assert.equal(io.exists(LOG), false);
   });
 
@@ -102,15 +102,15 @@ describe('verifyAndClearForgeCallLog', () => {
     const io = makeMockIO();
     initForgeCallLog(io);
     writeCall(io, 'foundry_workfile_get');
-    verifyAndClearForgeCallLog(io, ['foundry_workfile_get', 'foundry_config_laws']);
+    verifyAndClearForgeCallLog(io, ['foundry_workfile_get', 'foundry_config_read_laws']);
     assert.equal(io.exists(LOG), false);
   });
 
   it('skips malformed JSON lines', () => {
     const io = makeMockIO({ [LOG]: 'not json\n' });
-    const result = verifyAndClearForgeCallLog(io, ['foundry_config_laws']);
+    const result = verifyAndClearForgeCallLog(io, ['foundry_config_read_laws']);
     assert.equal(result.ok, false);
-    assert.deepEqual(result.missing, ['foundry_config_laws']);
+    assert.deepEqual(result.missing, ['foundry_config_read_laws']);
   });
 });
 

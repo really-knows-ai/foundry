@@ -41,11 +41,11 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
    >   3. Investigate and fix the root cause of the failure before restarting.
 
    Then return control to the user and stop.
-3. `foundry_config_cycle` — understand what to produce and what inputs are available.
-4. `foundry_config_artefact_type` with the output type ID — get the artefact type definition, `file-patterns`, and any example. When the response includes an `example` field, its structure is normative — your output must follow the same format (no extra headings, metadata blocks, or free-form prose that the example does not include).
-5. `foundry_config_laws` — get all applicable laws (global + type-specific).
+3. `foundry_config_read_cycle` — understand what to produce and what inputs are available.
+4. `foundry_config_read_artefact_type` with the output type ID — get the artefact type definition, `file-patterns`, and any example. When the response includes an `example` field, its structure is normative — your output must follow the same format (no extra headings, metadata blocks, or free-form prose that the example does not include).
+5. `foundry_config_read_laws` — get all applicable laws (global + type-specific).
 6. If the cycle declares `inputs`, discover input files by filesystem scan:
-   - For each type listed in `inputs`, call `foundry_config_artefact_type` to get its `file-patterns`.
+   - For each type listed in `inputs`, call `foundry_config_read_artefact_type` to get its `file-patterns`.
    - Glob the working tree against those patterns to enumerate candidate input files.
    - Read the goal (from `foundry_workfile_get`) and select the files that are relevant to this run. If the goal names specific files or slugs, use those; if it describes a category ("all the auth tests"), select the matching subset; if it's open-ended, you may consume all candidates or ask the user when the set is clearly ambiguous.
    - Read the selected files for context.

@@ -79,7 +79,7 @@ The cycle is in good shape — all feedback from appraisers and quench has been 
 
 ### A.1 Show the artefact summary
 
-Get the artefact type's file-patterns: call `foundry_config_artefact_type` with the cycle's output type (from `foundry_workfile_get`). The response includes `file-patterns` — glob patterns for this artefact type (e.g. `["haikus/*.md"]`).
+Get the artefact type's file-patterns: call `foundry_config_read_artefact_type` with the cycle's output type (from `foundry_workfile_get`). The response includes `file-patterns` — glob patterns for this artefact type (e.g. `["haikus/*.md"]`).
 
 Run `git diff --stat main..HEAD` restricted to only those files by passing each glob as a pathspec:
 

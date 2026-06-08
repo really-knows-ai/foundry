@@ -41,9 +41,9 @@ test('law-by-law prompt contains exactly one law', () => {
   assert.ok(!lawPrompt.includes('Logs must not contain PII.'), 'should NOT contain L002 text');
 });
 
-test('does not mention foundry_config_laws', () => {
-  assert.ok(!bundlePrompt.includes('foundry_config_laws'));
-  assert.ok(!lawPrompt.includes('foundry_config_laws'));
+test('does not mention foundry_config_read_laws', () => {
+  assert.ok(!bundlePrompt.includes('foundry_config_read_laws'));
+  assert.ok(!lawPrompt.includes('foundry_config_read_laws'));
 });
 
 test('does not ask for a verdict', () => {
@@ -81,9 +81,9 @@ test('existing personality is preserved', () => {
 });
 
 test('artefact-discovery tools are still listed', () => {
-  assert.ok(bundlePrompt.includes('foundry_config_artefact_type'), 'should keep foundry_config_artefact_type');
+  assert.ok(bundlePrompt.includes('foundry_config_read_artefact_type'), 'should keep foundry_config_read_artefact_type');
   assert.ok(bundlePrompt.includes('foundry_artefact_list'), 'should keep foundry_artefact_list');
-  assert.ok(lawPrompt.includes('foundry_config_artefact_type'), 'should keep foundry_config_artefact_type');
+  assert.ok(lawPrompt.includes('foundry_config_read_artefact_type'), 'should keep foundry_config_read_artefact_type');
   assert.ok(lawPrompt.includes('foundry_artefact_list'), 'should keep foundry_artefact_list');
 });
 

@@ -10,5 +10,5 @@ permission:
   foundry_stage_end: allow
   foundry_assay_run: allow
   foundry_workfile_get: allow
-  foundry_config_cycle: allow
+  foundry_config_read_cycle: allow
 ---
