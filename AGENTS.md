@@ -167,3 +167,11 @@ tree, be aware that changes may live in a worktree rather than the main
 working copy.
 
 List worktrees with `git worktree list`.
+
+## Questions are questions
+
+When the user asks a question, answering it is the only action permitted.
+Do not run commands, make edits, stage files, or take any other action
+alongside the answer. If the user wants you to answer *and* do something,
+they will ask for both. When in doubt, answer first and wait for the next
+instruction.
