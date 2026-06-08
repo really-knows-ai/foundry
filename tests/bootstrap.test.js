@@ -268,3 +268,74 @@ describe('getBootstrapContent — message variants', () => {
     assert.ok(msg.includes('initialised'));
   });
 });
+
+describe('bootstrap — v1 plugin loading path', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'bootstrap-v1-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('dist module exports default { server: FoundryPlugin } matching v1 format', async () => {
+    const distPath = new URL('../dist/.opencode/plugins/foundry.js', import.meta.url).pathname;
+    const mod = await import(distPath);
+
+    // v1 format: default export is an object with server function
+    assert.equal(typeof mod.default, 'object', 'mod.default must be an object');
+    assert.equal(typeof mod.default.server, 'function', 'mod.default.server must be a function');
+    assert.equal(mod.default.server, mod.FoundryPlugin, 'server must be FoundryPlugin');
+  });
+
+  test('mod.default.server(input) returns hooks matching opencode v1 path', async () => {
+    const distPath = new URL('../dist/.opencode/plugins/foundry.js', import.meta.url).pathname;
+    const mod = await import(distPath);
+
+    // Mimicking opencode's applyPlugin: readV1Plugin → plugin.server(input)
+    const plugin = await mod.default.server({ directory: dir, client: null });
+
+    assert.ok(plugin.config, 'hooks must include config');
+    assert.ok(plugin['experimental.chat.messages.transform'], 'hooks must include messages.transform');
+    assert.ok(plugin.tool, 'hooks must include tool');
+  });
+
+  test('config hook via v1 path deploys agents and bootstraps foundry/', async () => {
+    const distPath = new URL('../dist/.opencode/plugins/foundry.js', import.meta.url).pathname;
+    const mod = await import(distPath);
+    const plugin = await mod.default.server({ directory: dir, client: null });
+
+    await plugin.config({ skills: {} });
+
+    // Agents deployed
+    const agentsDir = join(dir, '.opencode', 'agents');
+    assert.ok(existsSync(agentsDir), '.opencode/agents must exist');
+    assertAllFiveAgentsExist(agentsDir);
+
+    // Foundry bootstrapped
+    assert.ok(existsSync(join(dir, 'foundry', 'artefacts')), 'foundry/ must be bootstrapped');
+
+    // restartNeeded set
+    assert.equal(plugin[Symbol.for('foundry.test.restartNeeded')], true);
+  });
+
+  test('messages.transform via v1 path injects FOUNDRY_CONTEXT', async () => {
+    const distPath = new URL('../dist/.opencode/plugins/foundry.js', import.meta.url).pathname;
+    const mod = await import(distPath);
+    const plugin = await mod.default.server({ directory: dir, client: null });
+
+    await plugin.config({ skills: {} });
+
+    const output = {
+      messages: [
+        { info: { role: 'user' }, parts: [{ type: 'text', text: 'hello' }] },
+      ],
+    };
+    await plugin['experimental.chat.messages.transform']({}, output);
+    const parts = output.messages[0].parts;
+    assert.ok(parts[0].text.includes('FOUNDRY_CONTEXT'), 'must inject FOUNDRY_CONTEXT');
+    assert.ok(parts.length >= 2, 'must prepend to existing parts');
+  });
+});
