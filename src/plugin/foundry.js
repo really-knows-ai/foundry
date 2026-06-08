@@ -51,7 +51,9 @@ function findPackageRoot(startDir) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = findPackageRoot(__dirname);
-const allSkillsDir = path.join(packageRoot, 'skills');
+const allSkillsDir = existsSync(path.join(packageRoot, 'dist', 'skills'))
+  ? path.join(packageRoot, 'dist', 'skills')
+  : path.join(packageRoot, 'src', 'skills');
 
 // Module-level flag shared between config and message-transform hooks.
 let restartNeeded = false;
