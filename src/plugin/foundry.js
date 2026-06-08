@@ -308,3 +308,4 @@ export const FoundryPlugin = async ({ directory, client }) => {
 };
 
 export const server = FoundryPlugin;
+export default { server: FoundryPlugin };
