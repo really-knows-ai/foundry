@@ -1,5 +1,6 @@
 ---
 description: "Manage Foundry configuration and laws"
+hidden: true
 permission:
   "*": deny
   read: allow

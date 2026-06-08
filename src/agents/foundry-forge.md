@@ -1,5 +1,6 @@
 ---
 description: "Generate artefacts for forge stages"
+hidden: true
 permission:
   "*": deny
   read: allow

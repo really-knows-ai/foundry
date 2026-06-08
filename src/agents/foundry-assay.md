@@ -1,5 +1,6 @@
 ---
 description: "Run extractors to populate memory"
+hidden: true
 permission:
   "*": deny
   read: allow

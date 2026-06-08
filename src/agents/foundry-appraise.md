@@ -1,5 +1,6 @@
 ---
 description: "Evaluate artefacts during appraise stages"
+hidden: true
 permission:
   "*": deny
   read: allow
