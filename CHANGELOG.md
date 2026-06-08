@@ -22,7 +22,7 @@
 
 - Ignored `documents/` directory.
 
-## [3.13.0] - 2026-06-07
+## [3.13.0] - 2026-06-08
 
 ### Breaking Changes
 
@@ -50,6 +50,7 @@
 - Guide agent prompt updated to delegate config changes via `task({subagent_type: "foundry-admin"})`.
 - Bootstrap messages in `helpers.js` reference the five fixed agents.
 - Agent frontmatter uses `"*": "deny"` catch-all with specific allow rules (last matching rule wins).
+- Guide agent catch-all `"*": deny` moved to last position in permission block, matching spec frontmatter example.
 
 ### Removed
 
@@ -68,6 +69,15 @@
 - `foundry_extractor_create` → `foundry_memory_extractor_create` (consistent with `foundry_memory_*` naming convention).
 - `foundry_list_models` → `foundry_models_list` (consistent verb-last convention).
 - `foundry_artefacts_list` → `foundry_artefact_list` (singular noun, consistent with other tools).
+- `foundry_config_cycle` → `foundry_config_read_cycle` (operation-scoped: read, matching `foundry_config_read_law`).
+- `foundry_config_artefact_type` → `foundry_config_read_artefact_type` (operation-scoped: read).
+- `foundry_config_laws` → `foundry_config_read_laws` (operation-scoped: read).
+- `foundry_config_flow` → `foundry_config_read_flow` (operation-scoped: read).
+- `foundry_config_appraisers` → `foundry_config_read_appraisers` (operation-scoped: read).
+
+### Fixed
+
+- `writeAllFoundryAgents` per-agent resilience: write failures now log a warning and continue to the next agent instead of returning early and blocking deployment of remaining agents.
 
 ## [3.11.3] - 2026-06-03
 
