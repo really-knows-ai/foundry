@@ -1,26 +1,15 @@
 # Changelog
 
-## [3.12.0] - 2026-06-05
-
-### Added
-
-- CLI dispatch: forge and appraise stage executors now spawn `opencode run --attach` instead of using the SDK's `client.session.create()` / `session.prompt()`, which was a known black hole for plugin-created child sessions.
-- Dispatch prompt file delivery: prompts written to `.foundry/dispatch-prompts/<id>.txt` and passed via `--file` to avoid shell injection.
-- Forge token files: dispatch token written to `.foundry/tokens/<cycleId>.token`; token file name passed to subagent via dispatch prompt.
-- Appraise parallel dispatch: each appraiser spawns its own child process with bounded concurrency (max 4).
-- Forge skill updated to reference `tokenFile` parameter instead of the removed `token` parameter.
-- `foundry_stage_begin` accepts optional `tokenFile` argument with path-traversal validation.
+## [3.13.1] - 2026-06-08
 
 ### Fixed
 
-- `foundry_stage_end` now calls `deleteDispatchToken(tokenFile)` to clean up the forge token file (per token lifecycle).
-- Token-file missing error messages unified to `foundry_stage_begin: no dispatch token found.` across both code paths.
-- Spec attribution corrected: `markWorkfileFailed` is called by state machine handlers, not executors.
-- E2E test assertion updated to match new token cleanup behaviour.
+- Plugin module now exports `server` matching the `PluginModule` type contract required by OpenCode 1.16.x. Without this, opencode silently failed to load the plugin.
+- `allSkillsDir` module-level constant pointed to `packageRoot/skills/` instead of `packageRoot/dist/skills/`, causing opencode to receive a nonexistent skills path.
 
-### Changed
+### Added
 
-- Ignored `documents/` directory.
+- Non-guide foundry agents (admin, forge, appraise, assay) marked `hidden: true` to keep them out of the `@` autocomplete menu.
 
 ## [3.13.0] - 2026-06-08
 
