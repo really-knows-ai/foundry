@@ -181,7 +181,8 @@ function writeAllFoundryAgents(worktree, pkgRoot) {
       writeFileSync(path.join(targetDir, `${name}.md`), content, 'utf8');
       written++;
     } catch (err) {
-      return { ok: false, error: `Failed to write agent '${name}': ${err.message ?? String(err)}` };
+      console.warn(`Warning: Failed to write agent '${name}': ${err.message ?? String(err)}`);
+      continue;
     }
   }
 
