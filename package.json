@@ -39,7 +39,7 @@
     "build:all": "pnpm run lint && pnpm run test:all && pnpm run build && node scripts/seal.js"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.4.0",
+    "@opencode-ai/plugin": "^1.16.2",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.0",
     "minimatch": "^10.2.5"
