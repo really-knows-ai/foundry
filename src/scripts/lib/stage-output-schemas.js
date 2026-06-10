@@ -44,6 +44,26 @@ const HUMAN_APPRAISE_SCHEMA = {
   },
 };
 
+const APPRAISE_ADDRESS_VERDICT_SCHEMA = {
+  type: 'object',
+  required: ['action'],
+  properties: {
+    action: { enum: ['resolve', 'reject'] },
+    feedback: { type: 'string' },
+  },
+  additionalProperties: false,
+  allOf: [
+    {
+      if: { properties: { action: { const: 'resolve' } } },
+      then: { not: { required: ['feedback'] } },
+    },
+    {
+      if: { properties: { action: { const: 'reject' } } },
+      then: { required: ['feedback'] },
+    },
+  ],
+};
+
 // ── Schema validator ─────────────────────────────────────────────────
 
 function checkObjectType(schema, data, path) {
@@ -181,6 +201,13 @@ export function validateAppraiseOutput(data) {
 export function validateHumanAppraiseOutput(data) {
   const stage = 'human-appraise';
   const errors = validateSchema(HUMAN_APPRAISE_SCHEMA, data, stage);
+  if (errors.length) return { ok: false, errors };
+  return { ok: true };
+}
+
+export function validateAppraiseAddressVerdict(data) {
+  const stage = 'appraise-address';
+  const errors = validateSchema(APPRAISE_ADDRESS_VERDICT_SCHEMA, data, stage);
   if (errors.length) return { ok: false, errors };
   return { ok: true };
 }

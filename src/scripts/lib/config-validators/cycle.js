@@ -7,6 +7,15 @@ import {
 } from './helpers.js';
 
 const VALID_INPUT_TYPES = new Set(['any-of', 'all-of']);
+const VALID_CONSENSUS_MODES = new Set(['unanimous', 'majority', 'any']);
+
+function checkConsensusConfig(fm) {
+  const mode = fm['appraise-consensus'];
+  if (mode === undefined) return null;
+  if (VALID_CONSENSUS_MODES.has(mode)) return null;
+  const allowed = [...VALID_CONSENSUS_MODES].map(v => JSON.stringify(v)).join(', ');
+  return `frontmatter.appraise-consensus, when present, must be one of ${allowed}; got ${JSON.stringify(mode)}`;
+}
 
 /**
  * Validate a cycle definition body.
@@ -26,6 +35,7 @@ export async function validate({ name, body, io }) {
     requireNonEmptyString(fm.id, 'frontmatter.id'),
     validateIdMatch(fm, name),
     requireNonEmptyString(fm.name, 'frontmatter.name'),
+    checkConsensusConfig(fm),
     await checkOutputType(fm, io),
     ...await checkInputs(fm, io),
     ...await checkTargets(fm, io),

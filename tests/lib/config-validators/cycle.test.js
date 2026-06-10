@@ -49,3 +49,36 @@ test('cycle validator: inputs malformed', async () => {
   assert.equal(out.ok, false);
   assert.ok(out.errors.some((e) => /inputs\.type|any-of|all-of/.test(e)));
 });
+
+// ── appraise-consensus field (D3.5) ────────────────────────────────────
+
+test('cycle validator: appraise-consensus unanimous is valid', async () => {
+  const body = `---\nid: draft\nname: Draft\noutput-type: foo\nappraise-consensus: unanimous\n---\n\n# Draft\n\nProse.\n`;
+  const out = await validate({ name: 'draft', body, io: ioAllExist });
+  assert.deepEqual(out, { ok: true });
+});
+
+test('cycle validator: appraise-consensus majority is valid', async () => {
+  const body = `---\nid: draft\nname: Draft\noutput-type: foo\nappraise-consensus: majority\n---\n\n# Draft\n\nProse.\n`;
+  const out = await validate({ name: 'draft', body, io: ioAllExist });
+  assert.deepEqual(out, { ok: true });
+});
+
+test('cycle validator: appraise-consensus any is valid', async () => {
+  const body = `---\nid: draft\nname: Draft\noutput-type: foo\nappraise-consensus: any\n---\n\n# Draft\n\nProse.\n`;
+  const out = await validate({ name: 'draft', body, io: ioAllExist });
+  assert.deepEqual(out, { ok: true });
+});
+
+test('cycle validator: appraise-consensus absent is accepted', async () => {
+  // Uses the existing valid-basic fixture which does not include appraise-consensus
+  const out = await validate({ name: 'draft', body: fx('valid-basic'), io: ioAllExist });
+  assert.deepEqual(out, { ok: true });
+});
+
+test('cycle validator: appraise-consensus invalid value fails', async () => {
+  const body = `---\nid: draft\nname: Draft\noutput-type: foo\nappraise-consensus: invalid-value\n---\n\n# Draft\n\nProse.\n`;
+  const out = await validate({ name: 'draft', body, io: ioAllExist });
+  assert.equal(out.ok, false);
+  assert.ok(out.errors.some((e) => /appraise-consensus/i.test(e)));
+});

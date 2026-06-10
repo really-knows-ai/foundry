@@ -17,6 +17,7 @@ import { getCycleDefinition, getLaws, getAppraisers, getFlow, getArtefactType } 
 
 import { writePromptFile as _writePromptFile, spawnDispatch as _spawnDispatch, awaitProcess as _awaitProcess, withCleanup as _withCleanup } from './lib/dispatch-cli.js';
 import { dispatchAppraisePrompt, batchAppraiseDispatch, checkAppraiseDispatchFailure } from './lib/appraise-dispatch.js';
+import { tryAppraiseAddress, buildAddressDispatchFn } from './appraise-address.js';
 
 function resolveBaseSha(io) {
   try {
@@ -404,10 +405,13 @@ async function prepareAppraiseContext(apprOpts) {
   return { baseSha, cycleId, outputType, foundryDir, io, unitsByGroup, dispatchMatrix, lawGroups };
 }
 
-export async function executeAppraise(apprOpts) {
-  const { io, worktree, historyPath, feedbackPath } = apprOpts;
-
+/**
+ * Run the standard artefact-evaluation appraise pipeline.
+ * Called when there are no addressed feedback items to process.
+ */
+async function executeStandardAppraise(apprOpts) {
   const { writePromptFile, spawnDispatch, awaitProcess, withCleanup } = extractDispatchHelpers(apprOpts);
+  const { io, worktree, historyPath, feedbackPath } = apprOpts;
 
   const ctx = await prepareAppraiseContext(apprOpts);
   if (ctx.ok) return ctx;
@@ -419,7 +423,6 @@ export async function executeAppraise(apprOpts) {
     writePromptFile, spawnDispatch, awaitProcess, withCleanup,
   };
   const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);
-
   const dispatchError = checkAppraiseDispatchFailure(settled);
   if (dispatchError) return dispatchError;
 
@@ -427,6 +430,22 @@ export async function executeAppraise(apprOpts) {
     io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
     foundryDir, outputType, worktree, historyPath, baseSha,
   });
-
   return { ok: true, coverage };
+}
+
+export async function executeAppraise(apprOpts) {
+  const { io, feedbackPath } = apprOpts;
+
+  const sort = apprOpts.sort;
+  const earlyCycleId = await cycleIdFrom(apprOpts.cycleId, sort);
+  if (!earlyCycleId) return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
+
+  const appraisers = await getAppraisers('foundry', io).catch(function() { return []; });
+  const dispatchHelpers = extractDispatchHelpers(apprOpts);
+  const addressDispatchFn = buildAddressDispatchFn(appraisers, dispatchHelpers, io, apprOpts.worktree);
+
+  const addressResult = await tryAppraiseAddress(apprOpts, io, feedbackPath, earlyCycleId, addressDispatchFn);
+  if (addressResult !== null) return addressResult;
+
+  return await executeStandardAppraise(apprOpts);
 }
