@@ -76,7 +76,7 @@ function toolCreateEntityType({ tool }) {
   });
 }
 
-function toolExtractorCreate({ tool }) {
+function toolCreateExtractor({ tool }) {
   return tool({
     description: 'Create a new extractor definition under foundry/memory/extractors/.',
     args: {
@@ -240,7 +240,7 @@ function makeRawIO() {
   };
 }
 
-function toolChangeEmbeddingModel({ tool }) {
+function toolReembed({ tool }) {
   return tool({
     description: 'Swap the embedding model and re-embed all existing entities.',
     args: {
@@ -249,7 +249,7 @@ function toolChangeEmbeddingModel({ tool }) {
       baseURL: tool.schema.string().optional(),
       apiKey: tool.schema.string().optional(),
     },
-    execute: guarded('foundry_memory_change_embedding_model', [configBranchGuard, notFailedGuard], async (args, context) => {
+    execute: guarded('foundry_memory_reembed', [configBranchGuard, notFailedGuard], async (args, context) => {
       try {
         const io = makeMemoryIO(context.worktree);
         const currentConfig = await loadMemoryConfig('foundry', io);
@@ -280,7 +280,7 @@ function toolChangeEmbeddingModel({ tool }) {
 export function createMemoryAdminTools({ tool }) {
   return {
     foundry_memory_create_entity_type: toolCreateEntityType({ tool }),
-    foundry_memory_extractor_create: toolExtractorCreate({ tool }),
+    foundry_memory_create_extractor: toolCreateExtractor({ tool }),
     foundry_memory_create_edge_type: toolCreateEdgeType({ tool }),
     foundry_memory_rename_entity_type: toolRenameEntityType({ tool }),
     foundry_memory_rename_edge_type: toolRenameEdgeType({ tool }),
@@ -291,6 +291,6 @@ export function createMemoryAdminTools({ tool }) {
     foundry_memory_init: toolInit({ tool }),
     foundry_memory_dump: toolDump({ tool }),
     foundry_memory_vacuum: toolVacuum({ tool }),
-    foundry_memory_change_embedding_model: toolChangeEmbeddingModel({ tool }),
+    foundry_memory_reembed: toolReembed({ tool }),
   };
 }

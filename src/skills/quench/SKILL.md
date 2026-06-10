@@ -86,7 +86,7 @@ deadlocked items (only human-appraise can override those).
 
 ## History
 
-Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_run` handles those (the tools are not registered publicly).
+Do NOT call `foundry_history_append` or `foundry_git_commit` — `foundry_cycle_run` handles those (the tools are not registered publicly).
 
 ## What you do NOT do
 

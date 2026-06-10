@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.14.0] - 2026-06-10
+
+### Changed
+
+- Renamed five tools to follow `foundry_[noun]_[verb]` naming convention:
+  - `foundry_run` → `foundry_cycle_run`
+  - `foundry_continue` → `foundry_cycle_continue`
+  - `foundry_memory_neighbours` → `foundry_memory_traverse`
+  - `foundry_memory_extractor_create` → `foundry_memory_create_extractor`
+  - `foundry_memory_change_embedding_model` → `foundry_memory_reembed`
+- Updated all tool registrations, agent permission blocks, skill files, documentation, test files, and internal error/prompt strings to reference the new names.
+
 ## [3.13.3] - 2026-06-08
 
 ### Added

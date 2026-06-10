@@ -126,7 +126,7 @@ Generate docs.
 
 // These tests depend on the old foundry_orchestrate dispatch token flow
 // (stage_begin requires a dispatch token). They need a Phase 5 rewrite
-// to use the new foundry_run/continueRun state machine.
+// to use the new foundry_cycle_run/continueRun state machine.
 describe.skip('assay end-to-end: happy path', () => {
   let root, plugin;
   before(async () => { root = setup(); plugin = await FoundryPlugin({ directory: root }); });

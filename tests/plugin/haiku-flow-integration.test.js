@@ -2,7 +2,7 @@
  * Integration test — full haiku flow with mock client.
  *
  * Exercises the complete forge → quench → appraise → human-appraise →
- * foundry_continue → done flow using a mock SDK client. Provisions a
+ * foundry_cycle_continue → done flow using a mock SDK client. Provisions a
  * temporary git repository with haiku flow, cycle, and artefact fixture
  * files. All stages execute deterministically via canned SDK responses.
  */
@@ -129,8 +129,8 @@ test('D1.1: full haiku flow completes end-to-end', async () => {
     _setExecFile(execFileMock);
     const plugin = await FoundryPlugin({ directory: root, client });
 
-    // First call: foundry_run starts the flow
-    const runResult = JSON.parse(await plugin.tool.foundry_run.execute(
+    // First call: foundry_cycle_run starts the flow
+    const runResult = JSON.parse(await plugin.tool.foundry_cycle_run.execute(
       { flow: 'haiku', goal: 'write a haiku about sausages' },
       { worktree: root, sessionID: 'main-session' },
     ));
@@ -159,12 +159,12 @@ test('D1.1: full haiku flow completes end-to-end', async () => {
     assert.ok(workMd.includes('flow: haiku'), 'WORK.md should reference haiku flow');
     assert.ok(workMd.includes('cycle: write-haiku'), 'WORK.md should reference write-haiku cycle');
 
-    // Second call: foundry_continue resumes and returns a valid action
+    // Second call: foundry_cycle_continue resumes and returns a valid action
     // With always-human-appraise the flow may cycle back to prompt_user
     let continueResult;
     const validActions = new Set();
     for (let i = 0; i < 10; i++) {
-      continueResult = JSON.parse(await plugin.tool.foundry_continue.execute(
+      continueResult = JSON.parse(await plugin.tool.foundry_cycle_continue.execute(
         {},
         { worktree: root, sessionID: 'main-session' },
       ));
@@ -191,7 +191,7 @@ test('D1.1: full haiku flow completes end-to-end', async () => {
   }
 });
 
-test('D1.2: foundry_continue resume captures verbatim user reply', async () => {
+test('D1.2: foundry_cycle_continue resume captures verbatim user reply', async () => {
   const root = tmpDir();
   try {
     setupHaikuRepo(root, 'work/haiku-capture');
@@ -213,14 +213,14 @@ test('D1.2: foundry_continue resume captures verbatim user reply', async () => {
     const plugin = await FoundryPlugin({ directory: root, client });
 
     // Run to human-appraise
-    await plugin.tool.foundry_run.execute(
+    await plugin.tool.foundry_cycle_run.execute(
       { flow: 'haiku', goal: 'write a haiku' },
       { worktree: root, sessionID: 'main-session' },
     );
 
     // The active stage has a boundaryMarker from the session
-    // foundry_continue should capture the post-marker user text
-    const result = JSON.parse(await plugin.tool.foundry_continue.execute(
+    // foundry_cycle_continue should capture the post-marker user text
+    const result = JSON.parse(await plugin.tool.foundry_cycle_continue.execute(
       {},
       { worktree: root, sessionID: 'main-session' },
     ));
@@ -263,7 +263,7 @@ test('D1.3: flow returns done when no feedback after human-appraise', async () =
 
     const plugin = await FoundryPlugin({ directory: root, client });
 
-    await plugin.tool.foundry_run.execute(
+    await plugin.tool.foundry_cycle_run.execute(
       { flow: 'haiku', goal: 'write a haiku' },
       { worktree: root, sessionID: 'main-session' },
     );
@@ -272,7 +272,7 @@ test('D1.3: flow returns done when no feedback after human-appraise', async () =
     let result;
     const seenActions = new Set();
     for (let i = 0; i < 10; i++) {
-      result = JSON.parse(await plugin.tool.foundry_continue.execute(
+      result = JSON.parse(await plugin.tool.foundry_cycle_continue.execute(
         {},
         { worktree: root, sessionID: 'main-session' },
       ));
@@ -297,7 +297,7 @@ test('D1.4: branch guard rejects non-work branch', async () => {
     const client = createMockClient();
     const plugin = await FoundryPlugin({ directory: root, client });
 
-    const result = JSON.parse(await plugin.tool.foundry_run.execute(
+    const result = JSON.parse(await plugin.tool.foundry_cycle_run.execute(
       { flow: 'haiku', goal: 'test' },
       { worktree: root, sessionID: 'main-session' },
     ));
@@ -310,14 +310,14 @@ test('D1.4: branch guard rejects non-work branch', async () => {
   }
 });
 
-test('D1.5: foundry_continue returns violation when WORK.md missing', async () => {
+test('D1.5: foundry_cycle_continue returns violation when WORK.md missing', async () => {
   const root = tmpDir();
   try {
     setupHaikuRepo(root, 'work/test-branch');
     const client = createMockClient();
     const plugin = await FoundryPlugin({ directory: root, client });
 
-    const result = JSON.parse(await plugin.tool.foundry_continue.execute(
+    const result = JSON.parse(await plugin.tool.foundry_cycle_continue.execute(
       {},
       { worktree: root, sessionID: 'main-session' },
     ));
@@ -330,7 +330,7 @@ test('D1.5: foundry_continue returns violation when WORK.md missing', async () =
   }
 });
 
-test('D1.6: foundry_continue returns violation on failed flow', async () => {
+test('D1.6: foundry_cycle_continue returns violation on failed flow', async () => {
   const root = tmpDir();
   try {
     setupHaikuRepo(root, 'work/failed-branch');
@@ -341,7 +341,7 @@ test('D1.6: foundry_continue returns violation on failed flow', async () => {
     const client = createMockClient();
     const plugin = await FoundryPlugin({ directory: root, client });
 
-    const result = JSON.parse(await plugin.tool.foundry_continue.execute(
+    const result = JSON.parse(await plugin.tool.foundry_cycle_continue.execute(
       {},
       { worktree: root, sessionID: 'main-session' },
     ));
@@ -392,7 +392,7 @@ test('D1.7: appraise dispatch uses parallel sessions and consolidates', async ()
 
     const plugin = await FoundryPlugin({ directory: root, client });
 
-    await plugin.tool.foundry_run.execute(
+    await plugin.tool.foundry_cycle_run.execute(
       { flow: 'haiku', goal: 'write a haiku' },
       { worktree: root, sessionID: 'main-session' },
     );
@@ -426,7 +426,7 @@ test('D1.8: action set is exactly prompt_user, done, violation', async () => {
     // Return prompt_user for the first continue and done for the second
     const plugin = await FoundryPlugin({ directory: root, client });
 
-    const runResult = JSON.parse(await plugin.tool.foundry_run.execute(
+    const runResult = JSON.parse(await plugin.tool.foundry_cycle_run.execute(
       { flow: 'haiku', goal: 'write a haiku' },
       { worktree: root, sessionID: 'main-session' },
     ));
@@ -437,7 +437,7 @@ test('D1.8: action set is exactly prompt_user, done, violation', async () => {
 
     // Continue may produce more actions (loop until done/violation)
     for (let i = 0; i < 10; i++) {
-      const continueResult = JSON.parse(await plugin.tool.foundry_continue.execute(
+      const continueResult = JSON.parse(await plugin.tool.foundry_cycle_continue.execute(
         {},
         { worktree: root, sessionID: 'main-session' },
       ));

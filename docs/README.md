@@ -36,7 +36,7 @@ These documents specify formats, tools, and design principles. Use them when imp
 
 - **tools.md** — Complete 65-tool categorical index and reference, organised by family (lifecycle, artefacts, feedback, config, memory, etc.) with complete signatures and permissions. 
 
-  Consult this when you need to understand what a specific tool does, its branch requirements, what stage locks apply, what arguments it accepts, and how it integrates with the overall system. Covers calling conventions, enforcement invariants, and the permission model for memory access. References `foundry_assay_run`, `foundry_memory_extractor_create`, and memory data and admin tools.
+  Consult this when you need to understand what a specific tool does, its branch requirements, what stage locks apply, what arguments it accepts, and how it integrates with the overall system. Covers calling conventions, enforcement invariants, and the permission model for memory access. References `foundry_assay_run`, `foundry_memory_create_extractor`, and memory data and admin tools.
 
   Tool authors and system integrators use this constantly; it is the comprehensive reference for all custom tools in the Foundry ecosystem.
 

@@ -1,7 +1,7 @@
 /**
  * Deterministic run state machine.
  *
- * Used by both `foundry_run` and `foundry_continue`. Reads filesystem state
+ * Used by both `foundry_cycle_run` and `foundry_cycle_continue`. Reads filesystem state
  * (WORK.md, WORK.history.yaml, WORK.feedback.yaml, .foundry/), iterates
  * through stages via `runSort`, and dispatches each stage.
  *
@@ -269,7 +269,7 @@ async function handleCycleTransition(io, cycleId, fm, historyPath) {
 
 function checkContinuePreconditions(io) {
   if (!io.exists('WORK.md')) {
-    return terminalViolation('continueRun: WORK.md not found. Use foundry_run() to start a new run.', false);
+    return terminalViolation('continueRun: WORK.md not found. Use foundry_cycle_run() to start a new run.', false);
   }
   const failed = readFailedStatus(io);
   if (failed) return terminalViolation('continueRun: flow is in failed state', false);

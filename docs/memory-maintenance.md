@@ -103,7 +103,7 @@ A tool that can be invoked before any memory read/write must not rely on
 only constructed on first store-touching call, and plugin-level `context` is
 only partially populated for tools that never needed a store before.
 
-Canonical example: `foundry_memory_change_embedding_model`. If the user
+Canonical example: `foundry_memory_reembed`. If the user
 invokes it as the first memory op of the session (common in the
 `change-embedding-model` skill), `context.config` is `null` and any
 `context.config.embeddings.*` access throws. The fix (commit `3147409`) loads
@@ -155,18 +155,18 @@ commit.
 Every mutating memory tool — both data writes (`foundry_memory_put`,
 `foundry_memory_relate`, `foundry_memory_unrelate`) and admin ops
 (`foundry_memory_init`, `foundry_memory_reset`, `foundry_memory_vacuum`,
-`foundry_memory_change_embedding_model`,
+`foundry_memory_reembed`,
 `foundry_memory_create_entity_type` / `_create_edge_type`,
 `foundry_memory_rename_entity_type` / `_rename_edge_type`,
 `foundry_memory_drop_entity_type` / `_drop_edge_type`,
-`foundry_memory_extractor_create`) — refuses to run when `WORK.md`
+`foundry_memory_create_extractor`) — refuses to run when `WORK.md`
 frontmatter has `status: failed`. Each tool returns a tool-name-prefixed
 error referencing the failure reason.
 
 This is by design: the failed-flow state locks mutating tools until the
 failure is handled, and admin operations on memory while a flow is in an
 unrecoverable state risk compounding the damage. Read-only diagnostics
-(`foundry_memory_get`, `_list`, `_neighbours`, `_query`, `_search`,
+(`foundry_memory_get`, `_list`, `_traverse`, `_query`, `_search`,
 `_dump`, `_validate`) remain callable so the operator can investigate.
 
 The supported recovery paths: read the failure reason via

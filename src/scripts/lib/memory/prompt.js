@@ -35,7 +35,7 @@ function renderToolLines(embeddingsEnabled, hasWriteTypes) {
     '',
     '- `foundry_memory_get(type, name)` — fetch an entity (null if absent).',
     '- `foundry_memory_list(type)` — list all entities of a type.',
-    '- `foundry_memory_neighbours(type, name, depth?, edge_types?)` — bounded graph traversal.',
+    '- `foundry_memory_traverse(type, name, depth?, edge_types?)` — bounded graph traversal.',
     '- `foundry_memory_query(datalog)` — arbitrary read-only Cozo Datalog.',
   ];
   if (embeddingsEnabled) {

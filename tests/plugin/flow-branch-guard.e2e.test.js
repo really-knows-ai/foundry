@@ -105,10 +105,10 @@ describe('flow-tier mutation tools: branch guard refuses on main', () => {
     });
   }
 
-  // foundry_run has the same branch-guard envelope shape (action: violation /
+  // foundry_cycle_run has the same branch-guard envelope shape (action: violation /
   // {error}); handle separately.
-  it('foundry_run: refuses on main with /requires a work\\//', async () => {
-    const out = JSON.parse(await plugin.tool.foundry_run.execute({ flow: 'f', goal: 'g' }, { worktree: root, cycle: 'observe' }));
+  it('foundry_cycle_run: refuses on main with /requires a work\\//', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_cycle_run.execute({ flow: 'f', goal: 'g' }, { worktree: root, cycle: 'observe' }));
     assert.ok(out.error || out.details, `run: expected error, got ${JSON.stringify(out)}`);
     assert.match(out.error || out.details, /requires a work\//);
   });

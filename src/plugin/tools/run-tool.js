@@ -1,5 +1,5 @@
 // src/plugin/tools/run-tool.js
-// foundry_run — starts a run, bootstraps WORK.md, and executes the state machine.
+// foundry_cycle_run — starts a run, bootstraps WORK.md, and executes the state machine.
 
 import { createWorkfile, parseFrontmatter } from '../../scripts/lib/workfile.js';
 import { setupWorkfile } from '../../scripts/orchestrate-setup.js';
@@ -12,10 +12,10 @@ import { readOrCreateSecret } from '../../scripts/lib/secret.js';
 import { makeIO, makeExec, makeExecGit } from './helpers.js';
 
 function validateInputs(args) {
-  if (typeof args.flow !== 'string') return 'foundry_run: flow and goal are required';
-  if (args.flow.trim() === '') return 'foundry_run: flow and goal are required';
-  if (typeof args.goal !== 'string') return 'foundry_run: flow and goal are required';
-  if (args.goal.trim() === '') return 'foundry_run: flow and goal are required';
+  if (typeof args.flow !== 'string') return 'foundry_cycle_run: flow and goal are required';
+  if (args.flow.trim() === '') return 'foundry_cycle_run: flow and goal are required';
+  if (typeof args.goal !== 'string') return 'foundry_cycle_run: flow and goal are required';
+  if (args.goal.trim() === '') return 'foundry_cycle_run: flow and goal are required';
   return null;
 }
 
@@ -47,13 +47,13 @@ function resolveSingleCycle(startCycles, explicitCycle) {
 
 function buildGuardedResponse(branchIo, io) {
   const branchGuard = requireOnFlowBranch(branchIo);
-  if (!branchGuard.ok) return { error: 'foundry_run: ' + branchGuard.error };
+  if (!branchGuard.ok) return { error: 'foundry_cycle_run: ' + branchGuard.error };
 
   const failed = readFailedStatus(io);
-  if (failed) return { error: 'foundry_run: flow is in failed state' };
+  if (failed) return { error: 'foundry_cycle_run: flow is in failed state' };
 
   if (io.exists('WORK.md')) {
-    return { error: 'foundry_run: WORK.md already exists. Use foundry_continue() to advance an existing run.' };
+    return { error: 'foundry_cycle_run: WORK.md already exists. Use foundry_cycle_continue() to advance an existing run.' };
   }
 
   return null;
@@ -80,10 +80,10 @@ function makeGit(worktree) {
 
 function resolveFlowStartCycle(args, io) {
   const flowFm = readFlowDefinition('foundry', args.flow, io);
-  if (!flowFm) return { error: 'foundry_run: flow ' + args.flow + ' not found' };
+  if (!flowFm) return { error: 'foundry_cycle_run: flow ' + args.flow + ' not found' };
   const startCycles = resolveStartCycles(flowFm);
   const resolved = resolveSingleCycle(startCycles, args.cycle);
-  if (resolved.error) return { error: 'foundry_run: ' + resolved.error };
+  if (resolved.error) return { error: 'foundry_cycle_run: ' + resolved.error };
   return { startCycle: resolved.cycle };
 }
 
@@ -131,7 +131,7 @@ async function executeRun(args, context, deps) {
 export function createRunTool(pluginOpts) {
   const { tool, client, pending } = pluginOpts;
   return {
-    foundry_run: tool({
+    foundry_cycle_run: tool({
       description: 'Start a Foundry run on the current work branch.',
       args: {
         flow: tool.schema.string().describe('Flow name (id of a flow file in foundry/flows/)'),

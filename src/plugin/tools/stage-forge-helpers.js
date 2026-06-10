@@ -16,9 +16,9 @@ export const FORGE_FORBIDDEN_TOOLS = [
 ];
 
 function describeTokenError(reason) {
-  if (reason === 'bad_signature') return `token was copied incorrectly — re-read it from the dispatch prompt exactly, character-by-character. The token must match what foundry_run gave you`;
+  if (reason === 'bad_signature') return `token was copied incorrectly — re-read it from the dispatch prompt exactly, character-by-character. The token must match what foundry_cycle_run gave you`;
   if (reason === 'malformed') return `token is garbled — re-read it from the dispatch prompt. The token is the long string after "Token: " in the orchestrate dispatch`;
-  if (reason === 'expired') return `token expired — this dispatch is stale. Call foundry_run({lastResult: {ok: false, error: "timed out"}}) to get a fresh dispatch`;
+  if (reason === 'expired') return `token expired — this dispatch is stale. Call foundry_cycle_run({lastResult: {ok: false, error: "timed out"}}) to get a fresh dispatch`;
   return `token ${reason}`;
 }
 

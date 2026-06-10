@@ -36,7 +36,7 @@ permission:
   foundry_models_list: allow
   foundry_memory_get: allow
   foundry_memory_list: allow
-  foundry_memory_neighbours: allow
+  foundry_memory_traverse: allow
   foundry_memory_query: allow
   foundry_memory_search: allow
   foundry_memory_put: allow
@@ -53,8 +53,8 @@ permission:
   foundry_memory_init: allow
   foundry_memory_dump: allow
   foundry_memory_vacuum: allow
-  foundry_memory_change_embedding_model: allow
-  foundry_memory_extractor_create: allow
+  foundry_memory_reembed: allow
+  foundry_memory_create_extractor: allow
   foundry_snapshot_list: allow
   foundry_snapshot_show: allow
   foundry_snapshot_delete: allow
@@ -78,7 +78,7 @@ Execute configuration changes on behalf of the guide agent. You create, validate
 - **Appraiser** — a personality or perspective that judges artefacts against laws. Created with `foundry_config_create_appraiser`.
 - **Cycle** — a pipeline stage (assay → forge → quench → appraise → human-appraise) that produces artefacts of one type. Created with `foundry_config_create_cycle`.
 - **Flow** — ties cycles together. Created with `foundry_config_create_flow`.
-- **Extractor** — a CLI that populates memory with structured entities. Registered with `foundry_memory_extractor_create`.
+- **Extractor** — a CLI that populates memory with structured entities. Registered with `foundry_memory_create_extractor`.
 - **Memory** — a structured knowledge store for entities and relationships. Managed with the `foundry_memory_*` tools.
 
 ## Configuration tools
@@ -106,11 +106,11 @@ Memory lives under `foundry/memory/` and stores structured entities and relation
 - `foundry_memory_rename_entity_type` / `foundry_memory_rename_edge_type` — rename schema types
 - `foundry_memory_drop_entity_type` / `foundry_memory_drop_edge_type` — remove schema types
 - `foundry_memory_reset` — purge all data while keeping type definitions
-- `foundry_memory_change_embedding_model` — switch the embedding model and re-embed
-- `foundry_memory_extractor_create` — register a memory extractor CLI
+- `foundry_memory_reembed` — switch the embedding model and re-embed
+- `foundry_memory_create_extractor` — register a memory extractor CLI
 - `foundry_memory_validate` — validate memory configuration
 - `foundry_memory_vacuum` — clean up expired data
-- `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_search`, `foundry_memory_query`, `foundry_memory_neighbours` — inspect memory contents (read-only)
+- `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_search`, `foundry_memory_query`, `foundry_memory_traverse` — inspect memory contents (read-only)
 
 ## Workflow
 

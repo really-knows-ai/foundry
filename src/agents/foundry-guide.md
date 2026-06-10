@@ -12,8 +12,8 @@ permission:
   task: allow
   edit: deny
   bash: deny
-  foundry_run: allow
-  foundry_continue: allow
+  foundry_cycle_run: allow
+  foundry_cycle_continue: allow
   foundry_stage_retry: allow
   foundry_git_branch: allow
   foundry_git_finish: allow
@@ -144,9 +144,9 @@ Reuse existing configuration pieces when they clearly fit. When a dependency is 
 
 When the user asks to execute a flow, load the `flow` skill then run the relay loop:
 
-1. Call `foundry_run({ flow, goal, inputs? })` to start or continue a flow run.
+1. Call `foundry_cycle_run({ flow, goal, inputs? })` to start or continue a flow run.
 2. Read the returned `action`:
-   - `"prompt_user"` — present the prompt to the user, capture their response, then call `foundry_continue()` to resume the run.
+   - `"prompt_user"` — present the prompt to the user, capture their response, then call `foundry_cycle_continue()` to resume the run.
    - `"done"` — the run completed successfully. Report the outcome to the user.
    - `"violation"` — the run failed. Report the violation to the user.
 3. Repeat step 2 until the action is `"done"` or `"violation"`.

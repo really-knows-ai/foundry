@@ -53,7 +53,7 @@ describe('plugin memory tools', () => {
   it('registers all eight memory tools', () => {
     for (const name of [
       'foundry_memory_put', 'foundry_memory_relate', 'foundry_memory_unrelate',
-      'foundry_memory_get', 'foundry_memory_list', 'foundry_memory_neighbours', 'foundry_memory_query',
+      'foundry_memory_get', 'foundry_memory_list', 'foundry_memory_traverse', 'foundry_memory_query',
       'foundry_memory_search',
     ]) {
       assert.ok(plugin.tool[name], `missing tool: ${name}`);
@@ -77,13 +77,13 @@ describe('plugin memory tools', () => {
     await plugin.tool.foundry_memory_relate.execute({
       from_type: 'class', from_name: 'com.Src', edge_type: 'calls', to_type: 'class', to_name: 'com.Dst',
     }, ctx);
-    const out = JSON.parse(await plugin.tool.foundry_memory_neighbours.execute({ type: 'class', name: 'com.Src', depth: 1 }, ctx));
+    const out = JSON.parse(await plugin.tool.foundry_memory_traverse.execute({ type: 'class', name: 'com.Src', depth: 1 }, ctx));
     assert.equal(out.edges.length, 1);
   });
 
   it('neighbours rejects depth values above the safety bound', async () => {
     const ctx = { worktree: root };
-    const out = JSON.parse(await plugin.tool.foundry_memory_neighbours.execute(
+    const out = JSON.parse(await plugin.tool.foundry_memory_traverse.execute(
       { type: 'class', name: 'com.Src', depth: 6 },
       ctx,
     ));
@@ -142,7 +142,7 @@ Cycle body.
 
   it('TF11: neighbours rejects excessive depth (1000) with clear error', async () => {
     const ctx = { worktree: root };
-    const result = JSON.parse(await plugin.tool.foundry_memory_neighbours.execute(
+    const result = JSON.parse(await plugin.tool.foundry_memory_traverse.execute(
       { type: 'class', name: 'com.Src', depth: 1000 },
       ctx,
     ));

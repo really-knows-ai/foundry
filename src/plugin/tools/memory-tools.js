@@ -206,7 +206,7 @@ function createListTool(tool) {
     },
   });
 }
-function createNeighboursTool(tool) {
+function createTraverseTool(tool) {
   return tool({
     description: 'Bounded graph traversal from an entity. Returns entities and edges within `depth` hops.',
     args: {
@@ -280,7 +280,7 @@ export function createMemoryTools({ tool }) {
   return {
     foundry_memory_put: createPutTool(tool), foundry_memory_relate: createRelateTool(tool),
     foundry_memory_unrelate: createUnrelateTool(tool), foundry_memory_get: createGetTool(tool),
-    foundry_memory_list: createListTool(tool), foundry_memory_neighbours: createNeighboursTool(tool),
+    foundry_memory_list: createListTool(tool), foundry_memory_traverse: createTraverseTool(tool),
     foundry_memory_query: createQueryTool(tool), foundry_memory_search: createSearchTool(tool),
   };
 }

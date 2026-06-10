@@ -253,7 +253,7 @@ memory:
 ---
 ```
 
-- Types in `read` become visible (the cycle's dispatched prompt lists them along with `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_neighbours`, `foundry_memory_query`, and — if embeddings are on — `foundry_memory_search`).
+- Types in `read` become visible (the cycle's dispatched prompt lists them along with `foundry_memory_get`, `foundry_memory_list`, `foundry_memory_traverse`, `foundry_memory_query`, and — if embeddings are on — `foundry_memory_search`).
 - Types in `write` additionally expose `foundry_memory_put`, `foundry_memory_relate`, `foundry_memory_unrelate`.
 - **`read` and `write` are independent.** Entity reads check only the `read` set — a type listed in `write` only is writable but not readable. If the cycle needs to read entities of a type before writing them (the common case), list it in **both** `read` and `write`.
 - Edges are visible when either endpoint type is in `read` *or* `write`, writable when either endpoint type is in `write`.

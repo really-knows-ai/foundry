@@ -59,6 +59,6 @@ Ask: "Proceed?" — wait for the user's answer. Do not proceed to Build unless t
 ### 4. Build
 
 1. **Check connectivity**: Verify the new provider is reachable from this machine and the model name is valid.
-2. **Execute**: Call `foundry_memory_change_embedding_model({ model: "<model>", dimensions: <dimensions>, baseURL: "<baseURL>", apiKey: "<apiKey>" })`. The tool probes the new provider, re-embeds every entity, rewrites `schema.json`, and then updates `foundry/memory/config.md` frontmatter to match. On probe or re-embed failure, nothing is written.
+2. **Execute**: Call `foundry_memory_reembed({ model: "<model>", dimensions: <dimensions>, baseURL: "<baseURL>", apiKey: "<apiKey>" })`. The tool probes the new provider, re-embeds every entity, rewrites `schema.json`, and then updates `foundry/memory/config.md` frontmatter to match. On probe or re-embed failure, nothing is written.
 3. **Verify**: Invoke `foundry_memory_search` with a sample query.
 4. **Commit**: Run `git add foundry/memory/config.md foundry/memory/schema.json foundry-memory/relations/`. Run `git commit -m "chore(memory): change embedding model to <model>"`. Report the commit hash.

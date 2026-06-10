@@ -14,12 +14,12 @@ test('plugin does NOT register foundry_orchestrate', () => {
   assert.ok(!toolNames.has('foundry_orchestrate'));
 });
 
-test('plugin registers foundry_run', () => {
-  assert.ok(toolNames.has('foundry_run'));
+test('plugin registers foundry_cycle_run', () => {
+  assert.ok(toolNames.has('foundry_cycle_run'));
 });
 
-test('plugin registers foundry_continue', () => {
-  assert.ok(toolNames.has('foundry_continue'));
+test('plugin registers foundry_cycle_continue', () => {
+  assert.ok(toolNames.has('foundry_cycle_continue'));
 });
 
 test('plugin registers foundry_models_list', () => {

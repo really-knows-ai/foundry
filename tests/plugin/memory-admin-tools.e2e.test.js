@@ -339,12 +339,12 @@ describe('plugin memory admin tools', () => {
     });
   });
 
-  // --- foundry_memory_change_embedding_model ---
-  describe('foundry_memory_change_embedding_model', () => {
+  // --- foundry_memory_reembed ---
+  describe('foundry_memory_reembed', () => {
     it('returns serialised error when embedding probe fails (no provider configured)', async () => {
       // config has embeddings disabled and no live provider; probe should fail
       // and be returned as a JSON error rather than thrown.
-      const raw = await plugin.tool.foundry_memory_change_embedding_model.execute(
+      const raw = await plugin.tool.foundry_memory_reembed.execute(
         { model: 'fake-model', dimensions: 8 }, { worktree: root });
       const out = JSON.parse(raw);
       assert.ok(out.error, `expected error in ${raw}`);
@@ -409,14 +409,14 @@ describe('plugin memory admin tools: config branch guard', () => {
   // is irrelevant — the guard fires before reaching it.
   const cases = [
     ['foundry_memory_create_entity_type',     { name: 'finding', body: 'A finding.' }],
-    ['foundry_memory_extractor_create',              { name: 'ex', command: 'scripts/x.sh', memoryWrite: ['class'], body: 'b' }],
+    ['foundry_memory_create_extractor',              { name: 'ex', command: 'scripts/x.sh', memoryWrite: ['class'], body: 'b' }],
     ['foundry_memory_create_edge_type',       { name: 'depends_on', sources: ['class'], targets: ['class'], body: 'b' }],
     ['foundry_memory_rename_entity_type',     { from: 'class', to: 'klass' }],
     ['foundry_memory_rename_edge_type',       { from: 'calls', to: 'invokes' }],
     ['foundry_memory_drop_entity_type',       { name: 'class', confirm: true }],
     ['foundry_memory_drop_edge_type',         { name: 'calls', confirm: true }],
     ['foundry_memory_reset',                  { confirm: true }],
-    ['foundry_memory_change_embedding_model', { model: 'm', dimensions: 8 }],
+    ['foundry_memory_reembed', { model: 'm', dimensions: 8 }],
   ];
 
   for (const [tool, args] of cases) {

@@ -395,7 +395,7 @@ kill -KILL $$
 });
 
 
-describe('foundry_memory_extractor_create', () => {
+describe('foundry_memory_create_extractor', () => {
   let root, plugin;
   beforeEach(async () => {
     root = setupWorktree();
@@ -406,7 +406,7 @@ describe('foundry_memory_extractor_create', () => {
   afterEach(() => { disposeStores(); rmSync(root, { recursive: true, force: true }); });
 
   it('creates an extractor file via the admin helper', async () => {
-    const out = JSON.parse(await plugin.tool.foundry_memory_extractor_create.execute({
+    const out = JSON.parse(await plugin.tool.foundry_memory_create_extractor.execute({
       name: 'java-symbols',
       command: 'scripts/x.sh',
       memoryWrite: ['class'],
@@ -418,7 +418,7 @@ describe('foundry_memory_extractor_create', () => {
   });
 
   it('returns a structured error for bad input', async () => {
-    const out = JSON.parse(await plugin.tool.foundry_memory_extractor_create.execute({
+    const out = JSON.parse(await plugin.tool.foundry_memory_create_extractor.execute({
       name: 'Bad',
       command: 'x',
       memoryWrite: ['class'],

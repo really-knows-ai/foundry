@@ -2,7 +2,7 @@
  * Quench timeout integration test.
  *
  * Verifies that a validator failure (non-zero exit) is handled through the
- * executeQuench logic (the "underlying path" used by foundry_run): a feedback
+ * executeQuench logic (the "underlying path" used by foundry_cycle_run): a feedback
  * item is written to WORK.feedback.yaml, the run continues rather than
  * throwing a violation, and the spawnWithTimeout failure is correctly
  * transformed into a feedback item.
@@ -141,7 +141,7 @@ test('D3.1: quench validator failure writes feedback item to WORK.feedback.yaml'
     writeFileSync(join(root, 'haikus/test.md'), 'sausages and eggs\nsizzling in the morning sun\na perfect breakfast\n');
     execSync('git add . && git commit -m "add haiku artefact" -q', { cwd: root, env: GIT_ENV });
 
-    // Run quench directly (the "underlying path" used by foundry_run)
+    // Run quench directly (the "underlying path" used by foundry_cycle_run)
     const io = makeIO(root);
     const feedbackPath = 'WORK.feedback.yaml';
     const historyPath = 'WORK.history.yaml';

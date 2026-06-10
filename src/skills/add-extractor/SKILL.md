@@ -70,7 +70,7 @@ Ask: "Proceed with this plan?" — wait for the user to answer. Do not proceed t
 
 ### 4. Build
 
-1. **Create**: Call `foundry_memory_extractor_create({ name: "<name>", command: "<command>", memoryWrite: ["<type>", ...], body: "<description>", timeout: "<optional>" })`. On error, surface the error to the user and stop — do not attempt to recover silently.
+1. **Create**: Call `foundry_memory_create_extractor({ name: "<name>", command: "<command>", memoryWrite: ["<type>", ...], body: "<description>", timeout: "<optional>" })`. On error, surface the error to the user and stop — do not attempt to recover silently.
 
 2. **Commit**: Run `git add foundry/memory/extractors/<name>.md` plus the command script path if one was created. Run `git commit -m "feat(memory): add '<name>' extractor"`. Report the commit hash.
 

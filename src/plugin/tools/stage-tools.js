@@ -52,7 +52,7 @@ function beginTokenStage({ token, secret, stage, cycle, agent, worktree, io, pen
   const meta = pending.consume(tokenResult.payload.nonce);
   if (!meta) {
     deleteDispatchToken(io, tokenFile);
-    return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_run. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
+    return { error: 'foundry_stage_begin: this token was already used, expired, or was not minted by foundry_cycle_run. Use the exact token from the most recent orchestrate dispatch — previous dispatches cannot be reused' };
   }
 
   const tokenHash = createHash('sha256').update(token).digest('hex');
@@ -218,7 +218,7 @@ async function executeStageEnd(args, context) {
 
   const active = readActiveStage(io);
   if (!active) {
-    return JSON.stringify({ error: 'foundry_stage_end: no active stage to close. If you are trying to recover from a tangled state, call foundry_run() without arguments — it will sort and route to the next stage' });
+    return JSON.stringify({ error: 'foundry_stage_end: no active stage to close. If you are trying to recover from a tangled state, call foundry_cycle_run() without arguments — it will sort and route to the next stage' });
   }
 
   verifyForgeToolsIfApplicable(io, active);

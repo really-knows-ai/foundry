@@ -96,7 +96,7 @@ export function checkModifiedFiles(lastBase, foundryDir, cycleDef, cycle, io = d
  * (modified, staged, or untracked) in the working tree.
  *
  * Tool-managed files are WORK.md, WORK.feedback.yaml, WORK.history.yaml,
- * and anything under .foundry/. `foundry_run` is the sole writer
+ * and anything under .foundry/. `foundry_cycle_run` is the sole writer
  * of these between stages, and every stage commit is performed internally
  * by the orchestrator's git bridge (the previously-public
  * `foundry_git_commit` tool was deregistered in v2.3.0). If this function

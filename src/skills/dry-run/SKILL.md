@@ -37,7 +37,7 @@ to `.foundry/trace/<branch-slug>.jsonl`.
 
 ### 2. Run the flow
 
-Use the `flow` skill (or call `foundry_run` directly) to drive
+Use the `flow` skill (or call `foundry_cycle_run` directly) to drive
 the flow against the goal. Memory data writes go to `foundry-memory/`
 on this branch — they are discarded with the branch.
 

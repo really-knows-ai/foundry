@@ -1,5 +1,5 @@
 // src/plugin/tools/continue-tool.js
-// foundry_continue — advances an existing run by reading state from disk.
+// foundry_cycle_continue — advances an existing run by reading state from disk.
 
 import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
@@ -19,7 +19,7 @@ function makeGit(worktree) {
 export function createContinueTool(pluginOpts) {
   const { tool, client } = pluginOpts;
   return {
-    foundry_continue: tool({
+    foundry_cycle_continue: tool({
       description: 'Advance an existing run. Reads state from disk and runs until blocked.',
       args: {},
       async execute(_args, context) {
@@ -29,16 +29,16 @@ export function createContinueTool(pluginOpts) {
 
         const branchGuard = requireOnFlowBranch(branchIo);
         if (!branchGuard.ok) {
-          return JSON.stringify({ action: 'violation', details: 'foundry_continue: ' + branchGuard.error, recoverable: false });
+          return JSON.stringify({ action: 'violation', details: 'foundry_cycle_continue: ' + branchGuard.error, recoverable: false });
         }
 
         const failed = readFailedStatus(io);
         if (failed) {
-          return JSON.stringify({ action: 'violation', details: 'foundry_continue: flow is in failed state', recoverable: false });
+          return JSON.stringify({ action: 'violation', details: 'foundry_cycle_continue: flow is in failed state', recoverable: false });
         }
 
         if (!io.exists('WORK.md')) {
-          return JSON.stringify({ action: 'violation', details: 'foundry_continue: WORK.md not found. Use foundry_run() to start a new run.', recoverable: false });
+          return JSON.stringify({ action: 'violation', details: 'foundry_cycle_continue: WORK.md not found. Use foundry_cycle_run() to start a new run.', recoverable: false });
         }
 
         const git = makeGit(context.worktree);

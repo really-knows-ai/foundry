@@ -91,8 +91,8 @@ describe('failed-flow tool gate (flow-tier on work branch)', () => {
       { cycle: 'observe', extractors: ['e'] }, ctx()), 'assay_run');
   });
 
-  it('foundry_continue refuses under failed', async () => {
-    const out = JSON.parse(await plugin.tool.foundry_continue.execute({}, ctx()));
+  it('foundry_cycle_continue refuses under failed', async () => {
+    const out = JSON.parse(await plugin.tool.foundry_cycle_continue.execute({}, ctx()));
     assert.ok(out.error || out.details, `continue: expected error, got ${JSON.stringify(out)}`);
     assert.match(out.error || out.details, /flow is in failed state/i);
   });
@@ -167,7 +167,7 @@ describe('failed-flow tool gate (config-tier on config branch)', () => {
   });
 
   it('extractor_create refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_memory_extractor_create.execute(
+    expectFailedError(await plugin.tool.foundry_memory_create_extractor.execute(
       { name: 'ex', command: 'echo', memoryWrite: ['finding'], body: 'doc' }, ctx()),
       'extractor_create');
   });
@@ -207,9 +207,9 @@ describe('failed-flow tool gate (config-tier on config branch)', () => {
       {}, ctx()), 'memory_vacuum');
   });
 
-  it('memory_change_embedding_model refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_memory_change_embedding_model.execute(
-      { model: 'm', dimensions: 4 }, ctx()), 'memory_change_embedding_model');
+  it('memory_reembed refuses under failed', async () => {
+    expectFailedError(await plugin.tool.foundry_memory_reembed.execute(
+      { model: 'm', dimensions: 4 }, ctx()), 'memory_reembed');
   });
 
   it('memory_dump still works under failed (read-only diagnostic)', async () => {
