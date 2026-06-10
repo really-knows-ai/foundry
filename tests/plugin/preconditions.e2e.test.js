@@ -48,117 +48,18 @@ async function beginStage(plugin, dir, stage, cycle, nonce = 'n1') {
 
 // ── Feedback tools ──
 
-describe('feedback tools require active stage', () => {
+describe('foundry_feedback_list', () => {
   let dir, plugin;
   beforeEach(async () => { dir = initRepo(); plugin = await FoundryPlugin({ directory: dir }); });
 
-function feedbackArgs(toolName) {
-  const base = { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' };
-  if (toolName === 'foundry_feedback_add') {
-    return { file: 'x.md', tag: 'validation', text: 't' };
-  }
-  if (toolName === 'foundry_feedback_resolve') {
-    return { ...base, resolution: 'approved' };
-  }
-  if (toolName === 'foundry_feedback_wontfix') {
-    return { ...base, reason: 'r' };
-  }
-  return base; // foundry_feedback_action
-}
-
-  for (const toolName of ['foundry_feedback_add', 'foundry_feedback_action', 'foundry_feedback_wontfix', 'foundry_feedback_resolve']) {
-    it(`${toolName} errors with no active stage`, async () => {
-      const args = feedbackArgs(toolName);
-      const res = JSON.parse(await plugin.tool[toolName].execute(args, makeCtx(dir)));
-      assert.match(res.error, /requires active/);
-    });
-  }
-
-  it('foundry_feedback_list is always allowed (read-only)', async () => {
+  it('is always allowed without active stage (read-only)', async () => {
     const res = JSON.parse(await plugin.tool.foundry_feedback_list.execute({}, makeCtx(dir)));
     assert.equal(res.error, undefined);
   });
-});
 
-describe('feedback tag allow-list per stage', () => {
-  let dir, plugin;
-  beforeEach(async () => { dir = initRepo(); plugin = await FoundryPlugin({ directory: dir }); });
-
-  it('forge cannot add feedback', async () => {
-    await beginStage(plugin, dir, 'forge:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'validation' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /forge stages do not add feedback/);
-  });
-
-  it('quench may only add tags starting with "law:"', async () => {
-    await beginStage(plugin, dir, 'quench:c', 'c');
-    // law:* tags should be accepted
-    const goodRes = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'law:some-law:validator' }, makeCtx(dir),
-    ));
-    assert.equal(goodRes.ok, true);
-    
-    // non-law tags should be rejected
-    const badRes = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'validation' }, makeCtx(dir),
-    ));
-    assert.match(badRes.error, /quench.*law:/i);
-  });
-
-  it('quench rejects non-law tags', async () => {
-    await beginStage(plugin, dir, 'quench:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'random' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /quench.*law:/i);
-  });
-
-  it('appraise requires tag starting with "law:"', async () => {
-    await beginStage(plugin, dir, 'appraise:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'validation' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /must start with "law:"/);
-  });
-
-  it('human-appraise requires tag "human"', async () => {
-    await beginStage(plugin, dir, 'human-appraise:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'law:foo' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /may only add tag "human"/);
-  });
-
-  it('assay cannot add feedback (assay no longer produces feedback)', async () => {
-    await beginStage(plugin, dir, 'assay:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', text: 't', tag: 'validation' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /assay/);
-    assert.match(res.error, /do not add feedback|cannot add feedback|not permitted/i);
-  });
-});
-
-describe('feedback stage-base allow-list on action/wontfix/resolve', () => {
-  let dir, plugin;
-  beforeEach(async () => { dir = initRepo(); plugin = await FoundryPlugin({ directory: dir }); });
-
-  it('forge stage rejects resolve', async () => {
-    await beginStage(plugin, dir, 'forge:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_resolve.execute(
-      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', resolution: 'approved' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /requires active quench\|appraise\|human-appraise/);
-  });
-
-  it('quench stage rejects action (only forge can)', async () => {
-    await beginStage(plugin, dir, 'quench:c', 'c');
-    const res = JSON.parse(await plugin.tool.foundry_feedback_action.execute(
-      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' }, makeCtx(dir),
-    ));
-    assert.match(res.error, /requires active forge/);
+  it('returns an array of items', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_feedback_list.execute({}, makeCtx(dir)));
+    assert.ok(Array.isArray(res));
   });
 });
 

@@ -65,11 +65,7 @@ const FLOW_TIER_MUTATION_CASES = [
   // workfile-tools.js
   ['foundry_workfile_create', { flow: 'f', cycle: 'observe', goal: 'g' }],
   ['foundry_workfile_delete', { confirm: true }],
-  // feedback-tools.js
-  ['foundry_feedback_add', { file: 'x.md', text: 'y', tag: 'validation' }],
-  ['foundry_feedback_action', { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' }],
-  ['foundry_feedback_wontfix', { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', reason: 'r' }],
-  ['foundry_feedback_resolve', { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', resolution: 'approved' }],
+  // feedback-tools.js — only foundry_feedback_list remains (read-only, no branch guard)
   // assay-tools.js
   ['foundry_assay_run', { cycle: 'observe', extractors: ['e'] }],
   // validate-tools.js

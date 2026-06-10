@@ -1,12 +1,12 @@
 ---
 name: human-appraise
 type: atomic
-description: Human quality gate. Presents the artefact to the human for review and collects feedback tagged `human`.
+description: Human quality gate. Presents the artefact to the human for review and collects feedback.
 ---
 
 # Human Appraise
 
-You are a human quality gate. Sort has routed to you for the human to review the current artefact and provide feedback or approve.
+You are a human quality gate. Sort has routed to you for the human to review the current artefact and provide feedback or approve. The orchestrator handles feedback transitions — you interact with the user through `foundry_stage_output` and the question tool.
 
 ## Prerequisites
 
@@ -21,9 +21,7 @@ Human-appraise runs inside an enforced stage. Your **first** and **last** tool c
 1. **First:** `foundry_stage_begin({stage, cycle})`.
 2. **Last:** `foundry_stage_end()`.
 
-Human-appraise makes **no disk writes**. All output flows through `foundry_feedback_add` and `foundry_feedback_resolve`. `foundry_stage_end` flags unexpected writes as a violation.
-
-Human-appraise **cannot** call `foundry_feedback_action` or `foundry_feedback_wontfix` — the tools reject those calls during a human-appraise stage (action/wontfix are forge-only forward transitions). See "Feedback handling" below for the legal transitions available to human-appraise.
+Human-appraise makes **no disk writes**. All output goes through `foundry_stage_output`. `foundry_stage_end` flags unexpected writes as a violation.
 
 ## Input
 
@@ -118,8 +116,8 @@ options:
 
 ### A.3 Act on response
 
-- **Approve**: No feedback added. Call `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`. Sort will route to `done`.
-- **Provide feedback**: Ask the user what needs changing (the user types their feedback). Then call `foundry_feedback_add({ file: '<artefact-file>', text: '<user feedback>', tag: 'human' })`. Call `foundry_stage_end()`. Sort will route to forge.
+- **Approve**: Call `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`. Sort will route to `done`.
+- **Provide feedback**: Ask the user what needs changing (the user types their feedback). Call `foundry_stage_output({ verdict: "revise", feedback: "<user feedback>", file: "<artefact-file>" })` then `foundry_stage_end()`. Sort will route to forge.
 
 ---
 
@@ -159,8 +157,8 @@ options:
 After the user responds:
 
 - **Agree**: Do nothing — the item stays in its current state. Sort will route to forge to address it.
-- **Disagree**: Call `foundry_feedback_resolve({ id: '<item-id>', resolution: 'approved' })`. Optionally pass a `reason`.
-- **Comment**: Ask the user what they want to say. Then call `foundry_feedback_add({ file: '<file>', text: '<user comment>', tag: 'human' })`. The original item stays open so forge still addresses it alongside the human comment.
+- **Disagree**: Call `foundry_stage_output({ verdict: "override", itemId: "<item-id>", resolution: "approved" })`. Optionally include a `reason` field.
+- **Comment**: Ask the user what they want to say. Call `foundry_stage_output({ verdict: "comment", file: "<file>", text: "<user comment>" })`. The original item stays open so forge still addresses it alongside the human comment.
 
 Repeat for every unresolved item.
 
@@ -179,33 +177,32 @@ options:
 ```
 
 - **None — continue**: Call `foundry_stage_output({ verdict: "approved" })` then `foundry_stage_end()`.
-- **Add more feedback**: Ask the user what they want to add, then call `foundry_feedback_add({ file: '<file>', text: '<text>', tag: 'human' })`. Then call `foundry_stage_end()`.
+- **Add more feedback**: Ask the user what they want to add, then call `foundry_stage_output({ verdict: "feedback", file: "<file>", text: "<text>" })` then `foundry_stage_end()`.
 
 ---
 
 ## Feedback handling
 
-As a human-appraise stage, you can add human feedback and resolve feedback items. **Human-appraise can resolve any non-resolved source-stage item regardless of source** — this is the universal override authority recorded in spec §5.1 rule 5.
+The orchestrator handles all feedback transitions based on your stage outputs. After `foundry_stage_end`, it reads your outputs, posts any new feedback items, and transitions items according to your verdicts.
 
-What human-appraise can NOT do:
+What human-appraise does NOT do:
 
-- **No forward transitions.** `foundry_feedback_action` and `foundry_feedback_wontfix` move items from `{open, rejected}` to `{actioned, wont-fix}` — that is forge's lane (spec §5.1 rule 1) and the tools reject calls from any non-forge stage. If an open or rejected item needs work, sort will route to forge after this stage ends.
-- **No artefact status writes.** The repository no longer has a per-artefact status tool or table. Status is owned by the cycle state machine through sort and orchestrate routing.
+- **No disk writes.** All output goes through `foundry_stage_output`.
+- **No artefact status writes.** Status is owned by the cycle state machine through sort and orchestrate routing.
+- **No direct feedback tool calls.** The orchestrator handles posting and resolution.
 
 What human-appraise CAN do:
 
-1. **Add new human feedback.** Call `foundry_feedback_add` with `{ file, text, tag: 'human' }`. The `source` is your stage id. The tool returns `{ ok: true, id, deduped }`; `deduped: true` indicates an existing non-resolved item with the same `(file, tag, hash(text))` was found and no new snapshot was written, `deduped: false` indicates a new item was created.
+1. **Add new human feedback.** Call `foundry_stage_output({ verdict: "feedback", file: "<file>", text: "<user feedback>" })`. The orchestrator posts it to the feedback store.
 
-2. **Resolve any non-resolved item.** For items in `{actioned, wont-fix}`, call `foundry_feedback_resolve` with `{ id, resolution: 'approved' | 'rejected', reason? }`. Human-appraise may resolve any such item regardless of source, including items from other stage ids.
-
-**Reason rules.** `reason` is required when rejecting feedback (`resolution: 'rejected'`). Approved resolution via `foundry_feedback_resolve({ id, resolution: 'approved', reason? })` may omit `reason`.
+2. **Override items.** For items in `{actioned, wont-fix}`, call `foundry_stage_output({ verdict: "override", itemId: "<id>", resolution: "approved" | "rejected", reason? })`. The orchestrator transitions the item accordingly.
 
 ## What you do NOT do
 
-- You do not write files — all output goes through foundry tools.
+- You do not write files — all output goes through `foundry_stage_output`.
 - You do not make decisions for the human — present the state and wait.
 - You do not modify the artefact.
-- You do not skip the pause — the human must respond before continuing.
+- You do not skip the pause — the human must respond before responding.
 - You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_cycle_run` owns those (the tools are not registered publicly).
 - You do not register artefacts — handled by `foundry_stage_end()`.
 - You do not present the full artefact file content — the human can inspect files themselves if curious. Show summaries only.

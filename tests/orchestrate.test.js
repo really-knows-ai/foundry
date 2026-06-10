@@ -79,8 +79,6 @@ describe('renderDispatchPrompt with forgeItem', () => {
     });
 
     assert.doesNotMatch(prompt, /foundry_feedback_list/);
-    assert.doesNotMatch(prompt, /foundry_feedback_action/);
-    assert.doesNotMatch(prompt, /foundry_feedback_wontfix/);
   });
 
   // ---------------------------------------------------------------------------

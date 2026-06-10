@@ -1,7 +1,9 @@
-// tests/plugin/feedback-tools.test.js
+// tests/plugin/feedback-tools.e2e.test.js
+// E2E tests for foundry_feedback_list — the only remaining feedback tool.
+
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -14,68 +16,49 @@ const GIT_ENV = {
   GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
 };
 
-// ---------------------------------------------------------------------------
-// Test harness — real plugin, no stub layer.
-// Pattern copied from tests/plugin/assay-tools.test.js and
-// tests/plugin/stage-end-failed-flow.test.js. Do not invent stubs.
-// ---------------------------------------------------------------------------
-
-/**
- * Write the active-stage JSON file. Production shape is {cycle, stage, baseSha}
- * (see scripts/lib/state.js). baseSha is a dummy in tests; real callers set it.
- */
-function writeActiveStage(dir, { cycle = 'write-haiku', stage, baseSha = 'test-sha' }) {
-  writeFileSync(
-    path.join(dir, '.foundry', 'active-stage.json'),
-    JSON.stringify({ cycle, stage, baseSha }),
-    'utf-8',
-  );
-}
-
-function makeWorktree({ stage = 'appraise:write-check', cycle = 'write-haiku', flow = 'creative' } = {}) {
+function makeWorktree({ cycle = 'write-haiku', flow = 'creative' } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'fdy-feedback-tools-'));
-  // Flow-tier branch guard: feedback-* tools require a work/<x> branch.
   execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir, env: GIT_ENV });
   execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'baseline'], { cwd: dir, env: GIT_ENV });
   execFileSync('git', ['checkout', '-q', '-b', 'work/feedback-test'], { cwd: dir, env: GIT_ENV });
   mkdirSync(path.join(dir, '.foundry'), { recursive: true });
-  writeActiveStage(dir, { cycle, stage });
   writeFileSync(
     path.join(dir, 'WORK.md'),
-    `---\nflow: ${flow}\ncycle: ${cycle}\nstages:\n  - ${stage}\n---\n\n# Goal\n\ngo\n\n| File | Type | Cycle | Status |\n|------|------|-------|--------|\n`,
+    `---\nflow: ${flow}\ncycle: ${cycle}\n---\n\n# Goal\n\ngo\n`,
     'utf-8',
   );
   return dir;
 }
 
-async function getPlugin(dir) {
-  return FoundryPlugin({ directory: dir });
+function seedFeedback(dir, items) {
+  writeFileSync(
+    path.join(dir, 'WORK.feedback.yaml'),
+    yaml.dump({ items }),
+    'utf-8',
+  );
+}
+
+const now = new Date().toISOString();
+
+function feedbackItem(overrides = {}) {
+  return {
+    id: overrides.id || '01HXY8K9Q5Z3WN0GJM2TYBR4AA',
+    file: overrides.file || 'haiku.md',
+    tag: overrides.tag || 'law:dark',
+    text: overrides.text || 'too cheerful',
+    source: overrides.source || 'appraise:write-check',
+    artefact_version: overrides.artefact_version || '',
+    history: [{
+      state: overrides.state || 'open',
+      stage: overrides.source || 'appraise:write-check',
+      cycle: 'write-haiku',
+      timestamp: now,
+      ...(overrides.reason ? { reason: overrides.reason } : {}),
+    }],
+  };
 }
 
 let worktree;
-
-async function tools(dir) {
-  const plugin = await getPlugin(dir);
-  return plugin.tool;
-}
-
-function parseResult(raw) {
-  return JSON.parse(raw);
-}
-
-async function setupToActioned(stage, cycle = 'write-haiku') {
-  worktree = makeWorktree({ stage, cycle });
-  const t1 = await tools(worktree);
-  const { id } = parseResult(await t1.foundry_feedback_add.execute(
-    { file: 'haiku.md', text: 'x', tag: stage.startsWith('appraise') ? 'law:x' : 'validation' },
-    { worktree },
-  ));
-  writeActiveStage(worktree, { stage: 'forge:write', cycle });
-  const t2 = await tools(worktree);
-  const actRes = parseResult(await t2.foundry_feedback_action.execute({ id }, { worktree }));
-  assert.equal(actRes.ok, true);
-  return id;
-}
 
 afterEach(() => {
   if (worktree) {
@@ -84,475 +67,86 @@ afterEach(() => {
   }
 });
 
-describe('foundry_feedback_add — id-based API', () => {
-  test('writes WORK.feedback.yaml with a new item and returns the id', async () => {
+describe('foundry_feedback_list', () => {
+  test('returns items with expected fields', async () => {
     worktree = makeWorktree();
-    const plugin = await getPlugin(worktree);
-    const raw = await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'too cheerful', tag: 'law:dark' },
-      { worktree },
-    );
-    const res = parseResult(raw);
-    assert.equal(res.ok, true);
-    assert.equal(typeof res.id, 'string');
-    assert.equal(res.id.length, 26);
-    assert.equal(res.deduped, false);
-
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items.length, 1);
-    assert.equal(doc.items[0].id, res.id);
-    assert.equal(doc.items[0].source, 'appraise:write-check');
-    assert.equal(doc.items[0].history[0].state, 'open');
-  });
-
-  test('returns deduped:true when the same (file, tag, text) exists', async () => {
-    worktree = makeWorktree();
-    const plugin = await getPlugin(worktree);
-    const first = parseResult(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'too cheerful', tag: 'law:dark' },
-      { worktree },
-    ));
-    const second = parseResult(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'too cheerful', tag: 'law:dark' },
-      { worktree },
-    ));
-    assert.equal(second.ok, true);
-    assert.equal(second.deduped, true);
-    assert.equal(second.id, first.id);
-  });
-
-  test('rejects forge stage (forge cannot add feedback)', async () => {
-    worktree = makeWorktree({ stage: 'forge:write' });
-    const plugin = await getPlugin(worktree);
-    const raw = await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'hitl' },
-      { worktree },
-    );
-    const res = parseResult(raw);
-    assert.ok(res.error);
-    assert.match(res.error, /forge/);
-  });
-
-  test('rejects when no active stage', async () => {
-    worktree = makeWorktree();
-    rmSync(path.join(worktree, '.foundry', 'active-stage.json'), { force: true });
-    const plugin = await getPlugin(worktree);
-    const raw = await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    );
-    const res = parseResult(raw);
-    assert.ok(res.error);
-    assert.match(res.error, /active stage/);
-  });
-
-  test('per-stage tag allow-list enforced (quench may only add law:* tags)', async () => {
-    worktree = makeWorktree({ stage: 'quench:check' });
-    const plugin = await getPlugin(worktree);
-    
-    // law:* tags should be accepted
-    const lawRes = parseResult(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:some-law:validator-id' },
-      { worktree },
-    ));
-    assert.equal(lawRes.ok, true, 'law: tags should be accepted in quench');
-    
-    // bare 'validation' tag should be rejected (legacy)
-    const valRes = parseResult(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'y', tag: 'validation' },
-      { worktree },
-    ));
-    assert.match(valRes.error, /quench.*law:/i);
-  });
-});
-
-describe('foundry_feedback_list — new response shape', () => {
-  test('returns items with {id, file, tag, text, source, state, depth} fields', async () => {
-    worktree = makeWorktree();
-    const t = await tools(worktree);
-    const addRes = parseResult(await t.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'too cheerful', tag: 'law:dark' },
-      { worktree },
-    ));
-
-    const listRaw = await t.foundry_feedback_list.execute({}, { worktree });
-    const items = parseResult(listRaw);
+    seedFeedback(worktree, [feedbackItem()]);
+    const plugin = await FoundryPlugin({ directory: worktree });
+    const raw = await plugin.tool.foundry_feedback_list.execute({}, { worktree });
+    const items = JSON.parse(raw);
     assert.equal(Array.isArray(items), true);
     assert.equal(items.length, 1);
     const it = items[0];
-    assert.equal(it.id, addRes.id);
+    assert.equal(it.id, '01HXY8K9Q5Z3WN0GJM2TYBR4AA');
     assert.equal(it.file, 'haiku.md');
     assert.equal(it.tag, 'law:dark');
     assert.equal(it.text, 'too cheerful');
     assert.equal(it.source, 'appraise:write-check');
     assert.equal(it.state, 'open');
     assert.equal(it.depth, 1);
-    assert.equal(it.reason, undefined);
   });
 
-  test('filters by file when `file` argument is supplied', async () => {
+  test('filters by file when file argument is supplied', async () => {
     worktree = makeWorktree();
-    const t = await tools(worktree);
-    await t.foundry_feedback_add.execute({ file: 'a.md', text: 't1', tag: 'law:x' }, { worktree });
-    await t.foundry_feedback_add.execute({ file: 'b.md', text: 't2', tag: 'law:x' }, { worktree });
-    const items = parseResult(await t.foundry_feedback_list.execute({ file: 'a.md' }, { worktree }));
+    seedFeedback(worktree, [
+      feedbackItem({ id: 'a', file: 'a.md' }),
+      feedbackItem({ id: 'b', file: 'b.md' }),
+    ]);
+    const plugin = await FoundryPlugin({ directory: worktree });
+    const raw = await plugin.tool.foundry_feedback_list.execute({ file: 'a.md' }, { worktree });
+    const items = JSON.parse(raw);
     assert.equal(items.length, 1);
     assert.equal(items[0].file, 'a.md');
   });
 
   test('returns an empty array when WORK.feedback.yaml is absent', async () => {
     worktree = makeWorktree();
-    const t = await tools(worktree);
-    const items = parseResult(await t.foundry_feedback_list.execute({}, { worktree }));
-    assert.deepEqual(items, []);
+    const plugin = await FoundryPlugin({ directory: worktree });
+    const raw = await plugin.tool.foundry_feedback_list.execute({}, { worktree });
+    assert.deepEqual(JSON.parse(raw), []);
   });
 
   test('returns a tool-prefixed error when WORK.md is absent', async () => {
     worktree = makeWorktree();
     rmSync(path.join(worktree, 'WORK.md'), { force: true });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_list.execute({}, { worktree }));
+    const plugin = await FoundryPlugin({ directory: worktree });
+    const raw = await plugin.tool.foundry_feedback_list.execute({}, { worktree });
+    const res = JSON.parse(raw);
     assert.equal(res.error, 'foundry_feedback_list: WORK.md cycle not found');
   });
 
-  test('resolved item reports actual history.length, not 0 (G10 contract fix)', async () => {
-    // Create feedback item that goes through full cycle: open -> actioned -> resolved
-    worktree = makeWorktree({ stage: 'appraise:write-check' });
-    const t1 = await tools(worktree);
-    const { id } = parseResult(await t1.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'needs work', tag: 'law:dark' },
-      { worktree },
-    ));
+  test('works without an active stage (read-only)', async () => {
+    worktree = makeWorktree();
+    seedFeedback(worktree, [feedbackItem()]);
+    const plugin = await FoundryPlugin({ directory: worktree });
+    const raw = await plugin.tool.foundry_feedback_list.execute({}, { worktree });
+    const items = JSON.parse(raw);
+    assert.equal(items.length, 1);
+  });
 
-    // Action it from forge stage
-    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
-    const t2 = await tools(worktree);
-    await t2.foundry_feedback_action.execute({ id }, { worktree });
-
-    // Resolve it from source stage
-    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
-    const t3 = await tools(worktree);
-    await t3.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved', reason: 'fixed' },
-      { worktree },
-    );
-
-    // List and verify depth = history.length (3: open, actioned, resolved)
-    const items = parseResult(await t3.foundry_feedback_list.execute({}, { worktree }));
+  test('reports resolved item state and depth correctly', async () => {
+    worktree = makeWorktree();
+    // Build the item manually so history contains all three transitions.
+    const item = {
+      id: 'resolved-item',
+      file: 'haiku.md',
+      tag: 'law:dark',
+      text: 'too cheerful',
+      source: 'appraise:write-check',
+      artefact_version: '',
+      history: [
+        { state: 'resolved', stage: 'system', cycle: 'write-haiku', timestamp: now, reason: 'fixed' },
+        { state: 'actioned', stage: 'forge:write-haiku', cycle: 'write-haiku', timestamp: now },
+        { state: 'open', stage: 'appraise:write-check', cycle: 'write-haiku', timestamp: now },
+      ],
+    };
+    seedFeedback(worktree, [item]);
+    const plugin = await FoundryPlugin({ directory: worktree });
+    const raw = await plugin.tool.foundry_feedback_list.execute({}, { worktree });
+    const items = JSON.parse(raw);
     assert.equal(items.length, 1);
     assert.equal(items[0].state, 'resolved');
-    assert.equal(items[0].depth, 3, 'resolved item should report actual history.length, not 0');
-  });
-});
-
-describe('foundry_feedback_action — id-based', () => {
-  test('transitions an open item to actioned from a forge stage', async () => {
-    worktree = makeWorktree();
-    const tAdd = await tools(worktree);
-    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    ));
-    // Rewrite active-stage to forge:write and call action.
-    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
-    const tAct = await tools(worktree);
-    const res = parseResult(await tAct.foundry_feedback_action.execute({ id }, { worktree }));
-    assert.equal(res.ok, true);
-
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'actioned');
-    assert.equal(doc.items[0].history[0].stage, 'forge:write');
-  });
-
-  test('rejects non-forge stage', async () => {
-    worktree = makeWorktree();
-    const t = await tools(worktree);
-    const { id } = parseResult(await t.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    ));
-    // active-stage is still appraise:write-check; foundry_feedback_action requires forge.
-    const res = parseResult(await t.foundry_feedback_action.execute({ id }, { worktree }));
-    assert.ok(res.error);
-    assert.match(res.error, /forge/);
-  });
-
-  test('rejects unknown id', async () => {
-    worktree = makeWorktree({ stage: 'forge:write' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_action.execute({ id: 'DOES_NOT_EXIST' }, { worktree }));
-    assert.ok(res.error);
-    assert.match(res.error, /not found/);
-  });
-});
-
-describe('foundry_feedback_wontfix — id-based', () => {
-  test('transitions to wont-fix with reason from a forge stage', async () => {
-    worktree = makeWorktree({ stage: 'forge:write' });
-    // First add from an appraise stage (forge cannot add).
-    writeActiveStage(worktree, { stage: 'appraise:a', cycle: 'write-haiku' });
-    const t1 = await tools(worktree);
-    const { id } = parseResult(await t1.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    ));
-    // Switch to forge, call wontfix.
-    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
-    const t2 = await tools(worktree);
-    const res = parseResult(await t2.foundry_feedback_wontfix.execute(
-      { id, reason: 'out of scope' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'wont-fix');
-    assert.equal(doc.items[0].history[0].reason, 'out of scope');
-  });
-
-  test('rejects missing reason', async () => {
-    worktree = makeWorktree();
-    const tAdd = await tools(worktree);
-    const { id } = parseResult(await tAdd.foundry_feedback_add.execute(
-      { file: 'haiku.md', text: 'x', tag: 'law:x' },
-      { worktree },
-    ));
-    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
-    const tWf = await tools(worktree);
-    const res = parseResult(await tWf.foundry_feedback_wontfix.execute({ id, reason: '' }, { worktree }));
-    assert.ok(res.error);
-    assert.match(res.error, /reason/);
-  });
-});
-
-describe('foundry_feedback_resolve — id-based', () => {
-  test('source stage resolves an actioned item', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    // Switch back to source.
-    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved', reason: 'fix verified' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'resolved');
-  });
-
-  test('non-source stage cannot resolve', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    writeActiveStage(worktree, { stage: 'appraise:other-check', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved' },
-      { worktree },
-    ));
-    assert.match(res.error, /source/);
-  });
-
-  test('rejected resolution requires reason', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'rejected' },
-      { worktree },
-    ));
-    assert.match(res.error, /reason/);
-  });
-
-  test('approved resolution without reason succeeds (G1 regression)', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved' }, // no reason
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'resolved');
-  });
-
-  test('approved resolution with reason still works (G1 regression)', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved', reason: 'looks good' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'resolved');
-    assert.equal(doc.items[0].history[0].reason, 'looks good');
-  });
-
-  test('rejected resolution with reason succeeds (G1 regression)', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'rejected', reason: 'still broken' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'rejected');
-    assert.equal(doc.items[0].history[0].reason, 'still broken');
-  });
-});
-
-describe('foundry_feedback_resolve — deadlock override', () => {
-  test('human-appraise can resolve a deadlocked item regardless of source', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    // Simulate sort-side deadlock: write the snapshot directly via yaml.
-    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
-    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
-    doc.items[0].history.unshift({
-      state: 'deadlocked',
-      stage: 'sort',
-      cycle: 'write-haiku',
-      timestamp: new Date().toISOString(),
-      reason: 'depth=3',
-    });
-    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
-
-    // Switch to human-appraise stage, resolve it.
-    writeActiveStage(worktree, { stage: 'human-appraise:review', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved', reason: 'accepting as-is' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const after = yaml.load(readFileSync(feedbackPath, 'utf-8'));
-    assert.equal(after.items[0].history[0].state, 'resolved');
-  });
-
-  test('deadlocked item can be resolved without a reason', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
-    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
-    doc.items[0].history.unshift({
-      state: 'deadlocked',
-      stage: 'sort',
-      cycle: 'write-haiku',
-      timestamp: new Date().toISOString(),
-      reason: 'depth=3',
-    });
-    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
-    writeActiveStage(worktree, { stage: 'human-appraise:review', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved' }, // no reason
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-  });
-
-  test('appraise CANNOT override a deadlocked item even when source matches', async () => {
-    const id = await setupToActioned('appraise:write-check');
-    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
-    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
-    doc.items[0].history.unshift({
-      state: 'deadlocked',
-      stage: 'sort',
-      cycle: 'write-haiku',
-      timestamp: new Date().toISOString(),
-      reason: 'depth=3',
-    });
-    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
-    writeActiveStage(worktree, { stage: 'appraise:write-check', cycle: 'write-haiku' });
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved', reason: 'trying' },
-      { worktree },
-    ));
-    // State machine refuses: only human-appraise overrides deadlocked.
-    assert.ok(res.error);
-  });
-});
-
-describe('foundry_feedback_action — reason passthrough (Phase 3)', () => {
-  test('foundry_feedback_action accepts optional reason', async () => {
-    worktree = makeWorktree({ stage: 'forge:write' });
-    // Add feedback item first from an appraise stage
-    writeActiveStage(worktree, { stage: 'appraise:a', cycle: 'write-haiku' });
-    const t1 = await tools(worktree);
-    const { id } = parseResult(await t1.foundry_feedback_add.execute(
-      { file: 'test.md', text: 'needs work', tag: 'law:quality' },
-      { worktree },
-    ));
-    // Switch to forge, call action with reason
-    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
-    const t2 = await tools(worktree);
-    const res = parseResult(await t2.foundry_feedback_action.execute(
-      { id, reason: 'fixed the typo' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    // Verify reason was stored
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'actioned');
-    assert.equal(doc.items[0].history[0].reason, 'fixed the typo');
-  });
-
-  test('resolve reason substituted with verbatim capture during human-appraise', async () => {
-    // Create a deadlocked item from appraise stage, then resolve with human-appraise
-    const id = await setupToActioned('appraise:write-check');
-    const feedbackPath = path.join(worktree, 'WORK.feedback.yaml');
-    const doc = yaml.load(readFileSync(feedbackPath, 'utf-8'));
-    doc.items[0].history.unshift({
-      state: 'deadlocked',
-      stage: 'sort',
-      cycle: 'write-haiku',
-      timestamp: new Date().toISOString(),
-      reason: 'depth=3',
-    });
-    writeFileSync(feedbackPath, yaml.dump(doc), 'utf-8');
-
-    // Switch to human-appraise; write verbatim capture
-    writeActiveStage(worktree, { stage: 'human-appraise:review', cycle: 'write-haiku' });
-    const foundryDir = path.join(worktree, '.foundry');
-    writeFileSync(path.join(foundryDir, 'verbatim-capture.txt'), 'the user says this is wrong', 'utf-8');
-
-    // Resolve with no reason — should use verbatim capture
-    const t = await tools(worktree);
-    const res = parseResult(await t.foundry_feedback_resolve.execute(
-      { id, resolution: 'approved' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const after = yaml.load(readFileSync(feedbackPath, 'utf-8'));
-    assert.equal(after.items[0].history[0].state, 'resolved');
-    assert.equal(after.items[0].history[0].reason, 'the user says this is wrong');
-  });
-
-  test('action reason NOT substituted during non-human-appraise stage', async () => {
-    worktree = makeWorktree({ stage: 'forge:write', cycle: 'write-haiku' });
-    // Write verbatim capture (should be ignored during forge)
-    const foundryDir = path.join(worktree, '.foundry');
-    writeFileSync(path.join(foundryDir, 'verbatim-capture.txt'), 'verbatim text', 'utf-8');
-
-    // Add feedback from appraise, then switch to forge
-    writeActiveStage(worktree, { stage: 'appraise:a', cycle: 'write-haiku' });
-    const t1 = await tools(worktree);
-    const { id } = parseResult(await t1.foundry_feedback_add.execute(
-      { file: 'test.md', text: 'needs work', tag: 'law:quality' },
-      { worktree },
-    ));
-
-    writeActiveStage(worktree, { stage: 'forge:write', cycle: 'write-haiku' });
-    const t2 = await tools(worktree);
-    const res = parseResult(await t2.foundry_feedback_action.execute(
-      { id, reason: 'agent reason' },
-      { worktree },
-    ));
-    assert.equal(res.ok, true);
-    const doc = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
-    assert.equal(doc.items[0].history[0].state, 'actioned');
-    // Reason should be the agent's reason, NOT the verbatim capture
-    assert.equal(doc.items[0].history[0].reason, 'agent reason');
+    assert.equal(items[0].depth, 3);
+    assert.equal(items[0].reason, 'fixed');
   });
 });

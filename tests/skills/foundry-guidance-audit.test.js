@@ -347,17 +347,6 @@ test('add-law must not fall back to hand editing for collisions', () => {
 
 test('forge skill does not instruct agents to use feedback action or wont-fix tools', () => {
   const text = readSkill('forge');
-  // The forge skill may mention the tools only in a "Do NOT call" prohibition.
-  // The prohibition spans commas on the same line, so match broadly with .*
-  // after "Do NOT call".
-  assert.ok(
-    !text.includes('foundry_feedback_action') || /Do NOT call.*`foundry_feedback_action`/.test(text),
-    'forge skill must not instruct agents to use foundry_feedback_action',
-  );
-  assert.ok(
-    !text.includes('foundry_feedback_wontfix') || /Do NOT call.*`foundry_feedback_wontfix`/.test(text),
-    'forge skill must not instruct agents to use foundry_feedback_wontfix',
-  );
   assert.ok(
     !text.includes('call `foundry_feedback_list`'),
     'forge skill must not instruct calling foundry_feedback_list',

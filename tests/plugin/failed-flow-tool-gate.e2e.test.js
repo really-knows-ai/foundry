@@ -66,26 +66,6 @@ describe('failed-flow tool gate (flow-tier on work branch)', () => {
       { flow: 'f', cycle: 'observe', goal: 'g' }, ctx()), 'workfile_create');
   });
 
-  it('feedback_add refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_feedback_add.execute(
-      { file: 'x.md', tag: 'validation', text: 'y' }, ctx()), 'feedback_add');
-  });
-
-  it('feedback_resolve refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_feedback_resolve.execute(
-      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', resolution: 'approved' }, ctx()), 'feedback_resolve');
-  });
-
-  it('feedback_action refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_feedback_action.execute(
-      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB' }, ctx()), 'feedback_action');
-  });
-
-  it('feedback_wontfix refuses under failed', async () => {
-    expectFailedError(await plugin.tool.foundry_feedback_wontfix.execute(
-      { id: '01HXY8K9Q5Z3WN0GJM2TYBR4AB', reason: 'r' }, ctx()), 'feedback_wontfix');
-  });
-
   it('assay_run refuses under failed', async () => {
     expectFailedError(await plugin.tool.foundry_assay_run.execute(
       { cycle: 'observe', extractors: ['e'] }, ctx()), 'assay_run');

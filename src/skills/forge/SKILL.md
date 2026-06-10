@@ -80,8 +80,8 @@ Do NOT change the file.
 
 The status is validated by the tool. No descriptions, no explanations.
 
-Do NOT call `foundry_feedback_action`, `foundry_feedback_wontfix`, or
-`foundry_feedback_resolve`. The orchestrator handles transitions automatically.
+The orchestrator handles feedback transitions automatically based on your
+artefact changes and stage output. You do not call feedback tools directly.
 
 ## Write invariant
 
@@ -104,7 +104,7 @@ items in the list output.
 ## What you do NOT do
 
 - You normally do not add feedback — that is the quench and appraise skills' job.
-- You do not `foundry_feedback_resolve` — that belongs to quench/appraise/human-appraise.
+- You do not resolve feedback items — that belongs to quench/appraise/human-appraise (the orchestrator handles transitions).
 - You do not register artefacts — the orchestrator's internal finalise step handles that automatically.
 - You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_cycle_run` does (those tools are not registered publicly).
 - You do not evaluate or score the artefact.

@@ -62,14 +62,14 @@ the outputs, posts feedback, and resolves prior items.
 
 ## Feedback handling
 
-You do NOT call `foundry_feedback_add` or `foundry_feedback_resolve`. The orchestrator's consolidate step reads your stage outputs, de-duplicates across all appraisers, posts feedback items with tag `law:<slug>`, and resolves prior appraise-sourced feedback.
+The orchestrator's consolidate step reads your stage outputs, de-duplicates across all appraisers, posts feedback items with tag `law:<slug>`, and resolves prior appraise-sourced feedback. You do not call feedback tools directly.
 
 ## What you do NOT do
 
-- You do not write files — feedback output goes through `foundry_stage_output`, not `foundry_feedback_add`.
+- You do not write files — feedback output goes through `foundry_stage_output`.
 - You do not revise the artefact — that is the forge skill's job.
 - You do not run deterministic validators — that is the quench skill's job.
-- You do not call `foundry_feedback_add`, `foundry_feedback_action`, `foundry_feedback_wontfix`, or `foundry_feedback_resolve`.
+- You do not call any feedback tools — the orchestrator handles transitions automatically.
 - You do not call `foundry_history_append` or `foundry_git_commit` — `foundry_cycle_run` handles those.
 - You do not register artefacts — that happens automatically.
 - You do not output YAML, markdown, or prose — use `foundry_stage_output` for structured data.

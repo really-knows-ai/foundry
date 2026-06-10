@@ -189,12 +189,19 @@ describe('workfiles consistency — driven', () => {
   test('after a full appraise/forge/appraise round-trip, the invariant holds', async () => {
     const worktree = makeWorktree();
     try {
-      const t1 = await tools(worktree);
-      const addRes = parseResult(await t1.foundry_feedback_add.execute(
-        { file: 'haiku.md', text: 'too cheerful', tag: 'law:dark' },
-        { worktree },
-      ));
-      assert.equal(addRes.ok, true);
+      const now = new Date().toISOString();
+      const itemId = '01HXY8K9Q5Z3WN0GJM2TYBR4ZZ';
+
+      // Seed a feedback item directly (tools were removed; this simulates
+      // what the orchestration does).
+      writeFileSync(path.join(worktree, 'WORK.feedback.yaml'), yaml.dump({
+        items: [{
+          id: itemId, file: 'haiku.md', tag: 'law:dark',
+          text: 'too cheerful', source: 'appraise:w',
+          artefact_version: '',
+          history: [{ state: 'open', stage: 'appraise:w', cycle: 'write-haiku', timestamp: now }],
+        }],
+      }));
       appendHistory(worktree, {
         cycle: 'write-haiku',
         stage: 'appraise:w',
@@ -207,10 +214,12 @@ describe('workfiles consistency — driven', () => {
         loadFeedbackAndHistory(worktree).historyEntries,
       ));
 
-      writeActiveStage(worktree, { stage: 'forge:w', cycle: 'write-haiku' });
-      const t2 = await tools(worktree);
-      const actionRes = parseResult(await t2.foundry_feedback_action.execute({ id: addRes.id }, { worktree }));
-      assert.equal(actionRes.ok, true);
+      // Transition to actioned — simulate forge dispatch.
+      const doc1 = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+      doc1.items[0].history.unshift({
+        state: 'actioned', stage: 'forge:w', cycle: 'write-haiku', timestamp: new Date().toISOString(),
+      });
+      writeFileSync(path.join(worktree, 'WORK.feedback.yaml'), yaml.dump(doc1));
       appendHistory(worktree, {
         cycle: 'write-haiku',
         stage: 'forge:w',
@@ -223,13 +232,13 @@ describe('workfiles consistency — driven', () => {
         loadFeedbackAndHistory(worktree).historyEntries,
       ));
 
-      writeActiveStage(worktree, { stage: 'appraise:w', cycle: 'write-haiku' });
-      const t3 = await tools(worktree);
-      const resolveRes = parseResult(await t3.foundry_feedback_resolve.execute(
-        { id: addRes.id, resolution: 'approved', reason: 'fix verified' },
-        { worktree },
-      ));
-      assert.equal(resolveRes.ok, true);
+      // Transition to resolved — simulate appraise consensus.
+      const doc2 = yaml.load(readFileSync(path.join(worktree, 'WORK.feedback.yaml'), 'utf-8'));
+      doc2.items[0].history.unshift({
+        state: 'resolved', stage: 'appraise:w', cycle: 'write-haiku',
+        timestamp: new Date().toISOString(), reason: 'fix verified',
+      });
+      writeFileSync(path.join(worktree, 'WORK.feedback.yaml'), yaml.dump(doc2));
       appendHistory(worktree, {
         cycle: 'write-haiku',
         stage: 'appraise:w',

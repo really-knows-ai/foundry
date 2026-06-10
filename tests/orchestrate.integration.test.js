@@ -101,8 +101,6 @@ test('renderDispatchPrompt omits feedback-tool references when forgeItem is prov
     forgeItem: { id: 'fb1', file: 'haikus/a.md', tag: 'law:x', text: 'fix it', source: 'quench' },
   });
   assert.doesNotMatch(prompt, /foundry_feedback_list/);
-  assert.doesNotMatch(prompt, /foundry_feedback_action/);
-  assert.doesNotMatch(prompt, /foundry_feedback_wontfix/);
 });
 
 test('synthesizeStages: forge + quench + appraise when validation exists', () => {

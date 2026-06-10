@@ -51,13 +51,13 @@ Call `foundry_assay_run({ cycle, extractors })` passing exactly those values. Do
 
 Call `foundry_stage_end()`. Always end the stage, whether the run succeeded or aborted. The stage lifecycle must close cleanly so the orchestrator can commit.
 
-Do not add feedback items, do not call `foundry_feedback_add`. Assay stages cannot file feedback — extractor failure is recorded directly on the workfile (`status: failed`).
+Do not add feedback items — assay stages cannot file feedback. Extractor failure is recorded directly on the workfile (`status: failed`).
 
 ## What this skill must not do
 
 - **Must not** read or parse extractor output files itself.
 - **Must not** call any memory write tools (`foundry_memory_put`, `foundry_memory_relate`, etc.). All writes go through `foundry_assay_run`.
-- **Must not** invoke `foundry_feedback_add`. Assay stages cannot file feedback; extractor failure is signalled by the workfile's `status: failed` field.
+- **Must not** file feedback. Assay stages cannot file feedback; extractor failure is signalled by the workfile's `status: failed` field.
 - **Must not** modify any artefact files. The assay stage writes only to flow memory.
 
 ## If something unexpected happens

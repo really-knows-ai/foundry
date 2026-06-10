@@ -58,26 +58,68 @@ function extractForgeCfm(cfm) {
   };
 }
 
-function finalizeForgeOutcome(opts) {
-  const { cycleId, historyPath, io, stageOutputLines, store, arV, route } = opts;
+/**
+ * Select the next feedback item for forge to address.
+ *
+ * Selection rules:
+ * 1. List all items from the feedback store.
+ * 2. Filter to items whose `history[0].state` is `open` or `rejected`
+ *    (these are the states forge operates on).
+ * 3. Sort by creation order (oldest `history[0].timestamp` first) so
+ *    feedback is addressed FIFO. When timestamps are equal, sort by
+ *    state so `open` precedes `rejected`, then by id for determinism.
+ * 4. Return the first matching item, or `null` if none exists.
+ *
+ * @param {object} feedbackStore — opened feedback store with a `.list()` method
+ * @returns {object|null} — the selected feedback item, or null
+ */
+export function selectForgeFeedback(feedbackStore) {
+  const items = feedbackStore.list();
+  const candidates = items.filter(it =>
+    it.history[0].state === 'open' || it.history[0].state === 'rejected');
+  if (candidates.length === 0) return null;
+  candidates.sort(compareCandidates);
+  return candidates[0];
+}
+
+/** Sort comparator: oldest timestamp first, then open before rejected, then by id. */
+function compareCandidates(a, b) {
+  const ts = a.history[0].timestamp.localeCompare(b.history[0].timestamp);
+  if (ts !== 0) return ts;
+  const st = a.history[0].state.localeCompare(b.history[0].state);
+  if (st !== 0) return st;
+  return a.id.localeCompare(b.id);
+}
+
+function extractPreVersion(forgeItem) {
+  if (!forgeItem) return '';
+  return forgeItem.artefact_version || '';
+}
+
+export function finalizeForgeOutcome(opts) {
+  const { cycleId, historyPath, io, stageOutputLines, store, arV, route, forgeItem } = opts;
+  const postVersion = arV || '';
   const lastOutput = stageOutputLines.length > 0
     ? stageOutputLines[stageOutputLines.length - 1]
     : { status: 'done' };
+  const item = forgeItem || null;
+  const preVersion = extractPreVersion(forgeItem);
+
   const contractResult = enforceForgeContract({
-    item: null, preVersion: '', postVersion: arV || '',
+    item, preVersion, postVersion,
     output: lastOutput, feedbackStore: store, cycleId,
   });
 
   appendEntry(historyPath, buildForgeHistoryEntry({
     cycle: cycleId, stage: route, iteration: 1,
     comment: 'forge completed for ' + cycleId,
-    artefactVersion: arV || '',
+    artefactVersion: postVersion,
     contractPassed: contractResult.contractPassed,
     changedFiles: [],
   }), io);
 
   if (!contractResult.contractPassed) return { ok: false, error: 'Forge contract failed' };
-  return { ok: true, contractPassed: true, artefactVersion: arV, changedFiles: [] };
+  return { ok: true, contractPassed: true, artefactVersion: postVersion, changedFiles: [] };
 }
 
 
@@ -94,9 +136,12 @@ export async function executeForge(forgeOpts) {
 
   const { outputType, forgeModel, filePatterns } = extractForgeCfm(cfm);
 
+  const store = openFeedbackStore(feedbackPath, io);
+  const forgeItem = selectForgeFeedback(store);
+
   const promptContext = {
     stage: sort.route, cycle: cycleId, token: sort.token || '',
-    cwd: cwd2, filePatterns, outputType, forgeItem: null,
+    cwd: cwd2, filePatterns, outputType, forgeItem,
   };
 
   const modelParam = await resolveModel(forgeModel);
@@ -106,11 +151,10 @@ export async function executeForge(forgeOpts) {
   });
   if (dispatch.error) return { ok: false, error: dispatch.error };
 
-  const store = openFeedbackStore(feedbackPath, io);
   const arV = await makeArtefactVersion(io, outputType, cwd2);
 
   return finalizeForgeOutcome({
-    cycleId, historyPath, io, stageOutputLines: dispatch.stageOutputLines, store, arV, route: sort.route,
+    cycleId, historyPath, io, stageOutputLines: dispatch.stageOutputLines, store, arV, route: sort.route, forgeItem,
   });
 }
 
@@ -152,9 +196,7 @@ function processValidatorOutputs(result, opts) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Quench helpers
-// ---------------------------------------------------------------------------
 
 function pushQuenchFeedback(opts) {
   const { store, validator, artefact, text, aVersion, cId } = opts;
@@ -273,9 +315,7 @@ export async function executeQuench(quenchOpts) {
   return buildQuenchSummary(feedbackList, cycleId, sort.route, historyPath, io);
 }
 
-// ---------------------------------------------------------------------------
 // Assay helpers
-// ---------------------------------------------------------------------------
 
 async function loadExtractorByName(name, io) {
   const mod = await import('./lib/assay/loader.js');
@@ -369,5 +409,3 @@ export async function executeAssay(assayOpts) {
 
 // Re-export executeAppraise from its dedicated module.
 export { executeAppraise } from './run-appraise.js';
-
-

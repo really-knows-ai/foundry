@@ -9,12 +9,6 @@ export const FORGE_REQUIRED_TOOLS = [
   'foundry_config_read_laws',
 ];
 
-export const FORGE_FORBIDDEN_TOOLS = [
-  'foundry_feedback_action',
-  'foundry_feedback_wontfix',
-  'foundry_feedback_resolve',
-];
-
 function describeTokenError(reason) {
   if (reason === 'bad_signature') return `token was copied incorrectly — re-read it from the dispatch prompt exactly, character-by-character. The token must match what foundry_cycle_run gave you`;
   if (reason === 'malformed') return `token is garbled — re-read it from the dispatch prompt. The token is the long string after "Token: " in the orchestrate dispatch`;
@@ -50,13 +44,8 @@ export function readDispatchToken(io) {
 
 export function verifyAndManageForgeTools(io, active) {
   const callSet = readForgeCallSet(io);
-  const forbidden = FORGE_FORBIDDEN_TOOLS.filter(t => callSet.has(t));
   const missing = FORGE_REQUIRED_TOOLS.filter(t => !callSet.has(t));
   io.unlink('.foundry/.forge-tool-calls.jsonl');
-  if (forbidden.length) {
-    postForbiddenToolsFeedback(io, active, forbidden);
-    return;
-  }
   if (missing.length) {
     postMissingToolsFeedback(io, active, missing);
     return;
