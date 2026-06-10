@@ -12,6 +12,7 @@
 import { collectAddressedItems, computeConsensus, readConsensusConfig } from './lib/appraise-consensus.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { validateAppraiseAddressVerdict } from './lib/stage-output-schemas.js';
+import { cleanStageOutputDir } from './run-appraise.js';
 
 // ---------------------------------------------------------------------------
 // Prompt building
@@ -188,6 +189,7 @@ function resolveCollectVerdictsFn(opts) {
  * Uses an options bag to stay within the max-params limit.
  */
 async function processItemInLoop(ctx) {
+  cleanStageOutputDir(ctx.io);
   const shouldProcess = await dispatchToAppraisers(ctx.item, ctx.dispatchFn, ctx.errors);
   if (!shouldProcess) return;
 
@@ -236,6 +238,7 @@ export async function executeAppraiseAddress(opts) {
       store: store,
       cycleId: cycleId,
       mode: mode,
+      io: opts.io,
       collectVerdictsFn: collectVerdictsFn,
       dispatchFn: dispatchFn,
       errors: errors,
