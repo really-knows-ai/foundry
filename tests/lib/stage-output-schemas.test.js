@@ -5,6 +5,7 @@ import {
   validateForgeOutput,
   validateAppraiseOutput,
   validateHumanAppraiseOutput,
+  isDeadlockResolution,
 } from '../../src/scripts/lib/stage-output-schemas.js';
 
 // ── Forge ──────────────────────────────────────────────────────────
@@ -362,7 +363,7 @@ describe('validateAppraiseOutput — verdict field not recognised', () => {
 
 // ── Human-Appraise ─────────────────────────────────────────────────
 
-describe('validateHumanAppraiseOutput — valid object', () => {
+describe('validateHumanAppraiseOutput — always-human-appraise shape', () => {
   test('accepts { verdict: "approved" }', () => {
     assert.deepEqual(
       validateHumanAppraiseOutput({ verdict: 'approved' }),
@@ -370,11 +371,46 @@ describe('validateHumanAppraiseOutput — valid object', () => {
     );
   });
 
-  test('accepts extra fields', () => {
+  test('accepts { verdict: "rejected", feedback: "needs work" }', () => {
     assert.deepEqual(
-      validateHumanAppraiseOutput({ verdict: 'approved', extra: 'field' }),
+      validateHumanAppraiseOutput({ verdict: 'rejected', feedback: 'needs work' }),
       { ok: true },
     );
+  });
+
+  test('accepts { verdict: "rejected" } (feedback recommended not required)', () => {
+    assert.deepEqual(
+      validateHumanAppraiseOutput({ verdict: 'rejected' }),
+      { ok: true },
+    );
+  });
+
+  test('rejects { verdict: "approved", itemId: "01ABCD" } — itemId invalid in non-deadlock shape', () => {
+    const r = validateHumanAppraiseOutput({ verdict: 'approved', itemId: '01ABCD' });
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some(e => e.includes('itemId')), 'errors should mention itemId');
+  });
+});
+
+describe('validateHumanAppraiseOutput — deadlock override shape', () => {
+  test('accepts { verdict: "resolved", itemId: "01ABCD" }', () => {
+    assert.deepEqual(
+      validateHumanAppraiseOutput({ verdict: 'resolved', itemId: '01ABCD' }),
+      { ok: true },
+    );
+  });
+
+  test('accepts { verdict: "rejected", itemId: "01ABCD", feedback: "still broken" }', () => {
+    assert.deepEqual(
+      validateHumanAppraiseOutput({ verdict: 'rejected', itemId: '01ABCD', feedback: 'still broken' }),
+      { ok: true },
+    );
+  });
+
+  test('rejects { verdict: "resolved" } — missing itemId', () => {
+    const r = validateHumanAppraiseOutput({ verdict: 'resolved' });
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some(e => e.includes('itemId')), 'errors should mention itemId');
   });
 });
 
@@ -406,15 +442,9 @@ describe('validateHumanAppraiseOutput — non-object inputs', () => {
 
 describe('validateHumanAppraiseOutput — verdict field', () => {
   test('rejects invalid verdict value', () => {
-    const r = validateHumanAppraiseOutput({ verdict: 'rejected' });
+    const r = validateHumanAppraiseOutput({ verdict: 'invalid' });
     assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: verdict — must be "approved"']);
-  });
-
-  test('rejects non-string verdict value', () => {
-    const r = validateHumanAppraiseOutput({ verdict: 5 });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.errors, ['human-appraise: verdict — must be "approved"']);
+    assert.ok(r.errors.some(e => e.includes('must be one of')), 'errors should mention valid options');
   });
 
   test('rejects missing verdict', () => {
@@ -426,9 +456,36 @@ describe('validateHumanAppraiseOutput — verdict field', () => {
 
 describe('validateHumanAppraiseOutput — reports all errors', () => {
   test('reports invalid verdict', () => {
-    const r = validateHumanAppraiseOutput({ verdict: 'rejected' });
+    const r = validateHumanAppraiseOutput({ verdict: 'invalid' });
     assert.equal(r.ok, false);
     assert.equal(r.errors.length, 1);
     assert.ok(r.errors.every(e => e.startsWith('human-appraise:')));
+  });
+});
+
+// ── isDeadlockResolution ──────────────────────────────────────────
+
+describe('isDeadlockResolution', () => {
+  test('returns true when data has itemId', () => {
+    const r = isDeadlockResolution({ verdict: 'resolved', itemId: '01ABCD' });
+    assert.equal(r, true);
+  });
+
+  test('returns true when data has itemId and verdict is rejected', () => {
+    const r = isDeadlockResolution({ verdict: 'rejected', itemId: '01ABCD', feedback: 'no' });
+    assert.equal(r, true);
+  });
+
+  test('returns false when data has no itemId', () => {
+    const r = isDeadlockResolution({ verdict: 'approved' });
+    assert.equal(r, false);
+  });
+
+  test('returns false for null', () => {
+    assert.equal(isDeadlockResolution(null), false);
+  });
+
+  test('returns false for non-object', () => {
+    assert.equal(isDeadlockResolution('string'), false);
   });
 });

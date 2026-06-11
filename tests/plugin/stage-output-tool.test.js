@@ -228,7 +228,7 @@ describe('human-appraise schema dispatch', () => {
       initGitRepo(dir);
       writeActiveStage(dir, 'human-appraise:review');
       const result = await handler.execute(
-        { data: { verdict: 'rejected' } },
+        { data: { verdict: 'invalid' } },
         { worktree: dir, sessionID: 'ha-session-2' },
       );
       const parsed = JSON.parse(result);

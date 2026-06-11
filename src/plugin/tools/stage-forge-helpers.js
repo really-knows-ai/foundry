@@ -52,20 +52,6 @@ export function verifyAndManageForgeTools(io, active) {
   }
   resolveSystemFeedback(io, active);
 }
-
-function postForbiddenToolsFeedback(io, active, forbidden) {
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    store.add({
-      file: '(forge)',
-      tag: 'system:forbidden-tool-calls',
-      text: `Forbidden forge tool calls: ${forbidden.join(', ')}. Forge subagents do not manage feedback — the orchestrator handles transitions.`,
-      source: active.stage,
-      cycle: active.cycle,
-    });
-  } catch { /* feedback file not initialised yet; non-critical */ }
-}
-
 function postMissingToolsFeedback(io, active, missing) {
   try {
     const store = openFeedbackStore('WORK.feedback.yaml', io);

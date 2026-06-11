@@ -40,8 +40,22 @@ const HUMAN_APPRAISE_SCHEMA = {
   type: 'object',
   required: ['verdict'],
   properties: {
-    verdict: { const: 'approved' },
+    verdict: { enum: ['approved', 'rejected', 'resolved'] },
+    itemId: { type: 'string' },
+    feedback: { type: 'string' },
   },
+  allOf: [
+    {
+      // resolved requires itemId
+      if: { properties: { verdict: { const: 'resolved' } } },
+      then: { required: ['itemId'] },
+    },
+    {
+      // approved must not have itemId
+      if: { properties: { verdict: { const: 'approved' } } },
+      then: { not: { required: ['itemId'] } },
+    },
+  ],
 };
 
 const APPRAISE_ADDRESS_VERDICT_SCHEMA = {
@@ -210,4 +224,15 @@ export function validateAppraiseAddressVerdict(data) {
   const errors = validateSchema(APPRAISE_ADDRESS_VERDICT_SCHEMA, data, stage);
   if (errors.length) return { ok: false, errors };
   return { ok: true };
+}
+
+/**
+ * Check whether a human-appraise output record is a deadlock resolution.
+ * A deadlock resolution record includes an `itemId` field.
+ *
+ * @param {unknown} data — parsed stage-output record
+ * @returns {boolean}
+ */
+export function isDeadlockResolution(data) {
+  return typeof data === 'object' && data !== null && 'itemId' in data;
 }

@@ -165,7 +165,7 @@ async function handleUnknownRoute(opts, s, fm, historyPath, prefix) {
   if (getHandler(base)) return null;
 
   if (isHumanAppraiseBase(route)) {
-    return { done: true, result: await handleHumanAppraiseInit(opts, s, fm.cycle, historyPath, 'WORK.feedback.yaml') };
+    return { done: true, result: await handleHumanAppraiseInit(opts, fm.cycle, historyPath, 'WORK.feedback.yaml') };
   }
 
   const cycleResult = await handleCycleTargets(opts, fm, historyPath);
@@ -280,7 +280,7 @@ async function handleHumanAppraiseResumeIfNeeded(io, opts) {
   const activeStage = readActiveStage(io);
   if (!activeStage) return null;
   if (stageBaseOf(activeStage.stage) !== 'human-appraise') return null;
-  const haResult = await handleHumanAppraiseResume(io, opts, activeStage);
+  const haResult = await handleHumanAppraiseResume(io, activeStage);
   if (haResult.action !== 'continue-run') return haResult;
   return null;
 }

@@ -191,24 +191,13 @@ test('D1.1: full haiku flow completes end-to-end', async () => {
   }
 });
 
-test('D1.2: foundry_cycle_continue resume captures verbatim user reply', async () => {
+test('D1.2: foundry_cycle_continue uses stage-output approve action', async () => {
   const root = tmpDir();
   try {
-    setupHaikuRepo(root, 'work/haiku-capture');
+    setupHaikuRepo(root, 'work/haiku-approve');
     const client = createMockClient();
     const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
     _setExecFile(execFileMock);
-
-    // Mock session.messages to return post-marker user messages
-    client.session.messages = async function() {
-      return [
-        { info: { id: 'msg_before', role: 'assistant' }, parts: [{ type: 'text', text: 'Here is your haiku' }] },
-        { info: { id: 'marker_msg', role: 'assistant' }, parts: [{ type: 'text', text: 'What do you think?' }] },
-        { info: { id: 'msg_after_1', role: 'user' }, parts: [{ type: 'text', text: 'this needs more seasoning' }] },
-        { info: { id: 'msg_after_2', role: 'assistant' }, parts: [{ type: 'text', text: 'I see, let me note that' }] },
-        { info: { id: 'msg_after_3', role: 'user' }, parts: [{ type: 'text', text: 'and a shorter line' }] },
-      ];
-    };
 
     const plugin = await FoundryPlugin({ directory: root, client });
 
@@ -218,48 +207,39 @@ test('D1.2: foundry_cycle_continue resume captures verbatim user reply', async (
       { worktree: root, sessionID: 'main-session' },
     );
 
-    // The active stage has a boundaryMarker from the session
-    // foundry_cycle_continue should capture the post-marker user text
+    // Write stage-output with approval verdict (simulating foundry_stage_output)
+    const outDir = join(root, '.foundry/stage-outputs');
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'ha-approve.jsonl'), JSON.stringify({ verdict: 'approved' }) + '\n');
+
+    // Continue — should close human-appraise stage and proceed
     const result = JSON.parse(await plugin.tool.foundry_cycle_continue.execute(
       {},
       { worktree: root, sessionID: 'main-session' },
     ));
 
-    // Check verbatim capture was written
-    const capturePath = join(root, '.foundry/verbatim-capture.txt');
-    if (existsSync(capturePath)) {
-      const capture = readFileSync(capturePath, 'utf8');
-      assert.ok(capture.includes('this needs more seasoning'),
-        'capture should contain first user message');
-      assert.ok(capture.includes('and a shorter line'),
-        'capture should contain second user message');
-    }
-
-    // The run should continue (feedback was added)
+    // The run should continue after approval
     assert.ok(
       result.action === 'done' || result.action === 'prompt_user' || result.action === 'violation',
       'unexpected action: ' + result.action,
     );
+
+    // Verify verbatim-capture.txt was never created
+    assert.ok(!existsSync(join(root, '.foundry/verbatim-capture.txt')),
+      'verbatim-capture.txt should not exist');
   } finally {
     _setExecFile((await import('node:child_process')).execFile);
     cleanup(root);
   }
 });
 
-test('D1.3: flow returns done when no feedback after human-appraise', async () => {
+test('D1.3: flow returns done when human approves via stage output', async () => {
   const root = tmpDir();
   try {
-    setupHaikuRepo(root, 'work/haiku-empty');
+    setupHaikuRepo(root, 'work/haiku-approve-done');
     const client = createMockClient();
     const execFileMock = mock.fn(() => makeChildProcess({ exitCode: 0 }));
     _setExecFile(execFileMock);
-
-    // Mock session.messages to return NO post-marker user messages
-    client.session.messages = async function() {
-      return [
-        { info: { id: 'marker_msg', role: 'assistant' }, parts: [{ type: 'text', text: 'What do you think?' }] },
-      ];
-    };
 
     const plugin = await FoundryPlugin({ directory: root, client });
 
@@ -268,7 +248,12 @@ test('D1.3: flow returns done when no feedback after human-appraise', async () =
       { worktree: root, sessionID: 'main-session' },
     );
 
-    // Continue may need multiple iterations
+    // Write stage-output approval
+    const outDir = join(root, '.foundry/stage-outputs');
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'ha-approve.jsonl'), JSON.stringify({ verdict: 'approved' }) + '\n');
+
+    // Continue — should consume the approval and proceed
     let result;
     const seenActions = new Set();
     for (let i = 0; i < 10; i++) {
@@ -280,7 +265,6 @@ test('D1.3: flow returns done when no feedback after human-appraise', async () =
       if (result.action === 'done' || result.action === 'violation') break;
     }
 
-    // Should eventually terminate (with always-human-appraise, may cycle)
     assert.ok(seenActions.has('done') || seenActions.has('violation') || seenActions.has('prompt_user'),
       'expected done, violation, or prompt_user, got: ' + result.action);
     assert.ok(!seenActions.has('continue'), 'action set must not include continue');

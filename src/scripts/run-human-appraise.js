@@ -1,31 +1,19 @@
 /**
  * Human-appraise stage handlers for the run state machine.
  *
- * Handles boundary marker recording, verbatim capture, deadlock resolution,
- * and cycle transitions.
+ * Two modes:
+ * 1. Deadlock override (deadlock-human-appraise: true) — user resolves or
+ *    rejects each deadlocked feedback item.
+ * 2. Always-human-appraise (always-human-appraise: true) — user approves
+ *    or rejects the artefact change with optional feedback.
+ *
+ * When both flags are set, deadlock takes priority.
  */
 
 import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { parseFrontmatter } from './lib/workfile.js';
-
-function verbatimCapturePath() {
-  return '.foundry/verbatim-capture.txt';
-}
-
-function readVerbatimCapture(io) {
-  const p = verbatimCapturePath();
-  if (!io.exists(p)) return null;
-  return io.readFile(p);
-}
-
-function writeVerbatimCapture(io, text) {
-  io.writeFile(verbatimCapturePath(), text);
-}
-
-function deleteVerbatimCapture(io) {
-  io.unlink(verbatimCapturePath());
-}
+import { validateHumanAppraiseOutput, isDeadlockResolution } from './lib/stage-output-schemas.js';
 
 export function terminalPromptUser(stage, artefact, feedback, goal) {
   return { action: 'prompt_user', stage, artefact, feedback: feedback || [], goal: goal || '' };
@@ -61,27 +49,19 @@ export async function queryBoundaryMarker(client, context, worktree) {
   }
 }
 
-function loadUnresolvedFeedback(io, fp) {
+/**
+ * Load all items not in resolved state from the feedback store.
+ * Returns the full item objects (including complete history array).
+ *
+ * @param {object} io — IO adapter
+ * @param {string} fp — path to feedback store file
+ * @returns {object[]} — full feedback items excluding resolved
+ */
+export function loadDeadlockItems(io, fp) {
   try {
     const store = openFeedbackStore(fp, io);
     return store.list()
-      .filter(function(it) { return it.history[0].state !== 'resolved'; })
-      .map(function(it) {
-        return { id: it.id, file: it.file, text: it.text, state: it.history[0].state };
-      });
-  } catch {
-    return [];
-  }
-}
-
-function collectUnresolvedFeedback(io) {
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    return store.list()
-      .filter(function(it) { return it.history[0].state !== 'resolved'; })
-      .map(function(it) {
-        return { id: it.id, file: it.file, text: it.text, state: it.history[0].state };
-      });
+      .filter(function(it) { return it.history[0].state !== 'resolved'; });
   } catch {
     return [];
   }
@@ -115,7 +95,7 @@ function artefactPath(fm) {
 /**
  * Record boundary marker and return prompt_user for human-appraise stage.
  */
-export async function handleHumanAppraiseInit(opts, sortResult, cycleId, hp, fp) {
+export async function handleHumanAppraiseInit(opts, cycleId, hp, fp) {
   const { client, context, io, worktree } = opts;
   try {
     const boundaryMarker = await queryBoundaryMarker(client, context, worktree);
@@ -126,7 +106,7 @@ export async function handleHumanAppraiseInit(opts, sortResult, cycleId, hp, fp)
 
     writeHumanAppraiseStage(io, cycleId, boundaryMarker, baseSha);
 
-    const feedbackList = loadUnresolvedFeedback(io, fp);
+    const feedbackList = loadDeadlockItems(io, fp);
     return terminalPromptUser(
       'human-appraise',
       artefactPath(fm),
@@ -146,68 +126,6 @@ function readWork(io) {
   return { fm };
 }
 
-function getMessageId(m) {
-  return m.info ? (m.info.id || '') : (m.id || '');
-}
-
-function findMarkerIndex(messages, boundaryMarker) {
-  for (let i = 0; i < messages.length; i++) {
-    if (getMessageId(messages[i]) === boundaryMarker) return i;
-  }
-  return -1;
-}
-
-function collectUserTextFromPart(part, texts) {
-  if (part.type === 'text' && part.text) texts.push(part.text);
-}
-
-function collectUserTextAfter(parts) {
-  const texts = [];
-  for (const part of parts) collectUserTextFromPart(part, texts);
-  return texts;
-}
-
-function isUserMessage(msg) {
-  if (!msg.info) return false;
-  return msg.info.role === 'user';
-}
-
-function collectPostMarkerTexts(messages, startIdx) {
-  const texts = [];
-  for (let i = startIdx; i < messages.length; i++) {
-    const msg = messages[i];
-    if (!isUserMessage(msg)) continue;
-    const collected = collectUserTextAfter(msg.parts || []);
-    for (const t of collected) texts.push(t);
-  }
-  return texts;
-}
-
-/**
- * Filter session messages to only user text parts after a boundary marker.
- */
-function capturePostMarkerText(messages, boundaryMarker) {
-  if (!Array.isArray(messages)) return '';
-  if (!boundaryMarker) return '';
-
-  const markerIdx = findMarkerIndex(messages, boundaryMarker);
-  if (markerIdx === -1) return '';
-
-  const texts = collectPostMarkerTexts(messages, markerIdx + 1);
-  return texts.join('\n');
-}
-
-function storeFeedbackFromCapture(io, cycleId, capturedText, fm) {
-  const store = openFeedbackStore('WORK.feedback.yaml', io);
-  store.add({
-    file: fm['artefact-path'] || fm.artefact || '',
-    tag: 'human',
-    text: capturedText,
-    source: 'human-appraise:' + cycleId,
-    cycle: cycleId,
-  });
-}
-
 function closeHumanAppraiseStage(io, activeStage, cycleId, summary) {
   clearActiveStage(io);
   writeLastStage(io, {
@@ -216,123 +134,210 @@ function closeHumanAppraiseStage(io, activeStage, cycleId, summary) {
     baseSha: activeStage.baseSha || '',
     summary: summary,
   });
-  deleteVerbatimCapture(io);
 }
 
-async function fetchSessionMessages(client, context, worktree) {
-  return client.session.messages({
-    path: { id: context.sessionID },
-    query: { directory: worktree },
-  });
+// ---------------------------------------------------------------------------
+// Stage-output reader
+// ---------------------------------------------------------------------------
+
+function parseRecordLine(line) {
+  let parsed;
+  try { parsed = JSON.parse(line); } catch { return null; }
+  const validation = validateHumanAppraiseOutput(parsed);
+  return validation.ok ? parsed : null;
 }
 
-function handleEmptyCapture(io, activeStage, cycleId, capturedText) {
-  const trimmed = capturedText.trim();
-  if (trimmed) return null;
-  closeHumanAppraiseStage(io, activeStage, cycleId, 'no feedback (approval)');
-  return { action: 'continue-run' };
+function readOutputFile(outDir, fileName, io) {
+  let content;
+  try { content = io.readFile(outDir + fileName); } catch { return []; }
+  return content.trim().split('\n')
+    .filter(Boolean)
+    .map(function(line) { return parseRecordLine(line); })
+    .filter(Boolean);
 }
 
-function handleApprovalCapture(io, activeStage, cycleId, capturedText) {
-  const trimmed = capturedText.trim();
-  if (/^(looks good|approved|ok|fine|pass|lgtm)[.!]*$/i.test(trimmed)) {
-    closeHumanAppraiseStage(io, activeStage, cycleId, 'no feedback (approval)');
+export function readHumanAppraiseOutputs(io) {
+  const outDir = '.foundry/stage-outputs/';
+  if (!io.exists(outDir)) return [];
+
+  return io.readDir(outDir)
+    .filter(function(f) { return f.endsWith('.jsonl'); })
+    .flatMap(function(f) { return readOutputFile(outDir, f, io); });
+}
+
+// ---------------------------------------------------------------------------
+// Deadlock resolution loop (4.3)
+// ---------------------------------------------------------------------------
+
+function resolveDeadlockRecord(record, store, cycleId, stage) {
+  const itemId = record.itemId;
+  const verdict = record.verdict;
+
+  if (verdict === 'resolved') {
+    store.forceState(itemId, 'resolved', cycleId, stage);
+    return true;
+  }
+
+  if (verdict === 'rejected') {
+    store.forceState(itemId, 'rejected', cycleId, stage);
+    if (record.feedback) {
+      const item = store.get(itemId);
+      if (item) {
+        store.add({
+          file: item.file, tag: 'human', text: record.feedback,
+          source: 'human-appraise:' + cycleId, cycle: cycleId,
+        });
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Process deadlock-resolution stage-output records and transition items.
+ *
+ * For each valid record with an itemId:
+ *  - resolved: forceState to 'resolved'
+ *  - rejected: forceState to 'rejected', and if feedback is provided, add
+ *    a new feedback item so it re-enters the forge queue
+ */
+function processDeadlockResolutions(records, store, cycleId, stage) {
+  for (const record of records) {
+    if (!isDeadlockResolution(record)) continue;
+    resolveDeadlockRecord(record, store, cycleId, stage);
+  }
+}
+
+function readDeadlockUserPrompt(io, fm, fp) {
+  const deadlockItems = loadDeadlockItems(io, fp);
+  return terminalPromptUser('human-appraise', artefactPath(fm), deadlockItems, fm.goal || '');
+}
+
+/**
+ * Handle the deadlock override scenario.
+ * Reads stage-output records, resolves/rejects items, and either closes
+ * the stage or re-prompts with remaining items.
+ */
+function handleDeadlockOverride(ctx) {
+  const { io, activeStage, cycleId, store, fm, fp } = ctx;
+
+  // If no items are in the deadlocked state, terminate with a violation
+  const deadlockedItems = store.list()
+    .filter(function(it) { return it.history[0].state === 'deadlocked'; });
+  if (deadlockedItems.length === 0) {
+    return terminalViolation(
+      'deadlock-human-appraise enabled but no items in deadlocked state',
+      false,
+    );
+  }
+
+  const records = readHumanAppraiseOutputs(io);
+  const stage = 'human-appraise:' + cycleId;
+
+  if (records.length === 0) return readDeadlockUserPrompt(io, fm, fp);
+
+  processDeadlockResolutions(records, store, cycleId, stage);
+
+  // Check if any deadlocked items remain unprocessed
+  const remaining = store.list()
+    .filter(function(it) { return it.history[0].state === 'deadlocked'; });
+
+  if (remaining.length === 0) {
+    closeHumanAppraiseStage(io, activeStage, cycleId, 'deadlock resolved');
     return { action: 'continue-run' };
   }
-  return null;
-}
 
-function handleFreeFormCapture(io, activeStage, cycleId, capturedText, fm) {
-  storeFeedbackFromCapture(io, cycleId, capturedText, fm);
-  closeHumanAppraiseStage(io, activeStage, cycleId, 'human feedback captured');
-  return { action: 'continue-run' };
-}
-
-function handleDeadlockCapture(io, cycleId, fm) {
-  const feedbackList = collectUnresolvedFeedback(io);
   return terminalPromptUser(
     'human-appraise',
-    fm['artefact-path'] || fm.artefact || '',
-    feedbackList,
+    artefactPath(fm),
+    remaining,
     fm.goal || '',
   );
 }
 
-/**
- * Fetch messages and return captured user text after the boundary marker.
- */
-async function captureUserText(client, context, worktree, boundaryMarker) {
-  try {
-    const messages = await fetchSessionMessages(client, context, worktree);
-    return capturePostMarkerText(messages, boundaryMarker);
-  } catch (err) {
-    return terminalViolation('verbatim capture failed: ' + (err.message || String(err)), true);
+// ---------------------------------------------------------------------------
+// Always-human-appraise (4.4)
+// ---------------------------------------------------------------------------
+
+function alwaysHumanPrompt(io, fm) {
+  return terminalPromptUser('human-appraise', artefactPath(fm), [], fm.goal || '');
+}
+
+function approveAlwaysHuman(io, activeStage, cycleId) {
+  closeHumanAppraiseStage(io, activeStage, cycleId, 'human approved');
+  return { action: 'continue-run' };
+}
+
+function rejectAlwaysHuman(ctx, feedback) {
+  const { io, activeStage, cycleId, store, fm } = ctx;
+  if (feedback) {
+    store.add({
+      file: artefactPath(fm), tag: 'human',
+      text: feedback, source: 'human-appraise:' + cycleId, cycle: cycleId,
+    });
   }
+  const summary = feedback ? 'human rejected — feedback captured' : 'human rejected';
+  closeHumanAppraiseStage(io, activeStage, cycleId, summary);
+  return { action: 'continue-run' };
 }
 
 /**
- * Perform verbatim capture on first human-appraise resume.
+ * Handle the always-human-appraise scenario.
+ * Reads stage-output records and either approves (close stage) or rejects
+ * (store feedback, close stage). Returns prompt_user when no records exist.
  */
-async function doCapture(cap) {
-  const { io, client, context, worktree, activeStage, cycleId, boundaryMarker, fm } = cap;
-  const capturedText = await captureUserText(client, context, worktree, boundaryMarker);
-  if (typeof capturedText !== 'string') return capturedText;
+function handleAlwaysHumanAppraise(ctx) {
+  const { io, activeStage, cycleId, fm } = ctx;
+  const records = readHumanAppraiseOutputs(io);
 
-  const emptyResult = handleEmptyCapture(io, activeStage, cycleId, capturedText);
-  if (emptyResult) return emptyResult;
+  if (records.length === 0) return alwaysHumanPrompt(io, fm);
 
-  const approvalResult = handleApprovalCapture(io, activeStage, cycleId, capturedText);
-  if (approvalResult) return approvalResult;
+  const record = records.find(function(r) { return !isDeadlockResolution(r); });
+  if (!record) return alwaysHumanPrompt(io, fm);
 
-  writeVerbatimCapture(io, capturedText);
+  if (record.verdict === 'approved') return approveAlwaysHuman(io, activeStage, cycleId);
+  if (record.verdict === 'rejected') return rejectAlwaysHuman(ctx, record.feedback);
 
-  const isDeadlock = fm['deadlock-human-appraise'] === true;
-  if (!isDeadlock) return handleFreeFormCapture(io, activeStage, cycleId, capturedText, fm);
-
-  return handleDeadlockCapture(io, cycleId, fm);
+  return alwaysHumanPrompt(io, fm);
 }
 
-/**
- * Check deadlock resolution on second human-appraise resume.
- */
-function checkDeadlockResolution(io, activeStage, cycleId) {
-  try {
-    const store = openFeedbackStore('WORK.feedback.yaml', io);
-    const unresolved = store.list().filter(function(it) { return it.history[0].state !== 'resolved'; });
-
-    if (unresolved.length === 0) {
-      closeHumanAppraiseStage(io, activeStage, cycleId, 'deadlock resolved');
-      return { action: 'continue-run' };
-    }
-
-    return terminalViolation(
-      'Human-appraise completed but ' + unresolved.length + ' feedback item(s) remain unresolved',
-      true,
-    );
-  } catch (err) {
-    return terminalViolation(
-      'Error checking feedback store: ' + (err.message || String(err)),
-      false,
-    );
-  }
-}
+// ---------------------------------------------------------------------------
+// Resume handler
+// ---------------------------------------------------------------------------
 
 /**
  * Handle resuming a human-appraise stage (entry point for continueRun).
+ *
+ * Branching logic:
+ * 1. If deadlock-human-appraise is true → run deadlock override
+ * 2. Else if always-human-appraise is true → run always-human-appraise
+ * 3. Otherwise → violation (no scenario configured)
  */
-export async function handleHumanAppraiseResume(io, opts, activeStage) {
-  const { client, context, worktree } = opts;
+export function handleHumanAppraiseResume(io, activeStage) {
   const cycleId = activeStage.cycle || '';
-  const boundaryMarker = activeStage.boundaryMarker || '';
 
   const r = readWork(io);
   if (r.error) return r.error;
   const fm = r.fm;
 
-  const existingCapture = readVerbatimCapture(io);
-  if (!existingCapture) {
-    return doCapture({ io, client, context, worktree, activeStage, cycleId, boundaryMarker, fm });
+  const fp = 'WORK.feedback.yaml';
+  const store = openFeedbackStore(fp, io);
+
+  const isDeadlock = fm['deadlock-human-appraise'] === true;
+  const isAlwaysHuman = fm['always-human-appraise'] === true;
+
+  if (isDeadlock) {
+    return handleDeadlockOverride({ io, activeStage, cycleId, store, fm, fp });
   }
 
-  return checkDeadlockResolution(io, activeStage, cycleId);
+  if (isAlwaysHuman) {
+    return handleAlwaysHumanAppraise({ io, activeStage, cycleId, store, fm, fp });
+  }
+
+  return terminalViolation(
+    'human-appraise: no scenario configured — expected deadlock-human-appraise or always-human-appraise',
+    false,
+  );
 }
