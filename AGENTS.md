@@ -139,24 +139,44 @@ than one thing. Extract logical blocks into well-named helper functions
 at module scope. A helper named `buildSomething` or `checkSomething`
 immediately tells the reader what the extracted block does.
 
+The limits signal a design problem — the function has too many concerns.
+When lint fires, identify the largest cohesive block of work and extract
+it into a helper. Do not count lines or statements to see if deleting a
+comment or inlining a variable ducks you under 40. The number is a
+signal; extracting concerns is the response.
+
 ### Branching: `complexity` (5)
 
 Each `if`, `for`, `while`, `catch`, and ternary adds a branch. A function
-with more than 5 paths has too many decisions. Extract conditional blocks
-into helper functions. A guard clause (`if (x) return early`) is
-preferable to nested conditionals.
+with more than 5 paths has too many decisions and signals a design
+problem — the function is juggling too many concerns.
+
+**The fix is never to micro-optimise the branch count.** Do not collapse
+ternaries, merge conditions, or rewrite `if` chains to squeeze under the
+limit. Those approaches obscure intent and produce brittle code.
+
+Instead, identify the distinct concerns inside the function and extract
+each into a well-named helper at module scope. A helper called
+`appendForgeAttestation` or `buildQuenchPayload` communicates intent and
+lifts branches out of the parent function. The parent function
+coordinates; helpers do the work. Extracted helpers are independently
+testable and keep the parent readable.
 
 ### Nesting: `max-depth` (4)
 
-More than 4 levels of nesting makes code hard to scan. Flatten with early
-returns, guard clauses, or by extracting inner blocks into helpers.
+More than 4 levels of nesting makes code hard to scan. The limit signals
+a function doing too many things at once. Do not rearrange code just to
+save a depth level. Extract the deepest inner block into a helper; the
+parent flattens naturally. Guard clauses and early returns are the
+preferred way to flatten, not an end in themselves.
 
 ### Parameters: `max-params` (5)
 
 A function that takes more than 5 parameters is asking for too many
-inputs. Group related parameters into an options object. A constructor
-or factory with many inputs is a signal that the concept being modelled
-should be split into smaller composable pieces.
+inputs. The limit signals the function accepts too many unrelated
+concerns. Group related parameters into an options object, or split the
+function into smaller composable pieces. Do not remove a parameter just
+to satisfy the count.
 
 ## Git worktrees
 
