@@ -59,7 +59,7 @@ const STAGE_ORDINAL = {
  */
 function byIterationThenStage(a, b) {
   if (a.iteration !== b.iteration) return a.iteration - b.iteration;
-  return (STAGE_ORDINAL[a.stage] || 99) - (STAGE_ORDINAL[b.stage] || 99);
+  return (STAGE_ORDINAL[a.stage] ?? 99) - (STAGE_ORDINAL[b.stage] ?? 99);
 }
 
 /**

@@ -7,6 +7,10 @@ export function makeMockIO(files = {}, { exec = () => '' } = {}) {
       return store[p];
     },
     writeFile: (p, c) => { store[p] = c; },
+    appendFile: (p, c) => {
+      if (store[p] === undefined) store[p] = '';
+      store[p] += c;
+    },
     rename: (from, to) => {
       if (!(from in store)) throw new Error(`ENOENT: ${from}`);
       store[to] = store[from];
