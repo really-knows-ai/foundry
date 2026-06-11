@@ -799,3 +799,35 @@ describe('handleHumanAppraiseResume — no scenario configured', () => {
       'violation should not be recoverable');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Attestation helper exports
+// ---------------------------------------------------------------------------
+
+describe('human-appraise — attestation helper exports', () => {
+  test('appendDeadlockResolveAttestation is exported from executor-attestation', async () => {
+    const { appendDeadlockResolveAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+    assert.equal(typeof appendDeadlockResolveAttestation, 'function');
+  });
+
+  test('appendHumanAppraiseAttestation is exported from executor-attestation', async () => {
+    const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+    assert.equal(typeof appendHumanAppraiseAttestation, 'function');
+  });
+
+  test('run-human-appraise imports are updated — no direct hash.js imports for attestation', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const sourcePath = path.resolve(
+      fileURLToPath(new URL('../../src/scripts/run-human-appraise.js', import.meta.url))
+    );
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    // Should NOT have a direct import of appendStageAttestation (it comes via executor-attestation)
+    assert.ok(!source.includes("import { appendStageAttestation }"),
+      'appendStageAttestation should not be directly imported');
+    // Should have the executor-attestation import
+    assert.ok(source.includes('executor-attestation'),
+      'should import from executor-attestation module');
+  });
+});

@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { makeMockIO } from '../helpers/mock-io.js';
 import {
   parseFrontmatter,
   writeFrontmatter,
@@ -10,6 +11,7 @@ import {
   parseStagesValue,
   parseModelsValue,
   buildForgeHistoryEntry,
+  readRunId,
 } from '../../src/scripts/lib/workfile.js';
 
 // ---------------------------------------------------------------------------
@@ -293,6 +295,33 @@ describe('parseModelsValue', () => {
 
   it('returns empty object for empty string', () => {
     assert.deepEqual(parseModelsValue(''), {});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readRunId
+// ---------------------------------------------------------------------------
+
+describe('readRunId', () => {
+  it('returns the value of foundry-run from WORK.md frontmatter when it exists', () => {
+    const workMd = '---\ncycle: test\nfoundry-run: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n---\n# Goal\nTest';
+    const io = makeMockIO({ 'WORK.md': workMd });
+    assert.equal(readRunId(io), '01ARZ3NDEKTSV4RRFFQ69G5FAV');
+  });
+
+  it('returns null when WORK.md has no foundry-run field', () => {
+    const workMd = '---\ncycle: test\n---\n# Goal\nTest';
+    const io = makeMockIO({ 'WORK.md': workMd });
+    assert.equal(readRunId(io), null);
+  });
+
+  it('returns null when WORK.md does not exist', () => {
+    const io = makeMockIO({});
+    assert.equal(readRunId(io), null);
+  });
+
+  it('is exported from workfile.js', () => {
+    assert.equal(typeof readRunId, 'function');
   });
 });
 

@@ -136,6 +136,13 @@ ${goal}
  *   comment: string, changedFiles: string[], artefact_version: string,
  *   contract_passed: boolean }}
  */
+export function readRunId(io) {
+  if (!io.exists('WORK.md')) return null;
+  const text = io.readFile('WORK.md');
+  const fm = parseFrontmatter(text);
+  return fm['foundry-run'] || null;
+}
+
 export function buildForgeHistoryEntry(
   { cycle, stage, iteration, comment, artefactVersion, contractPassed, changedFiles },
 ) {

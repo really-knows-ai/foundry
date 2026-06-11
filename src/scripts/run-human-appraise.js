@@ -14,6 +14,7 @@ import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { validateHumanAppraiseOutput, isDeadlockResolution } from './lib/stage-output-schemas.js';
+import { appendDeadlockResolveAttestation, appendHumanAppraiseAttestation } from './lib/attestation/executor-attestation.js';
 
 export function terminalPromptUser(stage, artefact, feedback, goal) {
   return { action: 'prompt_user', stage, artefact, feedback: feedback || [], goal: goal || '' };
@@ -238,13 +239,19 @@ function handleDeadlockOverride(ctx) {
 
   if (records.length === 0) return readDeadlockUserPrompt(io, fm, fp);
 
+  const itemsBefore = store.list();
   processDeadlockResolutions(records, store, cycleId, stage);
+  const itemsAfter = store.list();
+  const newItemIds = itemsAfter
+    .filter(after => !itemsBefore.some(before => before.id === after.id))
+    .map(i => i.id);
 
   // Check if any deadlocked items remain unprocessed
   const remaining = store.list()
     .filter(function(it) { return it.history[0].state === 'deadlocked'; });
 
   if (remaining.length === 0) {
+    appendDeadlockResolveAttestation(io, cycleId, records, newItemIds);
     closeHumanAppraiseStage(io, activeStage, cycleId, 'deadlock resolved');
     return { action: 'continue-run' };
   }
@@ -289,7 +296,7 @@ function rejectAlwaysHuman(ctx, feedback) {
  * (store feedback, close stage). Returns prompt_user when no records exist.
  */
 function handleAlwaysHumanAppraise(ctx) {
-  const { io, activeStage, cycleId, fm } = ctx;
+  const { io, activeStage, cycleId, fm, store } = ctx;
   const records = readHumanAppraiseOutputs(io);
 
   if (records.length === 0) return alwaysHumanPrompt(io, fm);
@@ -297,8 +304,15 @@ function handleAlwaysHumanAppraise(ctx) {
   const record = records.find(function(r) { return !isDeadlockResolution(r); });
   if (!record) return alwaysHumanPrompt(io, fm);
 
-  if (record.verdict === 'approved') return approveAlwaysHuman(io, activeStage, cycleId);
-  if (record.verdict === 'rejected') return rejectAlwaysHuman(ctx, record.feedback);
+  if (record.verdict === 'approved') {
+    appendHumanAppraiseAttestation(io, cycleId, 1, 'resolved', store);
+    return approveAlwaysHuman(io, activeStage, cycleId);
+  }
+  if (record.verdict === 'rejected') {
+    const rejectResult = rejectAlwaysHuman(ctx, record.feedback);
+    appendHumanAppraiseAttestation(io, cycleId, 1, 'rejected', store);
+    return rejectResult;
+  }
 
   return alwaysHumanPrompt(io, fm);
 }

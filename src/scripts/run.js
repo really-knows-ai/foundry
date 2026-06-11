@@ -10,7 +10,8 @@
 
 import { runSort as defaultRunSort } from './sort.js';
 import { markWorkfileFailed, readFailedStatus } from './lib/failed-flow.js';
-import { parseFrontmatter, setFrontmatterField } from './lib/workfile.js';
+import { parseFrontmatter, setFrontmatterField, readRunId } from './lib/workfile.js';
+import { generateRunId } from './lib/attestation/hash.js';
 import { tryCommit, readCycleTargets, synthesizeStages } from './orchestrate-cycle.js';
 import { appendEntry } from './lib/history.js';
 import { executeForge, executeQuench, executeAssay, executeAppraise } from './run-executors.js';
@@ -193,6 +194,14 @@ async function runOneIteration(opts, runSort, hp) {
   return dispatchRouteHandler(opts, s, fm.cycle, hp);
 }
 
+function persistRunId(io) {
+  const existingRunId = readRunId(io);
+  if (existingRunId) return;
+  let workText = io.readFile('WORK.md');
+  workText = setFrontmatterField(workText, 'foundry-run', generateRunId());
+  io.writeFile('WORK.md', workText);
+}
+
 /** Run the state machine loop from a clean start. */
 export async function runRun(opts) {
   const { io, sortFn } = opts;
@@ -200,6 +209,8 @@ export async function runRun(opts) {
 
   const guard = guardNotFailed(io);
   if (guard) return guard;
+
+  persistRunId(io);
 
   const hp = 'WORK.history.yaml';
 
