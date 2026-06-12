@@ -69,7 +69,6 @@ function buildQuenchAttestationParams(runId, cycleId, opts) {
     timestamp: new Date().toISOString(),
     evaluations: [],
     violations,
-    violations_list: feedbackList || [],
     changed_files: [],
     artefact_hashes: hashes,
     feedback_opened: quenchItems.map(i => i.id),

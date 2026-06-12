@@ -37,7 +37,6 @@
  * @property {string[]} changed_files - Sorted array of file paths changed
  * @property {EvalEntry[]} evaluations - Completion records
  * @property {number} violations - Violation count
- * @property {string[]} violations_list - Violation descriptions
  * @property {string[]} feedback_opened - Feedback IDs opened during this stage
  * @property {string[]} feedback_resolved - Feedback IDs resolved during this stage
  * @property {Array<{path: string, hash: string}>} artefact_hashes - Artefact hash records
@@ -174,7 +173,6 @@ export function deriveStageStatus(stageName, evaluations = [], violations = 0, f
  * @param {string} opts.timestamp - ISO 8601 timestamp
  * @param {EvalEntry[]} [opts.evaluations] - Completion records
  * @param {number} [opts.violations] - Violation count
- * @param {string[]} [opts.violations_list] - Violation descriptions
  * @param {string[]} [opts.changed_files] - Changed file paths
  * @param {string[]} [opts.feedback_opened] - Feedback IDs opened
  * @param {string[]} [opts.feedback_resolved] - Feedback IDs resolved
@@ -191,7 +189,6 @@ export function buildStageAttestation({
   changed_files: changedFilesInput,
   wont_fix, verdict, appraiser_verdicts,
   evaluations, violations,
-  violations_list: violationsList,
   feedback_opened: feedbackOpened,
   feedback_resolved: feedbackResolved,
   artefact_hashes: artefactHashes,
@@ -206,7 +203,6 @@ export function buildStageAttestation({
 
   const evalsVal = defaultTo(evaluations, []);
   const violationsVal = defaultTo(violations, 0);
-  const violationsListVal = defaultTo(violationsList, []);
   const changedFiles = sortStrings([...defaultTo(changedFilesInput, [])]);
   const fbOpened = defaultTo(feedbackOpened, []);
   const fbResolved = defaultTo(feedbackResolved, []);
@@ -223,7 +219,6 @@ export function buildStageAttestation({
     schema: STAGE_ATTESTATION_SCHEMA, stage, cycle, iteration,
     timestamp, status, changed_files: changedFiles,
     evaluations: evalsVal, violations: violationsVal,
-    violations_list: violationsListVal,
     feedback_opened: fbOpened, feedback_resolved: fbResolved,
     artefact_hashes: artHashes,
     appraiser_verdicts: appraiser_verdicts || [],

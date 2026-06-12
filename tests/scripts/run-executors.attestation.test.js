@@ -164,7 +164,6 @@ describe('appendQuenchAttestation', () => {
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'quench');
     assert.equal(calls.length, 1);
     assert.equal(calls[0].params.violations, 0);
-    assert.deepEqual(calls[0].params.violations_list, []);
     assert.deepEqual(calls[0].params.artefact_hashes, []);
     assert.deepEqual(calls[0].params.feedback_opened, []);
     assert.deepEqual(calls[0].params.feedback_resolved, []);
@@ -196,7 +195,6 @@ describe('appendQuenchAttestation', () => {
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'quench');
     assert.equal(calls.length, 1);
     assert.equal(calls[0].params.violations, 2);
-    assert.deepEqual(calls[0].params.violations_list, ['violation 1', 'violation 2']);
     assert.ok(calls[0].params.feedback_opened.includes('q-01'));
   });
 
