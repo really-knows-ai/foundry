@@ -75,14 +75,16 @@ export async function appendStageAttestation(io, runId, params) {
 /**
  * Compute governance data from the repository.
  *
- * Reads law files from .foundry/laws/ and computes their SHA-256 hashes,
- * and gets the current git commit hash. Governance data is diagnostic,
- * not critical — all errors produce a fallback rather than throwing.
+ * Reads law files from .foundry/laws/ and computes their SHA-256 hashes.
+ * When a cycle ID is provided, hashes the cycle configuration file at
+ * .foundry/cycles/<cycleId>.yaml. All errors produce a fallback rather
+ * than throwing.
  *
- * @param {object} io - IO interface with readDir, readFile, exec
+ * @param {object} io - IO interface with readDir, readFile
+ * @param {string} [cycleId] - Cycle identifier for config file hashing
  * @returns {{workfile_hashes: Record<string, string>, config_commit: string}}
  */
-export function computeGovernance(io) {
+export function computeGovernance(io, cycleId) {
   let workfileHashes;
   try {
     const lawFiles = io.readDir('.foundry/laws/');
@@ -96,10 +98,15 @@ export function computeGovernance(io) {
   }
 
   let configCommit;
-  try {
-    configCommit = io.exec(['git', 'rev-parse', 'HEAD']).trim();
-  } catch {
-    configCommit = 'unknown';
+  if (cycleId) {
+    try {
+      const content = io.readFile(`.foundry/cycles/${cycleId}.yaml`);
+      configCommit = sha256Text(content);
+    } catch {
+      configCommit = 'none';
+    }
+  } else {
+    configCommit = 'none';
   }
 
   return { workfile_hashes: workfileHashes, config_commit: configCommit };
@@ -113,7 +120,7 @@ export function computeGovernance(io) {
  * @returns {object} Minimal cycle attestation object
  */
 function buildMinimalCycle(runId, governance) {
-  const gov = governance || { workfile_hashes: {}, config_commit: 'unknown' };
+  const gov = governance || { workfile_hashes: {}, config_commit: 'none' };
   return {
     schema: 'foundry-cycle-attestation/v1',
     cycle: runId,
@@ -219,7 +226,8 @@ function parseAttestationLines(lines) {
  * @returns {object} Cycle attestation object (without _hash)
  */
 function buildSealPayload(stageAttestations, runId, io) {
-  const governance = computeGovernance(io);
+  const cycleId = stageAttestations.length > 0 ? stageAttestations[0].cycle : undefined;
+  const governance = computeGovernance(io, cycleId);
   if (stageAttestations.length > 0) {
     return buildCycleAttestation({
       cycle: stageAttestations[0].cycle,
