@@ -88,3 +88,9 @@ test('plugin registers exactly the expected public tool set', async () => {
       `If this change is intentional, update EXPECTED_TOOLS in this test.`
   );
 });
+
+test('foundry_attest is absent from the registered tool set', async () => {
+  const plugin = await FoundryPlugin({ directory: process.cwd() });
+  const toolNames = Object.keys(plugin.tool);
+  assert.ok(!toolNames.includes('foundry_attest'), 'foundry_attest must not be registered');
+});
