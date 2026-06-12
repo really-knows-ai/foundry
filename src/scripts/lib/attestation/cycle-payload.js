@@ -7,12 +7,6 @@
  * The composite record derives an overall status, aggregates feedback and
  * artefact summaries, and records wall-clock duration across stages.
  *
- * Migration note: the current cycle-level schema foundry-attestation/v2
- * (produced by buildAttestationPayload in payload.js) will eventually be
- * produced by this module instead. Stage attestation records (stage-payload.js)
- * are the new atomic unit; the cycle-level attestation becomes an aggregation
- * of stage records.
- *
  * @module cycle-payload
  */
 
@@ -150,7 +144,6 @@ export function deriveCompositeStatus(stageAttestations) {
  * @param {import('./stage-payload.js').StageAttestation[]}
  *   opts.stage_attestations - Per-stage attestation records
  * @param {Object} [opts.governance] - Governance workfile hashes
- *   (from payload.js buildGovernance)
  * @returns {CycleAttestation}
  * @throws {TypeError}
  */

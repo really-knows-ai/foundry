@@ -72,6 +72,7 @@ function isSetupViolation(result) {
 function makeGit(worktree) {
   const execFile = makeExecGit(worktree);
   return {
+    execFile,
     commit: function(message, opts) {
       return commitWithPolicy({ message, allowedPatterns: (opts && opts.allowedPatterns) || [], execFile });
     },

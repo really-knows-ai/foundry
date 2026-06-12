@@ -8,12 +8,6 @@
  * (foundry-cycle-attestation/v1) merges all stage attestations into a
  * composite record.
  *
- * Migration note: the current cycle-level schema foundry-attestation/v2
- * (produced by buildAttestationPayload in payload.js) will eventually be
- * replaced by the composite buildCycleAttestation from cycle-payload.js.
- * Stage attestations are the new atomic unit; the cycle-level attestation
- * becomes an aggregation of stage records rather than a single snapshot.
- *
  * @module stage-payload
  */
 

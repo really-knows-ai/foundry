@@ -61,8 +61,9 @@ Every stage commits separately, so every step leaves a record. Every decision is
 timestamped. A single loop produces an **output** — a verified draft. A flow
 composes one or more such loops to produce an **outcome** — the final artefact.
 
-When the loop clears, completing the work branch requires **attest** — a final
-verification that writes and commits `ATTEST.md` — followed by **finish**, which
+When the loop clears, completing the work branch requires **attest** — the
+orchestration finalise step seals the run by appending a cycle attestation
+line to `.foundry/attestations/<run-id>.jsonl` — followed by **finish**, which
 squash-merges the approved work to the base branch with a signed attestation block.
 
 ### What you describe, what Foundry enforces
@@ -178,7 +179,7 @@ quench    → 5/7/5 — passes                          [commit]
 appraise  → 2 appraisers, one flags weak imagery    [commit]
 forge     → revises                                 [commit]
 appraise  → clean                                   [commit]
-attest    → ATTEST.md committed                     [commit]
+attest    → run sealed in .foundry/attestations/<run-id>.jsonl  [commit]
 finish    → squash-merged to main with attestation
 ```
 

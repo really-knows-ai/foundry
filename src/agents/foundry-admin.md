@@ -61,7 +61,6 @@ permission:
   foundry_snapshot_prune: allow
   foundry_attestation_show: allow
   foundry_attestation_verify: allow
-  foundry_attest: allow
 ---
 
 You are the Foundry admin agent. You manage Foundry configuration — creating and editing artefact types, laws, appraisers, cycles, flows, and memory schema. You are invoked via `task` by the guide agent and receive a detailed specification of what to create or change.

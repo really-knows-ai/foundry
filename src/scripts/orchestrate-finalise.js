@@ -1,11 +1,13 @@
 // Foundry v3.x orchestrate: finalise stage and violation handlers.
 
-import { buildForgeHistoryEntry } from './lib/workfile.js';
+import { sealCycleAttestation as hashSealCycle } from './lib/attestation/hash.js';
+import { buildForgeHistoryEntry, parseFrontmatter } from './lib/workfile.js';
 import { baseStage } from './lib/sort-routing.js';
 import { clearActiveStage, clearLastStage } from './lib/state.js';
 import { allowedPatternsForStage } from './lib/git-policy.js';
 import { stageBaseOf } from './lib/stage-guard.js';
 import { appendEntry, getIteration } from './lib/history.js';
+import yaml from 'js-yaml';
 import {
   tryCommit,
   violation,
@@ -82,6 +84,112 @@ function clearStageState(activeStage, lastStage, io) {
   if (lastStage) clearLastStage(io);
 }
 
+// ---------------------------------------------------------------------------
+// Seal wrapper — orchestrator-facing facade over hash.js sealCycleAttestation
+// ---------------------------------------------------------------------------
+
+/**
+ * Seal the current run by delegating to hash.js sealCycleAttestation and
+ * amending the HEAD commit with the seal fields.
+ *
+ * @param {object} opts
+ * @param {string} opts.runId  ULID run identifier
+ * @param {{ execFile: (string[]) => string }} opts.git  Git adapter with execFile
+ * @param {object} opts.io     IO interface
+ * @returns {{ ok: boolean, sealSha?: string, compositeStatus?: string, stageCount?: number, error?: string }}
+ */
+export function sealCycleAttestation({ runId, git, io }) {
+  let result;
+  try {
+    result = hashSealCycle(runId, io);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  // Stage the JSONL attestation file so the amend captures the new cycle seal line.
+  git.execFile(['add', `.foundry/attestations/${runId}.jsonl`]);
+
+  const bodyFields = [
+    `foundry-run: ${runId}`,
+    `attestation-seal: ${result.seal_hash}`,
+    `composite-status: ${result.composite_status}`,
+    `stage-count: ${result.stage_count}`,
+  ].join('\n');
+
+  // Read the current HEAD commit message via execFile, then prepend it
+  // so we append seal fields rather than losing the original message.
+  const currentMessage = git.execFile(['log', '-1', '--pretty=%B']);
+  const augmentedMessage = currentMessage.trimEnd() + '\n\n' + bodyFields;
+
+  try {
+    git.execFile(['commit', '--amend', '--allow-empty', '-m', augmentedMessage]);
+  } catch (err) {
+    return { ok: false, error: 'amend failed: ' + (err.message || String(err)) };
+  }
+
+  return {
+    ok: true,
+    sealSha: result.seal_hash,
+    compositeStatus: result.composite_status,
+    stageCount: result.stage_count,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cycle stage list reader (for detecting final stage)
+// ---------------------------------------------------------------------------
+
+function readCycleStages(cycleName, io) {
+  try {
+    const content = io.readFile(`.foundry/cycles/${cycleName}.yaml`);
+    const doc = yaml.load(content);
+    return doc?.stages ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Determine whether the current stage is the final stage of its cycle.
+ */
+function isFinalStageOfCycle(lastStage, cycleId, io) {
+  const workText = io.readFile('WORK.md');
+  const fm = parseFrontmatter(workText);
+  const cycleName = fm['foundry-cycle'] || cycleId;
+  const cycleStages = readCycleStages(cycleName, io);
+  if (cycleStages.length === 0) return false;
+  const currentStageName = lastStage.stage ? lastStage.stage.split(':')[0] : '';
+  const lastStageName = cycleStages[cycleStages.length - 1].split(':')[0];
+  return currentStageName === lastStageName;
+}
+
+/**
+ * Read the run ID from WORK.md frontmatter.
+ */
+function readRunIdFromWork(io) {
+  const workText = io.readFile('WORK.md');
+  const fm = parseFrontmatter(workText);
+  return fm['foundry-run'] || null;
+}
+
+/**
+ * Seal the run on the final stage of the cycle.
+ * Extracted from finaliseStage to keep complexity and line count down.
+ */
+function maybeSealRun(lastStage, cycleId, git, io) {
+  const runId = readRunIdFromWork(io);
+  if (!runId) return;
+  if (!isFinalStageOfCycle(lastStage, cycleId, io)) return;
+
+  const sealResult = sealCycleAttestation({ runId, git, io });
+  if (!sealResult.ok) {
+    console.warn(`finaliseStage: seal failed for run ${runId}: ${sealResult.error}`);
+  }
+}
+
 export async function finaliseStage(args) {
   const { lastStage, activeStage, cycleId, io, finalize, git, postVersion, contractPassed, structuredSummary } = args;
   const original = {
@@ -115,6 +223,8 @@ export async function finaliseStage(args) {
     clearStageState(activeStage, null, io);
     return commitErr;
   }
+
+  maybeSealRun(lastStage, cycleId, git, io);
   clearStageState(activeStage, lastStage, io);
   return null;
 }

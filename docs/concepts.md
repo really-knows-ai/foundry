@@ -200,25 +200,11 @@ indefinitely — periodic manual pruning is outside the tool's scope.
 
 ## Attestation
 
-A cryptographic claim that a work branch completed all required stages
-and all feedback was resolved. Created by `foundry_attest({ confirm: true })`,
-which writes and commits `ATTEST.md` at `HEAD` containing the cycle
-goal, a diff SHA-256 of the branch changes, and a canonical JSON payload
-with the flow contract, governance hashes, output artefact list, process
-log, and archive branch reference. Work-branch `foundry_git_finish`
-verifies the attestation before allowing the squash merge. Config and
-dry-run branches do not require attestation.
+An immutable, chronologically ordered record of every quality decision made during a run. Each stage executor appends a self-verifying JSONL line to `.foundry/attestations/<run-id>.jsonl`. The final line is the cycle attestation — it seals the run by embedding all prior stage attestations and carrying a `_hash` covering them. The sealed file is committed alongside the artefacts in the merge commit, and the commit message carries `foundry-run: <run-id>` and `attestation-seal: <_hash>` for git-level traceability. Config and dry-run branches do not require attestation.
 
-## ATTEST.md
+## Run ID
 
-The attestation document written by `foundry_attest` as the work-branch
-`HEAD` commit. Contains the goal prose, `diff-sha256` of the branch
-diff, and a signed attestation block between `-----BEGIN FOUNDRY
-ATTESTATION-----` and `-----END FOUNDRY ATTESTATION-----` delimiters.
-`foundry_git_finish` verifies `ATTEST.md` exists at `HEAD`, checks the
-`diff-sha256` matches the recomputed branch diff, uses the attestation
-payload in the signed final commit message, and preserves the archive
-branch reference.
+A ULID generated at cycle start, written to `WORK.md` frontmatter as `foundry-run`. Every stage in the same run reads the run ID from `WORK.md`, ensuring all appends go to the same `.foundry/attestations/<run-id>.jsonl` file. The run ID links the audit trail to the git commit message.
 
 ## Stage token
 

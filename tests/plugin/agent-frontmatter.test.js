@@ -61,7 +61,7 @@ function specPermittedTools(agentName) {
       'foundry_memory_create_extractor',
       'foundry_snapshot_list', 'foundry_snapshot_show', 'foundry_snapshot_delete',
       'foundry_snapshot_prune',
-      'foundry_attestation_show', 'foundry_attestation_verify', 'foundry_attest',
+      'foundry_attestation_show', 'foundry_attestation_verify',
     ],
     'foundry-forge': [
       'read', 'glob', 'grep', 'list',

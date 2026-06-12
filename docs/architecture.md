@@ -144,7 +144,7 @@ Foundry partitions mutation across three branch namespaces. The plugin enforces 
 | Namespace | Pattern | Owns | Created from | Finished by |
 |-----------|---------|------|--------------|-------------|
 | **config** | `config/<description>` | `foundry/` (schema and config) | `main` via `foundry_git_branch({ kind: "config", description })` | Squash-merge to base branch; no attestation required |
-| **work** | `work/<flowId>-<description>` | `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, `foundry-memory/` (row data) | `main` via `foundry_git_branch({ kind: "work", flowId, description })` | Requires `ATTEST.md` at HEAD (created by `foundry_attest({ confirm: true })`). `foundry_git_finish({ confirm: true })` verifies the attestation, preserves `archive/<work-branch>-<short-sha>`, squash-merges to base, creates a signed commit (`-S`), deletes the work branch |
+| **work** | `work/<flowId>-<description>` | `WORK.md`, `WORK.feedback.yaml`, `WORK.history.yaml`, `foundry-memory/` (row data) | `main` via `foundry_git_branch({ kind: "work", flowId, description })` | Requires `.foundry/attestations/<run-id>.jsonl` at HEAD, sealed by the orchestration finalise step. `foundry_git_finish({ confirm: true })` verifies the attestation, preserves `archive/<work-branch>-<short-sha>`, squash-merges to base, creates a signed commit (`-S`), deletes the work branch |
 | **dry-run** | `dry-run/<parentConfig>/<flowId>-<description>` | Same as `work/*` | `config/*` via `foundry_git_branch({ kind: "dry-run", flowId, description })` | `foundry_git_finish` (captures snapshot to `.snapshots/<run-id>/`, force-deletes branch) |
 
 ### Guard implementation
@@ -159,7 +159,7 @@ Implementation: `src/scripts/lib/branch-guard.js`.
 
 ### Forensic branches and snapshots
 
-- **Work branches** require `ATTEST.md` at HEAD, created by `foundry_attest({ confirm: true })` before `foundry_git_finish({ confirm: true })` runs. The finish tool verifies the attestation, checks the diff SHA matches, preserves the branch as `archive/work/<flowId>-<description>-<hash>`, squash-merges to the base branch with a signed commit (`-S`), and deletes the work branch. The full stage micro-commit history, `WORK.*` files, and all intermediate artefact states remain intact. The signed squash commit on the base branch references the archive branch tip SHA in its attestation block.
+- **Work branches** require `.foundry/attestations/<run-id>.jsonl` at HEAD, sealed by the orchestration finalise step before `foundry_git_finish({ confirm: true })` runs. The finish tool verifies the attestation, checks the diff SHA matches, preserves the branch as `archive/work/<flowId>-<description>-<hash>`, squash-merges to the base branch with a signed commit (`-S`), and deletes the work branch. The full stage micro-commit history, `WORK.*` files, and all intermediate artefact states remain intact. The signed squash commit on the base branch references the archive branch tip SHA in its attestation block.
 - **Dry-run branches** are force-deleted after `foundry_git_finish` captures a snapshot to `.snapshots/<runId>/` on the parent `config/*` working tree. Each snapshot includes `README.md` (metadata), `work/WORK*` (workfile triple), `diff.patch` (full diff), and `trace.jsonl` (tool-call trace).
 
 ---
@@ -402,7 +402,7 @@ Implementation: `src/plugin/tools/helpers.js` (`buildCyclePromptExtras`) and `sr
 │       │   ├── failed-flow.js
 │       │   ├── git-bridge.js
 │       │   ├── git-finish/     # branch finishing logic
-│       │   ├── attestation/    # ATTEST.md generation and verification
+│       │   ├── attestation/    # Per-stage attestation JSONL generation and verification
 │       │   ├── git-policy.js
 │       │   ├── assay/
 │       │   ├── config-creators/
