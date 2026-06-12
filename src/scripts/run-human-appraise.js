@@ -221,7 +221,7 @@ function readDeadlockUserPrompt(io, fm, fp) {
  * Reads stage-output records, resolves/rejects items, and either closes
  * the stage or re-prompts with remaining items.
  */
-function handleDeadlockOverride(ctx) {
+export function handleDeadlockOverride(ctx) {
   const { io, activeStage, cycleId, store, fm, fp } = ctx;
 
   // If no items are in the deadlocked state, terminate with a violation
@@ -298,7 +298,7 @@ function rejectAlwaysHuman(ctx, feedback) {
  * Reads stage-output records and either approves (close stage) or rejects
  * (store feedback, close stage). Returns prompt_user when no records exist.
  */
-function handleAlwaysHumanAppraise(ctx) {
+export function handleAlwaysHumanAppraise(ctx) {
   const { io, activeStage, cycleId, fm, store } = ctx;
   const records = readHumanAppraiseOutputs(io);
 
