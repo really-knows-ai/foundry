@@ -135,6 +135,12 @@ export async function appendAppraiseAttestation(io, cycleId, iteration, coverage
   const totalViolations = [...coverage.values()]
     .reduce((sum, entry) => sum + (entry.violations || 0), 0);
   const evaluations = [...coverage.values()].flatMap(entry => entry.evaluations || []);
+  const appraiserVerdicts = [...coverage.values()].flatMap(entry =>
+    (entry.evaluations || []).map(e => ({
+      appraiser: e.appraiser,
+      verdict: e.verdict === 'passed' ? 'resolved' : 'rejected',
+    }))
+  );
   const appraiseItems = store.list().filter(i =>
     i.source && i.source.split(':')[0] === 'appraise' && i.history.length === 1
   );
@@ -144,6 +150,7 @@ export async function appendAppraiseAttestation(io, cycleId, iteration, coverage
     iteration: iteration,
     timestamp: new Date().toISOString(),
     evaluations,
+    appraiser_verdicts: appraiserVerdicts,
     violations: totalViolations,
     changed_files: [],
     artefact_hashes: [],

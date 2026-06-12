@@ -79,6 +79,9 @@ describe('appendAppraiseAttestation', () => {
     assert.equal(calls[0].params.stage, 'appraise');
     assert.equal(calls[0].params.cycle, 'test-cycle');
     assert.equal(calls[0].params.iteration, 1);
+    assert.deepEqual(calls[0].params.appraiser_verdicts, [
+      { appraiser: 'test', verdict: 'resolved' },
+    ]);
   });
 
   test('sums violations across all coverage entries', () => {
@@ -105,6 +108,9 @@ describe('appendAppraiseAttestation', () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].params.evaluations.length, 1);
     assert.equal(calls[0].params.evaluations[0].appraiser, 'a');
+    assert.deepEqual(calls[0].params.appraiser_verdicts, [
+      { appraiser: 'a', verdict: 'resolved' },
+    ]);
   });
 
   test('handles empty coverage map', () => {
@@ -116,6 +122,7 @@ describe('appendAppraiseAttestation', () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].params.violations, 0);
     assert.deepEqual(calls[0].params.evaluations, []);
+    assert.deepEqual(calls[0].params.appraiser_verdicts, []);
   });
 
   test('does not throw when feedback store has no items', () => {
