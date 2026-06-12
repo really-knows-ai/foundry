@@ -40,7 +40,6 @@
  * @property {string[]} feedback_opened - Feedback IDs opened during this stage
  * @property {string[]} feedback_resolved - Feedback IDs resolved during this stage
  * @property {Array<{path: string, hash: string}>} artefact_hashes - Artefact hash records
- * @property {'resolved'|'rejected'|'pending'|'violation'|null} verdict - Human-appraise verdict
  */
 
 /** Schema version for per-stage attestation payloads */
@@ -221,6 +220,5 @@ export function buildStageAttestation({
     evaluations: evalsVal, violations: violationsVal,
     feedback_opened: fbOpened, feedback_resolved: fbResolved,
     artefact_hashes: artHashes,
-    verdict: verdict || null,
   });
 }
