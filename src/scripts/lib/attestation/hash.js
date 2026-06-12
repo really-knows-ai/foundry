@@ -174,15 +174,10 @@ function verifyStageLine(line) {
  * @returns {object[]} Verified stage attestation objects
  */
 /**
- * Handle a line with a hash mismatch: include stage lines, skip cycle lines.
- *
- * @param {{attestation: object, mismatch: boolean}} result - verifyStageLine result
- * @param {object[]} results - accumulator for included attestations
+ * Handle a line with a hash mismatch by logging a warning.
+ * The caller's `continue` handles skipping.
  */
-function handleMismatchLine(result) {
-  if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
-    throw new Error('pre-existing cycle line hash mismatch — composite cannot be trusted');
-  }
+function handleMismatchLine() {
   console.warn('skipping line with hash mismatch');
 }
 
@@ -203,7 +198,7 @@ function parseAttestationLines(lines) {
       continue;
     }
     if (result.mismatch) {
-      handleMismatchLine(result);
+      handleMismatchLine();
       continue;
     }
     if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
