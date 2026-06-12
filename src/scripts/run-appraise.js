@@ -293,6 +293,17 @@ async function prepareAppraiseContext(apprOpts) {
 }
 
 /**
+ * Write an empty appraise attestation for an error path where no dispatch occurred.
+ */
+async function appendEmptyAppraiseAttestation(io, apprOpts, feedbackPath) {
+  const cycleId = await cycleIdFrom(apprOpts.cycleId, apprOpts.sort);
+  appendAppraiseAttestation(io, cycleId, {
+    iteration: 1, coverage: new Map(), feedbackPath,
+    appraiser_verdicts: [],
+  });
+}
+
+/**
  * Run the standard artefact-evaluation appraise pipeline.
  * Called when there are no addressed feedback items to process.
  */
@@ -302,7 +313,10 @@ async function executeStandardAppraise(apprOpts) {
 
   const ctx = await prepareAppraiseContext(apprOpts);
   if (ctx.ok) return ctx;
-  if (ctx.error) return { ok: false, error: ctx.error };
+  if (ctx.error) {
+    await appendEmptyAppraiseAttestation(io, apprOpts, feedbackPath);
+    return { ok: false, error: ctx.error };
+  }
   const { baseSha, cycleId, outputType, foundryDir, unitsByGroup, dispatchMatrix } = ctx;
 
   const dispatchOpts = {
