@@ -5,7 +5,7 @@
  */
 
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
-import { appendEntry } from './lib/history.js';
+import { appendEntry, getIteration } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.js';
 import { parseConsolidated } from './appraise-module.js';
@@ -18,6 +18,8 @@ import { getCycleDefinition, getLaws, getAppraisers, getFlow, getArtefactType } 
 import { writePromptFile as _writePromptFile, spawnDispatch as _spawnDispatch, awaitProcess as _awaitProcess, withCleanup as _withCleanup } from './lib/dispatch-cli.js';
 import { dispatchAppraisePrompt, batchAppraiseDispatch, checkAppraiseDispatchFailure } from './lib/appraise-dispatch.js';
 import { tryAppraiseAddress, buildAddressDispatchFn } from './appraise-address.js';
+import { buildCompletionCoverage, writeCoverageFile } from './lib/appraise-coverage.js';
+import { appendAppraiseAttestation } from './lib/attestation/executor-attestation.js';
 
 function resolveBaseSha(io) {
   try {
@@ -53,7 +55,7 @@ async function cycleIdFrom(cycleId, sort) {
 }
 export { resolveAppraiseModel, cleanStageOutputDir };
 
-export { partitionLawsByGroup, resolveGroupConfigs, recordToUnitId, buildCompletionCoverage, writeCoverageFile };
+export { recordToUnitId, buildCompletionCoverage, writeCoverageFile } from './lib/appraise-coverage.js';
 
 export { dispatchAppraisePrompt, batchAppraiseDispatch };
 
@@ -99,7 +101,9 @@ async function setupAppraiseStage(apprOpts) {
   return { tokenHash, baseSha, cycleId, outputType, cfm };
 }
 
-function emptyAppraiseResult(io, cycleId, baseSha, historyPath, reason) {
+function emptyAppraiseResult(opts) {
+  const { io, cycleId, baseSha, historyPath, reason, feedbackPath } = opts;
+  appendAppraiseAttestation(io, cycleId, { iteration: 1, coverage: new Map(), feedbackPath, appraiser_verdicts: [] });
   clearActiveStage(io);
   writeLastStage(io, { cycle: cycleId, stage: 'appraise:' + cycleId, baseSha: baseSha, summary: reason });
   appendEntry(historyPath, { cycle: cycleId, stage: 'appraise:' + cycleId, iteration: 1, comment: 'appraise: ' + reason }, io);
@@ -200,125 +204,8 @@ function recordAppraiseHistory(opts) {
   }
 }
 
-/**
- * Find the unit in law-by-law mode whose lawIds include the given law.
- * @param {{lawIds:string[]}[]} units
- * @param {{law:string}} record
- * @returns {string|undefined}
- */
-function findLawUnit(units, record) {
-  for (const unit of units) {
-    if (unit.lawIds && unit.lawIds.includes(record.law)) {
-      return unit.unitId;
-    }
-  }
-  return undefined;
-}
-
-/**
- * Map a violation record to the unitId of the evaluation unit that produced it.
- * Bundle mode maps all violations to the single bundle unit.
- * Law-by-law mode finds the unit whose lawIds include the record's law.
- * @param {{group:string,law:string}} record
- * @param {Map<string,{unitId:string,mode:string,lawIds:string[]}[]>} unitsByGroup
- * @returns {string|undefined}
- */
-function recordToUnitId(record, unitsByGroup) {
-  const units = unitsByGroup.get(record.group);
-  if (!units || units.length === 0) return undefined;
-  if (units.length === 1 && units[0].mode === 'bundle') return units[0].unitId;
-  return findLawUnit(units, record);
-}
-
-/**
- * Safely parse a JSON line, returning null on failure.
- */
-function tryParseLine(line) {
-  try { return JSON.parse(line); } catch { return null; }
-}
-
-/**
- * Count violations from stage-output file content and attribute to units.
- */
-function countViolationsInContent(content, unitsByGroup, coverage) {
-  for (const line of content.trim().split('\n').filter(Boolean)) {
-    const record = tryParseLine(line);
-    if (!record) continue;
-    const unitId = recordToUnitId(record, unitsByGroup);
-    if (unitId && coverage.has(unitId)) {
-      coverage.get(unitId).violations++;
-    }
-  }
-}
-
-/**
- * Count violations from stage-output files, grouping by evaluation unit.
- */
-function countViolationsFromFiles(filePaths, io, unitsByGroup, coverage) {
-  for (const fp of filePaths) {
-    let content;
-    try { content = io.readFile(fp); } catch { continue; }
-    countViolationsInContent(content, unitsByGroup, coverage);
-  }
-}
-
-/**
- * Build per-unit completion coverage from dispatch results and stage outputs.
- * The violations-only protocol: the executor records completions, not verdicts.
- * A fulfilled dispatch is a completed evaluation; a rejected dispatch is uncompleted.
- * @param {object[]} dispatchMatrix
- * @param {PromiseSettledResult[]} settled
- * @param {string[]} filePaths
- * @param {object} io
- * @param {Map<string,{unitId:string,mode:string,lawIds:string[]}[]>} unitsByGroup
- * @returns {Map<string,{
- *   unitId:string,group:string,mode:string,law:string|null,
- *   evaluations:object[],violations:number
- * }>}
- */
-function buildCompletionCoverage(dispatchMatrix, settled, filePaths, io, unitsByGroup) {
-  const coverage = new Map();
-
-  dispatchMatrix.forEach(function(entry, i) {
-    const result = settled[i];
-    const unitId = entry.unit.unitId;
-
-    if (!coverage.has(unitId)) {
-      coverage.set(unitId, {
-        unitId: unitId,
-        group: entry.group,
-        mode: entry.unit.mode,
-        law: entry.unit.mode === 'law-by-law' ? (entry.unit.lawIds?.[0] || null) : null,
-        evaluations: [],
-        violations: 0,
-      });
-    }
-
-    coverage.get(unitId).evaluations.push({
-      appraiser: entry.appraiser.id,
-      pass: entry.pass,
-      completed: result.status === 'fulfilled',
-    });
-  });
-
-  countViolationsFromFiles(filePaths, io, unitsByGroup, coverage);
-
-  return coverage;
-}
-
-/**
- * Serialise coverage data to a JSON file for the attestation tool.
- * Writes a sorted JSON array of coverage entries to foundry/.stage/.coverage-<cycleId>.json.
- */
-function writeCoverageFile(io, coverage, cycleId) {
-  const entries = [...coverage.entries()]
-    .sort(function(a, b) { return a[0].localeCompare(b[0]); })
-    .map(function([unitId, entry]) {
-      return { unitId: unitId, ...entry };
-    });
-  const json = JSON.stringify(entries, null, 2) + '\n';
-  io.writeFile('foundry/.stage/.coverage-' + cycleId + '.json', json);
-}
+// recordToUnitId, buildCompletionCoverage, and writeCoverageFile
+// are imported from ./lib/appraise-coverage.js
 
 /**
  * Extract flow-level groups and artefact-type appraiser config.
@@ -377,21 +264,21 @@ async function postProcessAppraise(opts) {
  * close stage, record history.
  */
 async function prepareAppraiseContext(apprOpts) {
-  const { io, historyPath } = apprOpts;
+  const { io, historyPath, feedbackPath } = apprOpts;
   const setup = await setupAppraiseStage(apprOpts);
   if (setup.error) return { error: setup.error };
   const { baseSha, cycleId, outputType, cfm } = setup;
   const foundryDir = 'foundry';
 
   const laws = await getLaws(foundryDir, io, { typeId: outputType }).catch(catchEmptyArray);
-  if (laws.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no laws');
+  if (laws.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no laws', feedbackPath });
 
   const lawGroups = partitionLawsByGroup(laws);
   const fullAppraiserPool = await getAppraisers(foundryDir, io).catch(catchEmptyArray);
   const flowDef = await getFlow(foundryDir, cfm['flow-id'], io).catch(catchEmptyFlow);
 
   const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch: 'main' }).catch(catchEmptyArray);
-  if (artefacts.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no artefacts');
+  if (artefacts.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no artefacts', feedbackPath });
 
   const { flowGroups, typeAppraisers } = await extractGroupsAndAppraisers(flowDef, cfm, outputType, io, foundryDir);
   const { configs, warnings } = resolveGroupConfigs(
@@ -400,7 +287,7 @@ async function prepareAppraiseContext(apprOpts) {
   warnings.forEach(function(w) { console.warn('appraise:', w); });
 
   const { unitsByGroup, dispatchMatrix } = buildDispatch(lawGroups, configs);
-  if (dispatchMatrix.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no dispatch entries');
+  if (dispatchMatrix.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no dispatch entries', feedbackPath });
 
   return { baseSha, cycleId, outputType, foundryDir, io, unitsByGroup, dispatchMatrix, lawGroups };
 }
@@ -424,28 +311,56 @@ async function executeStandardAppraise(apprOpts) {
   };
   const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);
   const dispatchError = checkAppraiseDispatchFailure(settled);
-  if (dispatchError) return dispatchError;
+  if (dispatchError) {
+    const iteration = getIteration(historyPath, cycleId, io) + 1;
+    const appraiserVerdicts = dispatchMatrix
+      .filter((_, i) => settled[i].status === 'rejected')
+      .map(entry => ({ appraiser: entry.appraiser.id, verdict: 'rejected' }));
+    appendAppraiseAttestation(io, cycleId, {
+      iteration, coverage: new Map(), feedbackPath,
+      appraiser_verdicts: appraiserVerdicts,
+    });
+    return dispatchError;
+  }
 
   const coverage = await postProcessAppraise({
     io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
     foundryDir, outputType, worktree, historyPath, baseSha,
   });
+
+  const iteration = getIteration(historyPath, cycleId, io) + 1;
+  const appraiserVerdicts = dispatchMatrix.map((entry, i) => ({
+    appraiser: entry.appraiser.id,
+    verdict: settled[i].status === 'fulfilled' ? 'resolved' : 'rejected',
+  }));
+  appendAppraiseAttestation(io, cycleId, { iteration, coverage, feedbackPath, appraiser_verdicts: appraiserVerdicts });
   return { ok: true, coverage };
 }
 
 export async function executeAppraise(apprOpts) {
-  const { io, feedbackPath } = apprOpts;
+  const { io, feedbackPath, historyPath } = apprOpts;
 
   const sort = apprOpts.sort;
   const earlyCycleId = await cycleIdFrom(apprOpts.cycleId, sort);
-  if (!earlyCycleId) return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
+  if (!earlyCycleId) {
+    appendAppraiseAttestation(io, null, { iteration: 1, coverage: new Map(), feedbackPath, appraiser_verdicts: [] });
+    return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
+  }
 
   const appraisers = await getAppraisers('foundry', io).catch(function() { return []; });
   const dispatchHelpers = extractDispatchHelpers(apprOpts);
   const addressDispatchFn = buildAddressDispatchFn(appraisers, dispatchHelpers, io, apprOpts.worktree);
 
   const addressResult = await tryAppraiseAddress(apprOpts, io, feedbackPath, earlyCycleId, addressDispatchFn);
-  if (addressResult !== null) return addressResult;
+  if (addressResult !== null) {
+    const emptyCoverage = new Map();
+    const iteration = getIteration(historyPath, earlyCycleId, io) + 1;
+    appendAppraiseAttestation(io, earlyCycleId, {
+      iteration, coverage: emptyCoverage, feedbackPath,
+      appraiser_verdicts: [],
+    });
+    return addressResult;
+  }
 
   return await executeStandardAppraise(apprOpts);
 }

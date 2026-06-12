@@ -145,10 +145,11 @@ export function appendAssayAttestation(io, cycleId, issues, store, iteration = 1
 // Appraise attestation
 // ---------------------------------------------------------------------------
 
-export function appendAppraiseAttestation(io, cycleId, iteration, coverage, feedbackPath) {
+export function appendAppraiseAttestation(io, cycleId, opts) {
   try {
     const runId = readRunId(io);
     if (!runId) return;
+    const { iteration, coverage, feedbackPath, appraiser_verdicts } = opts;
     const store = openFeedbackStore(feedbackPath, io);
     const totalViolations = [...coverage.values()]
       .reduce((sum, entry) => sum + (entry.violations || 0), 0);
@@ -167,6 +168,7 @@ export function appendAppraiseAttestation(io, cycleId, iteration, coverage, feed
       artefact_hashes: [],
       feedback_opened: appraiseItems.map(i => i.id),
       feedback_resolved: [],
+      appraiser_verdicts,
     });
   } catch (_err) {
     console.warn('appraise: attestation append failed', _err.message);
