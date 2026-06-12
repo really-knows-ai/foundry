@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, existsSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -96,7 +96,22 @@ function enableSshSigning(dir) {
 // Creates a sealed commit with attestation metadata in the commit body.
 // Call this on the work branch just before calling foundry_git_finish.
 function createSealedCommit(dir, cycle = 'test') {
-  const message = `[${cycle}] appraise:${cycle}: completed\n\nfoundry-run: 01TESTRUNID\nattestation-seal: abc123def4567890\ncomposite-status: pass\nstage-count: 4`;
+  const runId = '01TESTRUNID';
+  const attDir = join(dir, '.foundry', 'attestations');
+  mkdirSync(attDir, { recursive: true });
+  const attContent = JSON.stringify({
+    schema: 'foundry-stage-attestation/v1',
+    stage: 'forge', cycle, iteration: 1,
+    timestamp: new Date().toISOString(),
+    status: 'pass',
+    changed_files: [], evaluations: [], violations: 0,
+    feedback_opened: [], feedback_resolved: [],
+    artefact_hashes: [],
+    _hash: 'abc123def4567890012345678901234567890123456789012345678901234567890',
+  });
+  writeFileSync(join(attDir, `${runId}.jsonl`), attContent + '\n');
+  execSync('git add -f .foundry/attestations/', { cwd: dir, env: GIT_ENV });
+  const message = `[${cycle}] appraise:${cycle}: completed\n\nfoundry-run: ${runId}\nattestation-seal: abc123def4567890\ncomposite-status: pass\nstage-count: 4`;
   execSync(`git commit --allow-empty -m "${message.replace(/"/g, '\\"')}" --no-gpg-sign`, { cwd: dir, env: GIT_ENV });
 }
 
@@ -135,6 +150,7 @@ test('foundry_git_finish on work branch preserves WORK files and merges feature'
     assert.equal(existsSync(join(dir, 'WORK.history.yaml')), true, 'WORK.history.yaml should be preserved');
     assert.equal(existsSync(join(dir, 'WORK.feedback.yaml')), true, 'WORK.feedback.yaml should be preserved');
     assert.equal(existsSync(join(dir, 'feature.txt')), true, 'Feature file should be merged');
+    assert.equal(existsSync(join(dir, '.foundry/attestations/01TESTRUNID.jsonl')), true, 'Attestation file should be merged');
   } finally {
     for (const [k, v] of Object.entries(envSnapshot)) {
       if (v === undefined) delete process.env[k];
@@ -582,6 +598,7 @@ test('foundry_git_finish produces attestation block in final commit message on H
     assert.match(commitMsg, /attestation-seal: abc123def4567890/, 'Should include attestation-seal field');
     assert.match(commitMsg, /composite-status: pass/, 'Should include composite-status field');
     assert.match(commitMsg, /stage-count: 4/, 'Should include stage-count field');
+    assert.equal(existsSync(join(dir, '.foundry/attestations/01TESTRUNID.jsonl')), true, 'Attestation JSONL file should exist after merge');
   } finally {
     cleanup(dir);
   }
