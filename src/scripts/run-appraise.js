@@ -264,7 +264,10 @@ async function postProcessAppraise(opts) {
 async function prepareAppraiseContext(apprOpts) {
   const { io, historyPath, feedbackPath } = apprOpts;
   const setup = await setupAppraiseStage(apprOpts);
-  if (setup.error) return { error: setup.error };
+  if (setup.error) {
+    appendAppraiseAttestation(io, null, 1, new Map(), feedbackPath);
+    return { error: setup.error };
+  }
   const { baseSha, cycleId, outputType, cfm } = setup;
   const foundryDir = 'foundry';
 
