@@ -178,7 +178,7 @@ function buildHumanEvaluations(records) {
   if (!records || records.length === 0) return [];
   return records.map(r => ({
     appraiser: 'human',
-    pass: r.verdict === 'resolved' || r.verdict === 'approved',
+    verdict: r.verdict === 'resolved' || r.verdict === 'approved' ? 'passed' : 'failed',
     completed: true,
   }));
 }

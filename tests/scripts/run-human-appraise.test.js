@@ -884,10 +884,10 @@ describe('human-appraise — attestation helper exports', () => {
     assert.equal(Array.isArray(params.evaluations), true);
     assert.equal(params.evaluations.length, 4);
 
-    assert.deepEqual(params.evaluations[0], { appraiser: 'human', pass: true, completed: true });
-    assert.deepEqual(params.evaluations[1], { appraiser: 'human', pass: true, completed: true });
-    assert.deepEqual(params.evaluations[2], { appraiser: 'human', pass: false, completed: true });
-    assert.deepEqual(params.evaluations[3], { appraiser: 'human', pass: false, completed: true });
+    assert.deepEqual(params.evaluations[0], { appraiser: 'human', verdict: 'passed', completed: true });
+    assert.deepEqual(params.evaluations[1], { appraiser: 'human', verdict: 'passed', completed: true });
+    assert.deepEqual(params.evaluations[2], { appraiser: 'human', verdict: 'failed', completed: true });
+    assert.deepEqual(params.evaluations[3], { appraiser: 'human', verdict: 'failed', completed: true });
   });
 
   test('evaluations is empty array when records is absent', async () => {
@@ -948,8 +948,8 @@ describe('human-appraise — attestation helper exports', () => {
 
     assert.equal(Array.isArray(params.evaluations), true);
     assert.equal(params.evaluations.length, 2);
-    assert.deepEqual(params.evaluations[0], { appraiser: 'human', pass: true, completed: true });
-    assert.deepEqual(params.evaluations[1], { appraiser: 'human', pass: false, completed: true });
+    assert.deepEqual(params.evaluations[0], { appraiser: 'human', verdict: 'passed', completed: true });
+    assert.deepEqual(params.evaluations[1], { appraiser: 'human', verdict: 'failed', completed: true });
 
     assert.deepEqual(params.feedback_resolved, ['item-01']);
     assert.deepEqual(params.feedback_opened, ['new-item-01', 'new-item-02']);
