@@ -91,6 +91,11 @@ describe('sealCycleAttestation wrapper', () => {
     assert.equal(result.compositeStatus, 'pass');
     assert.equal(result.stageCount, 3);
 
+    // JSONL file is staged into the commit
+    const addCall = git._calls.find(c => c[0] === 'add');
+    assert.ok(addCall, 'git execFile called with add as first arg');
+    assert.equal(addCall[1], `.foundry/attestations/${RUN_ID}.jsonl`);
+
     // git commit --amend was called
     const amendCall = git._calls.find(c => c[0] === 'commit');
     assert.ok(amendCall, 'git execFile called with commit as first arg');
@@ -110,6 +115,31 @@ describe('sealCycleAttestation wrapper', () => {
     result = sealCycleAttestation({ runId: RUN_ID, git: createGitMock(), io: {} });
     assert.equal(result.ok, false);
     assert.equal(result.error, 'no file');
+  });
+
+  it('returns violation when git amend fails', () => {
+    hashReturnValue = {
+      ok: true,
+      cycle: 'test-cycle',
+      composite_status: 'pass',
+      stage_count: 3,
+      seal_hash: 'abc123def456',
+    };
+
+    const git = {
+      execFile: (args) => {
+        // add succeeds, log succeeds, but commit --amend throws
+        if (args[0] === 'commit') {
+          throw new Error('commit rejected');
+        }
+        return '';
+      },
+    };
+
+    const result = sealCycleAttestation({ runId: RUN_ID, git, io: {} });
+    assert.equal(result.ok, false);
+    assert.ok(result.error.startsWith('amend failed: '));
+    assert.ok(result.error.includes('commit rejected'));
   });
 
   it('produces deterministic hash for same inputs', () => {

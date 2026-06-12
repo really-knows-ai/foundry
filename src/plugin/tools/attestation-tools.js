@@ -46,13 +46,6 @@ function verifyJsonlLine(lineObj) {
 }
 
 /**
- * Read and verify every line in a JSONL file.
- *
- * @param {string} filePath  Absolute path to the JSONL file
- * @returns {{ ok: true, entries: object[], linesVerified: number, sealVerified: boolean }
- *        | { ok: false, error: string }}
- */
-/**
  * Parse a single JSONL line and verify its hash.
  * Returns the parsed object on success, or an error object on failure.
  */
@@ -70,6 +63,13 @@ function parseAndVerifyLine(line, index) {
   return { parsed };
 }
 
+/**
+ * Read and verify every line in a JSONL file.
+ *
+ * @param {string} filePath  Absolute path to the JSONL file
+ * @returns {{ ok: true, entries: object[], linesVerified: number, sealVerified: boolean }
+ *        | { ok: false, error: string }}
+ */
 function verifyJsonlFile(filePath) {
   if (!existsSync(filePath)) {
     return { ok: false, error: `attestation file not found: ${filePath}` };
