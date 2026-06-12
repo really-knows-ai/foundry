@@ -113,27 +113,6 @@ export function computeGovernance(io, cycleId) {
 }
 
 /**
- * Build a minimal cycle attestation for an empty run.
- *
- * @param {string} runId - ULID run identifier
- * @param {object} [governance] - Governance workfile hashes
- * @returns {object} Minimal cycle attestation object
- */
-function buildMinimalCycle(runId, governance) {
-  const gov = governance || { workfile_hashes: {}, config_commit: 'none' };
-  return {
-    schema: 'foundry-cycle-attestation/v1',
-    cycle: runId,
-    stage_attestations: [],
-    composite_status: 'incomplete',
-    cycle_duration_ms: null,
-    feedback_summary: { opened: 0, resolved: 0, rejected: 0, open_remaining: 0 },
-    artefact_summary: { total_changed: 0, unique_paths: 0 },
-    governance: gov,
-  };
-}
-
-/**
  * Parse a single JSONL line and verify its hash.
  *
  * Returns an object with either an `attestation` (verified parsed object),
@@ -212,25 +191,21 @@ function parseAttestationLines(lines) {
 /**
  * Build the cycle attestation seal payload from verified stage attestations.
  *
- * Uses buildCycleAttestation when stage attestations exist; falls back to
- * buildMinimalCycle when there are none.
- *
  * @param {object[]} stageAttestations - Verified stage attestation objects
- * @param {string} runId - ULID run identifier (fallback for cycle value)
+ * @param {string} runId - ULID run identifier (fallback for cycle value when
+ *   stage attestations are empty)
  * @param {object} io - IO interface for computing governance data
  * @returns {object} Cycle attestation object (without _hash)
  */
 function buildSealPayload(stageAttestations, runId, io) {
+  const cycle = stageAttestations.length > 0 ? stageAttestations[0].cycle : runId;
   const cycleId = stageAttestations.length > 0 ? stageAttestations[0].cycle : undefined;
   const governance = computeGovernance(io, cycleId);
-  if (stageAttestations.length > 0) {
-    return buildCycleAttestation({
-      cycle: stageAttestations[0].cycle,
-      stage_attestations: stageAttestations,
-      governance,
-    });
-  }
-  return buildMinimalCycle(runId, governance);
+  return buildCycleAttestation({
+    cycle,
+    stage_attestations: stageAttestations,
+    governance,
+  });
 }
 
 /**

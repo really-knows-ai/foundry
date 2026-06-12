@@ -22,6 +22,8 @@ Deadlock override and always-human-appraise implemented. Priority rule, violatio
 ### F — Per-stage attestation
 `stage-payload.js` and `cycle-payload.js` with full schema, status derivation, 37 tests. Existing attestation code unchanged. Stage-wiring deferred.
 
+  - [x] `deriveCompositeStatus` returns `'incomplete'` for empty stage attestations; `buildCycleAttestation` accepts empty arrays; `buildMinimalCycle` removed from `hash.js`
+
 ## Gaps
 
 No gaps.

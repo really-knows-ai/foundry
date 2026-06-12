@@ -115,16 +115,14 @@ function computeDurationMs(stageAttestations) {
 }
 
 /**
- * Derive composite cycle status from per-stage status values.
+ * Resolve status from a list of per-stage status values.
  *
  * Priority: fail > rejected > incomplete > pass/resolved > mixed
  *
- * @param {import('./stage-payload.js').StageAttestation[]} stageAttestations
+ * @param {string[]} statuses
  * @returns {CycleAttestationStatus}
  */
-export function deriveCompositeStatus(stageAttestations) {
-  const statuses = stageAttestations.map(s => s.status);
-
+function resolveCompositeStatus(statuses) {
   if (statuses.some(s => s === 'fail')) return 'fail';
   if (statuses.some(s => s === 'rejected')) return 'rejected';
   if (statuses.some(s => s === 'incomplete')) return 'incomplete';
@@ -133,11 +131,24 @@ export function deriveCompositeStatus(stageAttestations) {
 }
 
 /**
+ * Derive composite cycle status from per-stage status values.
+ *
+ * An empty array produces 'incomplete'.
+ *
+ * @param {import('./stage-payload.js').StageAttestation[]} stageAttestations
+ * @returns {CycleAttestationStatus}
+ */
+export function deriveCompositeStatus(stageAttestations) {
+  if (stageAttestations.length === 0) return 'incomplete';
+  return resolveCompositeStatus(stageAttestations.map(s => s.status));
+}
+
+/**
  * Build a cycle attestation payload.
  *
  * Validates inputs, sorts stage attestations, derives composite status and
  * summaries, and returns a frozen CycleAttestation. An empty
- * stage_attestations array is rejected.
+ * stage_attestations array produces an incomplete status.
  *
  * @param {Object} opts
  * @param {string} opts.cycle - Cycle identifier
@@ -155,8 +166,8 @@ export function buildCycleAttestation({
   if (!cycle) {
     throw new TypeError('Missing required field: cycle');
   }
-  if (!Array.isArray(stageAttestations) || !stageAttestations.length) {
-    throw new TypeError('stage_attestations must be a non-empty array');
+  if (!Array.isArray(stageAttestations)) {
+    throw new TypeError('stage_attestations must be an array');
   }
 
   const sorted = [...stageAttestations].sort(byIterationThenStage);

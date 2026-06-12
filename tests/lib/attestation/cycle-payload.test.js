@@ -63,11 +63,11 @@ describe('buildCycleAttestation', () => {
     assert.equal(result.stage_attestations[2].iteration, 2);
   });
 
-  it('empty stage attestations array produces TypeError', () => {
-    assert.throws(
-      () => buildCycleAttestation({ cycle: 'cycle-1', stage_attestations: [] }),
-      /non-empty/,
-    );
+  it('empty stage attestations array produces an incomplete cycle', () => {
+    const result = buildCycleAttestation({ cycle: 'cycle-1', stage_attestations: [] });
+    assert.equal(result.composite_status, 'incomplete');
+    assert.equal(result.stage_attestations.length, 0);
+    assert.equal(result.cycle_duration_ms, null);
   });
 
   it('governance section is present with file hashes', () => {
