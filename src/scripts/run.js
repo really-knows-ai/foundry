@@ -10,7 +10,8 @@
 
 import { runSort as defaultRunSort } from './sort.js';
 import { markWorkfileFailed, readFailedStatus } from './lib/failed-flow.js';
-import { parseFrontmatter, setFrontmatterField } from './lib/workfile.js';
+import { parseFrontmatter, setFrontmatterField, readRunId } from './lib/workfile.js';
+import { sealCycleAttestation } from './lib/attestation/hash.js';
 import { tryCommit, readCycleTargets, synthesizeStages } from './orchestrate-cycle.js';
 import { appendEntry } from './lib/history.js';
 import { executeForge, executeQuench, executeAssay, executeAppraise } from './run-executors.js';
@@ -239,9 +240,21 @@ async function continueOneIteration(opts, runSort, hp, io) {
   return continueDispatch(opts, s, r.fm.cycle, hp);
 }
 
+async function sealRunAttestation(io, cycleId) {
+  const runId = readRunId(io);
+  if (!runId) return false;
+  const sealResult = await sealCycleAttestation(runId, io, cycleId);
+  if (!sealResult.ok) {
+    console.warn('Failed to seal cycle attestation:', sealResult.error);
+    return false;
+  }
+  return true;
+}
+
 async function handleCycleTransition(io, cycleId, fm, historyPath) {
   const targets = await readCycleTargets(cycleId, io).catch(function() { return []; });
   if (!Array.isArray(targets) || targets.length === 0) {
+    await sealRunAttestation(io, cycleId);
     return terminalDone(fm);
   }
 
