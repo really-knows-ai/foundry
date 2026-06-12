@@ -82,6 +82,51 @@ const STAGE_3 = {
 };
 
 // ---------------------------------------------------------------------------
+// Group A1 — All lines have hash mismatches
+// ---------------------------------------------------------------------------
+
+describe('Group A1 — all lines have hash mismatches', () => {
+  it('seals with composite_status incomplete and stage_count 0', async () => {
+    // Build valid lines then tamper with content to create hash mismatches
+    const line1 = makeStageLine(STAGE_1);
+    const line2 = makeStageLine(STAGE_2);
+    // Tamper: change a value so the hash no longer matches
+    const tampered1 = line1.replace('"forge"', '"hacked"');
+    const tampered2 = line2.replace('"quench"', '"hacked"');
+
+    const initialContent = [tampered1, tampered2].join('\n') + '\n';
+
+    const io = makeMockIO({
+      [`.foundry/attestations/${RUN_ID}.jsonl`]: initialContent,
+    });
+
+    const result = await sealCycleAttestation(RUN_ID, io);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.composite_status, 'incomplete');
+    assert.equal(result.stage_count, 0);
+    assert.equal(result.cycle, RUN_ID);
+    assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
+
+    // File should have 3 lines: 2 original tampered + 1 seal
+    const content = io._get(`.foundry/attestations/${RUN_ID}.jsonl`);
+    const lines = content.trim().split('\n');
+    assert.equal(lines.length, 3);
+
+    const sealed = JSON.parse(lines[2]);
+    assert.equal(sealed.schema, 'foundry-cycle-attestation/v1');
+    assert.equal(sealed.composite_status, 'incomplete');
+    assert.deepEqual(sealed.stage_attestations, []);
+    assert.match(sealed._hash, /^[0-9a-f]{64}$/);
+
+    // Verify seal hash recomputes
+    const storedHash = sealed._hash;
+    delete sealed._hash;
+    assert.equal(hashAttestation(sealed), storedHash);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Group A — Happy path (multiple verified stage lines)
 // ---------------------------------------------------------------------------
 
