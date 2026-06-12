@@ -32,28 +32,25 @@ function buildForgeAttestationParams(result, arV, outputType, forgeItem) {
   return { violations, artefact_hashes: artefactHashes, feedback_resolved: resolved };
 }
 
-export function appendForgeAttestation(io, cycleId, forgeOpts) {
+export async function appendForgeAttestation(io, cycleId, forgeOpts) {
   const { result, arV, outputType, forgeItem, wont_fix } = forgeOpts;
-  try {
-    const runId = readRunId(io);
-    if (!runId) return;
-    const extra = buildForgeAttestationParams(result, arV, outputType, forgeItem);
-    appendStageAttestation(io, runId, {
-      stage: 'forge',
-      cycle: cycleId || runId,
-      iteration: 1,
-      timestamp: new Date().toISOString(),
-      evaluations: [],
-      violations: extra.violations,
-      changed_files: getChangedFiles(result),
-      artefact_hashes: extra.artefact_hashes,
-      feedback_opened: [],
-      feedback_resolved: extra.feedback_resolved,
-      wont_fix,
-    });
-  } catch (_err) {
-    console.warn('forge: attestation append failed', _err.message);
-  }
+  const runId = readRunId(io);
+  if (!runId) return;
+  const extra = buildForgeAttestationParams(result, arV, outputType, forgeItem);
+  const res = await appendStageAttestation(io, runId, {
+    stage: 'forge',
+    cycle: cycleId || runId,
+    iteration: 1,
+    timestamp: new Date().toISOString(),
+    evaluations: [],
+    violations: extra.violations,
+    changed_files: getChangedFiles(result),
+    artefact_hashes: extra.artefact_hashes,
+    feedback_opened: [],
+    feedback_resolved: extra.feedback_resolved,
+    wont_fix,
+  });
+  if (!res.ok) console.warn('forge: attestation append failed', res.error);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,15 +77,12 @@ function buildQuenchAttestationParams(runId, cycleId, opts) {
   };
 }
 
-export function appendQuenchAttestation(io, cycleId, opts) {
-  try {
-    const runId = readRunId(io);
-    if (!runId) return;
-    const params = buildQuenchAttestationParams(runId, cycleId, opts);
-    appendStageAttestation(io, runId, params);
-  } catch (_err) {
-    console.warn('quench: attestation append failed', _err.message);
-  }
+export async function appendQuenchAttestation(io, cycleId, opts) {
+  const runId = readRunId(io);
+  if (!runId) return;
+  const params = buildQuenchAttestationParams(runId, cycleId, opts);
+  const res = await appendStageAttestation(io, runId, params);
+  if (!res.ok) console.warn('quench: attestation append failed', res.error);
 }
 
 function getQuenchItems(store) {
@@ -107,62 +101,56 @@ function getArtefactHashes(artefact_hashes, aVersion, outputType) {
 // Assay attestation
 // ---------------------------------------------------------------------------
 
-export function appendAssayAttestation(io, cycleId, issues, store) {
-  try {
-    const runId = readRunId(io);
-    if (!runId) return;
-    const assayItems = store
-      ? store.list().filter(i =>
-          i.source && i.source.startsWith('system:assay-') && i.history.length === 1
-        )
-      : [];
-    appendStageAttestation(io, runId, {
-      stage: 'assay',
-      cycle: cycleId || runId,
-      iteration: 1,
-      timestamp: new Date().toISOString(),
-      evaluations: [],
-      violations: issues.length,
-      changed_files: [],
-      artefact_hashes: [],
-      feedback_opened: assayItems.map(i => i.id),
-      feedback_resolved: [],
-    });
-  } catch (_err) {
-    console.warn('assay: attestation append failed', _err.message);
-  }
+export async function appendAssayAttestation(io, cycleId, issues, store) {
+  const runId = readRunId(io);
+  if (!runId) return;
+  const assayItems = store
+    ? store.list().filter(i =>
+        i.source && i.source.startsWith('system:assay-') && i.history.length === 1
+      )
+    : [];
+  const res = await appendStageAttestation(io, runId, {
+    stage: 'assay',
+    cycle: cycleId || runId,
+    iteration: 1,
+    timestamp: new Date().toISOString(),
+    evaluations: [],
+    violations: issues.length,
+    changed_files: [],
+    artefact_hashes: [],
+    feedback_opened: assayItems.map(i => i.id),
+    feedback_resolved: [],
+  });
+  if (!res.ok) console.warn('assay: attestation append failed', res.error);
 }
 
 // ---------------------------------------------------------------------------
 // Appraise attestation
 // ---------------------------------------------------------------------------
 
-export function appendAppraiseAttestation(io, cycleId, iteration, coverage, feedbackPath) {
-  try {
-    const runId = readRunId(io);
-    if (!runId) return;
-    const store = openFeedbackStore(feedbackPath, io);
-    const totalViolations = [...coverage.values()]
-      .reduce((sum, entry) => sum + (entry.violations || 0), 0);
-    const evaluations = [...coverage.values()].flatMap(entry => entry.evaluations || []);
-    const appraiseItems = store.list().filter(i =>
-      i.source && i.source.split(':')[0] === 'appraise' && i.history.length === 1
-    );
-    appendStageAttestation(io, runId, {
-      stage: 'appraise',
-      cycle: cycleId || runId,
-      iteration: iteration,
-      timestamp: new Date().toISOString(),
-      evaluations,
-      violations: totalViolations,
-      changed_files: [],
-      artefact_hashes: [],
-      feedback_opened: appraiseItems.map(i => i.id),
-      feedback_resolved: [],
-    });
-  } catch (_err) {
-    console.warn('appraise: attestation append failed', _err.message);
-  }
+export async function appendAppraiseAttestation(io, cycleId, iteration, coverage, feedbackPath) {
+  const runId = readRunId(io);
+  if (!runId) return;
+  const store = openFeedbackStore(feedbackPath, io);
+  const totalViolations = [...coverage.values()]
+    .reduce((sum, entry) => sum + (entry.violations || 0), 0);
+  const evaluations = [...coverage.values()].flatMap(entry => entry.evaluations || []);
+  const appraiseItems = store.list().filter(i =>
+    i.source && i.source.split(':')[0] === 'appraise' && i.history.length === 1
+  );
+  const res = await appendStageAttestation(io, runId, {
+    stage: 'appraise',
+    cycle: cycleId || runId,
+    iteration: iteration,
+    timestamp: new Date().toISOString(),
+    evaluations,
+    violations: totalViolations,
+    changed_files: [],
+    artefact_hashes: [],
+    feedback_opened: appraiseItems.map(i => i.id),
+    feedback_resolved: [],
+  });
+  if (!res.ok) console.warn('appraise: attestation append failed', res.error);
 }
 
 function getResolvedRecordIds(records) {
@@ -211,13 +199,10 @@ function buildHumanAppraiseAttestationParams(runId, cycleId, opts) {
   };
 }
 
-export function appendHumanAppraiseAttestation(io, cycleId, opts) {
-  try {
-    const runId = readRunId(io);
-    if (!runId) return;
-    const params = buildHumanAppraiseAttestationParams(runId, cycleId, opts);
-    appendStageAttestation(io, runId, params);
-  } catch (_err) {
-    console.warn('human-appraise: attestation append failed', _err.message);
-  }
+export async function appendHumanAppraiseAttestation(io, cycleId, opts) {
+  const runId = readRunId(io);
+  if (!runId) return;
+  const params = buildHumanAppraiseAttestationParams(runId, cycleId, opts);
+  const res = await appendStageAttestation(io, runId, params);
+  if (!res.ok) console.warn('human-appraise: attestation append failed', res.error);
 }

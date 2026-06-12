@@ -62,6 +62,32 @@ function countViolationsFromFiles(filePaths, io, unitsByGroup, coverage) {
 // Coverage building
 // ---------------------------------------------------------------------------
 
+function createCoverageEntry(entry) {
+  return {
+    unitId: entry.unit.unitId,
+    group: entry.group,
+    mode: entry.unit.mode,
+    law: entry.unit.mode === 'law-by-law' ? (entry.unit.lawIds?.[0] || null) : null,
+    evaluations: [],
+    violations: 0,
+  };
+}
+
+function processDispatchEntry(entry, i, settled, coverage) {
+  const result = settled[i];
+  const unitId = entry.unit.unitId;
+
+  if (!coverage.has(unitId)) {
+    coverage.set(unitId, createCoverageEntry(entry));
+  }
+
+  coverage.get(unitId).evaluations.push({
+    appraiser: entry.appraiser.id,
+    verdict: entry.pass ? 'passed' : 'failed',
+    completed: result.status === 'fulfilled',
+  });
+}
+
 /**
  * Build per-unit completion coverage from dispatch results and stage outputs.
  * A fulfilled dispatch is a completed evaluation; a rejected dispatch is
@@ -71,25 +97,7 @@ export function buildCompletionCoverage(dispatchMatrix, settled, filePaths, io, 
   const coverage = new Map();
 
   dispatchMatrix.forEach(function(entry, i) {
-    const result = settled[i];
-    const unitId = entry.unit.unitId;
-
-    if (!coverage.has(unitId)) {
-      coverage.set(unitId, {
-        unitId: unitId,
-        group: entry.group,
-        mode: entry.unit.mode,
-        law: entry.unit.mode === 'law-by-law' ? (entry.unit.lawIds?.[0] || null) : null,
-        evaluations: [],
-        violations: 0,
-      });
-    }
-
-    coverage.get(unitId).evaluations.push({
-      appraiser: entry.appraiser.id,
-      verdict: entry.pass ? 'passed' : 'failed',
-      completed: result.status === 'fulfilled',
-    });
+    processDispatchEntry(entry, i, settled, coverage);
   });
 
   countViolationsFromFiles(filePaths, io, unitsByGroup, coverage);
