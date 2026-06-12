@@ -292,6 +292,13 @@ describe('finaliseStage', () => {
 
   beforeEach(() => {
     hashSealCallCount = 0;
+    hashReturnValue = {
+      ok: true,
+      cycle: 'test-cycle',
+      composite_status: 'pass',
+      stage_count: 3,
+      seal_hash: 'abc123def456',
+    };
   });
 
   it('calls sealCycleAttestation when final stage completes (T5.2 2a)', async () => {
@@ -376,5 +383,70 @@ describe('finaliseStage', () => {
 
     assert.equal(result, null, 'finaliseStage returns null despite seal failure');
     assert.equal(hashSealCallCount, 1, 'sealCycleAttestation was called once');
+  });
+
+  it('stages artefact changes and attestation file before commit --amend', async () => {
+    const io = createIoMock({
+      workMdContent: WORK_MD_FM,
+      cycleName: CYCLE_NAME,
+      cycleStages: FINAL_STAGES,
+      feedbackExists: true,
+    });
+
+    const git = createGitMockForFinalise();
+    // Simulate artefact changes from the finalize step
+    const finalize = createFinalizeMock({ ok: true, changedFiles: ['dist/output.js', 'dist/bundle.js'] });
+
+    await finaliseStageMod({
+      lastStage: { stage: 'finalise', baseSha: 'abc123' },
+      activeStage: { stage: 'finalise' },
+      cycleId: CYCLE_NAME,
+      io,
+      finalize,
+      git,
+      postVersion: '1.0.0',
+      contractPassed: true,
+      structuredSummary: 'final stage summary',
+    });
+
+    // Verify the stage commit (artefact changes) was called
+    const stageCommitCall = git._calls.find(c => c.method === 'commit');
+    assert.ok(stageCommitCall, 'stage commit was called for artefact changes');
+
+    // Verify the attestation file was staged via git add
+    const addCall = git._calls.find(
+      c => c.method === 'execFile' && c.args[0] === 'add'
+    );
+    assert.ok(addCall, 'git add was called for attestation file');
+    assert.equal(
+      addCall.args[1],
+      `.foundry/attestations/${RUN_ID}.jsonl`,
+      'git add targets the correct attestation file'
+    );
+
+    // Verify the seal commit --amend was called
+    const amendCall = git._calls.find(
+      c => c.method === 'execFile' && c.args[0] === 'commit' && c.args[1] === '--amend'
+    );
+    assert.ok(amendCall, 'git commit --amend was called for seal');
+
+    // Verify ordering: stage commit (artefacts) -> git add (attestation) -> amend (both)
+    const stageCommitIdx = git._calls.findIndex(c => c.method === 'commit');
+    const addIdx = git._calls.findIndex(
+      c => c.method === 'execFile' && c.args[0] === 'add'
+    );
+    const amendIdx = git._calls.findIndex(
+      c => c.method === 'execFile' && c.args[0] === 'commit' && c.args[1] === '--amend'
+    );
+
+    assert.ok(
+      stageCommitIdx < addIdx,
+      'stage commit (artefact changes) runs before git add of attestation file'
+    );
+    assert.ok(
+      addIdx < amendIdx,
+      'git add of attestation file runs before git commit --amend, ' +
+      'confirming both are present in the same amended commit'
+    );
   });
 });
