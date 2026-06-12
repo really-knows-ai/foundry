@@ -3,6 +3,7 @@
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { hashAttestation } from '../../scripts/lib/attestation/hash.js';
 import { errorJson } from './helpers.js';
 
@@ -184,6 +185,61 @@ function processLines(lines) {
 }
 
 // ---------------------------------------------------------------------------
+// Commit seal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Read the attestation-seal and foundry-run fields from the HEAD commit body.
+ *
+ * @param {string} cwd  Repository working directory
+ * @returns {{ foundryRun: string|null, attestationSeal: string|null }}
+ */
+function readCommitSeal(cwd) {
+  try {
+    const msg = execSync('git log -1 --pretty=%B', { cwd, encoding: 'utf8' });
+    const foundryRunMatch = msg.match(/^foundry-run:\s*(\S+)/m);
+    const sealMatch = msg.match(/^attestation-seal:\s*(\S+)/m);
+    return {
+      foundryRun: foundryRunMatch ? foundryRunMatch[1] : null,
+      attestationSeal: sealMatch ? sealMatch[1] : null,
+    };
+  } catch {
+    return { foundryRun: null, attestationSeal: null };
+  }
+}
+
+/**
+ * Cross-check the last cycle-attestation line's _hash against the
+ * attestation-seal stored in the HEAD commit message.
+ *
+ * Returns extra fields to merge into the verify output, or an object
+ * with an `error` key when the seal does not match.
+ *
+ * @param {object[]} entries  Parsed and verified JSONL entries
+ * @param {string} cwd        Repository working directory
+ * @returns {{ error: string } | { commit_seal_match?: true, commit_seal_present?: false }}
+ */
+function checkCommitSeal(entries, cwd) {
+  const cycleEntry = entries.find(
+    e => e.schema === 'foundry-cycle-attestation/v1'
+  );
+  if (!cycleEntry) return {};
+
+  const commitSeal = readCommitSeal(cwd);
+  if (!commitSeal.attestationSeal) {
+    return { commit_seal_present: false };
+  }
+
+  if (commitSeal.attestationSeal !== cycleEntry._hash) {
+    return {
+      error: `commit attestation-seal (${commitSeal.attestationSeal}) does not match cycle line _hash (${cycleEntry._hash})`,
+    };
+  }
+
+  return { commit_seal_match: true };
+}
+
+// ---------------------------------------------------------------------------
 // Tool: foundry_attestation_show
 // ---------------------------------------------------------------------------
 
@@ -227,42 +283,56 @@ function createShowTool(tool) {
 // Tool: foundry_attestation_verify
 // ---------------------------------------------------------------------------
 
+/**
+ * Execute the verify tool logic. Extracted from createVerifyTool to keep
+ * function size and complexity within project limits.
+ */
+async function executeVerifyTool(args, context) {
+  try {
+    const cwd = context.worktree;
+    const runId = args.run_id;
+
+    if (!runId) {
+      const runs = listRuns(cwd);
+      return JSON.stringify({ ok: true, runs });
+    }
+
+    const fPath = jsonlPath(cwd, runId);
+    const result = verifyJsonlFile(fPath);
+    if (!result.ok) {
+      return JSON.stringify(result);
+    }
+
+    const sealExtra = checkCommitSeal(result.entries, cwd);
+    if (sealExtra.error) {
+      return JSON.stringify({ ok: false, error: sealExtra.error });
+    }
+
+    return JSON.stringify({
+      ok: true,
+      run_id: runId,
+      entries_verified: result.linesVerified,
+      seal_verified: result.sealVerified,
+      ...sealExtra,
+    });
+  } catch (err) {
+    return errorJson(err);
+  }
+}
+
 function createVerifyTool(tool) {
   return tool({
     description:
       'Verify every line hash in a run attestation JSONL file. When run_id is ' +
       'provided, re-computes the _hash for each line and confirms it matches. ' +
-      'When run_id is absent, lists available runs.',
+      'When run_id is absent, lists available runs. ' +
+      'The tool also cross-checks the cycle line _hash against the ' +
+      'attestation-seal stored in the HEAD commit message.',
     args: {
       run_id: tool.schema.string().optional()
         .describe('Run identifier (ULID). When absent, lists available runs.'),
     },
-    async execute(args, context) {
-      try {
-        const cwd = context.worktree;
-        const runId = args.run_id;
-
-        if (!runId) {
-          const runs = listRuns(cwd);
-          return JSON.stringify({ ok: true, runs });
-        }
-
-        const fPath = jsonlPath(cwd, runId);
-        const result = verifyJsonlFile(fPath);
-        if (!result.ok) {
-          return JSON.stringify(result);
-        }
-
-        return JSON.stringify({
-          ok: true,
-          run_id: runId,
-          entries_verified: result.linesVerified,
-          seal_verified: result.sealVerified,
-        });
-      } catch (err) {
-        return errorJson(err);
-      }
-    },
+    execute: executeVerifyTool,
   });
 }
 
