@@ -197,6 +197,13 @@ describe('deriveStageStatus — human-appraise', () => {
       'rejected',
     );
   });
+
+  it('returns "fail" for human-appraise with violation', () => {
+    assert.equal(
+      deriveStageStatus('human-appraise', [], 0, { verdict: 'violation' }),
+      'fail',
+    );
+  });
 });
 
 describe('deriveStageStatus — assay', () => {

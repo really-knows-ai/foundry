@@ -124,6 +124,7 @@ function appraiseStatus(evaluations, violations, flags) {
 function humanAppraiseStatus(evaluations, violations, flags) {
   if (flags.verdict === 'resolved') return 'resolved';
   if (flags.verdict === 'rejected') return 'rejected';
+  if (flags.verdict === 'violation') return 'fail';
   return 'incomplete';
 }
 
@@ -146,7 +147,7 @@ const STAGE_DERIVERS = {
  * @param {string[]} [flags.changed_files] - Files changed during the stage
  *   (forge)
  * @param {boolean} [flags.wont_fix] - Whether forge marked as wont-fix (forge)
- * @param {'resolved'|'rejected'} [flags.verdict] - Human verdict
+ * @param {'resolved'|'rejected'|'violation'} [flags.verdict] - Human verdict
  *   (human-appraise)
  * @param {Array<{appraiser: string, verdict: 'resolved'|'rejected'}>}
  *   [flags.appraiser_verdicts] - Appraiser verdicts (appraise)
@@ -180,7 +181,7 @@ export function deriveStageStatus(stageName, evaluations = [], violations = 0, f
  * @param {Array<{path: string, hash: string}>} [opts.artefact_hashes]
  *   - Artefact hash records
  * @param {boolean} [opts.wont_fix] - Forge-specific wont-fix flag
- * @param {'resolved'|'rejected'} [opts.verdict] - Human-appraise verdict
+ * @param {'resolved'|'rejected'|'violation'} [opts.verdict] - Human-appraise verdict
  * @param {Array<{appraiser: string, verdict: 'resolved'|'rejected'}>}
  *   [opts.appraiser_verdicts] - Appraise verdicts
  * @returns {StageAttestation}
