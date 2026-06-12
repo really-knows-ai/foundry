@@ -6,7 +6,12 @@
  * failures are caught and logged; the executor return value is never
  * affected.
  */
-
+ 
+// Five appender functions serve six stage-execution paths because
+// human-appraise has two entry points (handleAlwaysHumanAppraise
+// and handleDeadlockOverride), both of which call
+// appendHumanAppraiseAttestation.
+ 
 import { readRunId } from '../workfile.js';
 import { appendStageAttestation } from './hash.js';
 import { openFeedbackStore } from '../feedback-store.js';
