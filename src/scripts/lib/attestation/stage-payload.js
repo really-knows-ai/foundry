@@ -221,7 +221,6 @@ export function buildStageAttestation({
     evaluations: evalsVal, violations: violationsVal,
     feedback_opened: fbOpened, feedback_resolved: fbResolved,
     artefact_hashes: artHashes,
-    appraiser_verdicts: appraiser_verdicts || [],
     verdict: verdict || null,
   });
 }
