@@ -1,14 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { finishWorkBranchWithArchive } from '../../../src/scripts/lib/git-finish/work-finish.js';
-import { sha256Buffer } from '../../../src/scripts/lib/attestation/hash.js';
-
-const FAKE_DIFF = Buffer.from('fake diff');
-const FAKE_DIFF_SHA = sha256Buffer(FAKE_DIFF);
-
-function makeValidAttest(sha = FAKE_DIFF_SHA) {
-  return `Write a haiku\n\ndiff-sha256: ${sha}\n\n-----BEGIN FOUNDRY ATTESTATION-----\n{}\n-----END FOUNDRY ATTESTATION-----\n`;
-}
 
 function makeGitError(argv) {
   const err = new Error(`${argv[0]} failed`);
@@ -18,21 +10,20 @@ function makeGitError(argv) {
 
 function matchPrefixCmd(first, second, sha) {
   if (first === 'rev-parse' && second?.startsWith('work/')) return sha;
-  if (first === 'diff') return FAKE_DIFF;
   return '';
 }
 
 function buildResponses(options) {
-  const { shortHash, workSha, logLine, overrides: extraResponses } = options;
+  const { shortHash, workSha, overrides: extraResponses } = options;
   const sha = workSha || 'abc1234567890123456789012345678901234567\n';
   const short = shortHash || 'abc1234\n';
-  const log = logLine || 'abc1234 [forge] attest: cycle complete\n';
+  const logBody = '[test-cycle] appraise:test-cycle: completed\n\nfoundry-run: 01TESTRUNID\nattestation-seal: abc123def456\ncomposite-status: pass\nstage-count: 4\n';
 
   return {
     sha,
     map: {
       'rev-parse --short HEAD': short,
-      'log --oneline -1': log,
+      'log -1 --pretty=%B': logBody,
       'merge-base': 'basesha\n',
       ...extraResponses,
     },
@@ -76,42 +67,39 @@ function baseArgs(overrides = {}) {
     baseBranch: 'main',
     confirm: true,
     execGit: makeSuccessExecGit(),
-    fileExists: (p) => p.endsWith('ATTEST.md'),
-    readAttest: () => makeValidAttest(),
     deleteFile: () => {},
     writeTempMessage: () => '/tmp/test',
-    cwd: '/repo',
     ...overrides,
   };
 }
 
-// --- ATTEST.md gate tests ---
+// --- Seal gate tests ---
 
-test('finishWorkBranchWithArchive returns ok:false when ATTEST.md does not exist', async () => {
-  const result = await finishWorkBranchWithArchive(baseArgs({
-    fileExists: (_p) => false,
-  }));
-  assert.equal(result.ok, false);
-  assert.match(result.error, /ATTEST\.md/i);
+test('finishWorkBranchWithArchive passes seal gate when HEAD has foundry-run and attestation-seal', async () => {
+  const result = await finishWorkBranchWithArchive(baseArgs());
+  assert.equal(result.ok, true);
 });
 
-test('finishWorkBranchWithArchive returns ok:false when HEAD commit is not the ATTEST commit', async () => {
+test('finishWorkBranchWithArchive fails seal gate when HEAD has no foundry-run field', async () => {
+  const body = '[test-cycle] appraise:test-cycle: completed\n\nattestation-seal: abc123def456\ncomposite-status: pass\nstage-count: 4\n';
   const result = await finishWorkBranchWithArchive(baseArgs({
     execGit: makeSuccessExecGit({
-      overrides: { 'log --oneline -1': 'abc1234 regular commit, not attest\n' },
+      overrides: { 'log -1 --pretty=%B': body },
     }),
   }));
   assert.equal(result.ok, false);
-  assert.match(result.error, /attest.*commit|HEAD.*attest/i);
+  assert.match(result.error, /no attestation seal found/);
 });
 
-test('finishWorkBranchWithArchive returns ok:false when diff SHA does not match', async () => {
-  const wrongSha = 'b'.repeat(64);
+test('finishWorkBranchWithArchive fails seal gate when HEAD has no attestation-seal field', async () => {
+  const body = '[test-cycle] appraise:test-cycle: completed\n\nfoundry-run: 01TESTRUNID\ncomposite-status: pass\nstage-count: 4\n';
   const result = await finishWorkBranchWithArchive(baseArgs({
-    readAttest: () => makeValidAttest(wrongSha),
+    execGit: makeSuccessExecGit({
+      overrides: { 'log -1 --pretty=%B': body },
+    }),
   }));
   assert.equal(result.ok, false);
-  assert.match(result.error, /diff.*sha|sha.*mismatch/i);
+  assert.match(result.error, /no attestation seal found/);
 });
 
 // --- Confirm gate test ---

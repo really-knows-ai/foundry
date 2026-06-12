@@ -108,4 +108,11 @@ describe('generateRunId', () => {
     for (let i = 0; i < 100; i++) ids.add(generateRunId());
     assert.equal(ids.size, 100);
   });
+
+  it('produces time-sortable values (each successive ID is lexicographically greater than the last)', () => {
+    const ids = [];
+    for (let i = 0; i < 10; i++) ids.push(generateRunId());
+    const sorted = [...ids].sort();
+    assert.deepEqual(ids, sorted);
+  });
 });

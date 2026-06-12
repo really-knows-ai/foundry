@@ -55,7 +55,7 @@ describe('full-cycle attestation integration', () => {
       cycle: 'integration-cycle',
       iteration: 1,
       timestamp: '2026-06-11T14:00:01.000Z',
-      evaluations: [{ appraiser: 'test', pass: true, completed: true }],
+      evaluations: [{ appraiser: 'test', verdict: 'passed', completed: true }],
       violations: 0,
       changed_files: [],
       feedback_opened: [],
@@ -85,7 +85,7 @@ describe('full-cycle attestation integration', () => {
       cycle: 'integration-cycle',
       iteration: 1,
       timestamp: '2026-06-11T14:00:10.000Z',
-      evaluations: [{ appraiser: 'test', pass: true, completed: true }],
+      evaluations: [{ appraiser: 'test', verdict: 'passed', completed: true }],
       violations: 0,
       changed_files: [],
       feedback_opened: ['fb-02'],
@@ -100,7 +100,7 @@ describe('full-cycle attestation integration', () => {
       cycle: 'integration-cycle',
       iteration: 1,
       timestamp: '2026-06-11T14:00:15.000Z',
-      evaluations: [{ appraiser: 'test', pass: true, completed: true }],
+      evaluations: [{ appraiser: 'test', verdict: 'passed', completed: true }],
       violations: 0,
       changed_files: [],
       feedback_opened: [],
@@ -132,7 +132,7 @@ describe('full-cycle attestation integration', () => {
     }
 
     // Seal the run
-    const sealResult = sealCycleAttestation(RUN_ID, io);
+    const sealResult = await sealCycleAttestation(RUN_ID, io);
 
     assert.equal(sealResult.ok, true);
     assert.equal(sealResult.cycle, 'integration-cycle');

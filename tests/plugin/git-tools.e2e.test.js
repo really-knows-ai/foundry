@@ -5,7 +5,6 @@ import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
-import { sha256Buffer } from '../../src/scripts/lib/attestation/hash.js';
 
 const GIT_ENV = {
   ...process.env,
@@ -94,23 +93,11 @@ function enableSshSigning(dir) {
   execSync('git config commit.gpgsign true', { cwd: dir, env: GIT_ENV });
 }
 
-// Creates a valid ATTEST.md and commits it as the HEAD attest commit.
+// Creates a sealed commit with attestation metadata in the commit body.
 // Call this on the work branch just before calling foundry_git_finish.
-function createAttestCommit(dir, cycle = 'test') {
-  // Get merge base (work branch diverged from main)
-  const mergeBase = execSync('git merge-base HEAD main',
-    { cwd: dir, encoding: 'utf8', env: GIT_ENV }).trim();
-  // Compute diff SHA over the current work (excluding future attest commit)
-  const diffOutput = execSync(`git diff ${mergeBase} HEAD`,
-    { cwd: dir, env: GIT_ENV });
-  const diffSha = sha256Buffer(diffOutput);
-  
-  const attestContent = `Complete ${cycle} work\n\ndiff-sha256: ${diffSha}\n\n-----BEGIN FOUNDRY ATTESTATION-----\n{"schema":"foundry-attestation/v1","goal":"test"}\n-----END FOUNDRY ATTESTATION-----\n`;
-  
-  writeFileSync(join(dir, 'ATTEST.md'), attestContent);
-  execSync('git add ATTEST.md', { cwd: dir, env: GIT_ENV });
-  execSync(`git commit --no-gpg-sign -m "[${cycle}] attest: cycle complete"`,
-    { cwd: dir, env: GIT_ENV });
+function createSealedCommit(dir, cycle = 'test') {
+  const message = `[${cycle}] appraise:${cycle}: completed\n\nfoundry-run: 01TESTRUNID\nattestation-seal: abc123def4567890\ncomposite-status: pass\nstage-count: 4`;
+  execSync(`git commit --allow-empty -m "${message.replace(/"/g, '\\"')}" --no-gpg-sign`, { cwd: dir, env: GIT_ENV });
 }
 
 test('foundry_git_finish on work branch preserves WORK files and merges feature', async () => {
@@ -134,8 +121,8 @@ test('foundry_git_finish on work branch preserves WORK files and merges feature'
     writeFileSync(join(dir, 'WORK.feedback.yaml'), 'items: []\n');
     execSync('git add . && git commit -m workfiles -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-flow');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-flow');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -148,7 +135,6 @@ test('foundry_git_finish on work branch preserves WORK files and merges feature'
     assert.equal(existsSync(join(dir, 'WORK.history.yaml')), true, 'WORK.history.yaml should be preserved');
     assert.equal(existsSync(join(dir, 'WORK.feedback.yaml')), true, 'WORK.feedback.yaml should be preserved');
     assert.equal(existsSync(join(dir, 'feature.txt')), true, 'Feature file should be merged');
-    assert.equal(existsSync(join(dir, 'ATTEST.md')), true, 'ATTEST.md should be preserved');
   } finally {
     for (const [k, v] of Object.entries(envSnapshot)) {
       if (v === undefined) delete process.env[k];
@@ -282,8 +268,8 @@ test('foundry_git_finish successful path returns ok with hash and base branch', 
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-flow');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-flow');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -580,8 +566,8 @@ test('foundry_git_finish produces attestation block in final commit message on H
     writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-flow');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-flow');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -590,12 +576,12 @@ test('foundry_git_finish produces attestation block in final commit message on H
 
     assert.equal(res.ok, true, res.error);
     
-    // Verify the commit message is the ATTEST.md content
+    // Verify the commit message contains seal metadata
     const commitMsg = execSync('git log -1 --format=%B', { cwd: dir, env: GIT_ENV }).toString();
-    assert.match(commitMsg, /Complete f-flow work/, 'Should include ATTEST.md summary');
-    assert.match(commitMsg, /diff-sha256:/, 'Should include diff-sha256 line from ATTEST.md');
-    assert.match(commitMsg, /-----BEGIN FOUNDRY ATTESTATION-----/, 'Should include attestation block marker');
-    assert.match(commitMsg, /"schema":\s*"foundry-attestation\/v1"/, 'Should include attestation schema');
+    assert.match(commitMsg, /foundry-run: 01TESTRUNID/, 'Should include foundry-run field');
+    assert.match(commitMsg, /attestation-seal: abc123def4567890/, 'Should include attestation-seal field');
+    assert.match(commitMsg, /composite-status: pass/, 'Should include composite-status field');
+    assert.match(commitMsg, /stage-count: 4/, 'Should include stage-count field');
   } finally {
     cleanup(dir);
   }
@@ -610,8 +596,8 @@ test('foundry_git_finish produces a signed commit on HEAD', async () => {
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-flow');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-flow');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -640,8 +626,8 @@ test('foundry_git_finish returns archive branch reference in result', async () =
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-flow');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-flow');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -676,8 +662,8 @@ test('foundry_git_finish with SSH signing produces a signed commit on HEAD', asy
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-ssh');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-ssh');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -709,8 +695,8 @@ test('foundry_git_finish with SSH signing includes attestation and archive refer
     writeFileSync(join(dir, 'WORK.history.yaml'), '[]\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-attest');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-attest');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -719,11 +705,11 @@ test('foundry_git_finish with SSH signing includes attestation and archive refer
 
     assert.equal(res.ok, true, res.error);
     
-    // Verify attestation block exists (from ATTEST.md)
+    // Verify seal metadata exists
     const commitMsg = execSync('git log -1 --format=%B', { cwd: dir, env: GIT_ENV }).toString();
-    assert.match(commitMsg, /-----BEGIN FOUNDRY ATTESTATION-----/, 'Should include attestation block');
-    assert.match(commitMsg, /"schema":\s*"foundry-attestation\/v1"/, 'Should include attestation schema');
-    assert.match(commitMsg, /diff-sha256:/, 'Should include diff-sha256 from ATTEST.md');
+    assert.match(commitMsg, /foundry-run: 01TESTRUNID/, 'Should include foundry-run field');
+    assert.match(commitMsg, /attestation-seal: abc123def4567890/, 'Should include attestation-seal field');
+    assert.match(commitMsg, /composite-status: pass/, 'Should include composite-status');
     
     // Verify archive branch exists and is referenced
     assert.ok(res.archiveBranch, 'Should return archiveBranch');
@@ -771,8 +757,8 @@ test('foundry_git_finish GPG-signed commit contains signature in commit object',
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-verify');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-verify');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -806,8 +792,8 @@ test('foundry_git_finish SSH-signed commit passes git verify-commit', async () =
     writeFileSync(join(dir, 'WORK.md'), '# Goal\n\nBuild a feature\n');
     execSync('git add . && git commit -m work -q', { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit
-    createAttestCommit(dir, 'f-ssh-verify');
+    // Create sealed commit
+    createSealedCommit(dir, 'f-ssh-verify');
 
     const plugin = await FoundryPlugin({ directory: dir });
     const res = JSON.parse(await plugin.tool.foundry_git_finish.execute(
@@ -844,8 +830,8 @@ test('foundry_git_finish on work branch succeeds even when repo signing is broke
     execSync('git add . && git commit -m work --no-gpg-sign -q',
       { cwd: dir, env: GIT_ENV });
 
-    // Create ATTEST.md commit (also needs --no-gpg-sign because signing is broken)
-    createAttestCommit(dir, 'f-broken-sign');
+    // Create sealed commit (also needs --no-gpg-sign because signing is broken)
+    createSealedCommit(dir, 'f-broken-sign');
 
     // Apply the finish — should succeed despite broken signing config.
     const plugin = await FoundryPlugin({ directory: dir });
@@ -862,8 +848,8 @@ test('foundry_git_finish on work branch succeeds even when repo signing is broke
     assert.ok(!branches.match(/^\s*\*?\s*work\/f-broken-sign\s*$/m),
       `expected work branch deleted, got: ${branches}`);
 
-    const log = execSync('git log -1 --pretty=%s main', { cwd: dir, env: GIT_ENV }).toString().trim();
-    assert.match(log, /Complete f-broken-sign work/, 'Should use ATTEST.md content as commit message');
+    const log = execSync('git log -1 --pretty=%B main', { cwd: dir, env: GIT_ENV }).toString();
+    assert.match(log, /foundry-run: 01TESTRUNID/, 'Should include foundry-run in commit message');
     
     // Verify the final commit is still signed (uses explicit -S flag with the working GPG).
     const commitObject = execSync('git cat-file commit HEAD', 

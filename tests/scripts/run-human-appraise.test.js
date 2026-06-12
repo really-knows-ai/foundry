@@ -6,13 +6,35 @@
  * behaviour (4.5).
  */
 
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { makeMockIO } from '../helpers/mock-io.js';
+
+// ---------------------------------------------------------------------------
+// Attestation mock — intercept hash.js so appendHumanAppraiseAttestation
+// calls are captured without writing to the filesystem.
+// ---------------------------------------------------------------------------
+
+const attestationCalls = [];
+
+mock.module('../../src/scripts/lib/attestation/hash.js', {
+  exports: {
+    sha256Text: () => 'abc123',
+    sha256Buffer: () => 'abc123',
+    sortPaths: p => [...p].sort(),
+    hashAttestation: () => 'abc123',
+    generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    appendStageAttestation: (io, runId, params) => {
+      attestationCalls.push({ runId, params });
+      return Promise.resolve({ ok: true });
+    },
+    sealCycleAttestation: () => Promise.resolve({ ok: true }),
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,6 +104,20 @@ function makeWorkMd(fmOverrides = {}) {
   lines.push('');
   lines.push('# Work');
   return lines.join('\n');
+}
+
+function makeMockIOWithWorkMd(fmOverrides = {}) {
+  const fm = {
+    cycle: 'test-cycle',
+    'foundry-run': '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    ...fmOverrides,
+  };
+  const lines = ['---'];
+  for (const [k, v] of Object.entries(fm)) {
+    lines.push(k + ': ' + JSON.stringify(v));
+  }
+  lines.push('---');
+  return makeMockIO({ 'WORK.md': lines.join('\n') });
 }
 
 // ---------------------------------------------------------------------------
@@ -805,11 +841,6 @@ describe('handleHumanAppraiseResume — no scenario configured', () => {
 // ---------------------------------------------------------------------------
 
 describe('human-appraise — attestation helper exports', () => {
-  test('appendDeadlockResolveAttestation is exported from executor-attestation', async () => {
-    const { appendDeadlockResolveAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
-    assert.equal(typeof appendDeadlockResolveAttestation, 'function');
-  });
-
   test('appendHumanAppraiseAttestation is exported from executor-attestation', async () => {
     const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
     assert.equal(typeof appendHumanAppraiseAttestation, 'function');
@@ -829,5 +860,138 @@ describe('human-appraise — attestation helper exports', () => {
     // Should have the executor-attestation import
     assert.ok(source.includes('executor-attestation'),
       'should import from executor-attestation module');
+  });
+
+  test('builds evaluations from records', async () => {
+    attestationCalls.length = 0;
+
+    const io = makeMockIOWithWorkMd();
+
+    const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+
+    appendHumanAppraiseAttestation(io, 'test-cycle', {
+      verdict: 'resolved',
+      records: [
+        { verdict: 'resolved', itemId: 'item-01' },
+        { verdict: 'approved', itemId: 'item-02' },
+        { verdict: 'rejected', itemId: 'item-03' },
+        { verdict: 'other', itemId: 'item-04' },
+      ],
+    });
+
+    assert.equal(attestationCalls.length, 1);
+    const params = attestationCalls[0].params;
+    assert.equal(Array.isArray(params.evaluations), true);
+    assert.equal(params.evaluations.length, 4);
+
+    assert.deepEqual(params.evaluations[0], { appraiser: 'human', pass: true, completed: true });
+    assert.deepEqual(params.evaluations[1], { appraiser: 'human', pass: true, completed: true });
+    assert.deepEqual(params.evaluations[2], { appraiser: 'human', pass: false, completed: true });
+    assert.deepEqual(params.evaluations[3], { appraiser: 'human', pass: false, completed: true });
+  });
+
+  test('evaluations is empty array when records is absent', async () => {
+    attestationCalls.length = 0;
+
+    const io = makeMockIOWithWorkMd();
+
+    const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+
+    appendHumanAppraiseAttestation(io, 'test-cycle', {
+      verdict: 'resolved',
+    });
+
+    assert.equal(attestationCalls.length, 1);
+    assert.deepEqual(attestationCalls[0].params.evaluations, []);
+  });
+
+  test('evaluations is empty array when records is empty', async () => {
+    attestationCalls.length = 0;
+
+    const io = makeMockIOWithWorkMd();
+
+    const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+
+    appendHumanAppraiseAttestation(io, 'test-cycle', {
+      verdict: 'resolved',
+      records: [],
+    });
+
+    assert.equal(attestationCalls.length, 1);
+    assert.deepEqual(attestationCalls[0].params.evaluations, []);
+  });
+
+  test('payload shape with deadlock resolution records', async () => {
+    attestationCalls.length = 0;
+
+    const io = makeMockIOWithWorkMd();
+
+    const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+
+    appendHumanAppraiseAttestation(io, 'test-cycle', {
+      verdict: 'resolved',
+      records: [
+        { verdict: 'resolved', itemId: 'item-01' },
+        { verdict: 'rejected', itemId: 'item-02' },
+      ],
+      newItemIds: ['new-item-01', 'new-item-02'],
+    });
+
+    assert.equal(attestationCalls.length, 1);
+    const params = attestationCalls[0].params;
+
+    assert.equal(params.stage, 'human-appraise');
+    assert.equal(params.cycle, 'test-cycle');
+    assert.equal(params.iteration, 1);
+    assert.equal(params.verdict, 'resolved');
+    assert.equal(params.violations, 0);
+
+    assert.equal(Array.isArray(params.evaluations), true);
+    assert.equal(params.evaluations.length, 2);
+    assert.deepEqual(params.evaluations[0], { appraiser: 'human', pass: true, completed: true });
+    assert.deepEqual(params.evaluations[1], { appraiser: 'human', pass: false, completed: true });
+
+    assert.deepEqual(params.feedback_resolved, ['item-01']);
+    assert.deepEqual(params.feedback_opened, ['new-item-01', 'new-item-02']);
+    assert.deepEqual(params.changed_files, []);
+    assert.deepEqual(params.artefact_hashes, []);
+  });
+
+  test('payload shape for always-human-appraise (no records)', async () => {
+    attestationCalls.length = 0;
+
+    const io = makeMockIOWithWorkMd();
+
+    const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+
+    appendHumanAppraiseAttestation(io, 'test-cycle', {
+      verdict: 'rejected',
+    });
+
+    assert.equal(attestationCalls.length, 1);
+    const params = attestationCalls[0].params;
+
+    assert.equal(params.verdict, 'rejected');
+    assert.deepEqual(params.evaluations, []);
+    assert.deepEqual(params.feedback_opened, []);
+    assert.deepEqual(params.feedback_resolved, []);
+  });
+
+  test('payload shape for violation path', async () => {
+    attestationCalls.length = 0;
+
+    const io = makeMockIOWithWorkMd();
+
+    const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
+
+    appendHumanAppraiseAttestation(io, 'test-cycle', {
+      verdict: 'violation',
+    });
+
+    assert.equal(attestationCalls.length, 1);
+    const params = attestationCalls[0].params;
+
+    assert.equal(params.verdict, 'violation');
+    assert.deepEqual(params.evaluations, []);
   });
 });

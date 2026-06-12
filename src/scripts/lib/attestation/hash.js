@@ -73,12 +73,47 @@ export async function appendStageAttestation(io, runId, params) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Compute governance data from the repository.
+ *
+ * Reads law files from .foundry/laws/ and computes their SHA-256 hashes,
+ * and gets the current git commit hash. Governance data is diagnostic,
+ * not critical — all errors produce a fallback rather than throwing.
+ *
+ * @param {object} io - IO interface with readDir, readFile, exec
+ * @returns {{workfile_hashes: Record<string, string>, config_commit: string}}
+ */
+export function computeGovernance(io) {
+  let workfileHashes;
+  try {
+    const lawFiles = io.readDir('.foundry/laws/');
+    workfileHashes = {};
+    for (const name of lawFiles) {
+      const content = io.readFile('.foundry/laws/' + name);
+      workfileHashes[name] = sha256Text(content);
+    }
+  } catch {
+    workfileHashes = {};
+  }
+
+  let configCommit;
+  try {
+    configCommit = io.exec(['git', 'rev-parse', 'HEAD']).trim();
+  } catch {
+    configCommit = 'unknown';
+  }
+
+  return { workfile_hashes: workfileHashes, config_commit: configCommit };
+}
+
+/**
  * Build a minimal cycle attestation for an empty run.
  *
  * @param {string} runId - ULID run identifier
+ * @param {object} [governance] - Governance workfile hashes
  * @returns {object} Minimal cycle attestation object
  */
-function buildMinimalCycle(runId) {
+function buildMinimalCycle(runId, governance) {
+  const gov = governance || { workfile_hashes: {}, config_commit: 'unknown' };
   return {
     schema: 'foundry-cycle-attestation/v1',
     cycle: runId,
@@ -87,18 +122,19 @@ function buildMinimalCycle(runId) {
     cycle_duration_ms: null,
     feedback_summary: { opened: 0, resolved: 0, rejected: 0, open_remaining: 0 },
     artefact_summary: { total_changed: 0, unique_paths: 0 },
-    governance: null,
+    governance: gov,
   };
 }
 
 /**
  * Parse a single JSONL line and verify its hash.
  *
- * Returns an object with either an `attestation` (verified parsed object) or
- * an `error` string describing why the line was skipped.
+ * Returns an object with either an `attestation` (verified parsed object),
+ * an `error` string describing why the line was skipped, or a `mismatch`
+ * flag when the line has a valid structure but a tampered hash.
  *
  * @param {string} line - A single line from the JSONL file
- * @returns {{attestation?: object, error?: string}}
+ * @returns {{attestation?: object, error?: string, mismatch?: boolean}}
  */
 function verifyStageLine(line) {
   let parsed;
@@ -116,10 +152,31 @@ function verifyStageLine(line) {
   const savedHash = parsed._hash;
   const computedHash = hashAttestation(parsed);
   if (savedHash !== computedHash) {
-    return { error: 'skipping line with invalid hash' };
+    return { attestation: { ...parsed, _hash_mismatch: true }, mismatch: true };
   }
 
   return { attestation: parsed };
+}
+
+/**
+ * Parse all non-empty lines from a JSONL file, verifying hashes and
+ * collecting stage attestations. Pre-existing cycle lines (with schema
+ * foundry-cycle-attestation/v1) are verified but excluded from the result.
+ *
+ * @param {string[]} lines - Non-empty lines from the JSONL file
+ * @returns {object[]} Verified stage attestation objects
+ */
+/**
+ * Handle a line with a hash mismatch: include stage lines, skip cycle lines.
+ *
+ * @param {{attestation: object, mismatch: boolean}} result - verifyStageLine result
+ * @param {object[]} results - accumulator for included attestations
+ */
+function handleMismatchLine(result) {
+  if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
+    throw new Error('pre-existing cycle line hash mismatch — composite cannot be trusted');
+  }
+  console.warn('skipping line with hash mismatch');
 }
 
 /**
@@ -138,6 +195,10 @@ function parseAttestationLines(lines) {
       console.error(result.error);
       continue;
     }
+    if (result.mismatch) {
+      handleMismatchLine(result);
+      continue;
+    }
     if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
       continue;
     }
@@ -154,17 +215,19 @@ function parseAttestationLines(lines) {
  *
  * @param {object[]} stageAttestations - Verified stage attestation objects
  * @param {string} runId - ULID run identifier (fallback for cycle value)
+ * @param {object} io - IO interface for computing governance data
  * @returns {object} Cycle attestation object (without _hash)
  */
-function buildSealPayload(stageAttestations, runId) {
+function buildSealPayload(stageAttestations, runId, io) {
+  const governance = computeGovernance(io);
   if (stageAttestations.length > 0) {
     return buildCycleAttestation({
       cycle: stageAttestations[0].cycle,
       stage_attestations: stageAttestations,
-      governance: null,
+      governance,
     });
   }
-  return buildMinimalCycle(runId);
+  return buildMinimalCycle(runId, governance);
 }
 
 /**
@@ -173,32 +236,41 @@ function buildSealPayload(stageAttestations, runId) {
  *
  * @param {string} runId - ULID run identifier (resolved from WORK.md if falsy)
  * @param {object} io - IO interface with exists, readFile, appendFile
- * @returns {{ok: boolean, cycle: string, composite_status: string,
- *   stage_count: number, seal_hash: string}}
- * @throws {Error} When run ID cannot be resolved or attestation file not found
+ * @returns {Promise<{ok: boolean, cycle?: string, composite_status?: string,
+ *   stage_count?: number, seal_hash?: string, error?: string}>}
  */
-export function sealCycleAttestation(runId, io) {
+export async function sealCycleAttestation(runId, io) {
   const resolvedRunId = runId || readRunId(io);
   if (!resolvedRunId) {
-    throw new Error(
-      'no run ID available — WORK.md is missing or has no foundry-run field',
-    );
+    return {
+      ok: false,
+      error:
+        'no run ID available — WORK.md is missing or has no foundry-run field',
+    };
   }
 
   const path = `.foundry/attestations/${resolvedRunId}.jsonl`;
 
   if (!io.exists(path)) {
-    throw new Error(`no attestation file found for run ${resolvedRunId}`);
+    return {
+      ok: false,
+      error: `no attestation file found for run ${resolvedRunId}`,
+    };
   }
 
   const content = io.readFile(path);
   const lines = content.split('\n').filter(line => line.trim() !== '');
-  const stageAttestations = parseAttestationLines(lines);
-  const cycleAttestation = buildSealPayload(stageAttestations, resolvedRunId);
+  let stageAttestations;
+  try {
+    stageAttestations = parseAttestationLines(lines);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  const cycleAttestation = buildSealPayload(stageAttestations, resolvedRunId, io);
   const sealHash = hashAttestation(cycleAttestation);
 
   const sealedLine = { ...cycleAttestation, _hash: sealHash };
-  io.appendFile(path, JSON.stringify(sealedLine) + '\n');
+  await io.appendFile(path, JSON.stringify(sealedLine) + '\n');
 
   return {
     ok: true,

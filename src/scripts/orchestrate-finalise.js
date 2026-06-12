@@ -96,12 +96,12 @@ function clearStageState(activeStage, lastStage, io) {
  * @param {string} opts.runId  ULID run identifier
  * @param {{ execFile: (string[]) => string }} opts.git  Git adapter with execFile
  * @param {object} opts.io     IO interface
- * @returns {{ ok: boolean, sealSha?: string, compositeStatus?: string, stageCount?: number, error?: string }}
+ * @returns {Promise<{ ok: boolean, sealSha?: string, compositeStatus?: string, stageCount?: number, error?: string }>}
  */
-export function sealCycleAttestation({ runId, git, io }) {
+export async function sealCycleAttestation({ runId, git, io }) {
   let result;
   try {
-    result = hashSealCycle(runId, io);
+    result = await hashSealCycle(runId, io);
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -179,12 +179,12 @@ function readRunIdFromWork(io) {
  * Seal the run on the final stage of the cycle.
  * Extracted from finaliseStage to keep complexity and line count down.
  */
-function maybeSealRun(lastStage, cycleId, git, io) {
+async function maybeSealRun(lastStage, cycleId, git, io) {
   const runId = readRunIdFromWork(io);
   if (!runId) return;
   if (!isFinalStageOfCycle(lastStage, cycleId, io)) return;
 
-  const sealResult = sealCycleAttestation({ runId, git, io });
+  const sealResult = await sealCycleAttestation({ runId, git, io });
   if (!sealResult.ok) {
     console.warn(`finaliseStage: seal failed for run ${runId}: ${sealResult.error}`);
   }
@@ -224,7 +224,7 @@ export async function finaliseStage(args) {
     return commitErr;
   }
 
-  maybeSealRun(lastStage, cycleId, git, io);
+  await maybeSealRun(lastStage, cycleId, git, io);
   clearStageState(activeStage, lastStage, io);
   return null;
 }

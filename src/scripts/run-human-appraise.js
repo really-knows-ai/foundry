@@ -14,7 +14,7 @@ import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { validateHumanAppraiseOutput, isDeadlockResolution } from './lib/stage-output-schemas.js';
-import { appendDeadlockResolveAttestation, appendHumanAppraiseAttestation } from './lib/attestation/executor-attestation.js';
+import { appendHumanAppraiseAttestation } from './lib/attestation/executor-attestation.js';
 
 export function terminalPromptUser(stage, artefact, feedback, goal) {
   return { action: 'prompt_user', stage, artefact, feedback: feedback || [], goal: goal || '' };
@@ -228,6 +228,7 @@ function handleDeadlockOverride(ctx) {
   const deadlockedItems = store.list()
     .filter(function(it) { return it.history[0].state === 'deadlocked'; });
   if (deadlockedItems.length === 0) {
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'violation', store, iteration: 1 });
     return terminalViolation(
       'deadlock-human-appraise enabled but no items in deadlocked state',
       false,
@@ -237,7 +238,9 @@ function handleDeadlockOverride(ctx) {
   const records = readHumanAppraiseOutputs(io);
   const stage = 'human-appraise:' + cycleId;
 
-  if (records.length === 0) return readDeadlockUserPrompt(io, fm, fp);
+  if (records.length === 0) {
+    return readDeadlockUserPrompt(io, fm, fp);
+  }
 
   const itemsBefore = store.list();
   processDeadlockResolutions(records, store, cycleId, stage);
@@ -251,7 +254,7 @@ function handleDeadlockOverride(ctx) {
     .filter(function(it) { return it.history[0].state === 'deadlocked'; });
 
   if (remaining.length === 0) {
-    appendDeadlockResolveAttestation(io, cycleId, records, newItemIds);
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', records, newItemIds });
     closeHumanAppraiseStage(io, activeStage, cycleId, 'deadlock resolved');
     return { action: 'continue-run' };
   }
@@ -299,18 +302,22 @@ function handleAlwaysHumanAppraise(ctx) {
   const { io, activeStage, cycleId, fm, store } = ctx;
   const records = readHumanAppraiseOutputs(io);
 
-  if (records.length === 0) return alwaysHumanPrompt(io, fm);
+  if (records.length === 0) {
+    return alwaysHumanPrompt(io, fm);
+  }
 
   const record = records.find(function(r) { return !isDeadlockResolution(r); });
-  if (!record) return alwaysHumanPrompt(io, fm);
+  if (!record) {
+    return alwaysHumanPrompt(io, fm);
+  }
 
   if (record.verdict === 'approved') {
-    appendHumanAppraiseAttestation(io, cycleId, 1, 'resolved', store);
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', store, iteration: 1 });
     return approveAlwaysHuman(io, activeStage, cycleId);
   }
   if (record.verdict === 'rejected') {
     const rejectResult = rejectAlwaysHuman(ctx, record.feedback);
-    appendHumanAppraiseAttestation(io, cycleId, 1, 'rejected', store);
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'rejected', store, iteration: 1 });
     return rejectResult;
   }
 

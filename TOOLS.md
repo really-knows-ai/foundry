@@ -3,7 +3,6 @@
 ```
 foundry_artefact_list
 foundry_assay_run
-foundry_attest
 foundry_attestation_show
 foundry_attestation_verify
 foundry_config_add_law

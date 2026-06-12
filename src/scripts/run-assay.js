@@ -95,10 +95,16 @@ export async function executeAssay(assayOpts) {
   const cwd2 = assayOpts.cwd;
 
   const cycleId = cycleIdFrom(assayOpts.cycleId, sort);
-  if (!cycleId) return { ok: false, error: 'executeAssay: no cycleId in sort result' };
+  if (!cycleId) {
+    appendAssayAttestation(io, null, [], null);
+    return { ok: false, error: 'executeAssay: no cycleId in sort result' };
+  }
 
   const cfm = await readCfm(cycleId, io).catch(function() { return null; });
-  if (!cfm) return { ok: false, error: 'executeAssay: cycle ' + cycleId + ' not found' };
+  if (!cfm) {
+    appendAssayAttestation(io, cycleId, [], null);
+    return { ok: false, error: 'executeAssay: cycle ' + cycleId + ' not found' };
+  }
 
   const extractors = getAssayExtractors(cfm);
 
@@ -110,7 +116,10 @@ export async function executeAssay(assayOpts) {
   const dispatch = await assayDispatch({
     sort, io, worktree, cycleId, dispatchPrompt: promptContext,
   });
-  if (dispatch.error) return { ok: false, error: dispatch.error };
+  if (dispatch.error) {
+    appendAssayAttestation(io, cycleId, [], null);
+    return { ok: false, error: dispatch.error };
+  }
 
   const store = openFeedbackStore(feedbackPath, io);
   const issues = processAssayStageOutput(dispatch.stageOutputLines, store, cycleId);

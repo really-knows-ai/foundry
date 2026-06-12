@@ -70,7 +70,7 @@ describe('appendAppraiseAttestation', () => {
   test('appends attestation with stage appraise', () => {
     const io = makeMockIo();
     const coverage = new Map();
-    coverage.set('unit-1', { unitId: 'unit-1', group: 'default', mode: 'bundle', evaluations: [{ appraiser: 'test', pass: true, completed: true }], violations: 2 });
+    coverage.set('unit-1', { unitId: 'unit-1', group: 'default', mode: 'bundle', evaluations: [{ appraiser: 'test', verdict: 'passed', completed: true }], violations: 2 });
 
     helpers.appendAppraiseAttestation(io, 'test-cycle', 1, coverage, 'WORK.feedback.yaml');
 
@@ -84,8 +84,8 @@ describe('appendAppraiseAttestation', () => {
   test('sums violations across all coverage entries', () => {
     const io = makeMockIo();
     const coverage = new Map();
-    coverage.set('u1', { unitId: 'u1', evaluations: [{ appraiser: 'a', pass: true, completed: true }], violations: 5 });
-    coverage.set('u2', { unitId: 'u2', evaluations: [{ appraiser: 'b', pass: true, completed: true }], violations: 3 });
+    coverage.set('u1', { unitId: 'u1', evaluations: [{ appraiser: 'a', verdict: 'passed', completed: true }], violations: 5 });
+    coverage.set('u2', { unitId: 'u2', evaluations: [{ appraiser: 'b', verdict: 'passed', completed: true }], violations: 3 });
 
     helpers.appendAppraiseAttestation(io, 'test-cycle', 1, coverage, 'WORK.feedback.yaml');
 
@@ -97,7 +97,7 @@ describe('appendAppraiseAttestation', () => {
   test('collects evaluations from all coverage entries', () => {
     const io = makeMockIo();
     const coverage = new Map();
-    coverage.set('u1', { unitId: 'u1', evaluations: [{ appraiser: 'a', pass: true, completed: true }], violations: 0 });
+    coverage.set('u1', { unitId: 'u1', evaluations: [{ appraiser: 'a', verdict: 'passed', completed: true }], violations: 0 });
 
     helpers.appendAppraiseAttestation(io, 'test-cycle', 1, coverage, 'WORK.feedback.yaml');
 

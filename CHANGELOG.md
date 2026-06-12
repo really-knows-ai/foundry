@@ -363,7 +363,7 @@
 - Cycle frontmatter keys renamed: `human-appraise` → `always-human-appraise`, `deadlock-appraise` → `deadlock-human-appraise`, `deadlock-iterations` replaced with `max-iterations`-based deadlock routing.
 - Deadlock routing replaced per-item deadlocked state with iteration-limit detection using `max-iterations` and `deadlock-human-appraise`.
 - Orchestration uses iteration cap routing instead of per-item deadlock history.
-- Skills and public documentation (`README.md`, `docs/*`) refreshed against the current 65-tool implementation: updated tool reference with structured config-creation arguments, corrected quench/appraise execution models, documented attestation-before-finish workflow, added Validator and ATTEST.md concepts, and fixed memory paths. All stale v3.0.x terminology removed.
+- Skills and public documentation (`README.md`, `docs/*`) refreshed against the current 65-tool implementation: updated tool reference with structured config-creation arguments, corrected quench/appraise execution models, documented attestation-before-finish workflow, added Validator and per-stage attestation concepts, and fixed memory paths. All stale v3.0.x terminology removed.
 
 ### Fixed
 
@@ -1076,7 +1076,7 @@ entry documents the 3.0.0 end-state only.
 
 ### Attestation, dry-run, and snapshot breaking changes
 
-- **`foundry_git_finish` on `work/*` refuses without ATTEST.md at HEAD.**
+- **`foundry_git_finish` on `work/*` refuses without an attestation seal at HEAD.**
   Work-branch merges are gated on a deterministic attestation commit
   produced by `foundry_attest`. Operators must run `foundry_attest`
   with `confirm: true` before finishing a work branch.
@@ -1183,7 +1183,7 @@ entry documents the 3.0.0 end-state only.
   `foundry_attestation_verify`.** Deterministic attestation
   primitives. `foundry_attest` verifies the current work cycle is
   complete (all required stages ran, no unresolved feedback, no
-  blocked artefacts), writes a canonical-JSON ATTEST.md payload
+  blocked artefacts), writes a canonical-JSON attestation payload
   (cycle id, diff sha, stages, attestation tools, models), and
   commits it to the work branch. `foundry_attestation_show` and
   `_verify` read and re-verify an attestation after the fact. Takes

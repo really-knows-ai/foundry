@@ -249,8 +249,8 @@ describe('appendStageAttestation', () => {
 
     assert.equal(parsed.stage, 'human-appraise');
     assert.equal(parsed.status, 'resolved');
-    // verdict is used internally to derive status but is not part of the output schema
-    assert.equal(Object.hasOwn(parsed, 'verdict'), false);
+    // verdict is included in the output schema alongside the derived status
+    assert.equal(parsed.verdict, 'resolved');
     // Should have defaulted changed_files to empty array
     assert.deepEqual(parsed.changed_files, []);
     assert.match(parsed._hash, /^[0-9a-f]{64}$/);

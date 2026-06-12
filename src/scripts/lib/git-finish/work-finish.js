@@ -1,11 +1,10 @@
 /**
- * Work branch finisher — reads ATTEST.md, verifies diff SHA, squash-merges.
+ * Work branch finisher — verifies attestation seal, squash-merges.
  *
- * ATTEST.md must exist, must be the HEAD commit, and its diff-sha256 must match
- * a recomputed SHA of the branch diff (merge-base to HEAD~1).
+ * The HEAD commit body must contain foundry-run and attestation-seal fields
+ * from the orchestration finalise step. The seal metadata becomes the merge
+ * commit message.
  */
-
-import { sha256Buffer } from '../attestation/hash.js';
 
 /** Run git command; return { ok, result } or { ok: false, error }. */
 function safeGit(execGit, args) {
@@ -44,57 +43,18 @@ function gitError(prefix, err) {
   return prefix;
 }
 
-/** Parse the diff-sha256 line from ATTEST.md content. */
-function parseDiffSha(content) {
-  const match = content.match(/^diff-sha256:\s*([0-9a-f]{64})/m);
-  return match ? match[1] : null;
-}
-
-/** Compute the SHA of the branch diff (merge-base to HEAD~1). */
-function computeDiffSha(execGit, baseBranch) {
-  const mergeBase = execGit(['merge-base', 'HEAD', baseBranch]).trim();
-  const diffOutput = execGit(['diff', mergeBase, 'HEAD~1']);
-  const diffBuf = Buffer.isBuffer(diffOutput) ? diffOutput : Buffer.from(diffOutput, 'utf8');
-  return sha256Buffer(diffBuf);
-}
-
-/** Validate ATTEST.md exists and HEAD is the attest commit. */
-function checkAttestFile(cwd, fileExists, execGit) {
-  const attestPath = `${cwd}/ATTEST.md`;
-  if (!fileExists(attestPath)) {
+/** Verify the HEAD commit body contains seal metadata from orchestration finalise. */
+function checkSeal(execGit) {
+  const body = execGit(['log', '-1', '--pretty=%B']);
+  const hasRunId = /^foundry-run:\s*\S/m.test(body);
+  const hasSeal = /^attestation-seal:\s*\S/m.test(body);
+  if (!hasRunId || !hasSeal) {
     return {
       ok: false,
-      error: 'foundry_git_finish: ATTEST.md not found. Run foundry_attest before finishing the branch.',
+      error: 'foundry_git_finish: no attestation seal found at HEAD. The orchestration finalise step has not sealed this run, or the seal commit was lost. Re-run the final stage to complete the cycle.',
     };
   }
-  const headLine = execGit(['log', '--oneline', '-1']).trim();
-  if (!headLine.includes('attest: cycle complete')) {
-    return {
-      ok: false,
-      error: `foundry_git_finish: HEAD commit is not the attest commit. Run foundry_attest first. HEAD: ${headLine}`,
-    };
-  }
-  return { ok: true, attestPath };
-}
-
-/** Validate the diff SHA in ATTEST.md matches the recomputed branch diff. */
-function checkDiffSha(attestPath, readAttest, execGit, baseBranch) {
-  const attestContent = readAttest(attestPath);
-  const recordedDiffSha = parseDiffSha(attestContent);
-  if (!recordedDiffSha) {
-    return {
-      ok: false,
-      error: 'foundry_git_finish: ATTEST.md is malformed — no valid diff-sha256 line found.',
-    };
-  }
-  const computedDiffSha = computeDiffSha(execGit, baseBranch);
-  if (computedDiffSha !== recordedDiffSha) {
-    return {
-      ok: false,
-      error: `foundry_git_finish: diff SHA mismatch. Recorded: ${recordedDiffSha}. Computed: ${computedDiffSha}. The branch has changed since attestation.`,
-    };
-  }
-  return { ok: true, attestContent };
+  return { ok: true, body };
 }
 
 /** Checkout the base branch; roll back on failure. */
@@ -175,9 +135,9 @@ function runCommit({ writeTempMessage, attestContent, execGit, branchName, archi
   return { ok: true, commitFile: msg.commitFile };
 }
 
-/** Run post-attestation steps: archive, merge, commit, cleanup, delete branch. */
-function runPostAttestation({
-  execGit, branchName, baseBranch, deleteFile, writeTempMessage, shaCheck,
+/** Run finish steps: archive, merge, commit, cleanup, delete branch. */
+function runFinish({
+  execGit, branchName, baseBranch, deleteFile, writeTempMessage, sealCheck,
 }) {
   const tipSha = execGit(['rev-parse', branchName]).trim();
   const archiveBranch = `archive/${branchName}-${tipSha.slice(0, 7)}`;
@@ -188,7 +148,7 @@ function runPostAttestation({
 
   const commitResult = runCommit({
     writeTempMessage,
-    attestContent: shaCheck.attestContent,
+    attestContent: sealCheck.body,
     execGit, branchName, archiveBranch, deleteFile,
   });
   if (!commitResult.ok) return commitResult;
@@ -208,11 +168,8 @@ export async function finishWorkBranchWithArchive({
   baseBranch,
   confirm,
   execGit,
-  fileExists,
-  readAttest,
   deleteFile,
   writeTempMessage,
-  cwd,
 }) {
   if (confirm !== true) {
     return {
@@ -221,13 +178,10 @@ export async function finishWorkBranchWithArchive({
     };
   }
 
-  const fileCheck = checkAttestFile(cwd, fileExists, execGit);
-  if (!fileCheck.ok) return fileCheck;
+  const sealCheck = checkSeal(execGit);
+  if (!sealCheck.ok) return sealCheck;
 
-  const shaCheck = checkDiffSha(fileCheck.attestPath, readAttest, execGit, baseBranch);
-  if (!shaCheck.ok) return shaCheck;
-
-  return runPostAttestation({
-    execGit, branchName, baseBranch, deleteFile, writeTempMessage, shaCheck,
+  return runFinish({
+    execGit, branchName, baseBranch, deleteFile, writeTempMessage, sealCheck,
   });
 }

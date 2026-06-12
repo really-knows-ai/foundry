@@ -17,7 +17,6 @@ import { buildForgeHistoryEntry } from './lib/workfile.js';
 import { forgeDispatch } from './lib/forge-dispatch.js';
 import {
   appendForgeAttestation,
-  appendEarlyQuenchAttestation,
   appendQuenchAttestation,
 } from './lib/attestation/executor-attestation.js';
 
@@ -123,7 +122,7 @@ export function finalizeForgeOutcome(opts) {
   }), io);
 
   if (!contractResult.contractPassed) return { ok: false, error: 'Forge contract failed' };
-  return { ok: true, contractPassed: true, artefactVersion: postVersion, changedFiles: [] };
+  return { ok: true, contractPassed: true, artefactVersion: postVersion, changedFiles: [], wont_fix: lastOutput.status === 'wont-fix' };
 }
 
 
@@ -133,10 +132,16 @@ export async function executeForge(forgeOpts) {
   const cwd2 = forgeOpts.cwd;
 
   const cycleId = cycleIdFrom(forgeOpts.cycleId, sort);
-  if (!cycleId) return { ok: false, error: 'executeForge: no cycleId in sort result' };
+  if (!cycleId) {
+    appendForgeAttestation(io, cycleId, { result: null, arV: null, outputType: null, forgeItem: null, wont_fix: false});
+    return { ok: false, error: 'executeForge: no cycleId in sort result' };
+  }
 
   const cfm = await readCfm(cycleId, io).catch(function(err) { return null; });
-  if (!cfm) return { ok: false, error: 'executeForge: cycle ' + cycleId + ' not found' };
+  if (!cfm) {
+    appendForgeAttestation(io, cycleId, { result: null, arV: null, outputType: null, forgeItem: null, wont_fix: false});
+    return { ok: false, error: 'executeForge: cycle ' + cycleId + ' not found' };
+  }
 
   const { outputType, forgeModel, filePatterns } = extractForgeCfm(cfm);
 
@@ -153,7 +158,12 @@ export async function executeForge(forgeOpts) {
   const dispatch = await forgeDispatch({
     sort, io, worktree, cycleId, dispatchPrompt: promptContext, modelParam,
   });
-  if (dispatch.error) return { ok: false, error: dispatch.error };
+  if (dispatch.error) {
+    appendForgeAttestation(io, cycleId, {
+      result: { ok: false, error: dispatch.error }, arV: null, outputType, forgeItem, wont_fix: false,
+    });
+    return { ok: false, error: dispatch.error };
+  }
 
   const arV = await makeArtefactVersion(io, outputType, cwd2);
 
@@ -161,7 +171,7 @@ export async function executeForge(forgeOpts) {
     cycleId, historyPath, io, stageOutputLines: dispatch.stageOutputLines, store, arV, route: sort.route, forgeItem,
   });
 
-  appendForgeAttestation(io, cycleId, { result, arV, outputType, forgeItem });
+  appendForgeAttestation(io, cycleId, { result, arV, outputType, forgeItem, wont_fix: result.wont_fix });
   return result;
 }
 
@@ -289,7 +299,7 @@ function buildQuenchSummary(feedbackList, cycleId, stage, historyPath, io) {
 /** Early-return helper: no artefacts found. */
 function quenchNoArtefacts(io, cycleId, historyPath, stage) {
   appendEntry(historyPath, { cycle: cycleId, stage, iteration: 1, comment: 'quench: no artefacts' }, io);
-  appendEarlyQuenchAttestation(io, cycleId, { artefact_hashes: [] });
+  appendQuenchAttestation(io, cycleId, { artefact_hashes: [] });
   return { ok: true, summary: 'SKIP: no artefacts' };
 }
 
@@ -297,7 +307,7 @@ function quenchNoArtefacts(io, cycleId, historyPath, stage) {
 function quenchNoValidators(io, cycleId, opts) {
   const { aVersion, outputType, historyPath, stage } = opts;
   appendEntry(historyPath, { cycle: cycleId, stage, iteration: 1, comment: 'quench: no validators' }, io);
-  appendEarlyQuenchAttestation(io, cycleId, {
+  appendQuenchAttestation(io, cycleId, {
     artefact_hashes: aVersion ? [{ path: outputType, hash: aVersion }] : [],
   });
   return { ok: true, summary: 'SKIP: no validators' };
@@ -309,12 +319,18 @@ export async function executeQuench(quenchOpts) {
   const cwd2 = quenchOpts.cwd;
 
   const cycleId = cycleIdFrom(quenchOpts.cycleId, sort);
-  if (!cycleId) return { ok: false, error: 'executeQuench: no cycleId in sort result' };
+  if (!cycleId) {
+    appendQuenchAttestation(io, cycleId, {});
+    return { ok: false, error: 'executeQuench: no cycleId in sort result' };
+  }
 
   readActiveStage(io);
 
   const cycleResolved = await resolveQuenchCycle(cycleId, io);
-  if (cycleResolved.error) return cycleResolved.error;
+  if (cycleResolved.error) {
+    appendQuenchAttestation(io, cycleId, {});
+    return cycleResolved.error;
+  }
 
   const fbResult = await resolveQuenchFeedbackStore(
     io, cycleResolved.outputType, cwd2, feedbackPath, cycleId,

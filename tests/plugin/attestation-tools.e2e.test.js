@@ -121,15 +121,19 @@ test('foundry_attestation_verify verifies every line hash in a valid JSONL', asy
 
     const { hashAttestation } = await import('../../src/scripts/lib/attestation/hash.js');
 
-    // Build valid self-verifying lines
+    // Build valid self-verifying lines.
+    // The embedded stage_attestations must include _hash to match production
+    // behaviour from sealCycleAttestation, which embeds parsed objects as-is.
     const stageObj = { stage: 'forge', cycle: 'test', iteration: 1 };
-    const stageLine = JSON.stringify({ ...stageObj, _hash: hashAttestation(stageObj) });
+    const stageHash = hashAttestation(stageObj);
+    const stageObjWithHash = { ...stageObj, _hash: stageHash };
+    const stageLine = JSON.stringify(stageObjWithHash);
 
     const cycleObj = {
       schema: 'foundry-cycle-attestation/v1',
       cycle: 'test',
       composite_status: 'pass',
-      stage_attestations: [stageObj],
+      stage_attestations: [stageObjWithHash],
     };
     const cycleLine = JSON.stringify({ ...cycleObj, _hash: hashAttestation(cycleObj) });
 

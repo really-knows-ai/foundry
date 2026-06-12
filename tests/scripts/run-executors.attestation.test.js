@@ -92,6 +92,7 @@ describe('appendForgeAttestation', () => {
       arV: 'abc123',
       outputType: 'haiku',
       forgeItem: null,
+      wont_fix: false,
     });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'forge');
@@ -99,6 +100,7 @@ describe('appendForgeAttestation', () => {
     assert.equal(calls[0].params.cycle, 'test-cycle');
     assert.equal(calls[0].params.iteration, 1);
     assert.equal(calls[0].params.violations, 0);
+    assert.equal(calls[0].params.wont_fix, false);
   });
 
   test('sets violations to 1 when result.ok is false', () => {
@@ -108,11 +110,13 @@ describe('appendForgeAttestation', () => {
       arV: null,
       outputType: 'haiku',
       forgeItem: null,
+      wont_fix: false,
     });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'forge');
     assert.equal(calls.length, 1);
     assert.equal(calls[0].params.violations, 1);
+    assert.equal(calls[0].params.wont_fix, false);
   });
 
   test('includes resolved feedback IDs when forgeItem is present', () => {
@@ -122,11 +126,13 @@ describe('appendForgeAttestation', () => {
       arV: null,
       outputType: 'haiku',
       forgeItem: { id: 'fb-01' },
+      wont_fix: false,
     });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'forge');
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].params.feedback_resolved, ['fb-01']);
+    assert.equal(calls[0].params.wont_fix, false);
   });
 
   test('includes changed_files from result', () => {
@@ -136,34 +142,37 @@ describe('appendForgeAttestation', () => {
       arV: 'abc123',
       outputType: 'haiku',
       forgeItem: null,
+      wont_fix: false,
     });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'forge');
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].params.changed_files, ['haikus/cats.md']);
+    assert.equal(calls[0].params.wont_fix, false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// appendEarlyQuenchAttestation
+// appendQuenchAttestation — early-return (no store) and main paths
 // ---------------------------------------------------------------------------
 
-describe('appendEarlyQuenchAttestation', () => {
-  test('appends quench attestation with violations 0 and empty arrays', () => {
+describe('appendQuenchAttestation', () => {
+  test('appends quench attestation with violations 0 and empty arrays (early path)', () => {
     const io = makeMockIo();
-    helpers.appendEarlyQuenchAttestation(io, 'test-cycle', { artefact_hashes: [] });
+    helpers.appendQuenchAttestation(io, 'test-cycle', { artefact_hashes: [] });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'quench');
     assert.equal(calls.length, 1);
     assert.equal(calls[0].params.violations, 0);
+    assert.deepEqual(calls[0].params.violations_list, []);
     assert.deepEqual(calls[0].params.artefact_hashes, []);
     assert.deepEqual(calls[0].params.feedback_opened, []);
     assert.deepEqual(calls[0].params.feedback_resolved, []);
   });
 
-  test('passes artefact_hashes when provided', () => {
+  test('passes artefact_hashes when provided (early path)', () => {
     const io = makeMockIo();
-    helpers.appendEarlyQuenchAttestation(io, 'test-cycle', {
+    helpers.appendQuenchAttestation(io, 'test-cycle', {
       artefact_hashes: [{ path: 'haiku/cats.md', hash: 'abc123' }],
     });
 
@@ -171,14 +180,8 @@ describe('appendEarlyQuenchAttestation', () => {
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].params.artefact_hashes, [{ path: 'haiku/cats.md', hash: 'abc123' }]);
   });
-});
 
-// ---------------------------------------------------------------------------
-// appendQuenchAttestation
-// ---------------------------------------------------------------------------
-
-describe('appendQuenchAttestation', () => {
-  test('appends quench attestation with violation count and opened feedback IDs', () => {
+  test('appends quench attestation with violation count and opened feedback IDs (main path)', () => {
     const io = makeMockIo();
     const store = makeStore([
       { id: 'q-01', source: 'quench:test-cycle', history: [{ state: 'open', stage: 'quench:test-cycle', cycle: 'test-cycle', timestamp: '2025-01-01T00:00:00Z' }] },
@@ -193,10 +196,11 @@ describe('appendQuenchAttestation', () => {
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'quench');
     assert.equal(calls.length, 1);
     assert.equal(calls[0].params.violations, 2);
+    assert.deepEqual(calls[0].params.violations_list, ['violation 1', 'violation 2']);
     assert.ok(calls[0].params.feedback_opened.includes('q-01'));
   });
 
-  test('uses empty artefact_hashes when aVersion is null', () => {
+  test('uses empty artefact_hashes when aVersion is null (main path)', () => {
     const io = makeMockIo();
     const store = makeStore();
     helpers.appendQuenchAttestation(io, 'test-cycle', {
@@ -258,7 +262,6 @@ describe('module exports', () => {
 
   test('helpers are exported from executor-attestation module', () => {
     assert.equal(typeof helpers.appendForgeAttestation, 'function');
-    assert.equal(typeof helpers.appendEarlyQuenchAttestation, 'function');
     assert.equal(typeof helpers.appendQuenchAttestation, 'function');
     assert.equal(typeof helpers.appendAssayAttestation, 'function');
   });

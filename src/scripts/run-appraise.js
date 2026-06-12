@@ -102,7 +102,9 @@ async function setupAppraiseStage(apprOpts) {
   return { tokenHash, baseSha, cycleId, outputType, cfm };
 }
 
-function emptyAppraiseResult(io, cycleId, baseSha, historyPath, reason) {
+function emptyAppraiseResult(opts) {
+  const { io, cycleId, baseSha, historyPath, reason, feedbackPath } = opts;
+  appendAppraiseAttestation(io, cycleId, 1, new Map(), feedbackPath);
   clearActiveStage(io);
   writeLastStage(io, { cycle: cycleId, stage: 'appraise:' + cycleId, baseSha: baseSha, summary: reason });
   appendEntry(historyPath, { cycle: cycleId, stage: 'appraise:' + cycleId, iteration: 1, comment: 'appraise: ' + reason }, io);
@@ -260,21 +262,21 @@ async function postProcessAppraise(opts) {
  * close stage, record history.
  */
 async function prepareAppraiseContext(apprOpts) {
-  const { io, historyPath } = apprOpts;
+  const { io, historyPath, feedbackPath } = apprOpts;
   const setup = await setupAppraiseStage(apprOpts);
   if (setup.error) return { error: setup.error };
   const { baseSha, cycleId, outputType, cfm } = setup;
   const foundryDir = 'foundry';
 
   const laws = await getLaws(foundryDir, io, { typeId: outputType }).catch(catchEmptyArray);
-  if (laws.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no laws');
+  if (laws.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no laws', feedbackPath });
 
   const lawGroups = partitionLawsByGroup(laws);
   const fullAppraiserPool = await getAppraisers(foundryDir, io).catch(catchEmptyArray);
   const flowDef = await getFlow(foundryDir, cfm['flow-id'], io).catch(catchEmptyFlow);
 
   const artefacts = await getArtefactFiles(foundryDir, outputType, io, { baseBranch: 'main' }).catch(catchEmptyArray);
-  if (artefacts.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no artefacts');
+  if (artefacts.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no artefacts', feedbackPath });
 
   const { flowGroups, typeAppraisers } = await extractGroupsAndAppraisers(flowDef, cfm, outputType, io, foundryDir);
   const { configs, warnings } = resolveGroupConfigs(
@@ -283,7 +285,7 @@ async function prepareAppraiseContext(apprOpts) {
   warnings.forEach(function(w) { console.warn('appraise:', w); });
 
   const { unitsByGroup, dispatchMatrix } = buildDispatch(lawGroups, configs);
-  if (dispatchMatrix.length === 0) return emptyAppraiseResult(io, cycleId, baseSha, historyPath, 'no dispatch entries');
+  if (dispatchMatrix.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no dispatch entries', feedbackPath });
 
   return { baseSha, cycleId, outputType, foundryDir, io, unitsByGroup, dispatchMatrix, lawGroups };
 }
@@ -307,7 +309,10 @@ async function executeStandardAppraise(apprOpts) {
   };
   const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);
   const dispatchError = checkAppraiseDispatchFailure(settled);
-  if (dispatchError) return dispatchError;
+  if (dispatchError) {
+    appendAppraiseAttestation(io, cycleId, 1, new Map(), feedbackPath);
+    return dispatchError;
+  }
 
   const coverage = await postProcessAppraise({
     io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
@@ -322,7 +327,10 @@ export async function executeAppraise(apprOpts) {
 
   const sort = apprOpts.sort;
   const earlyCycleId = await cycleIdFrom(apprOpts.cycleId, sort);
-  if (!earlyCycleId) return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
+  if (!earlyCycleId) {
+    appendAppraiseAttestation(io, null, 1, new Map(), feedbackPath);
+    return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
+  }
 
   const appraisers = await getAppraisers('foundry', io).catch(function() { return []; });
   const dispatchHelpers = extractDispatchHelpers(apprOpts);

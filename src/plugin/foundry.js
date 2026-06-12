@@ -76,6 +76,15 @@ function bootstrapDirectories(worktree) {
   }
 }
 
+function bootstrapDotFoundryDirs(worktree) {
+  const dotFoundry = path.join(worktree, '.foundry');
+  mkdirSync(dotFoundry, { recursive: true });
+  for (const sub of ['attestations', 'stage-outputs', 'tokens']) {
+    const subDir = path.join(dotFoundry, sub);
+    mkdirSync(subDir, { recursive: true });
+  }
+}
+
 function ensureNewlineSuffix(str) {
   if (str !== '' && !str.endsWith('\n')) return str + '\n';
   return str;
@@ -121,6 +130,7 @@ function ensurePackageJson(worktree) {
 function runBootstrapSequence(worktree, pkgRoot) {
   ensurePackageJson(worktree);
   bootstrapDirectories(worktree);
+  bootstrapDotFoundryDirs(worktree);
   bootstrapGitignore(worktree);
   writeAllFoundryAgents(worktree, pkgRoot);
   writeFoundrySkills(worktree, pkgRoot);

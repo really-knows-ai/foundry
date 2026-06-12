@@ -87,7 +87,7 @@ export function buildCompletionCoverage(dispatchMatrix, settled, filePaths, io, 
 
     coverage.get(unitId).evaluations.push({
       appraiser: entry.appraiser.id,
-      pass: entry.pass,
+      verdict: entry.pass ? 'passed' : 'failed',
       completed: result.status === 'fulfilled',
     });
   });

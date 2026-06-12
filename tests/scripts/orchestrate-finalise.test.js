@@ -81,10 +81,10 @@ describe('sealCycleAttestation wrapper', () => {
     };
   });
 
-  it('delegates to hash.js and returns correct shape', () => {
+  it('delegates to hash.js and returns correct shape', async () => {
     const git = createGitMock();
 
-    const result = sealCycleAttestation({ runId: RUN_ID, git, io: {} });
+    const result = await sealCycleAttestation({ runId: RUN_ID, git, io: {} });
 
     assert.equal(result.ok, true);
     assert.equal(result.sealSha, 'abc123def456');
@@ -96,28 +96,33 @@ describe('sealCycleAttestation wrapper', () => {
     assert.ok(addCall, 'git execFile called with add as first arg');
     assert.equal(addCall[1], `.foundry/attestations/${RUN_ID}.jsonl`);
 
-    // git commit --amend was called
+    // git commit --amend was called (after add — same commit)
     const amendCall = git._calls.find(c => c[0] === 'commit');
     assert.ok(amendCall, 'git execFile called with commit as first arg');
     assert.equal(amendCall[0], 'commit');
     assert.equal(amendCall[1], '--amend');
+
+    // add happens before commit --amend (same commit)
+    const addIdx = git._calls.findIndex(c => c[0] === 'add');
+    const commitIdx = git._calls.findIndex(c => c[0] === 'commit');
+    assert.ok(addIdx < commitIdx, 'git add runs before commit --amend');
   });
 
-  it('returns violation when hashSealCycle fails', () => {
+  it('returns violation when hashSealCycle fails', async () => {
     // Scenario A: hashSealCycle throws
     hashReturnValue = new Error('seal failed');
-    let result = sealCycleAttestation({ runId: RUN_ID, git: createGitMock(), io: {} });
+    let result = await sealCycleAttestation({ runId: RUN_ID, git: createGitMock(), io: {} });
     assert.equal(result.ok, false);
     assert.equal(result.error, 'seal failed');
 
     // Scenario B: hashSealCycle returns error result
     hashReturnValue = { ok: false, error: 'no file' };
-    result = sealCycleAttestation({ runId: RUN_ID, git: createGitMock(), io: {} });
+    result = await sealCycleAttestation({ runId: RUN_ID, git: createGitMock(), io: {} });
     assert.equal(result.ok, false);
     assert.equal(result.error, 'no file');
   });
 
-  it('returns violation when git amend fails', () => {
+  it('returns violation when git amend fails', async () => {
     hashReturnValue = {
       ok: true,
       cycle: 'test-cycle',
@@ -136,13 +141,13 @@ describe('sealCycleAttestation wrapper', () => {
       },
     };
 
-    const result = sealCycleAttestation({ runId: RUN_ID, git, io: {} });
+    const result = await sealCycleAttestation({ runId: RUN_ID, git, io: {} });
     assert.equal(result.ok, false);
     assert.ok(result.error.startsWith('amend failed: '));
     assert.ok(result.error.includes('commit rejected'));
   });
 
-  it('produces deterministic hash for same inputs', () => {
+  it('produces deterministic hash for same inputs', async () => {
     const hash = 'deterministic-hash-789';
     hashReturnValue = {
       ok: true,
@@ -155,8 +160,8 @@ describe('sealCycleAttestation wrapper', () => {
     const git1 = createGitMock();
     const git2 = createGitMock();
 
-    const r1 = sealCycleAttestation({ runId: RUN_ID, git: git1, io: {} });
-    const r2 = sealCycleAttestation({ runId: RUN_ID, git: git2, io: {} });
+    const r1 = await sealCycleAttestation({ runId: RUN_ID, git: git1, io: {} });
+    const r2 = await sealCycleAttestation({ runId: RUN_ID, git: git2, io: {} });
 
     assert.equal(r1.ok, true);
     assert.equal(r2.ok, true);
@@ -164,7 +169,7 @@ describe('sealCycleAttestation wrapper', () => {
     assert.equal(r2.sealSha, hash);
   });
 
-  it('includes all four fields in commit body', () => {
+  it('includes all four fields in commit body', async () => {
     hashReturnValue = {
       ok: true,
       cycle: 'test-cycle',
@@ -175,7 +180,7 @@ describe('sealCycleAttestation wrapper', () => {
 
     const git = createGitMock();
 
-    sealCycleAttestation({ runId: RUN_ID, git, io: {} });
+    await sealCycleAttestation({ runId: RUN_ID, git, io: {} });
 
     const amendCall = git._calls.find(c => c[0] === 'commit');
     assert.ok(amendCall, 'git commit --amend called');

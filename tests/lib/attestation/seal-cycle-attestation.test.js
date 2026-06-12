@@ -59,7 +59,7 @@ const STAGE_2 = {
   cycle: 'test-cycle',
   iteration: 1,
   timestamp: '2026-06-11T14:00:10.000Z',
-  evaluations: [{ appraiser: 'test', pass: true, completed: true }],
+  evaluations: [{ appraiser: 'test', verdict: 'passed', completed: true }],
   violations: 0,
   changed_files: [],
   feedback_opened: [],
@@ -72,7 +72,7 @@ const STAGE_3 = {
   cycle: 'test-cycle',
   iteration: 1,
   timestamp: '2026-06-11T14:00:15.000Z',
-  evaluations: [{ appraiser: 'test', pass: true, completed: true }],
+  evaluations: [{ appraiser: 'test', verdict: 'passed', completed: true }],
   violations: 0,
   changed_files: [],
   feedback_opened: [],
@@ -86,7 +86,7 @@ const STAGE_3 = {
 // ---------------------------------------------------------------------------
 
 describe('Group A — happy path with 3 valid stage lines', () => {
-  it('seals a run with multiple stage attestations', () => {
+  it('seals a run with multiple stage attestations', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
     const line3 = makeStageLine(STAGE_3);
@@ -96,7 +96,7 @@ describe('Group A — happy path with 3 valid stage lines', () => {
       [`.foundry/attestations/${RUN_ID}.jsonl`]: initialContent,
     });
 
-    const result = sealCycleAttestation(RUN_ID, io);
+    const result = await sealCycleAttestation(RUN_ID, io);
 
     assert.equal(result.ok, true);
     assert.equal(result.cycle, 'test-cycle');
@@ -130,12 +130,12 @@ describe('Group A — happy path with 3 valid stage lines', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group B — empty file', () => {
-  it('seals with composite_status incomplete and stage_count 0', () => {
+  it('seals with composite_status incomplete and stage_count 0', async () => {
     const io = makeMockIO({
       [`.foundry/attestations/${RUN_ID}.jsonl`]: '',
     });
 
-    const result = sealCycleAttestation(RUN_ID, io);
+    const result = await sealCycleAttestation(RUN_ID, io);
 
     assert.equal(result.ok, true);
     assert.equal(result.composite_status, 'incomplete');
@@ -161,14 +161,14 @@ describe('Group B — empty file', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group C — non-existent file', () => {
-  it('throws when attestation file does not exist', () => {
+  it('returns {ok:false, error} when attestation file does not exist', async () => {
     // No file in the store
     const io = makeMockIO({});
 
-    assert.throws(
-      () => sealCycleAttestation(RUN_ID, io),
-      { message: `no attestation file found for run ${RUN_ID}` },
-    );
+    const result = await sealCycleAttestation(RUN_ID, io);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, `no attestation file found for run ${RUN_ID}`);
   });
 });
 
@@ -177,15 +177,15 @@ describe('Group C — non-existent file', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group C1 — IO read failure', () => {
-  it('propagates readFile error', () => {
+  it('propagates readFile error', async () => {
     const io = {
       exists: () => true,
       readFile: () => { throw new Error('permission denied'); },
       appendFile: () => {},
     };
 
-    assert.throws(
-      () => sealCycleAttestation(RUN_ID, io),
+    await assert.rejects(
+      async () => await sealCycleAttestation(RUN_ID, io),
       { message: 'permission denied' },
     );
   });
@@ -196,12 +196,12 @@ describe('Group C1 — IO read failure', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group D — only unparseable lines', () => {
-  it('seals with composite_status incomplete when all lines are corrupt', () => {
+  it('seals with composite_status incomplete when all lines are corrupt', async () => {
     const io = makeMockIO({
       [`.foundry/attestations/${RUN_ID}.jsonl`]: 'not json\n{also: not}\n',
     });
 
-    const result = sealCycleAttestation(RUN_ID, io);
+    const result = await sealCycleAttestation(RUN_ID, io);
 
     assert.equal(result.ok, true);
     assert.equal(result.composite_status, 'incomplete');
@@ -227,7 +227,7 @@ describe('Group D — only unparseable lines', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group E — mixed valid, corrupt, and tampered lines', () => {
-  it('builds composite from verified lines only and logs warnings', () => {
+  it('builds composite from verified lines only and logs warnings', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line3 = makeStageLine(STAGE_3);
 
@@ -246,13 +246,15 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
       [`.foundry/attestations/${RUN_ID}.jsonl`]: initialContent,
     });
 
-    // Spy on console.error
+    // Spy on console.error and console.warn
     const originalError = console.error;
+    const originalWarn = console.warn;
     const errorCalls = [];
     console.error = (...args) => { errorCalls.push(args.join(' ')); };
+    console.warn = (...args) => { errorCalls.push(args.join(' ')); };
 
     try {
-      const result = sealCycleAttestation(RUN_ID, io);
+      const result = await sealCycleAttestation(RUN_ID, io);
 
       assert.equal(result.ok, true);
       assert.equal(result.stage_count, 2);
@@ -263,11 +265,11 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
       const lines = content.trim().split('\n');
       assert.equal(lines.length, 5);
 
-      // Verify warnings were logged for corrupt and tampered lines
+      // Verify warnings were logged for corrupt lines and hash mismatches
       assert.ok(errorCalls.length >= 2);
       const allWarnings = errorCalls.join(' ');
       assert.ok(allWarnings.includes('unparseable'));
-      assert.ok(allWarnings.includes('invalid hash'));
+      assert.ok(allWarnings.includes('hash mismatch'));
 
       // Parse final seal line
       const sealed = JSON.parse(lines[4]);
@@ -281,6 +283,7 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
       assert.equal(hashAttestation(sealed), storedHash);
     } finally {
       console.error = originalError;
+      console.warn = originalWarn;
     }
   });
 });
@@ -290,7 +293,7 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group F — pre-existing cycle line with valid hash', () => {
-  it('excludes pre-existing cycle line from stage_attestations', () => {
+  it('excludes pre-existing cycle line from stage_attestations', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
@@ -305,7 +308,7 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
       [`.foundry/attestations/${RUN_ID}.jsonl`]: initialContent,
     });
 
-    const result = sealCycleAttestation(RUN_ID, io);
+    const result = await sealCycleAttestation(RUN_ID, io);
 
     // stage_count should be 2 (stage lines only, not the cycle line)
     assert.equal(result.stage_count, 2);
@@ -342,7 +345,7 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group G — pre-existing cycle line with bad hash', () => {
-  it('skips tampered cycle line and logs warning', () => {
+  it('returns error for tampered cycle line', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
@@ -359,37 +362,13 @@ describe('Group G — pre-existing cycle line with bad hash', () => {
       [`.foundry/attestations/${RUN_ID}.jsonl`]: initialContent,
     });
 
-    const originalError = console.error;
-    const errorCalls = [];
-    console.error = (...args) => { errorCalls.push(args.join(' ')); };
+    const result = await sealCycleAttestation(RUN_ID, io);
 
-    try {
-      const result = sealCycleAttestation(RUN_ID, io);
-
-      // stage_count should still be 2 — the valid stage lines are counted
-      assert.equal(result.stage_count, 2);
-      assert.equal(result.ok, true);
-      assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
-
-      // Warning should mention the invalid hash
-      const allWarnings = errorCalls.join(' ');
-      assert.ok(allWarnings.includes('invalid hash'));
-
-      // File should have 4 lines: 2 stage + 1 tampered cycle + 1 new seal
-      const content = io._get(`.foundry/attestations/${RUN_ID}.jsonl`);
-      const lines = content.trim().split('\n');
-      assert.equal(lines.length, 4);
-
-      // New seal should have valid hash
-      const newSeal = JSON.parse(lines[3]);
-      assert.equal(newSeal.schema, 'foundry-cycle-attestation/v1');
-      assert.equal(newSeal.stage_attestations.length, 2);
-      const newHash = newSeal._hash;
-      delete newSeal._hash;
-      assert.equal(hashAttestation(newSeal), newHash);
-    } finally {
-      console.error = originalError;
-    }
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.error,
+      'pre-existing cycle line hash mismatch — composite cannot be trusted',
+    );
   });
 });
 
@@ -398,20 +377,20 @@ describe('Group G — pre-existing cycle line with bad hash', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group H — single valid stage line', () => {
-  it('seals with stage_count 1 and correct composite_status', () => {
+  it('seals with stage_count 1 and correct composite_status', async () => {
     const line1 = makeStageLine({
       stage: 'assay',
       cycle: 'test-cycle',
       iteration: 1,
       timestamp: '2026-06-11T14:00:05.000Z',
-      evaluations: [{ appraiser: 'test', pass: true, completed: true }],
+      evaluations: [{ appraiser: 'test', verdict: 'passed', completed: true }],
     });
 
     const io = makeMockIO({
       [`.foundry/attestations/${RUN_ID}.jsonl`]: line1 + '\n',
     });
 
-    const result = sealCycleAttestation(RUN_ID, io);
+    const result = await sealCycleAttestation(RUN_ID, io);
 
     assert.equal(result.ok, true);
     assert.equal(result.cycle, 'test-cycle');

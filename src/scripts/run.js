@@ -178,6 +178,9 @@ async function handleUnknownRoute(opts, s, fm, historyPath, prefix) {
 async function runOneIteration(opts, runSort, hp) {
   const { io, mint } = opts;
 
+  // stage_begin — persist run ID to WORK.md frontmatter on first iteration
+  persistRunId(io);
+
   const r = readWork(io);
   if (r.error) return { done: true, result: r.error };
 
@@ -209,8 +212,6 @@ export async function runRun(opts) {
 
   const guard = guardNotFailed(io);
   if (guard) return guard;
-
-  persistRunId(io);
 
   const hp = 'WORK.history.yaml';
 
