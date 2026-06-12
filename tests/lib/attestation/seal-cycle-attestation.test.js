@@ -258,7 +258,6 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
 
       assert.equal(result.ok, true);
       assert.equal(result.stage_count, 2);
-      assert.equal(result.mismatch_count, 0);
       assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
 
       // File should have 5 lines: 4 original + 1 seal

@@ -274,7 +274,6 @@ export async function sealCycleAttestation(runId, io) {
   } catch (err) {
     return { ok: false, error: err.message };
   }
-  const mismatchCount = stageAttestations.filter(a => a._hash_mismatch).length;
   const cycleAttestation = buildSealPayload(stageAttestations, resolvedRunId, io);
   const sealHash = hashAttestation(cycleAttestation);
 
@@ -286,7 +285,6 @@ export async function sealCycleAttestation(runId, io) {
     cycle: cycleAttestation.cycle,
     composite_status: cycleAttestation.composite_status,
     stage_count: stageAttestations.length,
-    mismatch_count: mismatchCount,
     seal_hash: sealHash,
   };
 }
