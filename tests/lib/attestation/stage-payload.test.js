@@ -112,7 +112,7 @@ describe('deriveStageStatus — forge', () => {
 describe('deriveStageStatus — quench', () => {
   it('returns "fail" for quench with violations > 0', () => {
     assert.equal(
-      deriveStageStatus('quench', [{ appraiser: 'a', pass: true, completed: true }], 3),
+      deriveStageStatus('quench', [{ appraiser: 'a', verdict: 'passed', completed: true }], 3),
       'fail',
     );
   });
@@ -120,8 +120,8 @@ describe('deriveStageStatus — quench', () => {
   it('returns "incomplete" for quench with incomplete evaluations', () => {
     assert.equal(
       deriveStageStatus('quench', [
-        { appraiser: 'a', pass: true, completed: true },
-        { appraiser: 'b', pass: true, completed: false },
+        { appraiser: 'a', verdict: 'passed', completed: true },
+        { appraiser: 'b', verdict: 'passed', completed: false },
       ], 0),
       'incomplete',
     );
@@ -130,8 +130,8 @@ describe('deriveStageStatus — quench', () => {
   it('returns "pass" for quench with zero violations and all complete', () => {
     assert.equal(
       deriveStageStatus('quench', [
-        { appraiser: 'a', pass: true, completed: true },
-        { appraiser: 'b', pass: true, completed: true },
+        { appraiser: 'a', verdict: 'passed', completed: true },
+        { appraiser: 'b', verdict: 'passed', completed: true },
       ], 0),
       'pass',
     );
@@ -140,8 +140,8 @@ describe('deriveStageStatus — quench', () => {
   it('violations take precedence over incomplete evaluations for quench', () => {
     assert.equal(
       deriveStageStatus('quench', [
-        { appraiser: 'a', pass: true, completed: true },
-        { appraiser: 'b', pass: true, completed: false },
+        { appraiser: 'a', verdict: 'passed', completed: true },
+        { appraiser: 'b', verdict: 'passed', completed: false },
       ], 1),
       'fail',
     );
@@ -173,8 +173,8 @@ describe('deriveStageStatus — appraise', () => {
   it('returns "incomplete" for appraise when some appraisers resolved and some not yet responded', () => {
     assert.equal(
       deriveStageStatus('appraise', [
-        { appraiser: 'a', pass: true, completed: true },
-        { appraiser: 'b', pass: true, completed: false },
+        { appraiser: 'a', verdict: 'passed', completed: true },
+        { appraiser: 'b', verdict: 'passed', completed: false },
       ], 0, {
         appraiser_verdicts: [{ appraiser: 'a', verdict: 'resolved' }],
       }),
@@ -203,8 +203,8 @@ describe('deriveStageStatus — assay', () => {
   it('returns "pass" for assay when all extractors completed', () => {
     assert.equal(
       deriveStageStatus('assay', [
-        { appraiser: 'ext-a', pass: true, completed: true },
-        { appraiser: 'ext-b', pass: true, completed: true },
+        { appraiser: 'ext-a', verdict: 'passed', completed: true },
+        { appraiser: 'ext-b', verdict: 'passed', completed: true },
       ], 0),
       'pass',
     );
@@ -213,8 +213,8 @@ describe('deriveStageStatus — assay', () => {
   it('returns "incomplete" for assay when any extractor incomplete', () => {
     assert.equal(
       deriveStageStatus('assay', [
-        { appraiser: 'ext-a', pass: true, completed: true },
-        { appraiser: 'ext-b', pass: true, completed: false },
+        { appraiser: 'ext-a', verdict: 'passed', completed: true },
+        { appraiser: 'ext-b', verdict: 'passed', completed: false },
       ], 0),
       'incomplete',
     );

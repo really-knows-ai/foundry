@@ -28,7 +28,7 @@
 /**
  * @typedef {Object} EvalEntry
  * @property {string} appraiser - Appraiser identifier
- * @property {boolean} pass - Whether the evaluation passed
+ * @property {'passed'|'failed'} verdict - Evaluation verdict
  * @property {boolean} completed - Whether the evaluation is complete
  */
 
