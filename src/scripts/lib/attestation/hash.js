@@ -204,7 +204,6 @@ function parseAttestationLines(lines) {
     }
     if (result.mismatch) {
       handleMismatchLine(result);
-      results.push(result.attestation);
       continue;
     }
     if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
