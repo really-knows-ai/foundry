@@ -153,8 +153,8 @@ function verifyStageLine(line) {
  * @returns {object[]} Verified stage attestation objects
  */
 /**
- * Handle a line with a hash mismatch by logging a warning.
- * The caller's `continue` handles skipping.
+ * Log a warning for a line with a hash mismatch.
+ * The attestation is still included with a `_hash_mismatch` flag.
  */
 function handleMismatchLine() {
   console.warn('skipping line with hash mismatch');
@@ -178,7 +178,7 @@ function parseAttestationLines(lines) {
     }
     if (result.mismatch) {
       handleMismatchLine();
-      continue;
+      // fall through — include stage attestations with _hash_mismatch flag
     }
     if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
       continue;
