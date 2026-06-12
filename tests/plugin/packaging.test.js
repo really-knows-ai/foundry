@@ -55,6 +55,21 @@ test('T2.2 — build does not produce old foundry.md in dist/agents/', () => {
   );
 });
 
+test('T2.3 — old payload.js and attest.js modules are deleted from the source tree', () => {
+  const oldPayloadPath = join(REPO_ROOT, 'src/scripts/lib/attestation/payload.js');
+  const oldAttestPath = join(REPO_ROOT, 'src/scripts/lib/attestation/attest.js');
+  assert.equal(
+    existsSync(oldPayloadPath),
+    false,
+    'src/scripts/lib/attestation/payload.js must not exist — the module is superseded by stage-payload.js'
+  );
+  assert.equal(
+    existsSync(oldAttestPath),
+    false,
+    'src/scripts/lib/attestation/attest.js must not exist — the module is superseded by executor-attestation.js'
+  );
+});
+
 // Walk .js files in dist/ and collect all relative import paths
 function collectRelativeImports(filePath) {
   const content = readFileSync(filePath, 'utf8');
