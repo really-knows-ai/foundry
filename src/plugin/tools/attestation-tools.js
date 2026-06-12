@@ -2,7 +2,6 @@
 // User-facing tools for inspecting and verifying per-run attestation JSONL files.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { hashAttestation } from '../../scripts/lib/attestation/hash.js';
 import { errorJson } from './helpers.js';
@@ -184,89 +183,6 @@ function processLines(lines) {
   return { ok: true, entries, linesVerified: lines.length, sealVerified };
 }
 
-/**
- * Parse the attestation-seal hash from a git commit message body.
- *
- * @param {string} commitMessage - Full git commit message
- * @returns {string|null} The seal hash value, or null when not found
- */
-function findSealHash(commitMessage) {
-  const lines = commitMessage.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('attestation-seal: ')) {
-      return trimmed.slice('attestation-seal: '.length).trim();
-    }
-  }
-  return null;
-}
-
-/**
- * Verify seal hash from a verifyJsonlFile result against the git commit message.
- * Returns the seal_commit_verified and seal_commit_error fields for the response.
- *
- * @param {string} cwd - Repository working directory
- * @param {string} runId - Run identifier (ULID)
- * @param {{ sealVerified: boolean, entries: object[] }} result - verifyJsonlFile result
- * @returns {{ seal_commit_verified: boolean, seal_commit_error?: string }}
- */
-function verifySealInResult(cwd, runId, result) {
-  if (!result.sealVerified) {
-    return { seal_commit_verified: false, seal_commit_error: 'no cycle attestation line found in file' };
-  }
-
-  const cycleEntry = result.entries.find(
-    e => e.schema === 'foundry-cycle-attestation/v1'
-  );
-  if (!cycleEntry || !cycleEntry._hash) {
-    return { seal_commit_verified: false, seal_commit_error: 'no cycle attestation line found in file' };
-  }
-
-  const sealResult = verifySealAgainstCommit(cwd, runId, cycleEntry._hash);
-  return {
-    seal_commit_verified: sealResult.ok,
-    seal_commit_error: sealResult.ok ? undefined : sealResult.error,
-  };
-}
-
-/**
- * Verify that the cycle attestation line hash matches the attestation-seal
- * field in the most recent git commit message touching the attestation file.
- *
- * @param {string} cwd - Repository working directory
- * @param {string} runId - Run identifier (ULID)
- * @param {string} cycleLineHash - The _hash from the cycle attestation line
- * @param {Function} [execFn=execFileSync] - Optional exec function for testing
- * @returns {{ ok: true, seal_hash: string } | { ok: false, error: string }}
- */
-function verifySealAgainstCommit(cwd, runId, cycleLineHash, execFn = execFileSync) {
-  let commitMessage;
-  try {
-    commitMessage = execFn(
-      'git',
-      ['log', '--format=%B', '-1', '--', `.foundry/attestations/${runId}.jsonl`],
-      { cwd, encoding: 'utf8' }
-    );
-  } catch {
-    return { ok: false, error: 'could not read git commit message for attestation file' };
-  }
-
-  const sealHash = findSealHash(commitMessage);
-
-  if (sealHash === null) {
-    return { ok: false, error: 'no attestation-seal found in git commit message' };
-  }
-
-  if (sealHash !== cycleLineHash) {
-    return {
-      ok: false,
-      error: `attestation-seal mismatch: commit says ${sealHash}, cycle line has ${cycleLineHash}`,
-    };
-  }
-
-  return { ok: true, seal_hash: cycleLineHash };
-}
-
 // ---------------------------------------------------------------------------
 // Tool: foundry_attestation_show
 // ---------------------------------------------------------------------------
@@ -337,14 +253,11 @@ function createVerifyTool(tool) {
           return JSON.stringify(result);
         }
 
-        const sealFields = verifySealInResult(cwd, runId, result);
-
         return JSON.stringify({
           ok: true,
           run_id: runId,
           entries_verified: result.linesVerified,
           seal_verified: result.sealVerified,
-          ...sealFields,
         });
       } catch (err) {
         return errorJson(err);
@@ -364,5 +277,4 @@ export function createAttestationTools({ tool }) {
   };
 }
 
-// Exported for testing
-export { findSealHash, verifySealAgainstCommit, verifySealInResult };
+
