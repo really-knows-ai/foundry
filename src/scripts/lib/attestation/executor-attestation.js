@@ -60,6 +60,7 @@ export async function appendForgeAttestation(io, cycleId, forgeOpts) {
 function buildQuenchAttestationParams(runId, cycleId, opts) {
   const { aVersion, outputType, store, feedbackList, artefact_hashes } = opts;
   const violations = feedbackList ? feedbackList.length : 0;
+  const violation_details = feedbackList || [];
   const quenchItems = getQuenchItems(store);
   const hashes = getArtefactHashes(artefact_hashes, aVersion, outputType);
   return {
@@ -69,6 +70,7 @@ function buildQuenchAttestationParams(runId, cycleId, opts) {
     timestamp: new Date().toISOString(),
     evaluations: [],
     violations,
+    violation_details,
     changed_files: [],
     artefact_hashes: hashes,
     feedback_opened: quenchItems.map(i => i.id),
