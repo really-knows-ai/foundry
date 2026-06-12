@@ -82,7 +82,7 @@ export async function appendStageAttestation(io, runId, params) {
  *
  * @param {object} io - IO interface with readDir, readFile
  * @param {string} [cycleId] - Cycle identifier for config file hashing
- * @returns {{law_file_hashes: Record<string, string>, config_commit: string}}
+ * @returns {{workfile_hashes: Record<string, string>, config_commit: string}}
  */
 export function computeGovernance(io, cycleId) {
   let workfileHashes;
@@ -109,7 +109,7 @@ export function computeGovernance(io, cycleId) {
     configCommit = 'none';
   }
 
-  return { law_file_hashes: workfileHashes, config_commit: configCommit };
+  return { workfile_hashes: workfileHashes, config_commit: configCommit };
 }
 
 /**
@@ -120,7 +120,7 @@ export function computeGovernance(io, cycleId) {
  * @returns {object} Minimal cycle attestation object
  */
 function buildMinimalCycle(runId, governance) {
-  const gov = governance || { law_file_hashes: {}, config_commit: 'none' };
+  const gov = governance || { workfile_hashes: {}, config_commit: 'none' };
   return {
     schema: 'foundry-cycle-attestation/v1',
     cycle: runId,
