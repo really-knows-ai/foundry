@@ -183,6 +183,7 @@ async function maybeSealRun(lastStage, cycleId, git, io) {
   const runId = readRunIdFromWork(io);
   if (!runId) return;
   if (!isFinalStageOfCycle(lastStage, cycleId, io)) return;
+  if (computeOpenFeedback(io) !== 0) return;
 
   const sealResult = await sealCycleAttestation({ runId, git, io });
   if (!sealResult.ok) {

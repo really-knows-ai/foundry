@@ -299,6 +299,7 @@ describe('finaliseStage', () => {
       workMdContent: WORK_MD_FM,
       cycleName: CYCLE_NAME,
       cycleStages: FINAL_STAGES,
+      feedbackExists: true,
     });
 
     const git = createGitMockForFinalise();
@@ -325,6 +326,7 @@ describe('finaliseStage', () => {
       workMdContent: WORK_MD_FM,
       cycleName: CYCLE_NAME,
       cycleStages: FINAL_STAGES,
+      feedbackExists: true,
     });
 
     const git = createGitMockForFinalise();
@@ -354,6 +356,7 @@ describe('finaliseStage', () => {
       workMdContent: WORK_MD_FM,
       cycleName: CYCLE_NAME,
       cycleStages: FINAL_STAGES,
+      feedbackExists: true,
     });
 
     const git = createGitMockForFinalise();
