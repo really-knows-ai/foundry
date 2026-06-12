@@ -71,14 +71,14 @@ describe('buildCycleAttestation', () => {
   });
 
   it('governance section is present with file hashes', () => {
-    const governance = { workfile_hashes: { 'WORK.md': 'abc' }, config_commit: 'sha1' };
+    const governance = { law_file_hashes: { 'WORK.md': 'abc' }, config_commit: 'sha1' };
     const result = buildCycleAttestation({
       cycle: 'cycle-1',
       stage_attestations: [makeStage('forge')],
       governance,
     });
     assert.ok(result.governance);
-    assert.equal(result.governance.workfile_hashes['WORK.md'], 'abc');
+    assert.equal(result.governance.law_file_hashes['WORK.md'], 'abc');
     assert.equal(result.governance.config_commit, 'sha1');
   });
 });
