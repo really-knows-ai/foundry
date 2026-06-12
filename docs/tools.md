@@ -705,42 +705,71 @@ flow — callable while `WORK.md` has `status: failed`, including the
 
 ### `foundry_attestation_show`
 
-> Show the parsed Foundry attestation block for a git ref.
+> Show attestation records for a run. When `run_id` is provided, returns
+> the parsed JSONL entries for that run. When `run_id` is absent, lists
+> all available runs.
 
 **Args:**
-- `ref` (string, optional): Git ref, default `HEAD`.
+- `run_id` (string, optional): Run identifier (ULID). When absent, lists
+  available runs from `.foundry/attestations/`.
 
-**Returns:** `{ ok: true, human_summary, payload }` where `human_summary`
-is the commit subject line and `payload` is the parsed JSON attestation
-object. `{ error: ... }` when no attestation block is found.
+**Returns:** one of:
+- `{ ok: true, runs: string[] }` — list of available run IDs (ULID
+  directory entries under `.foundry/attestations/`).
+- `{ ok: true, run_id, entries: object[] }` — the parsed JSONL entries
+  for the requested run. Each entry is one JSONL line parsed into an
+  object with a `_hash` field and optional `schema` field. Entries whose
+  `schema` is `foundry-cycle-attestation/v1` are cycle (seal) lines
+  containing an embedded `stage_attestations` array.
+- `{ ok: false, error: "no attestation file found for run <runId>" }`
+  when `run_id` does not match any JSONL file.
 
 **Stage requirements:** none. Callable on any branch.
 
 **Failure modes:**
-- Commit message has no attestation block → `{ error: "attestation
-  block not found" }`.
-- Invalid JSON in attestation block → parse error.
+- JSONL file contains malformed JSON → the tool throws and returns a
+  generic error envelope. (Use `foundry_attestation_verify` for
+  per-line validation.)
+- `.foundry/attestations/` does not exist → returns
+  `{ ok: true, runs: [] }`.
 
 **Side effects:** none (read-only).
 
 ### `foundry_attestation_verify`
 
-> Verify the signed Foundry attestation block on a git ref.
+> Verify every line hash in a run attestation JSONL file. When `run_id`
+> is provided, re-computes the `_hash` for each line and confirms it
+> matches the stored value. When `run_id` is absent, lists available
+> runs.
 
 **Args:**
-- `ref` (string, optional): Git ref, default `HEAD`.
+- `run_id` (string, optional): Run identifier (ULID). When absent, lists
+  available runs.
 
-**Returns:** `{ ok: true, status: "verified", schema, payload }` on
-success. `{ error: ... }` when verification fails.
+**Returns:** one of:
+- `{ ok: true, runs: string[] }` — list of available run IDs.
+- `{ ok: true, run_id, entries_verified: number, seal_verified: boolean }`
+  — verification succeeded. `entries_verified` is the number of JSONL
+  lines processed; `seal_verified` is `true` when a
+  `foundry-cycle-attestation/v1` seal line was found and its embedded
+  stage-attestation hashes match the file's stage entries.
+- `{ ok: false, error: string }` — verification failed. See failure
+  modes below.
 
 **Stage requirements:** none. Callable on any branch.
 
 **Failure modes:**
-- `git verify-commit` fails (commit not signed or signature invalid) →
-  returns git error.
-- Commit message has no attestation block → `{ error: "attestation
-  block not found" }`.
-- Invalid JSON in attestation block → parse error.
+- File not found → `"attestation file not found: <path>"`.
+- Unparseable JSON at line N → `"unparseable JSON at line N"`.
+- Line missing `_hash` field → `"line N: line missing _hash field"`.
+- Hash mismatch → `"line N: hash mismatch: expected <saved>, computed <actual>"`.
+- Embedded stage attestation hash validation fails on the seal line →
+  `"embedded stage attestation N hash validation failed"`.
+- Embedded stage attestation count does not match file stage entries →
+  `"embedded stage attestation count mismatch: embedded N, file M"`.
+- Embedded stage attestation content differs from file stage entries →
+  `"embedded stage attestation content mismatch at sorted index N"`.
+- Empty file → returns `{ ok: true, entries_verified: 0, seal_verified: false }`.
 
 **Side effects:** none (read-only).
 
