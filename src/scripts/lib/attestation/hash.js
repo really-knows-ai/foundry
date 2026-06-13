@@ -160,6 +160,16 @@ function handleMismatchLine() {
 }
 
 /**
+ * Throw if a mismatched line is a cycle attestation.
+ * Tampered cycle attestations make the composite untrustworthy.
+ */
+function rejectCycleMismatch(result) {
+  if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
+    throw new Error('cycle attestation line hash mismatch — composite cannot be trusted');
+  }
+}
+
+/**
  * Parse all non-empty lines from a JSONL file, verifying hashes and
  * collecting stage attestations. Pre-existing cycle lines (with schema
  * foundry-cycle-attestation/v1) are verified but excluded from the result.
@@ -176,8 +186,8 @@ function parseAttestationLines(lines) {
       continue;
     }
     if (result.mismatch) {
+      rejectCycleMismatch(result);
       handleMismatchLine();
-      // skip — hash does not verify
       continue;
     }
     if (result.attestation.schema === 'foundry-cycle-attestation/v1') {

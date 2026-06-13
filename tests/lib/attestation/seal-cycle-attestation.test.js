@@ -392,7 +392,7 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group G — pre-existing cycle line with bad hash', () => {
-  it('ignores tampered cycle line and seals from stage lines only', async () => {
+  it('returns error when pre-existing cycle line has hash mismatch', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
@@ -411,9 +411,9 @@ describe('Group G — pre-existing cycle line with bad hash', () => {
 
     const result = await sealCycleAttestation(RUN_ID, io);
 
-    // Tampered cycle line is skipped; seal succeeds with the two valid stage lines
-    assert.equal(result.ok, true);
-    assert.equal(result.stage_count, 2);
+    // Tampered cycle line produces a hard error
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'cycle attestation line hash mismatch — composite cannot be trusted');
   });
 });
 
