@@ -98,7 +98,7 @@ function bootstrapGitignore(worktree) {
   }
   content = ensureNewlineSuffix(content);
   const existingLines = content.split('\n').map(l => l.trim());
-  const lines = ['.snapshots/', '.foundry/', 'node_modules/', '.DS_Store'];
+  const lines = ['.snapshots/', '.foundry/', '!.foundry/attestations/', 'node_modules/', '.DS_Store'];
   for (const line of lines) {
     if (existingLines.includes(line)) continue;
     content += `${line}\n`;
