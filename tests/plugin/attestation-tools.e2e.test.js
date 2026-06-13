@@ -6,73 +6,78 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
 
-test('foundry_attestation_show returns parsed human summary and payload for HEAD', async () => {
-  // Arrange: create a temporary git repo with an attested commit
-  const testDir = mkdtempSync(path.join(tmpdir(), 'attestation-show-test-'));
+test('foundry_attestation_show lists available runs when no run_id given', async () => {
+  const testDir = mkdtempSync(path.join(tmpdir(), 'attestation-show-list-'));
   try {
-    execFileSync('git', ['init'], { cwd: testDir });
-    execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: testDir });
-    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: testDir });
-    
-    writeFileSync(path.join(testDir, 'test.txt'), 'initial content\n');
-    execFileSync('git', ['add', 'test.txt'], { cwd: testDir });
-    
-    const attestationPayload = {
-      schema: 'https://foundry.example/schema/v1',
-      goal: 'Test goal',
-      archive_branch: 'archive/test-123',
-      archive_tip_sha: 'abc123',
-    };
-    const attestationBlock = `-----BEGIN FOUNDRY ATTESTATION-----
-${JSON.stringify(attestationPayload, null, 2)}
------END FOUNDRY ATTESTATION-----`;
-    const commitMessage = `Test commit with attestation
-
-${attestationBlock}`;
-    
-    execFileSync('git', ['commit', '-m', commitMessage], { cwd: testDir });
-    
     const plugin = await FoundryPlugin({ directory: testDir });
     const tool = plugin.tool.foundry_attestation_show;
-    
-    // Act: call the tool
+
     const result = await tool.execute({}, { worktree: testDir });
     const parsed = JSON.parse(result);
-    
-    // Assert: verify the response structure
-    assert.strictEqual(parsed.ok, true, 'should return ok: true');
-    assert.ok(parsed.human_summary, 'should include human_summary');
-    assert.strictEqual(parsed.human_summary, 'Test commit with attestation', 'human_summary should be commit subject line');
-    assert.ok(parsed.payload, 'should include parsed payload');
-    assert.strictEqual(parsed.payload.schema, attestationPayload.schema);
-    assert.strictEqual(parsed.payload.goal, attestationPayload.goal);
+
+    assert.strictEqual(parsed.ok, true);
+    assert.deepStrictEqual(parsed.runs, []);
   } finally {
     rmSync(testDir, { recursive: true, force: true });
   }
 });
 
-test('foundry_attestation_show returns error when no attestation block found', async () => {
-  // Arrange: create a temporary git repo with a normal commit
-  const testDir = mkdtempSync(path.join(tmpdir(), 'attestation-show-no-block-'));
+test('foundry_attestation_show lists available runs from .foundry/attestations/', async () => {
+  const testDir = mkdtempSync(path.join(tmpdir(), 'attestation-show-list-files-'));
   try {
-    execFileSync('git', ['init'], { cwd: testDir });
-    execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: testDir });
-    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: testDir });
-    
-    writeFileSync(path.join(testDir, 'test.txt'), 'initial content\n');
-    execFileSync('git', ['add', 'test.txt'], { cwd: testDir });
-    execFileSync('git', ['commit', '-m', 'Normal commit without attestation'], { cwd: testDir });
-    
+    const attestDir = path.join(testDir, '.foundry', 'attestations');
+    execFileSync('mkdir', ['-p', attestDir]);
+    writeFileSync(path.join(attestDir, '01JKVT7Z8Q3WN0GJM2TYBR4AA.jsonl'), '{"line":1}\n');
+    writeFileSync(path.join(attestDir, '01JKVT8A1R4XP1HKN3UZCS5BB.jsonl'), '{"line":2}\n');
+
     const plugin = await FoundryPlugin({ directory: testDir });
     const tool = plugin.tool.foundry_attestation_show;
-    
-    // Act: call the tool
+
     const result = await tool.execute({}, { worktree: testDir });
     const parsed = JSON.parse(result);
-    
-    // Assert: verify error response
-    assert.ok(parsed.error, 'should include error message');
-    assert.ok(parsed.error.includes('attestation block not found'), 'error should mention missing attestation block');
+
+    assert.strictEqual(parsed.ok, true);
+    assert.deepStrictEqual(parsed.runs, [
+      '01JKVT7Z8Q3WN0GJM2TYBR4AA',
+      '01JKVT8A1R4XP1HKN3UZCS5BB',
+    ]);
+  } finally {
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('foundry_attestation_show returns raw JSONL contents for a given run_id', async () => {
+  const testDir = mkdtempSync(path.join(tmpdir(), 'attestation-show-contents-'));
+  try {
+    const attestDir = path.join(testDir, '.foundry', 'attestations');
+    execFileSync('mkdir', ['-p', attestDir]);
+    const rawContent = '{"stage":"forge","_hash":"abc"}\n{"stage":"quench","_hash":"def"}\n';
+    writeFileSync(path.join(attestDir, 'test-run-123.jsonl'), rawContent);
+
+    const plugin = await FoundryPlugin({ directory: testDir });
+    const tool = plugin.tool.foundry_attestation_show;
+
+    const result = await tool.execute({ run_id: 'test-run-123' }, { worktree: testDir });
+    const parsed = JSON.parse(result);
+
+    assert.strictEqual(parsed.ok, true);
+    assert.strictEqual(parsed.contents, rawContent);
+  } finally {
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('foundry_attestation_show returns error for non-existent run_id', async () => {
+  const testDir = mkdtempSync(path.join(tmpdir(), 'attestation-show-missing-'));
+  try {
+    const plugin = await FoundryPlugin({ directory: testDir });
+    const tool = plugin.tool.foundry_attestation_show;
+
+    const result = await tool.execute({ run_id: 'no-such-run' }, { worktree: testDir });
+    const parsed = JSON.parse(result);
+
+    assert.strictEqual(parsed.ok, false);
+    assert.ok(parsed.error.includes('attestation file not found'));
   } finally {
     rmSync(testDir, { recursive: true, force: true });
   }

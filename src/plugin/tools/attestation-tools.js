@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, existsSync, readFileSync, unlinkSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { extractAttestationBlock } from '../../scripts/lib/attestation/parse.js';
 import { verifyAttestationRun } from '../../scripts/lib/attestation/verify.js';
 import { buildAttestation } from '../../scripts/lib/attestation/attest.js';
 import { parseFrontmatter } from '../../scripts/lib/workfile.js';
@@ -13,26 +12,32 @@ function refuse(error) { return JSON.stringify({ error }); }
 
 function createShowTool(tool) {
   return tool({
-    description: 'Show parsed attestation payload and human summary for a commit ref (default HEAD).',
+    description: 'Show raw JSONL contents of the attestation file for a given run ID.',
     args: {
-      ref: tool.schema.string().optional().describe('Git ref (default: HEAD)'),
+      run_id: tool.schema.string().optional().describe('Run ID (omit to list available runs)'),
     },
     async execute(args, context) {
       try {
-        const ref = args.ref || 'HEAD';
         const cwd = context.worktree;
-        const message = execFileSync('git', ['log', '-1', '--pretty=%B', ref],
-          { cwd, encoding: 'utf8', stdio: 'pipe' }
-        );
-        const json = extractAttestationBlock(message);
-        let payload;
-        try {
-          payload = JSON.parse(json);
-        } catch {
-          return errorJson(new Error(`malformed attestation JSON: ${json}`));
+        const attestDir = path.join(cwd, '.foundry', 'attestations');
+        if (!args.run_id) {
+          let runs = [];
+          try {
+            const files = readdirSync(attestDir);
+            runs = files
+              .filter(f => f.endsWith('.jsonl'))
+              .map(f => f.slice(0, -6));
+          } catch {
+          }
+          return JSON.stringify({ ok: true, runs });
         }
-        const subjectLine = message.split('\n')[0];
-        return JSON.stringify({ ok: true, human_summary: subjectLine, payload });
+        const filePath = path.join(attestDir, `${args.run_id}.jsonl`);
+        try {
+          const rawText = readFileSync(filePath, 'utf8');
+          return JSON.stringify({ ok: true, contents: rawText });
+        } catch {
+          return JSON.stringify({ ok: false, error: `attestation file not found: ${filePath}` });
+        }
       } catch (err) {
         return errorJson(err);
       }
