@@ -665,7 +665,7 @@ can branch away to recover.
 | base branch (`main` by default) | noop | `{ ok: true, noop: true, ... }`.                                                                                                           |
 | anything else              | refused   | `{ ok: false, error: "... nothing to finish ..." }`.                                                                                      |
 
-**Work-branch precondition (work mode):** An attestation file at `.foundry/attestations/<run-id>.jsonl` must exist at HEAD, sealed by the orchestration finalise step. Without it, the work mode refuses.
+**Work-branch precondition (work mode):** The HEAD commit body must contain `foundry-run` and `attestation-seal` fields, embedded by the orchestration finalise step. Without these seal fields, the work mode refuses.
 
 **Returns:**
 - Plan (when `confirm` is not true):
