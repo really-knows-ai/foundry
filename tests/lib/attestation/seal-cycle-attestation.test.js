@@ -391,7 +391,7 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group G — pre-existing cycle line with bad hash', () => {
-  it('returns error when pre-existing cycle line has hash mismatch', async () => {
+  it('skips tampered cycle line and seals from verified stage attestations', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
@@ -410,9 +410,25 @@ describe('Group G — pre-existing cycle line with bad hash', () => {
 
     const result = await sealCycleAttestation(RUN_ID, io);
 
-    // Tampered cycle line produces a hard error
-    assert.equal(result.ok, false);
-    assert.equal(result.error, 'cycle attestation line hash mismatch — composite cannot be trusted');
+    // Tampered cycle line is skipped; seal proceeds from verified stage lines
+    assert.equal(result.ok, true);
+    assert.equal(result.stage_count, 2);
+    assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
+
+    // File should have 4 lines: 2 original + tampered cycle line + 1 new seal
+    const content = io._get(`.foundry/attestations/${RUN_ID}.jsonl`);
+    const lines = content.trim().split('\n');
+    assert.equal(lines.length, 4);
+
+    const sealed = JSON.parse(lines[3]);
+    assert.equal(sealed.schema, 'foundry-cycle-attestation/v1');
+    assert.equal(sealed.stage_attestations.length, 2);
+    assert.match(sealed._hash, /^[0-9a-f]{64}$/);
+
+    // Verify seal hash recomputes
+    const storedHash = sealed._hash;
+    delete sealed._hash;
+    assert.equal(hashAttestation(sealed), storedHash);
   });
 });
 

@@ -148,23 +148,10 @@ function handleMismatchLine() {
 }
 
 /**
- * Reject a mismatched line if it is a cycle attestation.
- * Returns an error string for cycle attestations, or null for stage lines.
- * Tampered cycle attestations make the composite untrustworthy.
- */
-function rejectCycleMismatch(result) {
-  if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
-    return 'cycle attestation line hash mismatch — composite cannot be trusted';
-  }
-  return null;
-}
-
-/**
  * Classify a verification result into an action for the line parser.
  *
  * Returns an action object that tells the caller what to do:
  * - `{ type: 'skip' }` — log and move to the next line
- * - `{ type: 'abort', error }` — return immediately with an error
  * - `{ type: 'cycle', attestation }` — record the pre-existing cycle line
  * - `{ type: 'stage', attestation }` — collect this stage attestation
  */
@@ -174,8 +161,6 @@ function classifyLineResult(result) {
     return { type: 'skip' };
   }
   if (result.mismatch) {
-    const cycleError = rejectCycleMismatch(result);
-    if (cycleError) return { type: 'abort', error: cycleError };
     handleMismatchLine();
     return { type: 'skip' };
   }
@@ -187,17 +172,14 @@ function classifyLineResult(result) {
 
 /**
  * Parse all non-empty lines from a JSONL file, verifying hashes and
- * collecting stage attestations. Pre-existing cycle lines (with schema
- * foundry-cycle-attestation/v1) are verified and returned via the
- * `cycleAttestation` field; their presence is also reported via the
- * `hasCycleLine` flag.
- *
- * When a cycle attestation line fails hash verification, the function
- * returns the error alongside already-parsed stage attestations so the
- * caller can inspect what was collected before the mismatched line.
+ * collecting stage attestations. Lines whose `_hash` does not verify
+ * are skipped regardless of schema. Pre-existing cycle lines (with
+ * schema foundry-cycle-attestation/v1) that pass hash verification are
+ * returned via the `cycleAttestation` field; their presence is also
+ * reported via the `hasCycleLine` flag.
  *
  * @param {string[]} lines - Non-empty lines from the JSONL file
- * @returns {{ stageAttestations: object[], hasCycleLine: boolean, cycleAttestation: object|null, error?: string }}
+ * @returns {{ stageAttestations: object[], hasCycleLine: boolean, cycleAttestation: object|null }}
  */
 function parseAttestationLines(lines) {
   const stageAttestations = [];
@@ -206,9 +188,6 @@ function parseAttestationLines(lines) {
     const result = verifyStageLine(line);
     const action = classifyLineResult(result);
 
-    if (action.type === 'abort') {
-      return { stageAttestations, hasCycleLine: false, cycleAttestation: null, error: action.error };
-    }
     if (action.type === 'cycle') {
       cycleAttestation = action.attestation;
       continue;
@@ -318,13 +297,7 @@ export async function sealCycleAttestation(runId, io) {
   if (!readResult.ok) return readResult;
 
   const lines = readResult.content.split('\n').filter(line => line.trim() !== '');
-  const parsed = parseAttestationLines(lines);
-  if (parsed.error) {
-    return { ok: false, error: parsed.error };
-  }
-  const stageAttestations = parsed.stageAttestations;
-  const hasCycleLine = parsed.hasCycleLine;
-  const existingCycleAttestation = parsed.cycleAttestation;
+  const { stageAttestations, hasCycleLine, cycleAttestation: existingCycleAttestation } = parseAttestationLines(lines);
 
   const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation);
   if (earlyResult) return earlyResult;
