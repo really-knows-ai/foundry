@@ -212,20 +212,16 @@ export async function sealCycleAttestation(runId, io, cycleId) {
 
   const path = `.foundry/attestations/${resolvedRunId}.jsonl`;
 
-  if (!io.exists(path)) {
-    return {
-      ok: false,
-      error: `no attestation file found for run ${resolvedRunId}`,
-    };
-  }
+  let stageAttestations = [];
 
-  const content = io.readFile(path);
-  const lines = content.split('\n').filter(line => line.trim() !== '');
-  let stageAttestations;
-  try {
-    stageAttestations = parseAttestationLines(lines);
-  } catch (err) {
-    return { ok: false, error: err.message };
+  if (io.exists(path)) {
+    const content = io.readFile(path);
+    const lines = content.split('\n').filter(line => line.trim() !== '');
+    try {
+      stageAttestations = parseAttestationLines(lines);
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   }
   const cycleAttestation = buildSealPayload(stageAttestations, resolvedRunId, io, cycleId);
   const sealHash = hashAttestation(cycleAttestation);
