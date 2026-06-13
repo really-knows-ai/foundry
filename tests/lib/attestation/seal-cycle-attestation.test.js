@@ -86,7 +86,7 @@ const STAGE_3 = {
 // ---------------------------------------------------------------------------
 
 describe('Group A1 — all lines have hash mismatches', () => {
-  it('seals with composite_status mixed and includes tampered attestations with _hash_mismatch flag', async () => {
+  it('seals with composite_status incomplete when all stage lines have hash mismatches and are skipped', async () => {
     // Build valid lines then tamper with content to create hash mismatches
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
@@ -103,9 +103,9 @@ describe('Group A1 — all lines have hash mismatches', () => {
     const result = await sealCycleAttestation(RUN_ID, io);
 
     assert.equal(result.ok, true);
-    assert.equal(result.composite_status, 'mixed');
-    assert.equal(result.stage_count, 2);
-    assert.equal(result.cycle, 'test-cycle');
+    assert.equal(result.composite_status, 'incomplete');
+    assert.equal(result.stage_count, 0);
+    assert.equal(result.cycle, RUN_ID);
     assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
 
     // File should have 3 lines: 2 original tampered + 1 seal
@@ -115,9 +115,8 @@ describe('Group A1 — all lines have hash mismatches', () => {
 
     const sealed = JSON.parse(lines[2]);
     assert.equal(sealed.schema, 'foundry-cycle-attestation/v1');
-    assert.equal(sealed.composite_status, 'mixed');
-    assert.equal(sealed.stage_attestations.length, 2);
-    assert.ok(sealed.stage_attestations.every(a => a._hash_mismatch === true));
+    assert.equal(sealed.composite_status, 'incomplete');
+    assert.equal(sealed.stage_attestations.length, 0);
     assert.match(sealed._hash, /^[0-9a-f]{64}$/);
 
     // Verify seal hash recomputes
@@ -303,7 +302,7 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
       const result = await sealCycleAttestation(RUN_ID, io);
 
       assert.equal(result.ok, true);
-      assert.equal(result.stage_count, 3);
+      assert.equal(result.stage_count, 2);
       assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
 
       // File should have 5 lines: 4 original + 1 seal
@@ -320,9 +319,9 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
       // Parse final seal line
       const sealed = JSON.parse(lines[4]);
       assert.equal(sealed.schema, 'foundry-cycle-attestation/v1');
-      assert.equal(sealed.stage_attestations.length, 3);
-      const tamperedAtt = sealed.stage_attestations.find(a => a._hash_mismatch === true);
-      assert.notEqual(tamperedAtt, undefined, 'tampered attestation should be included with _hash_mismatch flag');
+      assert.equal(sealed.stage_attestations.length, 2);
+      const hasTampered = sealed.stage_attestations.some(a => a._hash_mismatch === true);
+      assert.equal(hasTampered, false, 'tampered attestations should be excluded from the composite');
       assert.match(sealed._hash, /^[0-9a-f]{64}$/);
 
       // Verify seal hash
