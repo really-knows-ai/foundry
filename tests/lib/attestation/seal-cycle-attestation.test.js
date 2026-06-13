@@ -222,17 +222,16 @@ describe('Group C — non-existent file', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group C1 — IO read failure', () => {
-  it('propagates readFile error', async () => {
+  it('returns error when readFile fails', async () => {
     const io = {
       exists: () => true,
       readFile: () => { throw new Error('permission denied'); },
       appendFile: () => {},
     };
 
-    await assert.rejects(
-      async () => await sealCycleAttestation(RUN_ID, io),
-      { message: 'permission denied' },
-    );
+    const result = await sealCycleAttestation(RUN_ID, io);
+    assert.equal(result.ok, false);
+    assert.match(result.error, /permission denied/);
   });
 });
 

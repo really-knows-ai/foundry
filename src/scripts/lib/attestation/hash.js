@@ -284,6 +284,21 @@ function resolveRunId(runId, io) {
 }
 
 /**
+ * Read a run's JSONL file, returning its content or an error.
+ * Handles both file-not-found (via io.exists) and IO read failures.
+ */
+function readRunFile(io, path, resolvedRunId) {
+  if (!io.exists(path)) {
+    return { ok: false, error: `no attestation file found for run ${resolvedRunId}` };
+  }
+  try {
+    return { ok: true, content: io.readFile(path) };
+  } catch (err) {
+    return { ok: false, error: `IO read failure for run ${resolvedRunId}: ${err.message}` };
+  }
+}
+
+/**
  * Seal a run by reading its JSONL attestation file, verifying every line,
  * building a composite cycle attestation, and appending the seal line.
  *
@@ -299,16 +314,10 @@ export async function sealCycleAttestation(runId, io) {
   }
 
   const path = `.foundry/attestations/${resolvedRunId}.jsonl`;
+  const readResult = readRunFile(io, path, resolvedRunId);
+  if (!readResult.ok) return readResult;
 
-  if (!io.exists(path)) {
-    return {
-      ok: false,
-      error: `no attestation file found for run ${resolvedRunId}`,
-    };
-  }
-
-  const content = io.readFile(path);
-  const lines = content.split('\n').filter(line => line.trim() !== '');
+  const lines = readResult.content.split('\n').filter(line => line.trim() !== '');
   const parsed = parseAttestationLines(lines);
   if (parsed.error) {
     return { ok: false, error: parsed.error };
