@@ -61,8 +61,8 @@ export function appendForgeAttestation(io, cycleId, forgeOpts) {
 // ---------------------------------------------------------------------------
 
 function buildQuenchAttestationParams(runId, cycleId, opts) {
-  const { aVersion, outputType, store, feedbackList, artefact_hashes, iteration = 1 } = opts;
-  const violations = feedbackList ? feedbackList.length : 0;
+  const { aVersion, outputType, store, feedbackList, artefact_hashes, iteration = 1, violations: explicitViolations } = opts;
+  const violations = explicitViolations ?? (feedbackList ? feedbackList.length : 0);
   const quenchItems = getQuenchItems(store);
   const hashes = getArtefactHashes(artefact_hashes, aVersion, outputType);
   return {

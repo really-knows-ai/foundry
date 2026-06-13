@@ -1,13 +1,14 @@
 /**
  * Stage executor functions used by the run state machine.
  *
- * Exports: executeForge, executeQuench, executeAssay, executeAppraise
- * (executeAppraise is re-exported from run-appraise.js)
+ * Exports: executeForge, executeQuench
+ * (executeAssay is re-exported from run-assay.js,
+ *  executeAppraise is re-exported from run-appraise.js)
  */
 
 import { getCycleDefinition, getLawsForQuench } from './lib/config.js';
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
-import { appendEntry } from './lib/history.js';
+import { appendEntry, getIteration } from './lib/history.js';
 import { enforceForgeContract } from './lib/forge-contract.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { resolveStaleFeedback } from './quench-module.js';
@@ -15,7 +16,10 @@ import { spawnWithTimeout } from './lib/assay/spawn-with-timeout.js';
 import { readActiveStage } from './lib/state.js';
 import { buildForgeHistoryEntry } from './lib/workfile.js';
 import { forgeDispatch } from './lib/forge-dispatch.js';
-import { assayDispatch } from './lib/assay-dispatch.js';
+import {
+  appendForgeAttestation,
+  appendQuenchAttestation,
+} from './lib/attestation/executor-attestation.js';
 
 const QUILL_TIMEOUT_MS = 60_000;
 const MAX_QUILL_TIMEOUT_MS = 600_000;
@@ -119,7 +123,7 @@ export function finalizeForgeOutcome(opts) {
   }), io);
 
   if (!contractResult.contractPassed) return { ok: false, error: 'Forge contract failed' };
-  return { ok: true, contractPassed: true, artefactVersion: postVersion, changedFiles: [] };
+  return { ok: true, contractPassed: true, artefactVersion: postVersion, changedFiles: [], wont_fix: lastOutput.status === 'wont-fix' };
 }
 
 
@@ -129,10 +133,18 @@ export async function executeForge(forgeOpts) {
   const cwd2 = forgeOpts.cwd;
 
   const cycleId = cycleIdFrom(forgeOpts.cycleId, sort);
-  if (!cycleId) return { ok: false, error: 'executeForge: no cycleId in sort result' };
+  if (!cycleId) {
+    appendForgeAttestation(io, cycleId,
+      { result: null, arV: null, outputType: null, forgeItem: null, wont_fix: false });
+    return { ok: false, error: 'executeForge: no cycleId in sort result' };
+  }
 
   const cfm = await readCfm(cycleId, io).catch(function(err) { return null; });
-  if (!cfm) return { ok: false, error: 'executeForge: cycle ' + cycleId + ' not found' };
+  if (!cfm) {
+    appendForgeAttestation(io, cycleId,
+      { result: null, arV: null, outputType: null, forgeItem: null, wont_fix: false });
+    return { ok: false, error: 'executeForge: cycle ' + cycleId + ' not found' };
+  }
 
   const { outputType, forgeModel, filePatterns } = extractForgeCfm(cfm);
 
@@ -149,13 +161,22 @@ export async function executeForge(forgeOpts) {
   const dispatch = await forgeDispatch({
     sort, io, worktree, cycleId, dispatchPrompt: promptContext, modelParam,
   });
-  if (dispatch.error) return { ok: false, error: dispatch.error };
+  if (dispatch.error) {
+    const iteration = getIteration(historyPath, cycleId, io) + 1;
+    appendForgeAttestation(io, cycleId,
+      { result: { ok: false, error: dispatch.error }, arV: null, outputType, forgeItem, wont_fix: false, iteration });
+    return { ok: false, error: dispatch.error };
+  }
 
   const arV = await makeArtefactVersion(io, outputType, cwd2);
 
-  return finalizeForgeOutcome({
+  const result = await finalizeForgeOutcome({
     cycleId, historyPath, io, stageOutputLines: dispatch.stageOutputLines, store, arV, route: sort.route, forgeItem,
   });
+
+  const iteration = getIteration(historyPath, cycleId, io) + 1;
+  appendForgeAttestation(io, cycleId, { result, arV, outputType, forgeItem, wont_fix: result.wont_fix, iteration });
+  return result;
 }
 
 function buildValidatorCommand(validator, artefact) {
@@ -279,18 +300,44 @@ function buildQuenchSummary(feedbackList, cycleId, stage, historyPath, io) {
 // executeQuench
 // ---------------------------------------------------------------------------
 
+/** Early-return helper: no artefacts found. */
+function quenchNoArtefacts(io, cycleId, historyPath, stage) {
+  const iteration = getIteration(historyPath, cycleId, io) + 1;
+  appendEntry(historyPath, { cycle: cycleId, stage, iteration, comment: 'quench: no artefacts' }, io);
+  appendQuenchAttestation(io, cycleId, { artefact_hashes: [], iteration });
+  return { ok: true, summary: 'SKIP: no artefacts' };
+}
+
+/** Early-return helper: no validators found. */
+function quenchNoValidators(io, cycleId, opts) {
+  const { aVersion, outputType, historyPath, stage } = opts;
+  const iteration = getIteration(historyPath, cycleId, io) + 1;
+  appendEntry(historyPath, { cycle: cycleId, stage, iteration, comment: 'quench: no validators' }, io);
+  appendQuenchAttestation(io, cycleId, {
+    artefact_hashes: aVersion ? [{ path: outputType, hash: aVersion }] : [],
+    iteration,
+  });
+  return { ok: true, summary: 'SKIP: no validators' };
+}
+
 /** Execute a quench stage. */
 export async function executeQuench(quenchOpts) {
   const { sort, io, worktree, historyPath, feedbackPath } = quenchOpts;
   const cwd2 = quenchOpts.cwd;
 
   const cycleId = cycleIdFrom(quenchOpts.cycleId, sort);
-  if (!cycleId) return { ok: false, error: 'executeQuench: no cycleId in sort result' };
+  if (!cycleId) {
+    appendQuenchAttestation(io, cycleId, { violations: 1 });
+    return { ok: false, error: 'executeQuench: no cycleId in sort result' };
+  }
 
   readActiveStage(io);
 
   const cycleResolved = await resolveQuenchCycle(cycleId, io);
-  if (cycleResolved.error) return cycleResolved.error;
+  if (cycleResolved.error) {
+    appendQuenchAttestation(io, cycleId, { violations: 1 });
+    return cycleResolved.error;
+  }
 
   const fbResult = await resolveQuenchFeedbackStore(
     io, cycleResolved.outputType, cwd2, feedbackPath, cycleId,
@@ -298,114 +345,29 @@ export async function executeQuench(quenchOpts) {
   const { store, aVersion } = fbResult;
   const artefacts = await resolveQuenchArtefacts(io, cycleResolved.outputType);
   if (artefacts.length === 0) {
-    appendEntry(historyPath, { cycle: cycleId, stage: sort.route, iteration: 1, comment: 'quench: no artefacts' }, io);
-    return { ok: true, summary: 'SKIP: no artefacts' };
+    return quenchNoArtefacts(io, cycleId, historyPath, sort.route);
   }
 
   const validators = await resolveQuenchValidators(io, cycleResolved.outputType);
   if (validators.length === 0) {
-    appendEntry(historyPath, { cycle: cycleId, stage: sort.route, iteration: 1, comment: 'quench: no validators' }, io);
-    return { ok: true, summary: 'SKIP: no validators' };
+    return quenchNoValidators(io, cycleId, {
+      aVersion, outputType: cycleResolved.outputType,
+      historyPath, stage: sort.route,
+    });
   }
 
   const feedbackList = [];
   const vOpts = { store, cycleId, aVersion, cwd: cwd2, worktree, feedbackList };
   await runValidatorsForArtefacts(validators, artefacts, vOpts);
 
-  return buildQuenchSummary(feedbackList, cycleId, sort.route, historyPath, io);
+  const iteration = getIteration(historyPath, cycleId, io) + 1;
+  const result = buildQuenchSummary(feedbackList, cycleId, sort.route, historyPath, io);
+
+  appendQuenchAttestation(io, cycleId,
+    { aVersion, outputType: cycleResolved.outputType, store, feedbackList, iteration });
+  return result;
 }
 
-// Assay helpers
-
-async function loadExtractorByName(name, io) {
-  const mod = await import('./lib/assay/loader.js');
-  return mod.loadExtractor('foundry', name, io).catch(function() { return null; });
-}
-
-function runExtractorAndGetOutput(extractor, io, artefacts) {
-  return extractor.run({ io, artefacts }).catch(function() { return null; });
-}
-
-const hasValidOutput = o => o && o.issues;
-
-function processExtractorIssues(name, output, store, cycleId, issues) {
-  for (const issue of output.issues) {
-    store.add({
-      file: issue.file || '', tag: 'extractor:' + name,
-      text: issue.text || issue.message || 'extractor issue',
-      source: 'system:assay-' + cycleId, artefact_version: '', cycle: cycleId,
-    });
-    issues.push(issue);
-  }
-}
-
-async function runAllExtractors(extractors, eOpts) {
-  for (const ex of extractors) await run1Extractor(ex, eOpts);
-}
-
-function getAssayExtractors(cfm) {
-  return (cfm.assay && cfm.assay.extractors) || [];
-}
-
-function buildAssaySummary(issues, cycleId, stage, historyPath, io) {
-  const summary = issues.length > 0 ? 'assay: ' + issues.length + ' issue(s)' : 'assay: completed';
-  appendEntry(historyPath, { cycle: cycleId, stage, iteration: 1, comment: summary }, io);
-  return { ok: true, summary };
-}
-
-// ---------------------------------------------------------------------------
-// executeAssay
-// ---------------------------------------------------------------------------
-
-async function run1Extractor(name, eOpts) {
-  const { io, artefacts, store, cycleId, issues } = eOpts;
-  const extractor = await loadExtractorByName(name, io);
-  if (!extractor || !extractor.run) return;
-
-  const output = await runExtractorAndGetOutput(extractor, io, artefacts);
-  if (!hasValidOutput(output)) return;
-
-  processExtractorIssues(name, output, store, cycleId, issues);
-}
-
-function processAssayStageOutput(stageOutputLines, store, cycleId) {
-  const issues = [];
-  for (const line of stageOutputLines) {
-    if (line.extractor && line.issues) {
-      processExtractorIssues(line.extractor, line, store, cycleId, issues);
-    }
-  }
-  return issues;
-}
-
-/** Execute an assay stage. */
-export async function executeAssay(assayOpts) {
-  const { sort, io, worktree, historyPath, feedbackPath } = assayOpts;
-  const cwd2 = assayOpts.cwd;
-
-  const cycleId = cycleIdFrom(assayOpts.cycleId, sort);
-  if (!cycleId) return { ok: false, error: 'executeAssay: no cycleId in sort result' };
-
-  const cfm = await readCfm(cycleId, io).catch(function() { return null; });
-  if (!cfm) return { ok: false, error: 'executeAssay: cycle ' + cycleId + ' not found' };
-
-  const extractors = getAssayExtractors(cfm);
-
-  const promptContext = {
-    stage: sort.route, cycle: cycleId, token: sort.token || '',
-    cwd: cwd2, extractors,
-  };
-
-  const dispatch = await assayDispatch({
-    sort, io, worktree, cycleId, dispatchPrompt: promptContext,
-  });
-  if (dispatch.error) return { ok: false, error: dispatch.error };
-
-  const store = openFeedbackStore(feedbackPath, io);
-  const issues = processAssayStageOutput(dispatch.stageOutputLines, store, cycleId);
-
-  return buildAssaySummary(issues, cycleId, sort.route, historyPath, io);
-}
-
-// Re-export executeAppraise from its dedicated module.
+// Re-export executeAssay and executeAppraise from their dedicated modules.
+export { executeAssay } from './run-assay.js';
 export { executeAppraise } from './run-appraise.js';
