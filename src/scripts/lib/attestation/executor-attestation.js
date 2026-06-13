@@ -119,7 +119,7 @@ function buildAssayCycle(cycleId, runId) {
   return cycleId || runId;
 }
 
-export function appendAssayAttestation(io, cycleId, issues, store, iteration = 1) {
+export function appendAssayAttestation(io, cycleId, issues, store, iteration = 1, explicitViolations) {
   try {
     const runId = readRunId(io);
     if (!runId) return;
@@ -130,7 +130,7 @@ export function appendAssayAttestation(io, cycleId, issues, store, iteration = 1
       iteration,
       timestamp: new Date().toISOString(),
       evaluations: [],
-      violations: issues.length,
+      violations: explicitViolations ?? issues.length,
       changed_files: [],
       artefact_hashes: [],
       feedback_opened: feedbackOpened,
