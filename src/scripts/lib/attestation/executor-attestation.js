@@ -107,21 +107,24 @@ function getArtefactHashes(artefact_hashes, aVersion, outputType) {
 // Assay attestation
 // ---------------------------------------------------------------------------
 
-export async function appendAssayAttestation(io, cycleId, issues, store) {
+function buildAssayItems(store) {
+  if (!store) return [];
+  return store.list().filter(i =>
+    i.source && i.source.startsWith('system:assay-') && i.history.length === 1
+  );
+}
+
+export async function appendAssayAttestation(io, cycleId, issues, store, violationsOverride) {
   const runId = readRunId(io);
   if (!runId) return;
-  const assayItems = store
-    ? store.list().filter(i =>
-        i.source && i.source.startsWith('system:assay-') && i.history.length === 1
-      )
-    : [];
+  const assayItems = buildAssayItems(store);
   const res = await appendStageAttestation(io, runId, {
     stage: 'assay',
     cycle: cycleId || runId,
     iteration: 1,
     timestamp: new Date().toISOString(),
     evaluations: [],
-    violations: issues.length,
+    violations: violationsOverride ?? issues.length,
     changed_files: [],
     artefact_hashes: [],
     feedback_opened: assayItems.map(i => i.id),

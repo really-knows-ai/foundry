@@ -96,13 +96,13 @@ export async function executeAssay(assayOpts) {
 
   const cycleId = cycleIdFrom(assayOpts.cycleId, sort);
   if (!cycleId) {
-    appendAssayAttestation(io, null, [], null);
+    appendAssayAttestation(io, null, [], null, 1);
     return { ok: false, error: 'executeAssay: no cycleId in sort result' };
   }
 
   const cfm = await readCfm(cycleId, io).catch(function() { return null; });
   if (!cfm) {
-    appendAssayAttestation(io, cycleId, [], null);
+    appendAssayAttestation(io, cycleId, [], null, 1);
     return { ok: false, error: 'executeAssay: cycle ' + cycleId + ' not found' };
   }
 
@@ -117,7 +117,7 @@ export async function executeAssay(assayOpts) {
     sort, io, worktree, cycleId, dispatchPrompt: promptContext,
   });
   if (dispatch.error) {
-    appendAssayAttestation(io, cycleId, [], null);
+    appendAssayAttestation(io, cycleId, [], null, 1);
     return { ok: false, error: dispatch.error };
   }
 
