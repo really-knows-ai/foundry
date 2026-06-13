@@ -340,13 +340,19 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group F — pre-existing cycle line with valid hash', () => {
-  it('returns already_sealed when a cycle line already exists', async () => {
+  it('returns standard seal shape when a cycle line already exists', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
     // Build a valid cycle attestation from these two stages
     const att1 = buildStageAttestation(STAGE_1);
     const att2 = buildStageAttestation(STAGE_2);
+    const cycleAtt = buildCycleAttestation({
+      cycle: 'test-cycle',
+      stage_attestations: [att1, att2],
+      governance: null,
+    });
+    const expectedHash = hashAttestation(cycleAtt);
     const cycleLine = makeCycleLine([att1, att2], 'test-cycle');
 
     const initialContent = [line1, line2, cycleLine].join('\n') + '\n';
@@ -357,11 +363,12 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
 
     const result = await sealCycleAttestation(RUN_ID, io);
 
-    // Returns already_sealed rather than appending a second seal line
+    // Returns standard seal shape without appending a second seal line
     assert.equal(result.ok, true);
-    assert.equal(result.already_sealed, true);
-    assert.equal(result.seal_hash, null);
     assert.equal(result.cycle, 'test-cycle');
+    assert.equal(result.composite_status, 'mixed');
+    assert.equal(result.stage_count, 2);
+    assert.equal(result.seal_hash, expectedHash);
 
     // File should have 3 lines: 2 stage + 1 pre-existing cycle (no new seal)
     const content = io._get(`.foundry/attestations/${RUN_ID}.jsonl`);

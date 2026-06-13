@@ -160,16 +160,16 @@ function rejectCycleMismatch(result) {
 /**
  * Parse all non-empty lines from a JSONL file, verifying hashes and
  * collecting stage attestations. Pre-existing cycle lines (with schema
- * foundry-cycle-attestation/v1) are verified but excluded from the
- * returned attestations; their presence is reported via the
+ * foundry-cycle-attestation/v1) are verified and returned via the
+ * `cycleAttestation` field; their presence is also reported via the
  * `hasCycleLine` flag.
  *
  * @param {string[]} lines - Non-empty lines from the JSONL file
- * @returns {{ stageAttestations: object[], hasCycleLine: boolean }}
+ * @returns {{ stageAttestations: object[], hasCycleLine: boolean, cycleAttestation: object|null }}
  */
 function parseAttestationLines(lines) {
   const stageAttestations = [];
-  let hasCycleLine = false;
+  let cycleAttestation = null;
   for (const line of lines) {
     const result = verifyStageLine(line);
     if (result.error) {
@@ -182,12 +182,12 @@ function parseAttestationLines(lines) {
       continue;
     }
     if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
-      hasCycleLine = true;
+      cycleAttestation = result.attestation;
       continue;
     }
     stageAttestations.push(result.attestation);
   }
-  return { stageAttestations, hasCycleLine };
+  return { stageAttestations, hasCycleLine: cycleAttestation !== null, cycleAttestation };
 }
 
 /**
@@ -226,17 +226,20 @@ async function writeSealLine(io, path, sealedLine) {
 }
 
 /**
- * Return an early-sealed result when the JSONL file already contains a
- * cycle attestation line. Returns null when no cycle line exists and
- * sealing should proceed normally.
+ * Return an early-sealed result in the standard seal return shape when
+ * the JSONL file already contains a verified cycle attestation line.
+ * Extracts composite_status, stage_count, and seal_hash from the
+ * pre-existing cycle attestation. Returns null when no cycle line exists
+ * and sealing should proceed normally.
  */
-function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId) {
+function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, cycleAttestation) {
   if (!hasCycleLine) return null;
   return {
     ok: true,
-    already_sealed: true,
-    cycle: stageAttestations.length > 0 ? stageAttestations[0].cycle : resolvedRunId,
-    seal_hash: null,
+    cycle: cycleAttestation.cycle || (stageAttestations.length > 0 ? stageAttestations[0].cycle : resolvedRunId),
+    composite_status: cycleAttestation.composite_status,
+    stage_count: (cycleAttestation.stage_attestations || []).length,
+    seal_hash: cycleAttestation._hash,
   };
 }
 
@@ -262,11 +265,7 @@ function resolveRunId(runId, io) {
 export async function sealCycleAttestation(runId, io) {
   const resolvedRunId = resolveRunId(runId, io);
   if (!resolvedRunId) {
-    return {
-      ok: false,
-      error:
-        'no run ID available — WORK.md is missing or has no foundry-run field',
-    };
+    return { ok: false, error: 'no run ID available — WORK.md is missing or has no foundry-run field' };
   }
 
   const path = `.foundry/attestations/${resolvedRunId}.jsonl`;
@@ -280,28 +279,29 @@ export async function sealCycleAttestation(runId, io) {
 
   const content = io.readFile(path);
   const lines = content.split('\n').filter(line => line.trim() !== '');
-  let stageAttestations, hasCycleLine;
+  let stageAttestations, hasCycleLine, existingCycleAttestation;
   try {
     const parsed = parseAttestationLines(lines);
     stageAttestations = parsed.stageAttestations;
     hasCycleLine = parsed.hasCycleLine;
+    existingCycleAttestation = parsed.cycleAttestation;
   } catch (err) {
     return { ok: false, error: err.message };
   }
 
-  const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId);
+  const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation);
   if (earlyResult) return earlyResult;
 
-  const cycleAttestation = buildSealPayload(stageAttestations, resolvedRunId, io);
-  const sealHash = hashAttestation(cycleAttestation);
+  const sealPayload = buildSealPayload(stageAttestations, resolvedRunId, io);
+  const sealHash = hashAttestation(sealPayload);
 
-  const sealedLine = { ...cycleAttestation, _hash: sealHash };
+  const sealedLine = { ...sealPayload, _hash: sealHash };
   await writeSealLine(io, path, sealedLine);
 
   return {
     ok: true,
-    cycle: cycleAttestation.cycle,
-    composite_status: cycleAttestation.composite_status,
+    cycle: sealPayload.cycle,
+    composite_status: sealPayload.composite_status,
     stage_count: stageAttestations.length,
     seal_hash: sealHash,
   };
