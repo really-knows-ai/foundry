@@ -34,7 +34,7 @@
     "//test:integration": "Integration tests only",
     "test:integration": "find tests -name '*.integration.test.js' -print0 | xargs -0 node --test --experimental-test-module-mocks --test-reporter=dot",
     "//test:e2e": "End-to-end tests only",
-    "test:e2e": "find tests -name '*.e2e.test.js' -print0 | xargs -0 node --test --experimental-test-module-mocks --test-reporter=dot",
+    "test:e2e": "node --test --experimental-test-module-mocks --test-reporter=dot $*",
     "//test:all": "All test types (unit, integration, e2e)",
     "test:all": "node --test --experimental-test-module-mocks --test-reporter=dot $*",
     "test:coverage": "node --test --experimental-test-coverage --test-reporter=dot",
