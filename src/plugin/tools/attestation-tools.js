@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { extractAttestationBlock } from '../../scripts/lib/attestation/parse.js';
-import { verifyAttestationRef } from '../../scripts/lib/attestation/verify.js';
+import { verifyAttestationRun } from '../../scripts/lib/attestation/verify.js';
 import { buildAttestation } from '../../scripts/lib/attestation/attest.js';
 import { parseFrontmatter } from '../../scripts/lib/workfile.js';
 import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
@@ -42,16 +42,14 @@ function createShowTool(tool) {
 
 function createVerifyTool(tool) {
   return tool({
-    description: 'Verify GPG signature and attestation payload for a commit ref (default HEAD).',
+    description: 'Re-verify every line in the JSONL attestation file for a given run ID and report all mismatches.',
     args: {
-      ref: tool.schema.string().optional().describe('Git ref (default: HEAD)'),
+      run_id: tool.schema.string().describe('Run ID from the attestation filename'),
     },
     async execute(args, context) {
       try {
-        const ref = args.ref || 'HEAD';
-        const cwd = context.worktree;
-        const result = verifyAttestationRef({ cwd, ref });
-        return JSON.stringify({ ok: true, ...result });
+        const result = verifyAttestationRun({ cwd: context.worktree, runId: args.run_id });
+        return JSON.stringify(result);
       } catch (err) {
         return errorJson(err);
       }

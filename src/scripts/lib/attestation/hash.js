@@ -127,7 +127,7 @@ function buildMinimalCycle(runId, governance) {
   };
 }
 
-function verifyStageLine(line) {
+export function verifyStageLine(line) {
   let parsed;
   try {
     parsed = JSON.parse(line);
