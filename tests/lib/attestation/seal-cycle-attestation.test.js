@@ -341,7 +341,7 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group F — pre-existing cycle line with valid hash', () => {
-  it('excludes pre-existing cycle line from stage_attestations', async () => {
+  it('returns already_sealed when a cycle line already exists', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
@@ -358,33 +358,26 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
 
     const result = await sealCycleAttestation(RUN_ID, io);
 
-    // stage_count should be 2 (stage lines only, not the cycle line)
-    assert.equal(result.stage_count, 2);
+    // Returns already_sealed rather than appending a second seal line
     assert.equal(result.ok, true);
-    assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
+    assert.equal(result.already_sealed, true);
+    assert.equal(result.seal_hash, null);
+    assert.equal(result.cycle, 'test-cycle');
 
-    // File should have 4 lines: 2 stage + 1 pre-existing cycle + 1 new seal
+    // File should have 3 lines: 2 stage + 1 pre-existing cycle (no new seal)
     const content = io._get(`.foundry/attestations/${RUN_ID}.jsonl`);
     const lines = content.trim().split('\n');
-    assert.equal(lines.length, 4);
+    assert.equal(lines.length, 3);
 
-    // Third line is the pre-existing cycle line, fourth is the new seal
+    // Last line is the pre-existing cycle line
     const preExisting = JSON.parse(lines[2]);
     assert.equal(preExisting.schema, 'foundry-cycle-attestation/v1');
     assert.equal(preExisting.stage_attestations.length, 2);
 
-    const newSeal = JSON.parse(lines[3]);
-    assert.equal(newSeal.schema, 'foundry-cycle-attestation/v1');
-    assert.equal(newSeal.stage_attestations.length, 2);
-
-    // Both cycle lines should have valid hashes
+    // Verify the pre-existing cycle line still has a valid hash
     const preHash = preExisting._hash;
     delete preExisting._hash;
     assert.equal(hashAttestation(preExisting), preHash);
-
-    const newHash = newSeal._hash;
-    delete newSeal._hash;
-    assert.equal(hashAttestation(newSeal), newHash);
   });
 });
 
