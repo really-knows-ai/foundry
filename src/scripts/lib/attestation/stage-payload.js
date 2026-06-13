@@ -43,6 +43,8 @@
  * @property {string[]} feedback_resolved - Feedback IDs resolved during this stage
  * @property {Array<{path: string, hash: string}>} artefact_hashes - Artefact hash records
  * @property {boolean} [wont_fix] - Forge wont-fix flag (forge)
+ * @property {'resolved'|'rejected'|'violation'} [verdict] - Human-appraise verdict
+ *   (human-appraise)
  * @property {Array<{appraiser: string, verdict: 'resolved'|'rejected'}>}
  *   [appraiser_verdicts] - Appraiser verdicts (appraise)
  */
@@ -134,6 +136,27 @@ function humanAppraiseStatus(evaluations, violations, flags) {
   if (flags.verdict === 'rejected') return 'rejected';
   if (flags.verdict === 'violation') return 'fail';
   return 'incomplete';
+}
+
+/**
+ * Build the conditional extra fields for a stage attestation payload.
+ *
+ * Each stage may add optional fields beyond the common schema:
+ * - forge: `wont_fix`
+ * - human-appraise: `verdict`
+ * - appraise: `appraiser_verdicts`
+ *
+ * @param {boolean} [wont_fix]
+ * @param {'resolved'|'rejected'|'violation'} [verdict]
+ * @param {Array<{appraiser: string, verdict: 'resolved'|'rejected'}>} [appraiser_verdicts]
+ * @returns {Object}
+ */
+function buildConditionalFields(wont_fix, verdict, appraiser_verdicts) {
+  const fields = {};
+  if (wont_fix) fields.wont_fix = true;
+  if (verdict) fields.verdict = verdict;
+  if (appraiser_verdicts) fields.appraiser_verdicts = appraiser_verdicts;
+  return fields;
 }
 
 const STAGE_DERIVERS = {
@@ -235,7 +258,6 @@ export function buildStageAttestation({
     violation_details: violationDetailsVal,
     feedback_opened: fbOpened, feedback_resolved: fbResolved,
     artefact_hashes: artHashes,
-    ...(wont_fix ? { wont_fix: true } : {}),
-    ...(appraiser_verdicts ? { appraiser_verdicts } : {}),
+    ...buildConditionalFields(wont_fix, verdict, appraiser_verdicts),
   });
 }
