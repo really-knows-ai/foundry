@@ -42,6 +42,7 @@
  * @property {string[]} feedback_opened - Feedback IDs opened during this stage
  * @property {string[]} feedback_resolved - Feedback IDs resolved during this stage
  * @property {Array<{path: string, hash: string}>} artefact_hashes - Artefact hash records
+ * @property {boolean} [wont_fix] - Forge wont-fix flag (forge)
  * @property {Array<{appraiser: string, verdict: 'resolved'|'rejected'}>}
  *   [appraiser_verdicts] - Appraiser verdicts (appraise)
  */
@@ -234,6 +235,7 @@ export function buildStageAttestation({
     violation_details: violationDetailsVal,
     feedback_opened: fbOpened, feedback_resolved: fbResolved,
     artefact_hashes: artHashes,
+    ...(wont_fix ? { wont_fix: true } : {}),
     ...(appraiser_verdicts ? { appraiser_verdicts } : {}),
   });
 }
