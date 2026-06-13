@@ -156,32 +156,53 @@ function verifyCycleLine(cycleParsed, stageEntries) {
 }
 
 /**
+ * Verify a single cycle attestation entry against current stage entries.
+ * Handles the guard (schema check and already-attempted check) internally
+ * and mutates the provided state object.
+ *
+ * @param {object} entry          Parsed JSONL entry (may or may not be a cycle line)
+ * @param {object[]} currentEntries  Stage entries collected so far
+ * @param {{ errors: string[], cycleVerificationAttempted: boolean, sealVerified: boolean }} state
+ */
+function verifyCycleEntry(entry, currentEntries, state) {
+  if (entry.schema !== 'foundry-cycle-attestation/v1' || state.cycleVerificationAttempted) {
+    return;
+  }
+  state.cycleVerificationAttempted = true;
+  const stageEntries = currentEntries.filter(
+    e => e.schema !== 'foundry-cycle-attestation/v1'
+  );
+  const result = verifyCycleLine(entry, stageEntries);
+  if (!result.ok) {
+    state.errors.push(result.error);
+  } else {
+    state.sealVerified = true;
+  }
+}
+
+/**
  * Process verified lines: collect entries and detect seal line.
  * Extracted from verifyJsonlFile to reduce function complexity.
  */
 function processLines(lines) {
   const entries = [];
-  let sealVerified = false;
+  const state = { errors: [], sealVerified: false, cycleVerificationAttempted: false };
 
   for (let i = 0; i < lines.length; i++) {
     const r = parseAndVerifyLine(lines[i], i);
     if (r.error) {
-      return { ok: false, error: r.error };
+      state.errors.push(r.error);
+      continue;
     }
     entries.push(r.parsed);
-    if (r.parsed.schema === 'foundry-cycle-attestation/v1') {
-      const stageEntries = entries.filter(
-        e => e.schema !== 'foundry-cycle-attestation/v1'
-      );
-      const result = verifyCycleLine(r.parsed, stageEntries);
-      if (!result.ok) {
-        return { ok: false, error: result.error };
-      }
-      sealVerified = true;
-    }
+    verifyCycleEntry(r.parsed, entries, state);
   }
 
-  return { ok: true, entries, linesVerified: lines.length, sealVerified };
+  if (state.errors.length > 0) {
+    return { ok: false, error: state.errors.join('; ') };
+  }
+
+  return { ok: true, entries, linesVerified: lines.length, sealVerified: state.sealVerified };
 }
 
 // ---------------------------------------------------------------------------
