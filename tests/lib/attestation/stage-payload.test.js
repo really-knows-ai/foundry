@@ -219,4 +219,23 @@ describe('deriveStageStatus — assay', () => {
       'incomplete',
     );
   });
+
+  it('returns "fail" for assay when violations > 0', () => {
+    assert.equal(
+      deriveStageStatus('assay', [
+        { appraiser: 'ext-a', verdict: 'passed', completed: true },
+      ], 2),
+      'fail',
+    );
+  });
+
+  it('violations take precedence over incomplete evaluations for assay', () => {
+    assert.equal(
+      deriveStageStatus('assay', [
+        { appraiser: 'ext-a', verdict: 'passed', completed: true },
+        { appraiser: 'ext-b', verdict: 'passed', completed: false },
+      ], 1),
+      'fail',
+    );
+  });
 });
