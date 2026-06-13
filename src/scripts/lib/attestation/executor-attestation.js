@@ -149,9 +149,9 @@ export function appendAppraiseAttestation(io, cycleId, opts) {
   try {
     const runId = readRunId(io);
     if (!runId) return;
-    const { iteration, coverage, feedbackPath, appraiser_verdicts } = opts;
+    const { iteration, coverage, feedbackPath, appraiser_verdicts, violations: explicitViolations } = opts;
     const store = openFeedbackStore(feedbackPath, io);
-    const totalViolations = [...coverage.values()]
+    const totalViolations = explicitViolations ?? [...coverage.values()]
       .reduce((sum, entry) => sum + (entry.violations || 0), 0);
     const evaluations = [...coverage.values()].flatMap(entry => entry.evaluations || []);
     const appraiseItems = store.list().filter(i =>

@@ -299,7 +299,7 @@ async function appendEmptyAppraiseAttestation(io, apprOpts, feedbackPath) {
   const cycleId = await cycleIdFrom(apprOpts.cycleId, apprOpts.sort);
   appendAppraiseAttestation(io, cycleId, {
     iteration: 1, coverage: new Map(), feedbackPath,
-    appraiser_verdicts: [],
+    appraiser_verdicts: [], violations: 1,
   });
 }
 
@@ -332,7 +332,7 @@ async function executeStandardAppraise(apprOpts) {
       .map(entry => ({ appraiser: entry.appraiser.id, verdict: 'rejected' }));
     appendAppraiseAttestation(io, cycleId, {
       iteration, coverage: new Map(), feedbackPath,
-      appraiser_verdicts: appraiserVerdicts,
+      appraiser_verdicts: appraiserVerdicts, violations: 1,
     });
     return dispatchError;
   }
@@ -357,7 +357,7 @@ export async function executeAppraise(apprOpts) {
   const sort = apprOpts.sort;
   const earlyCycleId = await cycleIdFrom(apprOpts.cycleId, sort);
   if (!earlyCycleId) {
-    appendAppraiseAttestation(io, null, { iteration: 1, coverage: new Map(), feedbackPath, appraiser_verdicts: [] });
+    appendAppraiseAttestation(io, null, { iteration: 1, coverage: new Map(), feedbackPath, appraiser_verdicts: [], violations: 1 });
     return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
   }
 

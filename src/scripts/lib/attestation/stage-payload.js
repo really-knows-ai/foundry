@@ -119,6 +119,7 @@ function quenchStatus(evaluations, violations, flags) {
 }
 
 function appraiseStatus(evaluations, violations, flags) {
+  if (violations > 0) return 'fail';
   const verdicts = flags.appraiser_verdicts;
   if (!verdicts || verdicts.length === 0) return 'incomplete';
   if (verdicts.some(v => v.verdict === 'rejected')) return 'fail';
