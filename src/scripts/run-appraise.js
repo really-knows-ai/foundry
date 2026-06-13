@@ -104,7 +104,7 @@ async function setupAppraiseStage(apprOpts) {
 
 function emptyAppraiseResult(opts) {
   const { io, cycleId, baseSha, historyPath, reason, feedbackPath } = opts;
-  appendAppraiseAttestation(io, cycleId, 1, new Map(), feedbackPath);
+  appendAppraiseAttestation(io, cycleId, 1, new Map(), { feedbackPath });
   clearActiveStage(io);
   writeLastStage(io, { cycle: cycleId, stage: 'appraise:' + cycleId, baseSha: baseSha, summary: reason });
   appendEntry(historyPath, { cycle: cycleId, stage: 'appraise:' + cycleId, iteration: 1, comment: 'appraise: ' + reason }, io);
