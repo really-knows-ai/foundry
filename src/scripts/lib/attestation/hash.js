@@ -148,13 +148,41 @@ function handleMismatchLine() {
 }
 
 /**
- * Throw if a mismatched line is a cycle attestation.
+ * Reject a mismatched line if it is a cycle attestation.
+ * Returns an error string for cycle attestations, or null for stage lines.
  * Tampered cycle attestations make the composite untrustworthy.
  */
 function rejectCycleMismatch(result) {
   if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
-    throw new Error('cycle attestation line hash mismatch — composite cannot be trusted');
+    return 'cycle attestation line hash mismatch — composite cannot be trusted';
   }
+  return null;
+}
+
+/**
+ * Classify a verification result into an action for the line parser.
+ *
+ * Returns an action object that tells the caller what to do:
+ * - `{ type: 'skip' }` — log and move to the next line
+ * - `{ type: 'abort', error }` — return immediately with an error
+ * - `{ type: 'cycle', attestation }` — record the pre-existing cycle line
+ * - `{ type: 'stage', attestation }` — collect this stage attestation
+ */
+function classifyLineResult(result) {
+  if (result.error) {
+    console.error(result.error);
+    return { type: 'skip' };
+  }
+  if (result.mismatch) {
+    const cycleError = rejectCycleMismatch(result);
+    if (cycleError) return { type: 'abort', error: cycleError };
+    handleMismatchLine();
+    return { type: 'skip' };
+  }
+  if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
+    return { type: 'cycle', attestation: result.attestation };
+  }
+  return { type: 'stage', attestation: result.attestation };
 }
 
 /**
@@ -164,28 +192,30 @@ function rejectCycleMismatch(result) {
  * `cycleAttestation` field; their presence is also reported via the
  * `hasCycleLine` flag.
  *
+ * When a cycle attestation line fails hash verification, the function
+ * returns the error alongside already-parsed stage attestations so the
+ * caller can inspect what was collected before the mismatched line.
+ *
  * @param {string[]} lines - Non-empty lines from the JSONL file
- * @returns {{ stageAttestations: object[], hasCycleLine: boolean, cycleAttestation: object|null }}
+ * @returns {{ stageAttestations: object[], hasCycleLine: boolean, cycleAttestation: object|null, error?: string }}
  */
 function parseAttestationLines(lines) {
   const stageAttestations = [];
   let cycleAttestation = null;
   for (const line of lines) {
     const result = verifyStageLine(line);
-    if (result.error) {
-      console.error(result.error);
+    const action = classifyLineResult(result);
+
+    if (action.type === 'abort') {
+      return { stageAttestations, hasCycleLine: false, cycleAttestation: null, error: action.error };
+    }
+    if (action.type === 'cycle') {
+      cycleAttestation = action.attestation;
       continue;
     }
-    if (result.mismatch) {
-      rejectCycleMismatch(result);
-      handleMismatchLine();
-      continue;
+    if (action.type === 'stage') {
+      stageAttestations.push(action.attestation);
     }
-    if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
-      cycleAttestation = result.attestation;
-      continue;
-    }
-    stageAttestations.push(result.attestation);
   }
   return { stageAttestations, hasCycleLine: cycleAttestation !== null, cycleAttestation };
 }
@@ -279,15 +309,13 @@ export async function sealCycleAttestation(runId, io) {
 
   const content = io.readFile(path);
   const lines = content.split('\n').filter(line => line.trim() !== '');
-  let stageAttestations, hasCycleLine, existingCycleAttestation;
-  try {
-    const parsed = parseAttestationLines(lines);
-    stageAttestations = parsed.stageAttestations;
-    hasCycleLine = parsed.hasCycleLine;
-    existingCycleAttestation = parsed.cycleAttestation;
-  } catch (err) {
-    return { ok: false, error: err.message };
+  const parsed = parseAttestationLines(lines);
+  if (parsed.error) {
+    return { ok: false, error: parsed.error };
   }
+  const stageAttestations = parsed.stageAttestations;
+  const hasCycleLine = parsed.hasCycleLine;
+  const existingCycleAttestation = parsed.cycleAttestation;
 
   const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation);
   if (earlyResult) return earlyResult;
