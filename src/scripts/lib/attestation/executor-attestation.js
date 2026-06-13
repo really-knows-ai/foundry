@@ -137,11 +137,12 @@ export async function appendAssayAttestation(io, cycleId, issues, store, violati
 // Appraise attestation
 // ---------------------------------------------------------------------------
 
-export async function appendAppraiseAttestation(io, cycleId, iteration, coverage, feedbackPath) {
+export async function appendAppraiseAttestation(io, cycleId, iteration, coverage, opts) {
+  const { feedbackPath, violationsOverride } = opts;
   const runId = readRunId(io);
   if (!runId) return;
   const store = openFeedbackStore(feedbackPath, io);
-  const totalViolations = [...coverage.values()]
+  const totalViolations = violationsOverride ?? [...coverage.values()]
     .reduce((sum, entry) => sum + (entry.violations || 0), 0);
   const evaluations = [...coverage.values()].flatMap(entry => entry.evaluations || []);
   const appraiserVerdicts = [...coverage.values()].flatMap(entry =>

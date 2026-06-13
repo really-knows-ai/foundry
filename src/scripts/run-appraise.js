@@ -265,7 +265,7 @@ async function prepareAppraiseContext(apprOpts) {
   const { io, historyPath, feedbackPath } = apprOpts;
   const setup = await setupAppraiseStage(apprOpts);
   if (setup.error) {
-    appendAppraiseAttestation(io, null, 1, new Map(), feedbackPath);
+    appendAppraiseAttestation(io, null, 1, new Map(), { feedbackPath, violationsOverride: 1 });
     return { error: setup.error };
   }
   const { baseSha, cycleId, outputType, cfm } = setup;
@@ -313,7 +313,7 @@ async function executeStandardAppraise(apprOpts) {
   const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);
   const dispatchError = checkAppraiseDispatchFailure(settled);
   if (dispatchError) {
-    appendAppraiseAttestation(io, cycleId, 1, new Map(), feedbackPath);
+    appendAppraiseAttestation(io, cycleId, 1, new Map(), { feedbackPath, violationsOverride: 1 });
     return dispatchError;
   }
 
@@ -321,7 +321,7 @@ async function executeStandardAppraise(apprOpts) {
     io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
     foundryDir, outputType, worktree, historyPath, baseSha,
   });
-  appendAppraiseAttestation(io, cycleId, 1, coverage, feedbackPath);
+  appendAppraiseAttestation(io, cycleId, 1, coverage, { feedbackPath });
   return { ok: true, coverage };
 }
 
@@ -331,7 +331,7 @@ export async function executeAppraise(apprOpts) {
   const sort = apprOpts.sort;
   const earlyCycleId = await cycleIdFrom(apprOpts.cycleId, sort);
   if (!earlyCycleId) {
-    appendAppraiseAttestation(io, null, 1, new Map(), feedbackPath);
+    appendAppraiseAttestation(io, null, 1, new Map(), { feedbackPath, violationsOverride: 1 });
     return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
   }
 
@@ -342,7 +342,7 @@ export async function executeAppraise(apprOpts) {
   const addressResult = await tryAppraiseAddress(apprOpts, io, feedbackPath, earlyCycleId, addressDispatchFn);
   if (addressResult !== null) {
     const emptyCoverage = new Map();
-    appendAppraiseAttestation(io, earlyCycleId, 1, emptyCoverage, feedbackPath);
+    appendAppraiseAttestation(io, earlyCycleId, 1, emptyCoverage, { feedbackPath, violationsOverride: 1 });
     return addressResult;
   }
 

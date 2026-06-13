@@ -114,12 +114,16 @@ function quenchStatus(evaluations, violations, flags) {
   return 'pass';
 }
 
-function appraiseStatus(evaluations, violations, flags) {
-  const verdicts = flags.appraiser_verdicts;
+function appraiseVerdictStatus(verdicts, evaluations) {
   if (!verdicts || verdicts.length === 0) return 'incomplete';
   if (verdicts.some(v => v.verdict === 'rejected')) return 'fail';
   if (verdicts.length < evaluations.length) return 'incomplete';
   return 'pass';
+}
+
+function appraiseStatus(evaluations, violations, flags) {
+  if (violations > 0) return 'fail';
+  return appraiseVerdictStatus(flags.appraiser_verdicts, evaluations);
 }
 
 function humanAppraiseStatus(evaluations, violations, flags) {
