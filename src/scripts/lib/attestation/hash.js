@@ -37,21 +37,17 @@ export function generateRunId() {
 /**
  * Append a stage attestation line to the run-scoped JSONL file.
  *
- * Creates the attestations directory if needed, builds the attestation
- * payload, computes the content hash, and appends a self-verifying JSON
- * line to `.foundry/attestations/<runId>.jsonl`.
+ * Builds the attestation payload, computes the content hash, and appends
+ * a self-verifying JSON line to `.foundry/attestations/<runId>.jsonl`.
+ * The `.foundry/attestations/` directory is created at foundry init by
+ * `bootstrapDotFoundryDirs` and is guaranteed to exist.
  *
- * @param {object} io - IO interface with mkdir(dir, opts) and appendFile(path, data)
+ * @param {object} io - IO interface with appendFile(path, data)
  * @param {string} runId - ULID run identifier
  * @param {object} params - Parameters forwarded to buildStageAttestation
  * @returns {Promise<{ok: boolean, filePath?: string, hash?: string, error?: *}>}
  */
 export async function appendStageAttestation(io, runId, params) {
-  try {
-    await io.mkdir('.foundry/attestations', { recursive: true });
-  } catch (error) {
-    return { ok: false, error };
-  }
 
   const payload = buildStageAttestation(params);
   const hash = hashAttestation(payload);

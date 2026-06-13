@@ -141,15 +141,6 @@ describe('appendStageAttestation', () => {
     assert.equal(obj2.iteration, 2);
   });
 
-  it('g — creates the attestations directory', async () => {
-    const io = createMockIo();
-    await appendStageAttestation(io, TEST_RUN_ID, BASE_PARAMS);
-
-    assert.equal(io.mkdirCalls.length, 1);
-    assert.equal(io.mkdirCalls[0].dir, '.foundry/attestations');
-    assert.deepEqual(io.mkdirCalls[0].opts, { recursive: true });
-  });
-
   it('h — returns { ok: true, filePath, hash } on success', async () => {
     const io = createMockIo();
     const result = await appendStageAttestation(io, TEST_RUN_ID, BASE_PARAMS);
@@ -161,17 +152,6 @@ describe('appendStageAttestation', () => {
     assert.match(result.hash, /^[0-9a-f]{64}$/);
     // Should not have an error field on success
     assert.equal(Object.hasOwn(result, 'error'), false);
-  });
-
-  it('i — returns { ok: false, error } when mkdir fails', async () => {
-    const io = createMockIo();
-    const testError = new Error('permission denied');
-    io.setMkdirShouldThrow(true, testError);
-
-    const result = await appendStageAttestation(io, TEST_RUN_ID, BASE_PARAMS);
-
-    assert.equal(result.ok, false);
-    assert.equal(result.error, testError);
   });
 
   it('j — returns { ok: false, error } when appendFile fails', async () => {
