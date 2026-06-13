@@ -145,14 +145,6 @@ function verifyStageLine(line) {
 }
 
 /**
- * Parse all non-empty lines from a JSONL file, verifying hashes and
- * collecting stage attestations. Pre-existing cycle lines (with schema
- * foundry-cycle-attestation/v1) are verified but excluded from the result.
- *
- * @param {string[]} lines - Non-empty lines from the JSONL file
- * @returns {object[]} Verified stage attestation objects
- */
-/**
  * Log a warning for a line with a hash mismatch.
  */
 function handleMismatchLine() {
