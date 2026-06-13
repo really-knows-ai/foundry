@@ -113,16 +113,22 @@ export function finalizeForgeOutcome(opts) {
     output: lastOutput, feedbackStore: store, cycleId,
   });
 
+  const changedFiles = stageOutputLines
+    .map(l => l.file)
+    .filter(Boolean)
+    .filter((f, i, arr) => arr.indexOf(f) === i)
+    .sort();
+
   appendEntry(historyPath, buildForgeHistoryEntry({
     cycle: cycleId, stage: route, iteration: 1,
     comment: 'forge completed for ' + cycleId,
     artefactVersion: postVersion,
     contractPassed: contractResult.contractPassed,
-    changedFiles: [],
+    changedFiles,
   }), io);
 
   if (!contractResult.contractPassed) return { ok: false, error: 'Forge contract failed' };
-  return { ok: true, contractPassed: true, artefactVersion: postVersion, changedFiles: [], wont_fix: lastOutput.status === 'wont-fix' };
+  return { ok: true, contractPassed: true, artefactVersion: postVersion, changedFiles, wont_fix: lastOutput.status === 'wont-fix' };
 }
 
 
