@@ -94,7 +94,7 @@ describe('sealCycleAttestation wrapper', () => {
     // JSONL file is staged into the commit
     const addCall = git._calls.find(c => c[0] === 'add');
     assert.ok(addCall, 'git execFile called with add as first arg');
-    assert.equal(addCall[1], `.foundry/attestations/${RUN_ID}.jsonl`);
+    assert.equal(addCall[2], `.foundry/attestations/${RUN_ID}.jsonl`);
 
     // git commit --amend was called (after add — same commit)
     const amendCall = git._calls.find(c => c[0] === 'commit');
@@ -419,7 +419,7 @@ describe('finaliseStage', () => {
     );
     assert.ok(addCall, 'git add was called for attestation file');
     assert.equal(
-      addCall.args[1],
+      addCall.args[2],
       `.foundry/attestations/${RUN_ID}.jsonl`,
       'git add targets the correct attestation file'
     );
