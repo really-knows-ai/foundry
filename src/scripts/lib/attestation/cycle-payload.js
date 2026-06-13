@@ -85,13 +85,14 @@ function buildFeedbackSummary(stageAttestations) {
  */
 function buildArtefactSummary(stageAttestations) {
   const uniqueFiles = new Set();
+  let totalChanged = 0;
   for (const sa of stageAttestations) {
     for (const f of sa.changed_files) {
+      totalChanged++;
       uniqueFiles.add(f);
     }
   }
-  const count = uniqueFiles.size;
-  return { total_changed: count, unique_paths: count };
+  return { total_changed: totalChanged, unique_paths: uniqueFiles.size };
 }
 
 /**

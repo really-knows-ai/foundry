@@ -173,7 +173,7 @@ describe('feedback and artefact summaries', () => {
     assert.equal(result.feedback_summary.open_remaining, 1);
   });
 
-  it('artefact_summary.total_changed sums unique changed files across stages', () => {
+  it('artefact_summary.total_changed sums changed files across stages', () => {
     const forge = makeStage('forge', { changed_files: ['a.txt', 'b.txt'] });
     const quench = makeStage('quench', { changed_files: ['b.txt', 'c.txt'] });
 
@@ -182,8 +182,9 @@ describe('feedback and artefact summaries', () => {
       stage_attestations: [forge, quench],
     });
 
+    // forge: 2 entries, quench: 2 entries = 4 total
     // Unique files: a.txt, b.txt, c.txt = 3
-    assert.equal(result.artefact_summary.total_changed, 3);
+    assert.equal(result.artefact_summary.total_changed, 4);
     assert.equal(result.artefact_summary.unique_paths, 3);
   });
 });
