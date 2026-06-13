@@ -320,7 +320,7 @@ export async function executeQuench(quenchOpts) {
 
   const cycleId = cycleIdFrom(quenchOpts.cycleId, sort);
   if (!cycleId) {
-    appendQuenchAttestation(io, cycleId, {});
+    appendQuenchAttestation(io, cycleId, {}, 1);
     return { ok: false, error: 'executeQuench: no cycleId in sort result' };
   }
 
@@ -328,7 +328,7 @@ export async function executeQuench(quenchOpts) {
 
   const cycleResolved = await resolveQuenchCycle(cycleId, io);
   if (cycleResolved.error) {
-    appendQuenchAttestation(io, cycleId, {});
+    appendQuenchAttestation(io, cycleId, {}, 1);
     return cycleResolved.error;
   }
 

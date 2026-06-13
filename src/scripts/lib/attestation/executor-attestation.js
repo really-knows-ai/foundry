@@ -62,9 +62,9 @@ export async function appendForgeAttestation(io, cycleId, forgeOpts) {
 // Quench attestation
 // ---------------------------------------------------------------------------
 
-function buildQuenchAttestationParams(runId, cycleId, opts) {
+function buildQuenchAttestationParams(runId, cycleId, opts, violationsOverride) {
   const { aVersion, outputType, store, feedbackList, artefact_hashes } = opts;
-  const violations = feedbackList ? feedbackList.length : 0;
+  const violations = violationsOverride ?? (feedbackList ? feedbackList.length : 0);
   const violation_details = feedbackList || [];
   const quenchItems = getQuenchItems(store);
   const hashes = getArtefactHashes(artefact_hashes, aVersion, outputType);
@@ -83,10 +83,10 @@ function buildQuenchAttestationParams(runId, cycleId, opts) {
   };
 }
 
-export async function appendQuenchAttestation(io, cycleId, opts) {
+export async function appendQuenchAttestation(io, cycleId, opts, violationsOverride) {
   const runId = readRunId(io);
   if (!runId) return;
-  const params = buildQuenchAttestationParams(runId, cycleId, opts);
+  const params = buildQuenchAttestationParams(runId, cycleId, opts, violationsOverride);
   const res = await appendStageAttestation(io, runId, params);
   if (!res.ok) console.warn('quench: attestation append failed', res.error);
 }
