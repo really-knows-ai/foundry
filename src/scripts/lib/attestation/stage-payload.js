@@ -96,6 +96,7 @@ function requireField(value, name) {
  */
 
 function assayStatus(evaluations, violations, flags) {
+  if (violations > 0) return 'fail';
   if (evaluations.length > 0 && evaluations.some(e => !e.completed)) return 'incomplete';
   return 'pass';
 }
