@@ -179,7 +179,6 @@ function parseAttestationLines(lines) {
     if (result.mismatch) {
       rejectCycleMismatch(result);
       handleMismatchLine();
-      stageAttestations.push(result.attestation);
       continue;
     }
     if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
