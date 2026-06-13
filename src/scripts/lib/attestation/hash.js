@@ -78,19 +78,19 @@ export async function appendStageAttestation(io, runId, params) {
  *
  * @param {object} io - IO interface with readDir, readFile
  * @param {string} [cycleId] - Cycle identifier for config file hashing
- * @returns {{workfile_hashes: Record<string, string>, config_commit: string}}
+ * @returns {{law_hashes: Record<string, string>, config_commit: string}}
  */
 export function computeGovernance(io, cycleId) {
-  let workfileHashes;
+  let lawHashes;
   try {
     const lawFiles = io.readDir('.foundry/laws/');
-    workfileHashes = {};
+    lawHashes = {};
     for (const name of lawFiles) {
       const content = io.readFile('.foundry/laws/' + name);
-      workfileHashes[name] = sha256Text(content);
+      lawHashes[name] = sha256Text(content);
     }
   } catch {
-    workfileHashes = {};
+    lawHashes = {};
   }
 
   let configCommit;
@@ -105,7 +105,7 @@ export function computeGovernance(io, cycleId) {
     configCommit = 'none';
   }
 
-  return { workfile_hashes: workfileHashes, config_commit: configCommit };
+  return { law_hashes: lawHashes, config_commit: configCommit };
 }
 
 /**
