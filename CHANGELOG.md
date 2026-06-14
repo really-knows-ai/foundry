@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.14.2] - 2026-06-14
+
+### Fixed
+
+- Added `skill: allow` to `foundry-forge`, `foundry-appraise`, and `foundry-assay` agent permissions so dispatched stage subagents can load the skills their dispatch prompts instruct them to use. Without this, the first child dispatch (forge) timed out silently because it could not call the `skill` tool.
+
 ## [3.14.1] - 2026-06-14
 
 ### Fixed
