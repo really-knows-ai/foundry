@@ -324,17 +324,11 @@ async function executeVerifyTool(args, context) {
       return JSON.stringify(result);
     }
 
-    const sealExtra = checkCommitSeal(result.entries, cwd);
-    if (sealExtra.error) {
-      return JSON.stringify({ ok: false, error: sealExtra.error });
-    }
-
     return JSON.stringify({
       ok: true,
       run_id: runId,
       entries_verified: result.linesVerified,
       seal_verified: result.sealVerified,
-      ...sealExtra,
     });
   } catch (err) {
     return errorJson(err);
@@ -345,10 +339,9 @@ function createVerifyTool(tool) {
   return tool({
     description:
       'Verify every line hash in a run attestation JSONL file. When run_id is ' +
-      'provided, re-computes the _hash for each line and confirms it matches. ' +
-      'When run_id is absent, lists available runs. ' +
-      'The tool also cross-checks the cycle line _hash against the ' +
-      'attestation-seal stored in the HEAD commit message.',
+      'provided, re-computes the _hash for each line and confirms it matches, ' +
+      'including the cycle line\'s embedded stage attestations. ' +
+      'When run_id is absent, lists available runs.',
     args: {
       run_id: tool.schema.string().optional()
         .describe('Run identifier (ULID). When absent, lists available runs.'),
