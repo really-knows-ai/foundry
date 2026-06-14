@@ -18,11 +18,15 @@ function parseFrontmatter(text) {
 }
 
 describe('foundry-guide.md prompt body', () => {
-  test('contains task({subagent_type: "foundry-admin"}) in the prompt body', () => {
+  test('describes admin delegation without pseudo-call syntax', () => {
     const text = readGuide();
     assert.ok(
-      text.includes('task({subagent_type: "foundry-admin"})'),
-      'guide prompt must include task({subagent_type: "foundry-admin"}) for config changes'
+      text.includes('delegate to the admin agent through the task tool'),
+      'guide prompt must describe admin delegation through the task tool'
+    );
+    assert.ok(
+      !text.includes('task({'),
+      'guide prompt must not include pseudo-call syntax that the model can print as prose'
     );
   });
 
