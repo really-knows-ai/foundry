@@ -108,8 +108,8 @@ test('T2.4 — no file references the old ATTEST filename', () => {
   // plans/ is gitignored and not part of the repository; pnpm-lock.yaml has
   // extension .yaml so it is already excluded by the extension filter.
   const excludedDirs = new Set(['node_modules', '.git', 'dist', '.worktrees', 'plans']);
-  // Build the target dynamically to avoid matching the test source itself.
-  const target = 'ATTEST' + '.md';
+  const self = relative(REPO_ROOT, fileURLToPath(import.meta.url));
+  const target = 'ATTEST.md';
 
   function walkFiles(dir) {
     const files = [];
@@ -131,6 +131,7 @@ test('T2.4 — no file references the old ATTEST filename', () => {
 
   const offending = [];
   for (const file of sourceFiles) {
+    if (relative(REPO_ROOT, file) === self) continue;
     const content = readFileSync(file, 'utf8');
     if (content.includes(target)) {
       offending.push(relative(REPO_ROOT, file));
