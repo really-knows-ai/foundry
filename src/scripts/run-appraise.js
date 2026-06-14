@@ -254,25 +254,11 @@ async function postProcessAppraise(opts) {
 }
 
 /**
- * Execute an appraise stage.
- *
- * Lifecycle: stage_begin, collect and partition laws, resolve group configs,
- * build dispatch matrix, parallel dispatch via scoped sessions, consolidate,
- * post feedback, build per-unit coverage, persist coverage for attestation,
- * close stage, record history.
+ * Gather resources needed for an appraise dispatch: laws, appraisers, flow, artefacts, group configs.
+ * Returns the resource map or calls emptyAppraiseResult for early exits.
  */
-async function prepareAppraiseContext(apprOpts) {
-  const { io, historyPath, feedbackPath } = apprOpts;
-  const setup = await setupAppraiseStage(apprOpts);
-  if (setup.error) {
-    const fallbackIter = getIteration(historyPath, null, io) || 1;
-    appendAppraiseAttestation(io, null, fallbackIter, new Map(), {
-      feedbackPath, violationsOverride: 1,
-    });
-    return { error: setup.error };
-  }
-  const { baseSha, cycleId, outputType, cfm } = setup;
-  const foundryDir = 'foundry';
+async function gatherAppraiseResources(opts) {
+  const { io, cycleId, baseSha, historyPath, outputType, cfm, foundryDir, feedbackPath } = opts;
 
   const laws = await getLaws(foundryDir, io, { typeId: outputType }).catch(catchEmptyArray);
   if (laws.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no laws', feedbackPath });
@@ -294,6 +280,32 @@ async function prepareAppraiseContext(apprOpts) {
   if (dispatchMatrix.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no dispatch entries', feedbackPath });
 
   return { baseSha, cycleId, outputType, foundryDir, io, unitsByGroup, dispatchMatrix, lawGroups };
+}
+
+/**
+ * Execute an appraise stage.
+ *
+ * Lifecycle: stage_begin, collect and partition laws, resolve group configs,
+ * build dispatch matrix, parallel dispatch via scoped sessions, consolidate,
+ * post feedback, build per-unit coverage, persist coverage for attestation,
+ * close stage, record history.
+ */
+async function prepareAppraiseContext(apprOpts) {
+  const { io, historyPath, feedbackPath } = apprOpts;
+  const setup = await setupAppraiseStage(apprOpts);
+  if (setup.error) {
+    const fallbackIter = getIteration(historyPath, null, io) || 1;
+    appendAppraiseAttestation(io, null, fallbackIter, new Map(), {
+      feedbackPath, violationsOverride: 1,
+    });
+    return { error: setup.error };
+  }
+  const { baseSha, cycleId, outputType, cfm } = setup;
+  const foundryDir = 'foundry';
+
+  return await gatherAppraiseResources({
+    io, cycleId, baseSha, historyPath, outputType, cfm, foundryDir, feedbackPath,
+  });
 }
 
 /**

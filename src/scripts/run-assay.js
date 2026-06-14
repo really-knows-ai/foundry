@@ -89,24 +89,39 @@ function processAssayStageOutput(stageOutputLines, store, cycleId) {
   return issues;
 }
 
+/**
+ * Resolve assay context: validate cycleId, read CFM, compute iteration.
+ * Returns the resolved context or calls appendAssayAttestation and returns an error result.
+ */
+async function resolveAssayContext(assayOpts) {
+  const { sort, io, historyPath } = assayOpts;
+  const cycleId = cycleIdFrom(assayOpts.cycleId, sort);
+
+  if (!cycleId) {
+    const iteration = (getIteration(historyPath, null, io) || 0) + 1;
+    appendAssayAttestation(io, null, iteration, { issues: [], store: null, violationsOverride: 1 });
+    return { error: 'executeAssay: no cycleId in sort result' };
+  }
+
+  const iteration = (getIteration(historyPath, cycleId, io) || 0) + 1;
+
+  const cfm = await readCfm(cycleId, io).catch(function() { return null; });
+  if (!cfm) {
+    appendAssayAttestation(io, cycleId, iteration, { issues: [], store: null, violationsOverride: 1 });
+    return { error: 'executeAssay: cycle ' + cycleId + ' not found' };
+  }
+
+  return { cycleId, iteration, cfm };
+}
+
 /** Execute an assay stage. */
 export async function executeAssay(assayOpts) {
   const { sort, io, worktree, historyPath, feedbackPath } = assayOpts;
   const cwd2 = assayOpts.cwd;
 
-  const cycleId = cycleIdFrom(assayOpts.cycleId, sort);
-  const iteration = (getIteration(historyPath, cycleId || null, io) || 0) + 1;
-
-  if (!cycleId) {
-    appendAssayAttestation(io, null, iteration, { issues: [], store: null, violationsOverride: 1 });
-    return { ok: false, error: 'executeAssay: no cycleId in sort result' };
-  }
-
-  const cfm = await readCfm(cycleId, io).catch(function() { return null; });
-  if (!cfm) {
-    appendAssayAttestation(io, cycleId, iteration, { issues: [], store: null, violationsOverride: 1 });
-    return { ok: false, error: 'executeAssay: cycle ' + cycleId + ' not found' };
-  }
+  const resolved = await resolveAssayContext(assayOpts);
+  if (resolved.error) return { ok: false, error: resolved.error };
+  const { cycleId, iteration, cfm } = resolved;
 
   const extractors = getAssayExtractors(cfm);
 
