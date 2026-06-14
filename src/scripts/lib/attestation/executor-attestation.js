@@ -44,7 +44,7 @@ export async function appendForgeAttestation(io, cycleId, iteration, forgeOpts) 
   const extra = buildForgeAttestationParams(result, arV, outputType, forgeItem);
   const res = await appendStageAttestation(io, runId, {
     stage: 'forge',
-    cycle: cycleId || runId,
+    cycle: cycleId || 'unknown',
     iteration,
     timestamp: new Date().toISOString(),
     evaluations: [],
@@ -70,7 +70,7 @@ function buildQuenchAttestationParams(runId, cycleId, iteration, opts, violation
   const hashes = getArtefactHashes(artefact_hashes, aVersion, outputType);
   return {
     stage: 'quench',
-    cycle: cycleId || runId,
+    cycle: cycleId || 'unknown',
     iteration,
     timestamp: new Date().toISOString(),
     evaluations: [],
@@ -121,7 +121,7 @@ export async function appendAssayAttestation(io, cycleId, iteration, opts) {
   const assayItems = buildAssayItems(store);
   const res = await appendStageAttestation(io, runId, {
     stage: 'assay',
-    cycle: cycleId || runId,
+    cycle: cycleId || 'unknown',
     iteration,
     timestamp: new Date().toISOString(),
     evaluations: [],
@@ -157,7 +157,7 @@ export async function appendAppraiseAttestation(io, cycleId, iteration, coverage
   );
   const res = await appendStageAttestation(io, runId, {
     stage: 'appraise',
-    cycle: cycleId || runId,
+    cycle: cycleId || 'unknown',
     iteration: iteration,
     timestamp: new Date().toISOString(),
     evaluations,
@@ -204,7 +204,7 @@ function buildHumanAppraiseAttestationParams(runId, cycleId, opts) {
   const openedIds = getHumanAppraiseOpenedIds(store, cycleId, newItemIds);
   return {
     stage: 'human-appraise',
-    cycle: cycleId || runId,
+    cycle: cycleId || 'unknown',
     iteration,
     timestamp: new Date().toISOString(),
     evaluations: buildHumanEvaluations(records),
