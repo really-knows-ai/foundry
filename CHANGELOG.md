@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.14.1] - 2026-06-14
+
+### Fixed
+
+- Moved wildcard deny (`"*": deny`) to the top of `foundry-guide.md` permission frontmatter so specific tool allows (`skill`, `task`, `foundry_cycle_run`, etc.) are evaluated after the deny and take effect. Previously the wildcard was last, which overrode every earlier allow under OpenCode's last-match-wins permission model, preventing the guide agent from invoking `task()` or `skill()` at runtime.
+- Removed pseudo-call code examples (`task({subagent_type: "foundry-admin"})`) from the guide prompt to discourage the model from printing tool calls as prose instead of executing them.
+- Updated tests to enforce correct wildcard-first ordering and prohibit pseudo-call syntax in agent prompts.
+
 ## [3.14.0] - 2026-06-14
 
 ### Added
