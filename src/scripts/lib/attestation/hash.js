@@ -134,17 +134,39 @@ function verifyStageLine(line) {
   const savedHash = parsed._hash;
   const computedHash = hashAttestation(parsed);
   if (savedHash !== computedHash) {
-    return { attestation: { ...parsed, _hash_mismatch: true }, mismatch: true };
+    return { attestation: { ...parsed, _hash_mismatch: true }, mismatch: true, savedHash, computedHash };
   }
 
   return { attestation: parsed };
 }
 
 /**
- * Log a warning for a line with a hash mismatch.
+ * Build the identifying parts for a hash-mismatch log message.
+ *
+ * @param {{lineNumber?: number, savedHash?: string, computedHash?: string}} details
+ * @returns {string[]}
  */
-function handleMismatchLine() {
-  console.warn('skipping line with hash mismatch');
+function buildMismatchParts(details) {
+  const parts = [];
+  if (details.lineNumber !== undefined) parts.push(`line ${details.lineNumber}`);
+  if (details.savedHash !== undefined && details.computedHash !== undefined) {
+    parts.push(`stored ${details.savedHash}, computed ${details.computedHash}`);
+  }
+  return parts;
+}
+
+/**
+ * Log a warning for a line with a hash mismatch.
+ *
+ * @param {{lineNumber?: number, savedHash?: string, computedHash?: string}} details
+ */
+function handleMismatchLine(details) {
+  const parts = buildMismatchParts(details);
+  if (parts.length > 0) {
+    console.warn(`skipping line with hash mismatch (${parts.join(', ')})`);
+  } else {
+    console.warn('skipping line with hash mismatch');
+  }
 }
 
 /**
@@ -155,13 +177,13 @@ function handleMismatchLine() {
  * - `{ type: 'cycle', attestation }` — record the pre-existing cycle line
  * - `{ type: 'stage', attestation }` — collect this stage attestation
  */
-function classifyLineResult(result) {
+function classifyLineResult(result, lineNumber) {
   if (result.error) {
     console.error(result.error);
     return { type: 'skip' };
   }
   if (result.mismatch) {
-    handleMismatchLine();
+    handleMismatchLine({ lineNumber, savedHash: result.savedHash, computedHash: result.computedHash });
     return { type: 'skip' };
   }
   if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
@@ -184,9 +206,9 @@ function classifyLineResult(result) {
 function parseAttestationLines(lines) {
   const stageAttestations = [];
   let cycleAttestation = null;
-  for (const line of lines) {
-    const result = verifyStageLine(line);
-    const action = classifyLineResult(result);
+  for (let i = 0; i < lines.length; i++) {
+    const result = verifyStageLine(lines[i]);
+    const action = classifyLineResult(result, i + 1);
 
     if (action.type === 'cycle') {
       cycleAttestation = action.attestation;
