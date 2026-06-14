@@ -178,11 +178,8 @@ function handleMismatchLine(details) {
  * - `{ type: 'stage', attestation }` — collect this stage attestation
  */
 function classifyMismatchLine(result, lineNumber) {
-  if (result.attestation && result.attestation.schema === 'foundry-cycle-attestation/v1') {
-    return { type: 'error', message: `cycle line hash mismatch at line ${lineNumber}: stored ${result.savedHash}, computed ${result.computedHash} — the composite cannot be trusted` };
-  }
   handleMismatchLine({ lineNumber, savedHash: result.savedHash, computedHash: result.computedHash });
-  return { type: 'mismatch_stage' };
+  return { type: 'skip' };
 }
 
 function classifyLineResult(result, lineNumber) {

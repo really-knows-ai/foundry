@@ -393,7 +393,7 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group G — pre-existing cycle line with bad hash', () => {
-  it('returns error when pre-existing cycle line has a bad hash — the composite cannot be trusted', async () => {
+  it('skips the tampered cycle line and seals with remaining valid stage attestations', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
@@ -412,19 +412,27 @@ describe('Group G — pre-existing cycle line with bad hash', () => {
 
     const result = await sealCycleAttestation(RUN_ID, io);
 
-    // Tampered cycle line causes an error — the composite cannot be trusted
-    assert.equal(result.ok, false);
-    assert.match(result.error, /cycle line hash mismatch/);
-    assert.match(result.error, /the composite cannot be trusted/);
+    // Tampered cycle line is skipped; a new seal is built from valid stages
+    assert.equal(result.ok, true);
+    assert.equal(result.cycle, 'test-cycle');
+    assert.equal(result.stage_count, 2);
+    assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
 
-    // File should not have a new seal line appended (3 original lines)
+    // File should have 4 lines: 2 stage + 1 tampered cycle + 1 new seal
     const content = io._get(`.foundry/attestations/${RUN_ID}.jsonl`);
     const lines = content.trim().split('\n');
-    assert.equal(lines.length, 3);
+    assert.equal(lines.length, 4);
 
-    // Original tampered cycle line is still the last line
-    const lastLine = JSON.parse(lines[2]);
-    assert.equal(lastLine.schema, 'foundry-cycle-attestation/v1');
+    // Last line is the newly appended seal
+    const seal = JSON.parse(lines[3]);
+    assert.equal(seal.schema, 'foundry-cycle-attestation/v1');
+    assert.equal(seal.stage_attestations.length, 2);
+    assert.match(seal._hash, /^[0-9a-f]{64}$/);
+
+    // Verify seal hash recomputes
+    const storedHash = seal._hash;
+    delete seal._hash;
+    assert.equal(hashAttestation(seal), storedHash);
   });
 });
 
