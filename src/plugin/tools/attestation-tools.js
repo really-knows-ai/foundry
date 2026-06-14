@@ -322,11 +322,23 @@ async function executeVerifyTool(args, context) {
       return JSON.stringify(result);
     }
 
+    // Cross-check the cycle line's _hash against the HEAD commit
+    // attestation-seal to detect history-rewriting tampering (R6).
+    const commitResult = checkCommitSeal(result.entries, cwd);
+    if (commitResult.error) {
+      return JSON.stringify({
+        ok: false,
+        run_id: runId,
+        error: commitResult.error,
+      });
+    }
+
     return JSON.stringify({
       ok: true,
       run_id: runId,
       entries_verified: result.linesVerified,
       seal_verified: result.sealVerified,
+      ...commitResult,
     });
   } catch (err) {
     return errorJson(err);
