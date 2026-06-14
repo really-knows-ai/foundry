@@ -162,7 +162,7 @@ export function deriveCompositeStatus(stageAttestations) {
 export function buildCycleAttestation({
   cycle,
   stage_attestations: stageAttestations,
-  governance,
+  governance = {},
 } = {}) {
   if (!cycle) {
     throw new TypeError('Missing required field: cycle');
