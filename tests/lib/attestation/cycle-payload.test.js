@@ -67,7 +67,7 @@ describe('buildCycleAttestation', () => {
     const result = buildCycleAttestation({ cycle: 'cycle-1', stage_attestations: [] });
     assert.equal(result.composite_status, 'incomplete');
     assert.equal(result.stage_attestations.length, 0);
-    assert.equal(result.cycle_duration_ms, null);
+    assert.equal(result.cycle_duration_ms, 0);
   });
 
   it('governance section is present with file hashes', () => {
@@ -190,12 +190,12 @@ describe('feedback and artefact summaries', () => {
 });
 
 describe('cycle_duration_ms', () => {
-  it('is null when only one stage attestation exists', () => {
+  it('is 0 when only one stage attestation exists', () => {
     const result = buildCycleAttestation({
       cycle: 'cycle-1',
       stage_attestations: [makeStage('forge')],
     });
-    assert.equal(result.cycle_duration_ms, null);
+    assert.equal(result.cycle_duration_ms, 0);
   });
 
   it('is positive when two or more stage attestations with timestamps exist', () => {

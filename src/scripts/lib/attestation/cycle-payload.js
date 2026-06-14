@@ -22,8 +22,8 @@
  *   stage_attestations - Sorted stage records
  * @property {CycleAttestationStatus} composite_status
  *   - Derived overall status
- * @property {number|null} cycle_duration_ms
- *   - Wall-clock duration (null if single stage)
+ * @property {number} cycle_duration_ms
+ *   - Wall-clock duration (0 if fewer than two stages)
  * @property {{opened: number, resolved: number, rejected: number,
  *   open_remaining: number}} feedback_summary - Feedback totals
  * @property {{total_changed: number, unique_paths: number}}
@@ -98,13 +98,13 @@ function buildArtefactSummary(stageAttestations) {
 /**
  * Compute wall-clock duration across stage attestations.
  *
- * Returns null when fewer than two attestations exist.
+ * Returns 0 when fewer than two attestations exist.
  *
  * @param {import('./stage-payload.js').StageAttestation[]} stageAttestations
- * @returns {number|null}
+ * @returns {number}
  */
 function computeDurationMs(stageAttestations) {
-  if (stageAttestations.length < 2) return null;
+  if (stageAttestations.length < 2) return 0;
   let minTime = Infinity;
   let maxTime = -Infinity;
   for (const sa of stageAttestations) {
