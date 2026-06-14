@@ -200,6 +200,7 @@ async function runOneIteration(opts, runSort, hp) {
 function persistRunId(io) {
   const existingRunId = readRunId(io);
   if (existingRunId) return;
+  if (!io.exists('WORK.md')) return;
   let workText = io.readFile('WORK.md');
   workText = setFrontmatterField(workText, 'foundry-run', generateRunId());
   io.writeFile('WORK.md', workText);
