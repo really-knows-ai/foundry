@@ -242,17 +242,21 @@ function buildSealPayload(stageAttestations, runId, io) {
 }
 
 /**
- * Write a seal line to the JSONL file, logging but not propagating errors.
+ * Write a seal line to the JSONL file. Returns true on success and false
+ * when the append fails.
  *
  * @param {object} io - IO interface with appendFile
  * @param {string} path - Path to the JSONL file
  * @param {object} sealedLine - Cycle attestation object with _hash
+ * @returns {Promise<boolean>}
  */
 async function writeSealLine(io, path, sealedLine) {
   try {
     await io.appendFile(path, JSON.stringify(sealedLine) + '\n');
+    return true;
   } catch (err) {
     console.warn('seal: cycle attestation append failed', err);
+    return false;
   }
 }
 
@@ -329,7 +333,10 @@ export async function sealCycleAttestation(runId, io) {
   const sealHash = hashAttestation(sealPayload);
 
   const sealedLine = { ...sealPayload, _hash: sealHash };
-  await writeSealLine(io, path, sealedLine);
+  const wroteSeal = await writeSealLine(io, path, sealedLine);
+  if (!wroteSeal) {
+    return { ok: false, error: 'failed to append cycle attestation line to seal the run' };
+  }
 
   return {
     ok: true,
