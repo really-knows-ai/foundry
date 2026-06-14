@@ -87,7 +87,7 @@ test.afterEach(() => {
 describe('appendForgeAttestation', () => {
   test('appends attestation with stage forge', () => {
     const io = makeMockIo();
-    helpers.appendForgeAttestation(io, 'test-cycle', {
+    helpers.appendForgeAttestation(io, 'test-cycle', 1, {
       result: { ok: true, changedFiles: [] },
       arV: 'abc123',
       outputType: 'haiku',
@@ -105,7 +105,7 @@ describe('appendForgeAttestation', () => {
 
   test('sets violations to 1 when result.ok is false', () => {
     const io = makeMockIo();
-    helpers.appendForgeAttestation(io, 'test-cycle', {
+    helpers.appendForgeAttestation(io, 'test-cycle', 1, {
       result: { ok: false, changedFiles: [] },
       arV: null,
       outputType: 'haiku',
@@ -121,7 +121,7 @@ describe('appendForgeAttestation', () => {
 
   test('includes resolved feedback IDs when forgeItem is present', () => {
     const io = makeMockIo();
-    helpers.appendForgeAttestation(io, 'test-cycle', {
+    helpers.appendForgeAttestation(io, 'test-cycle', 1, {
       result: { ok: true, changedFiles: [] },
       arV: null,
       outputType: 'haiku',
@@ -137,7 +137,7 @@ describe('appendForgeAttestation', () => {
 
   test('includes changed_files from result', () => {
     const io = makeMockIo();
-    helpers.appendForgeAttestation(io, 'test-cycle', {
+    helpers.appendForgeAttestation(io, 'test-cycle', 1, {
       result: { ok: true, changedFiles: ['haikus/cats.md'] },
       arV: 'abc123',
       outputType: 'haiku',
@@ -159,7 +159,7 @@ describe('appendForgeAttestation', () => {
 describe('appendQuenchAttestation', () => {
   test('appends quench attestation with violations 0 and empty arrays (early path)', () => {
     const io = makeMockIo();
-    helpers.appendQuenchAttestation(io, 'test-cycle', { artefact_hashes: [] });
+    helpers.appendQuenchAttestation(io, 'test-cycle', 1, { artefact_hashes: [] });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'quench');
     assert.equal(calls.length, 1);
@@ -171,7 +171,7 @@ describe('appendQuenchAttestation', () => {
 
   test('passes artefact_hashes when provided (early path)', () => {
     const io = makeMockIo();
-    helpers.appendQuenchAttestation(io, 'test-cycle', {
+    helpers.appendQuenchAttestation(io, 'test-cycle', 1, {
       artefact_hashes: [{ path: 'haiku/cats.md', hash: 'abc123' }],
     });
 
@@ -185,7 +185,7 @@ describe('appendQuenchAttestation', () => {
     const store = makeStore([
       { id: 'q-01', source: 'quench:test-cycle', history: [{ state: 'open', stage: 'quench:test-cycle', cycle: 'test-cycle', timestamp: '2025-01-01T00:00:00Z' }] },
     ]);
-    helpers.appendQuenchAttestation(io, 'test-cycle', {
+    helpers.appendQuenchAttestation(io, 'test-cycle', 1, {
       aVersion: 'abc123',
       outputType: 'haiku',
       store,
@@ -201,7 +201,7 @@ describe('appendQuenchAttestation', () => {
   test('uses empty artefact_hashes when aVersion is null (main path)', () => {
     const io = makeMockIo();
     const store = makeStore();
-    helpers.appendQuenchAttestation(io, 'test-cycle', {
+    helpers.appendQuenchAttestation(io, 'test-cycle', 1, {
       aVersion: null,
       outputType: 'haiku',
       store,
@@ -222,7 +222,7 @@ describe('appendAssayAttestation', () => {
   test('appends assay attestation with correct violation count', () => {
     const io = makeMockIo();
     const store = makeStore();
-    helpers.appendAssayAttestation(io, 'test-cycle', ['issue1', 'issue2'], store);
+    helpers.appendAssayAttestation(io, 'test-cycle', 1, { issues: ['issue1', 'issue2'], store });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'assay');
     assert.equal(calls.length, 1);
@@ -235,8 +235,8 @@ describe('appendAssayAttestation', () => {
     const store = makeStore([
       { id: 'a-01', source: 'system:assay-test-cycle', history: [{ state: 'open', stage: 'assay', cycle: 'test-cycle', timestamp: '2025-01-01T00:00:00Z' }] },
     ]);
-    helpers.appendAssayAttestation(io, 'test-cycle', ['issue'], store);
-
+    helpers.appendAssayAttestation(io, 'test-cycle', 1, { issues: ['issue'], store });
+ 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'assay');
     assert.equal(calls.length, 1);
     assert.ok(calls[0].params.feedback_opened.includes('a-01'));

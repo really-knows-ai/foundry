@@ -85,7 +85,7 @@ describe('appendAssayAttestation', () => {
   test('appends attestation with stage assay and correct violation count', () => {
     const io = makeMockIo();
     const store = makeStore();
-    helpers.appendAssayAttestation(io, 'test-cycle', ['issue-1', 'issue-2', 'issue-3'], store);
+    helpers.appendAssayAttestation(io, 'test-cycle', 1, { issues: ['issue-1', 'issue-2', 'issue-3'], store });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'assay');
     assert.equal(calls.length, 1);
@@ -100,8 +100,8 @@ describe('appendAssayAttestation', () => {
     const store = makeStore([
       { id: 'assay-item-1', source: 'system:assay-test-cycle', history: [{ state: 'open', stage: 'assay', cycle: 'test-cycle', timestamp: '2025-01-01T00:00:00Z' }] },
     ]);
-    helpers.appendAssayAttestation(io, 'test-cycle', ['issue'], store);
-
+    helpers.appendAssayAttestation(io, 'test-cycle', 1, { issues: ['issue'], store });
+ 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'assay');
     assert.equal(calls.length, 1);
     assert.ok(calls[0].params.feedback_opened.includes('assay-item-1'));
@@ -110,7 +110,7 @@ describe('appendAssayAttestation', () => {
   test('uses empty arrays when no issues and no feedback items', () => {
     const io = makeMockIo();
     const store = makeStore();
-    helpers.appendAssayAttestation(io, 'test-cycle', [], store);
+    helpers.appendAssayAttestation(io, 'test-cycle', 1, { issues: [], store });
 
     const calls = attestationCalls.filter(c => c.params && c.params.stage === 'assay');
     assert.equal(calls.length, 1);
@@ -123,7 +123,7 @@ describe('appendAssayAttestation', () => {
     const io = makeMockIo();
     const store = makeStore();
     assert.doesNotThrow(() => {
-      helpers.appendAssayAttestation(io, 'test-cycle', ['issue'], store);
+      helpers.appendAssayAttestation(io, 'test-cycle', 1, { issues: ['issue'], store });
     });
   });
 });

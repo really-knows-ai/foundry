@@ -5,7 +5,7 @@
  */
 
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
-import { appendEntry } from './lib/history.js';
+import { appendEntry, getIteration } from './lib/history.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { writeActiveStage, clearActiveStage, writeLastStage } from './lib/state.js';
 import { parseConsolidated } from './appraise-module.js';
@@ -104,7 +104,7 @@ async function setupAppraiseStage(apprOpts) {
 
 function emptyAppraiseResult(opts) {
   const { io, cycleId, baseSha, historyPath, reason, feedbackPath } = opts;
-  appendAppraiseAttestation(io, cycleId, 1, new Map(), { feedbackPath });
+  appendAppraiseAttestation(io, cycleId, getIteration(historyPath, cycleId, io) || 1, new Map(), { feedbackPath });
   clearActiveStage(io);
   writeLastStage(io, { cycle: cycleId, stage: 'appraise:' + cycleId, baseSha: baseSha, summary: reason });
   appendEntry(historyPath, { cycle: cycleId, stage: 'appraise:' + cycleId, iteration: 1, comment: 'appraise: ' + reason }, io);
@@ -265,7 +265,10 @@ async function prepareAppraiseContext(apprOpts) {
   const { io, historyPath, feedbackPath } = apprOpts;
   const setup = await setupAppraiseStage(apprOpts);
   if (setup.error) {
-    appendAppraiseAttestation(io, null, 1, new Map(), { feedbackPath, violationsOverride: 1 });
+    const fallbackIter = getIteration(historyPath, null, io) || 1;
+    appendAppraiseAttestation(io, null, fallbackIter, new Map(), {
+      feedbackPath, violationsOverride: 1,
+    });
     return { error: setup.error };
   }
   const { baseSha, cycleId, outputType, cfm } = setup;
@@ -305,6 +308,7 @@ async function executeStandardAppraise(apprOpts) {
   if (ctx.ok) return ctx;
   if (ctx.error) return { ok: false, error: ctx.error };
   const { baseSha, cycleId, outputType, foundryDir, unitsByGroup, dispatchMatrix } = ctx;
+  const iteration = getIteration(historyPath, cycleId, io) || 1;
 
   const dispatchOpts = {
     io, worktree, lawGroups: ctx.lawGroups, outputType,
@@ -313,7 +317,9 @@ async function executeStandardAppraise(apprOpts) {
   const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);
   const dispatchError = checkAppraiseDispatchFailure(settled);
   if (dispatchError) {
-    appendAppraiseAttestation(io, cycleId, 1, new Map(), { feedbackPath, violationsOverride: 1 });
+    appendAppraiseAttestation(io, cycleId, iteration, new Map(), {
+      feedbackPath, violationsOverride: 1,
+    });
     return dispatchError;
   }
 
@@ -321,17 +327,20 @@ async function executeStandardAppraise(apprOpts) {
     io, dispatchMatrix, settled, unitsByGroup, feedbackPath, cycleId,
     foundryDir, outputType, worktree, historyPath, baseSha,
   });
-  appendAppraiseAttestation(io, cycleId, 1, coverage, { feedbackPath });
+  appendAppraiseAttestation(io, cycleId, iteration, coverage, { feedbackPath });
   return { ok: true, coverage };
 }
 
 export async function executeAppraise(apprOpts) {
-  const { io, feedbackPath } = apprOpts;
+  const { io, historyPath, feedbackPath } = apprOpts;
 
   const sort = apprOpts.sort;
   const earlyCycleId = await cycleIdFrom(apprOpts.cycleId, sort);
   if (!earlyCycleId) {
-    appendAppraiseAttestation(io, null, 1, new Map(), { feedbackPath, violationsOverride: 1 });
+    const eIter = getIteration(historyPath, null, io) || 1;
+    appendAppraiseAttestation(io, null, eIter, new Map(), {
+      feedbackPath, violationsOverride: 1,
+    });
     return { ok: false, error: 'executeAppraise: no cycleId in sort result' };
   }
 
@@ -342,7 +351,10 @@ export async function executeAppraise(apprOpts) {
   const addressResult = await tryAppraiseAddress(apprOpts, io, feedbackPath, earlyCycleId, addressDispatchFn);
   if (addressResult !== null) {
     const emptyCoverage = new Map();
-    appendAppraiseAttestation(io, earlyCycleId, 1, emptyCoverage, { feedbackPath, violationsOverride: 1 });
+    const addrIter = getIteration(historyPath, earlyCycleId, io) || 1;
+    appendAppraiseAttestation(io, earlyCycleId, addrIter, emptyCoverage, {
+      feedbackPath, violationsOverride: 1,
+    });
     return addressResult;
   }
 

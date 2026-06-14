@@ -7,7 +7,7 @@
 
 import { assayDispatch } from './lib/assay-dispatch.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
-import { appendEntry } from './lib/history.js';
+import { appendEntry, getIteration } from './lib/history.js';
 import { getCycleDefinition } from './lib/config.js';
 import { appendAssayAttestation } from './lib/attestation/executor-attestation.js';
 
@@ -95,14 +95,16 @@ export async function executeAssay(assayOpts) {
   const cwd2 = assayOpts.cwd;
 
   const cycleId = cycleIdFrom(assayOpts.cycleId, sort);
+  const iteration = (getIteration(historyPath, cycleId || null, io) || 0) + 1;
+
   if (!cycleId) {
-    appendAssayAttestation(io, null, [], null, 1);
+    appendAssayAttestation(io, null, iteration, { issues: [], store: null, violationsOverride: 1 });
     return { ok: false, error: 'executeAssay: no cycleId in sort result' };
   }
 
   const cfm = await readCfm(cycleId, io).catch(function() { return null; });
   if (!cfm) {
-    appendAssayAttestation(io, cycleId, [], null, 1);
+    appendAssayAttestation(io, cycleId, iteration, { issues: [], store: null, violationsOverride: 1 });
     return { ok: false, error: 'executeAssay: cycle ' + cycleId + ' not found' };
   }
 
@@ -117,7 +119,7 @@ export async function executeAssay(assayOpts) {
     sort, io, worktree, cycleId, dispatchPrompt: promptContext,
   });
   if (dispatch.error) {
-    appendAssayAttestation(io, cycleId, [], null, 1);
+    appendAssayAttestation(io, cycleId, iteration, { issues: [], store: null, violationsOverride: 1 });
     return { ok: false, error: dispatch.error };
   }
 
@@ -126,6 +128,6 @@ export async function executeAssay(assayOpts) {
 
   const result = buildAssaySummary(issues, cycleId, sort.route, historyPath, io);
 
-  appendAssayAttestation(io, cycleId, issues, store);
+  appendAssayAttestation(io, cycleId, iteration, { issues, store });
   return result;
 }

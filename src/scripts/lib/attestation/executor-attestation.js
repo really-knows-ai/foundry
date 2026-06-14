@@ -37,7 +37,7 @@ function buildForgeAttestationParams(result, arV, outputType, forgeItem) {
   return { violations, artefact_hashes: artefactHashes, feedback_resolved: resolved };
 }
 
-export async function appendForgeAttestation(io, cycleId, forgeOpts) {
+export async function appendForgeAttestation(io, cycleId, iteration, forgeOpts) {
   const { result, arV, outputType, forgeItem, wont_fix } = forgeOpts;
   const runId = readRunId(io);
   if (!runId) return;
@@ -45,7 +45,7 @@ export async function appendForgeAttestation(io, cycleId, forgeOpts) {
   const res = await appendStageAttestation(io, runId, {
     stage: 'forge',
     cycle: cycleId || runId,
-    iteration: 1,
+    iteration,
     timestamp: new Date().toISOString(),
     evaluations: [],
     violations: extra.violations,
@@ -62,7 +62,7 @@ export async function appendForgeAttestation(io, cycleId, forgeOpts) {
 // Quench attestation
 // ---------------------------------------------------------------------------
 
-function buildQuenchAttestationParams(runId, cycleId, opts, violationsOverride) {
+function buildQuenchAttestationParams(runId, cycleId, iteration, opts, violationsOverride) {
   const { aVersion, outputType, store, feedbackList, artefact_hashes } = opts;
   const violations = violationsOverride ?? (feedbackList ? feedbackList.length : 0);
   const violation_details = feedbackList || [];
@@ -71,7 +71,7 @@ function buildQuenchAttestationParams(runId, cycleId, opts, violationsOverride) 
   return {
     stage: 'quench',
     cycle: cycleId || runId,
-    iteration: 1,
+    iteration,
     timestamp: new Date().toISOString(),
     evaluations: [],
     violations,
@@ -83,10 +83,10 @@ function buildQuenchAttestationParams(runId, cycleId, opts, violationsOverride) 
   };
 }
 
-export async function appendQuenchAttestation(io, cycleId, opts, violationsOverride) {
+export async function appendQuenchAttestation(io, cycleId, iteration, opts, violationsOverride) {
   const runId = readRunId(io);
   if (!runId) return;
-  const params = buildQuenchAttestationParams(runId, cycleId, opts, violationsOverride);
+  const params = buildQuenchAttestationParams(runId, cycleId, iteration, opts, violationsOverride);
   const res = await appendStageAttestation(io, runId, params);
   if (!res.ok) console.warn('quench: attestation append failed', res.error);
 }
@@ -114,14 +114,15 @@ function buildAssayItems(store) {
   );
 }
 
-export async function appendAssayAttestation(io, cycleId, issues, store, violationsOverride) {
+export async function appendAssayAttestation(io, cycleId, iteration, opts) {
+  const { issues, store, violationsOverride } = opts;
   const runId = readRunId(io);
   if (!runId) return;
   const assayItems = buildAssayItems(store);
   const res = await appendStageAttestation(io, runId, {
     stage: 'assay',
     cycle: cycleId || runId,
-    iteration: 1,
+    iteration,
     timestamp: new Date().toISOString(),
     evaluations: [],
     violations: violationsOverride ?? issues.length,

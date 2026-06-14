@@ -15,6 +15,7 @@ import { openFeedbackStore } from './lib/feedback-store.js';
 import { parseFrontmatter } from './lib/workfile.js';
 import { validateHumanAppraiseOutput, isDeadlockResolution } from './lib/stage-output-schemas.js';
 import { appendHumanAppraiseAttestation } from './lib/attestation/executor-attestation.js';
+import { getIteration } from './lib/history.js';
 
 export function terminalPromptUser(stage, artefact, feedback, goal) {
   return { action: 'prompt_user', stage, artefact, feedback: feedback || [], goal: goal || '' };
@@ -222,13 +223,14 @@ function readDeadlockUserPrompt(io, fm, fp) {
  * the stage or re-prompts with remaining items.
  */
 export function handleDeadlockOverride(ctx) {
-  const { io, activeStage, cycleId, store, fm, fp } = ctx;
+  const { io, activeStage, cycleId, store, fm, fp, historyPath } = ctx;
+  const iteration = getIteration(historyPath || 'WORK.history.yaml', cycleId, io) || 1;
 
   // If no items are in the deadlocked state, terminate with a violation
   const deadlockedItems = store.list()
     .filter(function(it) { return it.history[0].state === 'deadlocked'; });
   if (deadlockedItems.length === 0) {
-    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'violation', store, iteration: 1 });
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'violation', store, iteration });
     return terminalViolation(
       'deadlock-human-appraise enabled but no items in deadlocked state',
       false,
@@ -254,7 +256,7 @@ export function handleDeadlockOverride(ctx) {
     .filter(function(it) { return it.history[0].state === 'deadlocked'; });
 
   if (remaining.length === 0) {
-    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', records, newItemIds });
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', records, newItemIds, iteration });
     closeHumanAppraiseStage(io, activeStage, cycleId, 'deadlock resolved');
     return { action: 'continue-run' };
   }
@@ -299,7 +301,8 @@ function rejectAlwaysHuman(ctx, feedback) {
  * (store feedback, close stage). Returns prompt_user when no records exist.
  */
 export function handleAlwaysHumanAppraise(ctx) {
-  const { io, activeStage, cycleId, fm, store } = ctx;
+  const { io, activeStage, cycleId, fm, store, historyPath } = ctx;
+  const iteration = getIteration(historyPath || 'WORK.history.yaml', cycleId, io) || 1;
   const records = readHumanAppraiseOutputs(io);
 
   if (records.length === 0) {
@@ -312,12 +315,12 @@ export function handleAlwaysHumanAppraise(ctx) {
   }
 
   if (record.verdict === 'approved') {
-    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', store, iteration: 1 });
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', store, iteration });
     return approveAlwaysHuman(io, activeStage, cycleId);
   }
   if (record.verdict === 'rejected') {
     const rejectResult = rejectAlwaysHuman(ctx, record.feedback);
-    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'rejected', store, iteration: 1 });
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'rejected', store, iteration });
     return rejectResult;
   }
 
@@ -336,7 +339,7 @@ export function handleAlwaysHumanAppraise(ctx) {
  * 2. Else if always-human-appraise is true → run always-human-appraise
  * 3. Otherwise → violation (no scenario configured)
  */
-export function handleHumanAppraiseResume(io, activeStage) {
+export function handleHumanAppraiseResume(io, activeStage, historyPath) {
   const cycleId = activeStage.cycle || '';
 
   const r = readWork(io);
@@ -345,16 +348,17 @@ export function handleHumanAppraiseResume(io, activeStage) {
 
   const fp = 'WORK.feedback.yaml';
   const store = openFeedbackStore(fp, io);
+  const hp = historyPath || 'WORK.history.yaml';
 
   const isDeadlock = fm['deadlock-human-appraise'] === true;
   const isAlwaysHuman = fm['always-human-appraise'] === true;
 
   if (isDeadlock) {
-    return handleDeadlockOverride({ io, activeStage, cycleId, store, fm, fp });
+    return handleDeadlockOverride({ io, activeStage, cycleId, store, fm, fp, historyPath: hp });
   }
 
   if (isAlwaysHuman) {
-    return handleAlwaysHumanAppraise({ io, activeStage, cycleId, store, fm, fp });
+    return handleAlwaysHumanAppraise({ io, activeStage, cycleId, store, fm, fp, historyPath: hp });
   }
 
   return terminalViolation(

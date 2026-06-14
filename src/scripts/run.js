@@ -288,11 +288,11 @@ function checkContinuePreconditions(io) {
   return null;
 }
 
-async function handleHumanAppraiseResumeIfNeeded(io, opts) {
+async function handleHumanAppraiseResumeIfNeeded(io, opts, historyPath) {
   const activeStage = readActiveStage(io);
   if (!activeStage) return null;
   if (stageBaseOf(activeStage.stage) !== 'human-appraise') return null;
-  const haResult = await handleHumanAppraiseResume(io, activeStage);
+  const haResult = await handleHumanAppraiseResume(io, activeStage, historyPath);
   if (haResult.action !== 'continue-run') return haResult;
   return null;
 }
@@ -317,7 +317,7 @@ export async function continueRun(opts) {
 
   const hp = 'WORK.history.yaml';
 
-  const haResult = await handleHumanAppraiseResumeIfNeeded(io, opts);
+  const haResult = await handleHumanAppraiseResumeIfNeeded(io, opts, hp);
   if (haResult) return haResult;
 
   return processRunLoop(opts, runSort, hp, io);

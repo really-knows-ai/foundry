@@ -7,7 +7,7 @@
 
 import { getCycleDefinition, getLawsForQuench } from './lib/config.js';
 import { getArtefactFiles, computeArtefactVersion } from './lib/artefacts.js';
-import { appendEntry } from './lib/history.js';
+import { appendEntry, getIteration } from './lib/history.js';
 import { enforceForgeContract } from './lib/forge-contract.js';
 import { openFeedbackStore } from './lib/feedback-store.js';
 import { resolveStaleFeedback } from './quench-module.js';
@@ -132,20 +132,26 @@ export function finalizeForgeOutcome(opts) {
 }
 
 
+/** Empty forge opts for error-path attestation calls. */
+function forgeOptsEmpty() {
+  return { result: null, arV: null, outputType: null, forgeItem: null, wont_fix: false };
+}
+
 /** Execute a forge stage. */
 export async function executeForge(forgeOpts) {
   const { sort, io, worktree, historyPath, feedbackPath } = forgeOpts;
   const cwd2 = forgeOpts.cwd;
+  const iteration = getIteration(historyPath, cycleIdFrom(forgeOpts.cycleId, sort), io) || 1;
 
   const cycleId = cycleIdFrom(forgeOpts.cycleId, sort);
   if (!cycleId) {
-    appendForgeAttestation(io, cycleId, { result: null, arV: null, outputType: null, forgeItem: null, wont_fix: false});
+    appendForgeAttestation(io, cycleId, iteration, forgeOptsEmpty());
     return { ok: false, error: 'executeForge: no cycleId in sort result' };
   }
 
   const cfm = await readCfm(cycleId, io).catch(function(err) { return null; });
   if (!cfm) {
-    appendForgeAttestation(io, cycleId, { result: null, arV: null, outputType: null, forgeItem: null, wont_fix: false});
+    appendForgeAttestation(io, cycleId, iteration, forgeOptsEmpty());
     return { ok: false, error: 'executeForge: cycle ' + cycleId + ' not found' };
   }
 
@@ -165,8 +171,9 @@ export async function executeForge(forgeOpts) {
     sort, io, worktree, cycleId, dispatchPrompt: promptContext, modelParam,
   });
   if (dispatch.error) {
-    appendForgeAttestation(io, cycleId, {
-      result: { ok: false, error: dispatch.error }, arV: null, outputType, forgeItem, wont_fix: false,
+    appendForgeAttestation(io, cycleId, iteration, {
+      result: { ok: false, error: dispatch.error },
+      arV: null, outputType, forgeItem, wont_fix: false,
     });
     return { ok: false, error: dispatch.error };
   }
@@ -177,7 +184,9 @@ export async function executeForge(forgeOpts) {
     cycleId, historyPath, io, stageOutputLines: dispatch.stageOutputLines, store, arV, route: sort.route, forgeItem,
   });
 
-  appendForgeAttestation(io, cycleId, { result, arV, outputType, forgeItem, wont_fix: result.wont_fix });
+  appendForgeAttestation(io, cycleId, iteration, {
+    result, arV, outputType, forgeItem, wont_fix: result.wont_fix,
+  });
   return result;
 }
 
@@ -305,7 +314,7 @@ function buildQuenchSummary(feedbackList, cycleId, stage, historyPath, io) {
 /** Early-return helper: no artefacts found. */
 function quenchNoArtefacts(io, cycleId, historyPath, stage) {
   appendEntry(historyPath, { cycle: cycleId, stage, iteration: 1, comment: 'quench: no artefacts' }, io);
-  appendQuenchAttestation(io, cycleId, { artefact_hashes: [] });
+  appendQuenchAttestation(io, cycleId, getIteration(historyPath, cycleId, io) || 1, { artefact_hashes: [] });
   return { ok: true, summary: 'SKIP: no artefacts' };
 }
 
@@ -313,7 +322,7 @@ function quenchNoArtefacts(io, cycleId, historyPath, stage) {
 function quenchNoValidators(io, cycleId, opts) {
   const { aVersion, outputType, historyPath, stage } = opts;
   appendEntry(historyPath, { cycle: cycleId, stage, iteration: 1, comment: 'quench: no validators' }, io);
-  appendQuenchAttestation(io, cycleId, {
+  appendQuenchAttestation(io, cycleId, getIteration(historyPath, cycleId, io) || 1, {
     artefact_hashes: aVersion ? [{ path: outputType, hash: aVersion }] : [],
   });
   return { ok: true, summary: 'SKIP: no validators' };
@@ -326,7 +335,7 @@ export async function executeQuench(quenchOpts) {
 
   const cycleId = cycleIdFrom(quenchOpts.cycleId, sort);
   if (!cycleId) {
-    appendQuenchAttestation(io, cycleId, {}, 1);
+    appendQuenchAttestation(io, cycleId, getIteration(historyPath, cycleId, io) || 1, {}, 1);
     return { ok: false, error: 'executeQuench: no cycleId in sort result' };
   }
 
@@ -334,7 +343,7 @@ export async function executeQuench(quenchOpts) {
 
   const cycleResolved = await resolveQuenchCycle(cycleId, io);
   if (cycleResolved.error) {
-    appendQuenchAttestation(io, cycleId, {}, 1);
+    appendQuenchAttestation(io, cycleId, getIteration(historyPath, cycleId, io) || 1, {}, 1);
     return cycleResolved.error;
   }
 
@@ -361,7 +370,10 @@ export async function executeQuench(quenchOpts) {
 
   const result = buildQuenchSummary(feedbackList, cycleId, sort.route, historyPath, io);
 
-  appendQuenchAttestation(io, cycleId, { aVersion, outputType: cycleResolved.outputType, store, feedbackList });
+  const quenchIteration = getIteration(historyPath, cycleId, io) || 1;
+  appendQuenchAttestation(io, cycleId, quenchIteration, {
+    aVersion, outputType: cycleResolved.outputType, store, feedbackList,
+  });
   return result;
 }
 
