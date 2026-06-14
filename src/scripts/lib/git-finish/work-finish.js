@@ -54,7 +54,13 @@ function checkSeal(execGit) {
       error: 'foundry_git_finish: no attestation seal found at HEAD. The orchestration finalise step has not sealed this run, or the seal commit was lost. Re-run the final stage to complete the cycle.',
     };
   }
-  return { ok: true, body };
+  // Extract only the seal metadata fields for the merge commit message body.
+  // R9 requires the merge body to contain just these four fields — not the
+  // full HEAD commit body which may include the subject line and other content.
+  const sealFields = body.split('\n')
+    .filter(l => /^(foundry-run|attestation-seal|composite-status|stage-count):/m.test(l))
+    .join('\n');
+  return { ok: true, body: sealFields };
 }
 
 /** Checkout the base branch; roll back on failure. */
