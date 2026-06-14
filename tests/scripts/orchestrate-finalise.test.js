@@ -331,7 +331,14 @@ describe('finaliseStage', () => {
     const stageCommitCall = git._calls.find(c => c.method === 'commit');
     assert.ok(stageCommitCall, 'stage commit was called for artefact changes');
 
-    // Verify the seal commit --amend was called (for commit body, not attestation file)
+    // Verify the attestation file was staged alongside the artefact changes (R8)
+    const attestationStageCall = git._calls.find(
+      c => c.method === 'execFile' && c.args[0] === 'add' && c.args[1] === '-f'
+        && c.args[2] === `.foundry/attestations/${RUN_ID}.jsonl`
+    );
+    assert.ok(attestationStageCall, 'attestation file was staged via git add -f');
+
+    // Verify the seal commit --amend was called (for commit body with seal fields)
     const amendCall = git._calls.find(
       c => c.method === 'execFile' && c.args[0] === 'commit' && c.args[1] === '--amend'
     );
