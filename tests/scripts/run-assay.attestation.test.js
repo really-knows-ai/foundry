@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 
 const attestationCalls = [];
 
-mock.module('../../src/scripts/lib/attestation/hash.js', {
+mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
   exports: {
     sha256Text: () => 'abc123',
     sha256Buffer: () => 'abc123',

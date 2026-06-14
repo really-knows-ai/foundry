@@ -23,7 +23,7 @@ let hashReturnValue = {
 };
 let hashSealCallCount = 0;
 
-mock.module('../../src/scripts/lib/attestation/hash.js', {
+mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
   exports: {
     sha256Text: () => 'abc123',
     sha256Buffer: () => 'abc123',

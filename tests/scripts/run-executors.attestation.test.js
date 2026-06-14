@@ -16,7 +16,7 @@ const attestationCalls = [];
 
 // Provide all exports that hash.js normally provides so dependent modules
 // (artefacts.js, history.js, etc.) still resolve their imports.
-mock.module('../../src/scripts/lib/attestation/hash.js', {
+mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
   exports: {
     sha256Text: () => 'abc123',
     sha256Buffer: () => 'abc123',
