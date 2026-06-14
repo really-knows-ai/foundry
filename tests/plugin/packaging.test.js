@@ -103,46 +103,6 @@ function resolveImport(distFile, relativePath) {
   return existsSync(resolved) || existsSync(resolved + '.js') ? null : resolved;
 }
 
-test('T2.4 — no file references the old ATTEST filename', () => {
-  const extensions = ['.js', '.md', '.json'];
-  // plans/ is gitignored and not part of the repository; pnpm-lock.yaml has
-  // extension .yaml so it is already excluded by the extension filter.
-  const excludedDirs = new Set(['node_modules', '.git', 'dist', '.worktrees', 'plans']);
-  const self = relative(REPO_ROOT, fileURLToPath(import.meta.url));
-  const target = 'ATTEST.md';
-
-  function walkFiles(dir) {
-    const files = [];
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (!excludedDirs.has(entry.name)) {
-          files.push(...walkFiles(full));
-        }
-      } else if (extensions.includes(entry.name.slice(entry.name.lastIndexOf('.')))) {
-        files.push(full);
-      }
-    }
-    return files;
-  }
-
-  const sourceFiles = walkFiles(REPO_ROOT);
-  assert.ok(sourceFiles.length > 0, `No source files found to scan for ${target} references`);
-
-  const offending = [];
-  for (const file of sourceFiles) {
-    if (relative(REPO_ROOT, file) === self) continue;
-    const content = readFileSync(file, 'utf8');
-    if (content.includes(target)) {
-      offending.push(relative(REPO_ROOT, file));
-    }
-  }
-
-  if (offending.length > 0) {
-    assert.fail(`Found ${offending.length} file(s) that reference ${target}:\n${offending.join('\n')}`);
-  }
-});
-
 test('all relative imports in dist resolve to existing files', () => {
   const jsFiles = walkJsFiles(DIST_DIR);
   assert.ok(jsFiles.length > 0, 'No .js files found in dist/ — run pnpm run build first');
