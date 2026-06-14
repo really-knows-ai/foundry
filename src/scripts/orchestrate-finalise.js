@@ -174,6 +174,18 @@ function amendCommitWithSeal(git, runId, sealResult) {
 }
 
 /**
+ * Stage the attestation JSONL file via git add -f so it is included
+ * in the commit alongside the artefact changes (R8).
+ */
+function stageAttestationFile(runId, git) {
+  try {
+    git.execFile(['add', '-f', `.foundry/attestations/${runId}.jsonl`]);
+  } catch (err) {
+    console.warn(`finaliseStage: failed to stage attestation file for run ${runId}: ${err.message}`);
+  }
+}
+
+/**
  * Seal the run on the final stage of the cycle.
  * Extracted from finaliseStage to keep complexity and line count down.
  */
@@ -189,14 +201,7 @@ async function maybeSealRun(lastStage, cycleId, git, io) {
     return;
   }
 
-  // Stage the attestation file alongside the artefact changes so the
-  // commit contains both the artefact and its audit record (R8).
-  try {
-    git.execFile(['add', '-f', `.foundry/attestations/${runId}.jsonl`]);
-  } catch (err) {
-    console.warn(`finaliseStage: failed to stage attestation file for run ${runId}: ${err.message}`);
-  }
-
+  stageAttestationFile(runId, git);
   amendCommitWithSeal(git, runId, sealResult);
 }
 
