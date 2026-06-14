@@ -268,7 +268,7 @@ function createShowTool(tool) {
   return tool({
     description:
       'Show attestation records for a run. When run_id is provided, returns the ' +
-      'parsed JSONL entries for that run. When run_id is absent, lists all available runs.',
+      'raw JSONL file content for that run. When run_id is absent, lists all available runs.',
     args: {
       run_id: tool.schema.string().optional()
         .describe('Run identifier (ULID). When absent, lists available runs.'),
@@ -288,11 +288,9 @@ function createShowTool(tool) {
           return JSON.stringify({ ok: false, error: `no attestation file found for run ${runId}` });
         }
 
-        const content = readFileSync(fPath, 'utf8');
-        const lines = content.trim().split('\n').filter(Boolean);
-        const entries = lines.map(l => JSON.parse(l));
+        const raw = readFileSync(fPath, 'utf8').trim();
 
-        return JSON.stringify({ ok: true, run_id: runId, entries });
+        return JSON.stringify({ ok: true, run_id: runId, content: raw });
       } catch (err) {
         return errorJson(err);
       }

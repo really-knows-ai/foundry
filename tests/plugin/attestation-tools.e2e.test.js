@@ -42,7 +42,7 @@ test('foundry_attestation_show lists runs when no run_id given', async () => {
   }
 });
 
-test('foundry_attestation_show returns entries for a valid run_id', async () => {
+test('foundry_attestation_show returns raw JSONL content for a valid run_id', async () => {
   // Arrange: create a temporary git repo with a JSONL file
   const testDir = mkdtempSync(path.join(tmpdir(), 'attestation-show-run-'));
   try {
@@ -60,7 +60,8 @@ test('foundry_attestation_show returns entries for a valid run_id', async () => 
     const runId = '01JKVT7Z8Q3WN0GJM2TYBR4AA';
     const line1 = JSON.stringify({ stage: 'forge', status: 'actioned', _hash: 'a'.repeat(64) });
     const line2 = JSON.stringify({ stage: 'appraise', status: 'passed', _hash: 'b'.repeat(64) });
-    writeFileSync(path.join(attDir, `${runId}.jsonl`), line1 + '\n' + line2 + '\n');
+    const rawContent = line1 + '\n' + line2;
+    writeFileSync(path.join(attDir, `${runId}.jsonl`), rawContent + '\n');
 
     const plugin = await FoundryPlugin({ directory: testDir });
     const tool = plugin.tool.foundry_attestation_show;
@@ -72,10 +73,8 @@ test('foundry_attestation_show returns entries for a valid run_id', async () => 
     // Assert
     assert.strictEqual(parsed.ok, true);
     assert.strictEqual(parsed.run_id, runId);
-    assert.ok(Array.isArray(parsed.entries));
-    assert.strictEqual(parsed.entries.length, 2);
-    assert.strictEqual(parsed.entries[0].stage, 'forge');
-    assert.strictEqual(parsed.entries[1].stage, 'appraise');
+    assert.strictEqual(typeof parsed.content, 'string');
+    assert.strictEqual(parsed.content, rawContent);
   } finally {
     rmSync(testDir, { recursive: true, force: true });
   }
