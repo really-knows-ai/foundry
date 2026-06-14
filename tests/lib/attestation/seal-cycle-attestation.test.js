@@ -391,7 +391,7 @@ describe('Group F — pre-existing cycle line with valid hash', () => {
 // ---------------------------------------------------------------------------
 
 describe('Group G — pre-existing cycle line with bad hash', () => {
-  it('skips tampered cycle line and seals from verified stage attestations', async () => {
+  it('returns error when pre-existing cycle line has a bad hash — the composite cannot be trusted', async () => {
     const line1 = makeStageLine(STAGE_1);
     const line2 = makeStageLine(STAGE_2);
 
@@ -410,25 +410,19 @@ describe('Group G — pre-existing cycle line with bad hash', () => {
 
     const result = await sealCycleAttestation(RUN_ID, io);
 
-    // Tampered cycle line is skipped; seal proceeds from verified stage lines
-    assert.equal(result.ok, true);
-    assert.equal(result.stage_count, 2);
-    assert.match(result.seal_hash, /^[0-9a-f]{64}$/);
+    // Tampered cycle line causes an error — the composite cannot be trusted
+    assert.equal(result.ok, false);
+    assert.match(result.error, /cycle line hash mismatch/);
+    assert.match(result.error, /the composite cannot be trusted/);
 
-    // File should have 4 lines: 2 original + tampered cycle line + 1 new seal
+    // File should not have a new seal line appended (3 original lines)
     const content = io._get(`.foundry/attestations/${RUN_ID}.jsonl`);
     const lines = content.trim().split('\n');
-    assert.equal(lines.length, 4);
+    assert.equal(lines.length, 3);
 
-    const sealed = JSON.parse(lines[3]);
-    assert.equal(sealed.schema, 'foundry-cycle-attestation/v1');
-    assert.equal(sealed.stage_attestations.length, 2);
-    assert.match(sealed._hash, /^[0-9a-f]{64}$/);
-
-    // Verify seal hash recomputes
-    const storedHash = sealed._hash;
-    delete sealed._hash;
-    assert.equal(hashAttestation(sealed), storedHash);
+    // Original tampered cycle line is still the last line
+    const lastLine = JSON.parse(lines[2]);
+    assert.equal(lastLine.schema, 'foundry-cycle-attestation/v1');
   });
 });
 

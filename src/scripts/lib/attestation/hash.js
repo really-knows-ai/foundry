@@ -183,6 +183,9 @@ function classifyLineResult(result, lineNumber) {
     return { type: 'skip' };
   }
   if (result.mismatch) {
+    if (result.attestation && result.attestation.schema === 'foundry-cycle-attestation/v1') {
+      return { type: 'error', message: `cycle line hash mismatch at line ${lineNumber}: stored ${result.savedHash}, computed ${result.computedHash} — the composite cannot be trusted` };
+    }
     handleMismatchLine({ lineNumber, savedHash: result.savedHash, computedHash: result.computedHash });
     return { type: 'skip' };
   }
@@ -210,6 +213,9 @@ function parseAttestationLines(lines) {
     const result = verifyStageLine(lines[i]);
     const action = classifyLineResult(result, i + 1);
 
+    if (action.type === 'error') {
+      return { error: action.message };
+    }
     if (action.type === 'cycle') {
       cycleAttestation = action.attestation;
       continue;
@@ -324,7 +330,11 @@ export async function sealCycleAttestation(runId, io) {
   if (!readResult.ok) return readResult;
 
   const lines = readResult.content.split('\n').filter(line => line.trim() !== '');
-  const { stageAttestations, hasCycleLine, cycleAttestation: existingCycleAttestation } = parseAttestationLines(lines);
+  const parsed = parseAttestationLines(lines);
+  if (parsed.error) {
+    return { ok: false, error: parsed.error };
+  }
+  const { stageAttestations, hasCycleLine, cycleAttestation: existingCycleAttestation } = parsed;
 
   const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation);
   if (earlyResult) return earlyResult;
