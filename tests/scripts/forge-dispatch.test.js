@@ -142,14 +142,38 @@ test('D1.3 - forgeDispatch calls execFile with correct args', async () => {
   const [cmd, args, opts] = execFileMock.mock.calls[0].arguments;
   assert.equal(cmd, 'opencode');
   assert.equal(args[0], 'run');
-  assert.equal(args[1], '--attach');
-  assert.equal(args[2], '--agent');
-  assert.equal(args[3], 'foundry-forge');
-  assert.equal(args[4], '--dir');
-  assert.equal(args[5], '/w');
-  assert.equal(args[6], '--file');
-  assert.ok(args[7].startsWith('.foundry/dispatch-prompts/'));
+  assert.equal(args[1], 'Follow the attached prompt file.');
+  assert.equal(args[2], '--attach');
+  assert.equal(args[3], '--agent');
+  assert.equal(args[4], 'foundry-forge');
+  assert.equal(args[5], '--dir');
+  assert.equal(args[6], '/w');
+  assert.equal(args[7], '--file');
+  assert.ok(args[8].startsWith('.foundry/dispatch-prompts/'));
   assert.equal(opts.cwd, '/w');
+});
+
+test('D1.3b - forgeDispatch passes modelParam to opencode run', async () => {
+  const io = makeMockIO();
+  const execFileMock = mock.fn();
+  _setExecFile(execFileMock);
+  execFileMock.mock.mockImplementation(() => makeChildProcess({ exitCode: 0 }));
+
+  await forgeDispatch({
+    sort: { token: 't', route: 'forge:test', cycleId: 'test' },
+    io,
+    worktree: '/w',
+    cycleId: 'test',
+    dispatchPrompt: {
+      stage: 'forge:test', cycle: 'test', token: 't',
+      cwd: '/w', filePatterns: [], outputType: null, forgeItem: null,
+    },
+    modelParam: { providerID: 'opencode-go', modelID: 'deepseek-v4-flash' },
+  });
+
+  const [, args] = execFileMock.mock.calls[0].arguments;
+  assert.equal(args.includes('--model'), true);
+  assert.equal(args[args.indexOf('--model') + 1], 'opencode-go/deepseek-v4-flash');
 });
 
 // ---------------------------------------------------------------------------

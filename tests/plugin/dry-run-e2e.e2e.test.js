@@ -2,19 +2,15 @@
 //
 // Simulates the spec §15.7 dry-run workflow:
 //   main → config/foo (edit a law) → dry-run/foo/flow-x-goal-x
-//   (simulate a flow run by writing artefacts + memory data, with
-//    foundry_* tool calls in between for the trace)
+//   (trace cycle tools, then simulate a flow run by writing artefacts)
 //   → foundry_git_finish snapshots and discards.
 //
 // Assertions: snapshot exists with all four files, dry-run branch is gone,
 // HEAD is config/foo with clean tracked tree, trace file is empty,
 // snapshot is gitignored (not in `git status`).
 //
-// We don't drive a full orchestrate cycle here — orchestrate-tool uses
-// inline guards (Phase 1.5 exception) and doesn't go through guarded(),
-// so it isn't traced. The trace assertions in this test focus on the
-// tools that *are* wired through guarded() (memory data, workfile,
-// snapshot tools). Wiring orchestrate into the trace is out of scope.
+// We don't drive a full orchestrate cycle here. The trace assertions use
+// safe violation paths for cycle tools, then snapshot a simulated run.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -90,14 +86,23 @@ test('e2e: config branch → dry-run → finish snapshots and discards', async (
       assert.equal(readFileSync(join(dir, traceFile), 'utf8'), '');
     }
 
-    // 4. Simulate flow output: write a WORK.md and an artefact, commit.
+    // 4. Exercise cycle tool tracing without creating a run.
+    const missingFlow = await call(plugin, 'foundry_cycle_run',
+      { flow: 'missing-flow', goal: 'goal-x' }, dir);
+    assert.equal(missingFlow.error, 'foundry_cycle_run: flow missing-flow not found');
+
+    const missingWork = await call(plugin, 'foundry_cycle_continue', {}, dir);
+    assert.equal(missingWork.action, 'violation');
+    assert.match(missingWork.details, /WORK\.md not found/);
+
+    // 5. Simulate flow output: write a WORK.md and an artefact, commit.
     writeFileSync(join(dir, 'WORK.md'),
       '---\nflow: flow-x\ngoal: goal-x\nstatus: done\n---\n\n# Work\n');
     writeFileSync(join(dir, 'output.md'), '# output\n');
     execSync('git add . && git commit -m "flow output" -q',
       { cwd: dir, env: GIT_ENV });
 
-    // 5. Make a foundry_* call so the trace file gets at least one record.
+    // 6. Make a snapshot call so the trace file gets another record.
     // foundry_snapshot_list is read-only and works on any branch — and
     // it's wired through guarded() with the tracing factories, so it
     // emits a JSONL record on a dry-run branch.
@@ -108,12 +113,16 @@ test('e2e: config branch → dry-run → finish snapshots and discards', async (
     assert.ok(traceAfter.length > 0,
       `expected trace records after a foundry_* call, got: ${JSON.stringify(traceAfter)}`);
     const traceLines = traceAfter.split('\n').filter(Boolean);
-    assert.ok(traceLines.length >= 1);
+    assert.ok(traceLines.length >= 3);
     const firstRec = JSON.parse(traceLines[0]);
-    assert.equal(firstRec.tool, 'foundry_snapshot_list');
+    const secondRec = JSON.parse(traceLines[1]);
+    const thirdRec = JSON.parse(traceLines[2]);
+    assert.equal(firstRec.tool, 'foundry_cycle_run');
+    assert.equal(secondRec.tool, 'foundry_cycle_continue');
+    assert.equal(thirdRec.tool, 'foundry_snapshot_list');
     assert.ok(typeof firstRec.duration_ms === 'number');
 
-    // 6. Finish (preview, then apply).
+    // 7. Finish (preview, then apply).
     const preview = await call(plugin, 'foundry_git_finish',
       { message: 'tested it' }, dir);
     assert.equal(preview.ok, false);
@@ -126,7 +135,7 @@ test('e2e: config branch → dry-run → finish snapshots and discards', async (
     assert.match(finish.runId,
       /^dry-run-edit-law-flow-x-goal-x-[0-9A-HJKMNP-TV-Z]{26}$/);
 
-    // 7. Snapshot exists with all four files.
+    // 8. Snapshot exists with all four files.
     const snap = join(dir, finish.snapshotPath);
     assert.ok(existsSync(join(snap, 'README.md')));
     assert.ok(existsSync(join(snap, 'work/WORK.md')));
@@ -141,30 +150,30 @@ test('e2e: config branch → dry-run → finish snapshots and discards', async (
     assert.match(readme, /flow: flow-x/);
     assert.match(readme, /exitReason: done/);
 
-    // 8. Dry-run branch is gone.
+    // 9. Dry-run branch is gone.
     const branches = git(dir, 'branch', '--list');
     assert.ok(!branches.includes('dry-run/edit-law/flow-x-goal-x'),
       `expected dry-run branch deleted, got: ${branches}`);
 
-    // 9. HEAD is config/edit-law with clean tracked tree.
+    // 10. HEAD is config/edit-law with clean tracked tree.
     const cur = git(dir, 'branch', '--show-current').trim();
     assert.equal(cur, 'config/edit-law');
     const porcelain = git(dir, 'status', '--porcelain', '--untracked-files=no').trim();
     assert.equal(porcelain, '',
       `expected clean tracked tree, got: ${porcelain}`);
 
-    // 10. Snapshot is NOT in `git status` (gitignored via .snapshots/).
+    // 11. Snapshot is NOT in `git status` (gitignored via .snapshots/).
     const fullStatus = git(dir, 'status', '--porcelain').trim();
     assert.ok(!fullStatus.includes('.snapshots/'),
       `expected .snapshots/ to be ignored, got: ${fullStatus}`);
 
-    // 11. Trace file is empty (truncated at finish).
+    // 12. Trace file is empty (truncated at finish).
     if (existsSync(join(dir, traceFile))) {
       assert.equal(readFileSync(join(dir, traceFile), 'utf8'), '',
         'expected trace file empty after finish');
     }
 
-    // 12. Snapshot tools work on the parent config branch.
+    // 13. Snapshot tools work on the parent config branch.
     const list = await call(plugin, 'foundry_snapshot_list', {}, dir);
     assert.equal(Array.isArray(list), true);
     assert.equal(list.length, 1);

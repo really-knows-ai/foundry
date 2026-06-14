@@ -51,7 +51,7 @@ function buildWrappedPrompt(entry, lawGroups, outputType) {
  */
 async function dispatchAppraisePrompt(entry, opts) {
   const {
-    io, worktree, lawGroups, outputType, timeoutMs = 300_000,
+    io, worktree, lawGroups, outputType, stageModel, timeoutMs = 300_000,
     writePromptFile, spawnDispatch, awaitProcess, withCleanup,
   } = opts;
 
@@ -60,7 +60,8 @@ async function dispatchAppraisePrompt(entry, opts) {
   return withCleanup(io, async (paths) => {
     const promptPath = writePromptFile(io, wrappedContent);
     paths.push(promptPath);
-    const child = spawnDispatch(worktree, promptPath, 'foundry-appraise');
+    const modelParam = entry.appraiser.model || stageModel;
+    const child = spawnDispatch(worktree, promptPath, 'foundry-appraise', modelParam);
     await awaitProcess(child, timeoutMs);
   });
 }

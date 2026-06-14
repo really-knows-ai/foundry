@@ -9,7 +9,10 @@ import { runRun } from '../../scripts/run.js';
 import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
 import { signToken } from '../../scripts/lib/token.js';
 import { readOrCreateSecret } from '../../scripts/lib/secret.js';
-import { makeIO, makeExec, makeExecGit } from './helpers.js';
+import { guarded } from '../../scripts/lib/guards.js';
+import { makeIO, makeExec, makeExecGit, branchIoFactory, asyncIoFactory } from './helpers.js';
+
+const TRACE_OPTS = { branchIo: branchIoFactory, io: asyncIoFactory };
 
 function validateInputs(args) {
   if (typeof args.flow !== 'string') return 'foundry_cycle_run: flow and goal are required';
@@ -140,9 +143,9 @@ export function createRunTool(pluginOpts) {
         cycle: tool.schema.string().optional().describe('Start cycle to use when the flow declares multiple start cycles'),
         inputs: tool.schema.object({}).optional().describe('Upstream artefacts when the start cycle declares an input contract'),
       },
-      async execute(args, context) {
+      execute: guarded('foundry_cycle_run', [], async (args, context) => {
         return executeRun(args, context, { client, pending });
-      },
+      }, TRACE_OPTS),
     }),
   };
 }

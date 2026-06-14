@@ -5,7 +5,10 @@ import { requireOnFlowBranch } from '../../scripts/lib/branch-guard.js';
 import { readFailedStatus } from '../../scripts/lib/failed-flow.js';
 import { continueRun } from '../../scripts/run.js';
 import { commitWithPolicy } from '../../scripts/lib/git-bridge.js';
-import { makeIO, makeExec, makeExecGit } from './helpers.js';
+import { guarded } from '../../scripts/lib/guards.js';
+import { makeIO, makeExec, makeExecGit, branchIoFactory, asyncIoFactory } from './helpers.js';
+
+const TRACE_OPTS = { branchIo: branchIoFactory, io: asyncIoFactory };
 
 function makeGit(worktree) {
   const execFile = makeExecGit(worktree);
@@ -23,7 +26,7 @@ export function createContinueTool(pluginOpts) {
     foundry_cycle_continue: tool({
       description: 'Advance an existing run. Reads state from disk and runs until blocked.',
       args: {},
-      async execute(_args, context) {
+      execute: guarded('foundry_cycle_continue', [], async (_args, context) => {
         const io = makeIO(context.worktree);
         const exec = makeExec(context.worktree);
         const branchIo = { exec };
@@ -48,7 +51,7 @@ export function createContinueTool(pluginOpts) {
           worktree: context.worktree, git,
         });
         return JSON.stringify(result);
-      },
+      }, TRACE_OPTS),
     }),
   };
 }

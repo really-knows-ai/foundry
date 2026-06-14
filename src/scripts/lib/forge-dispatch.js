@@ -76,7 +76,7 @@ export async function forgeDispatch({ sort, io, worktree, cycleId, dispatchPromp
 
       cleanStageOutputDir(io);
 
-      const child = spawnDispatch(worktree, promptPath, 'foundry-forge');
+      const child = spawnDispatch(worktree, promptPath, 'foundry-forge', modelParam);
       await awaitProcess(child, timeoutMs);
 
       const stageOutputLines = collectStageOutputLines(io);

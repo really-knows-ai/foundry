@@ -56,9 +56,44 @@ test('T4 - spawnDispatch calls execFile with correct args including agent name',
   assert.equal(execFileMock.mock.callCount(), 1);
   const [cmd, args, opts] = execFileMock.mock.calls[0].arguments;
   assert.equal(cmd, 'opencode');
-  assert.deepEqual(args, ['run', '--attach', '--agent', 'test-agent', '--dir', worktree, '--file', promptPath]);
+  assert.deepEqual(args, [
+    'run', 'Follow the attached prompt file.',
+    '--attach', '--agent', 'test-agent', '--dir', worktree, '--file', promptPath,
+  ]);
   assert.equal(opts.cwd, worktree);
   assert.equal(result, fakeChild);
+});
+
+test('T4b - spawnDispatch passes model when provided', () => {
+  const execFileMock = mock.fn();
+  _setExecFile(execFileMock);
+  const fakeChild = { on: () => {} };
+  execFileMock.mock.mockImplementation(() => fakeChild);
+
+  spawnDispatch('/w', '/p', 'test-agent', { providerID: 'opencode-go', modelID: 'deepseek-v4-flash' });
+
+  const [, args] = execFileMock.mock.calls[0].arguments;
+  assert.deepEqual(args, [
+    'run', 'Follow the attached prompt file.', '--attach', '--agent', 'test-agent',
+    '--model', 'opencode-go/deepseek-v4-flash',
+    '--dir', '/w', '--file', '/p',
+  ]);
+});
+
+test('T4c - spawnDispatch passes providerless model when provided', () => {
+  const execFileMock = mock.fn();
+  _setExecFile(execFileMock);
+  const fakeChild = { on: () => {} };
+  execFileMock.mock.mockImplementation(() => fakeChild);
+
+  spawnDispatch('/w', '/p', 'test-agent', { providerID: '', modelID: 'forge' });
+
+  const [, args] = execFileMock.mock.calls[0].arguments;
+  assert.deepEqual(args, [
+    'run', 'Follow the attached prompt file.', '--attach', '--agent', 'test-agent',
+    '--model', 'forge',
+    '--dir', '/w', '--file', '/p',
+  ]);
 });
 
 test('T5 - spawnDispatch returns a ChildProcess object', () => {

@@ -35,6 +35,11 @@ function resolveAppraiseModel(appraiser, cfm) {
   return parseModelId(modelStr);
 }
 
+function stageAppraiseModel(cfm) {
+  if (!cfm.models) return undefined;
+  return cfm.models.appraise;
+}
+
 function cleanStageOutputDir(io) {
   const outDir = '.foundry/stage-outputs/';
   if (io.exists(outDir)) {
@@ -279,7 +284,7 @@ async function gatherAppraiseResources(opts) {
   const { unitsByGroup, dispatchMatrix } = buildDispatch(lawGroups, configs);
   if (dispatchMatrix.length === 0) return emptyAppraiseResult({ io, cycleId, baseSha, historyPath, reason: 'no dispatch entries', feedbackPath });
 
-  return { baseSha, cycleId, outputType, foundryDir, io, unitsByGroup, dispatchMatrix, lawGroups };
+  return { baseSha, cycleId, outputType, foundryDir, io, unitsByGroup, dispatchMatrix, lawGroups, cfm };
 }
 
 /**
@@ -324,6 +329,7 @@ async function executeStandardAppraise(apprOpts) {
 
   const dispatchOpts = {
     io, worktree, lawGroups: ctx.lawGroups, outputType,
+    stageModel: stageAppraiseModel(ctx.cfm),
     writePromptFile, spawnDispatch, awaitProcess, withCleanup,
   };
   const settled = await batchAppraiseDispatch(dispatchMatrix, dispatchOpts);

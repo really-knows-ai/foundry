@@ -6,6 +6,31 @@ let _execFile = execFile;
 const PROMPTS_DIR = '.foundry/dispatch-prompts';
 const DEFAULT_TIMEOUT_MS = 300_000;
 
+function objectModelArg(modelParam) {
+  if (!modelParam.modelID) return null;
+  if (modelParam.providerID) return modelParam.providerID + '/' + modelParam.modelID;
+  return modelParam.modelID;
+}
+
+function modelArg(modelParam) {
+  if (!modelParam) return null;
+  if (typeof modelParam === 'string') return modelParam;
+  return objectModelArg(modelParam);
+}
+
+function appendModelArg(args, modelParam) {
+  const model = modelArg(modelParam);
+  if (!model) return;
+  args.push('--model', model);
+}
+
+function dispatchArgs(worktree, promptPath, agentName, modelParam) {
+  const args = ['run', 'Follow the attached prompt file.', '--attach', '--agent', agentName];
+  appendModelArg(args, modelParam);
+  args.push('--dir', worktree, '--file', promptPath);
+  return args;
+}
+
 export function writePromptFile(io, prompt) {
   const id = randomUUID();
   const filePath = `${PROMPTS_DIR}/${id}.txt`;
@@ -18,12 +43,8 @@ export function _setExecFile(fn) {
   _execFile = fn;
 }
 
-export function spawnDispatch(worktree, promptPath, agentName) {
-  return _execFile('opencode', [
-    'run', '--attach', '--agent', agentName,
-    '--dir', worktree,
-    '--file', promptPath,
-  ], {
+export function spawnDispatch(worktree, promptPath, agentName, modelParam) {
+  return _execFile('opencode', dispatchArgs(worktree, promptPath, agentName, modelParam), {
     cwd: worktree,
   });
 }
