@@ -177,17 +177,21 @@ function handleMismatchLine(details) {
  * - `{ type: 'cycle', attestation }` — record the pre-existing cycle line
  * - `{ type: 'stage', attestation }` — collect this stage attestation
  */
+function classifyMismatchLine(result, lineNumber) {
+  if (result.attestation && result.attestation.schema === 'foundry-cycle-attestation/v1') {
+    return { type: 'error', message: `cycle line hash mismatch at line ${lineNumber}: stored ${result.savedHash}, computed ${result.computedHash} — the composite cannot be trusted` };
+  }
+  handleMismatchLine({ lineNumber, savedHash: result.savedHash, computedHash: result.computedHash });
+  return { type: 'skip' };
+}
+
 function classifyLineResult(result, lineNumber) {
   if (result.error) {
     console.error(result.error);
     return { type: 'skip' };
   }
   if (result.mismatch) {
-    if (result.attestation && result.attestation.schema === 'foundry-cycle-attestation/v1') {
-      return { type: 'error', message: `cycle line hash mismatch at line ${lineNumber}: stored ${result.savedHash}, computed ${result.computedHash} — the composite cannot be trusted` };
-    }
-    handleMismatchLine({ lineNumber, savedHash: result.savedHash, computedHash: result.computedHash });
-    return { type: 'skip' };
+    return classifyMismatchLine(result, lineNumber);
   }
   if (result.attestation.schema === 'foundry-cycle-attestation/v1') {
     return { type: 'cycle', attestation: result.attestation };
@@ -319,7 +323,7 @@ function readRunFile(io, path, resolvedRunId) {
  * @returns {Promise<{ok: boolean, cycle?: string, composite_status?: string,
  *   stage_count?: number, seal_hash?: string, error?: string}>}
  */
-export async function sealCycleAttestation(runId, io) {
+function resolveAndReadRunFile(runId, io) {
   const resolvedRunId = resolveRunId(runId, io);
   if (!resolvedRunId) {
     return { ok: false, error: 'no run ID available — WORK.md is missing or has no foundry-run field' };
@@ -329,7 +333,15 @@ export async function sealCycleAttestation(runId, io) {
   const readResult = readRunFile(io, path, resolvedRunId);
   if (!readResult.ok) return readResult;
 
-  const lines = readResult.content.split('\n').filter(line => line.trim() !== '');
+  return { ok: true, content: readResult.content, resolvedRunId, path };
+}
+
+export async function sealCycleAttestation(runId, io) {
+  const fileResult = resolveAndReadRunFile(runId, io);
+  if (!fileResult.ok) return fileResult;
+
+  const { content, resolvedRunId, path } = fileResult;
+  const lines = content.split('\n').filter(line => line.trim() !== '');
   const parsed = parseAttestationLines(lines);
   if (parsed.error) {
     return { ok: false, error: parsed.error };
