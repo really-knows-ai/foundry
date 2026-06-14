@@ -151,6 +151,28 @@ function readRunIdFromWork(io) {
   return fm['foundry-run'] || null;
 }
 
+/** Build the seal body fields to append to the commit message. */
+function buildSealBodyFields(runId, sealResult) {
+  return [
+    `foundry-run: ${runId}`,
+    `attestation-seal: ${sealResult.sealSha}`,
+    `composite-status: ${sealResult.compositeStatus}`,
+    `stage-count: ${sealResult.stageCount}`,
+  ].join('\n');
+}
+
+/** Amend the HEAD commit with seal fields. Errors are warned but not thrown. */
+function amendCommitWithSeal(git, runId, sealResult) {
+  const bodyFields = buildSealBodyFields(runId, sealResult);
+  const currentMessage = git.execFile(['log', '-1', '--pretty=%B']);
+  const augmentedMessage = currentMessage.trimEnd() + '\n\n' + bodyFields;
+  try {
+    git.execFile(['commit', '--amend', '--allow-empty', '-m', augmentedMessage]);
+  } catch (err) {
+    console.warn(`finaliseStage: amend failed for run ${runId}: ${err.message}`);
+  }
+}
+
 /**
  * Seal the run on the final stage of the cycle.
  * Extracted from finaliseStage to keep complexity and line count down.
@@ -167,22 +189,7 @@ async function maybeSealRun(lastStage, cycleId, git, io) {
     return;
   }
 
-  const bodyFields = [
-    `foundry-run: ${runId}`,
-    `attestation-seal: ${sealResult.sealSha}`,
-    `composite-status: ${sealResult.compositeStatus}`,
-    `stage-count: ${sealResult.stageCount}`,
-  ].join('\n');
-
-  // Read the current HEAD commit message via execFile, then append seal fields.
-  const currentMessage = git.execFile(['log', '-1', '--pretty=%B']);
-  const augmentedMessage = currentMessage.trimEnd() + '\n\n' + bodyFields;
-
-  try {
-    git.execFile(['commit', '--amend', '--allow-empty', '-m', augmentedMessage]);
-  } catch (err) {
-    console.warn(`finaliseStage: amend failed for run ${runId}: ${err.message}`);
-  }
+  amendCommitWithSeal(git, runId, sealResult);
 }
 
 export async function finaliseStage(args) {

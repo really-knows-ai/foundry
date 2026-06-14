@@ -388,13 +388,9 @@ describe('finaliseStage', () => {
       feedbackExists: true,
     });
 
-    const calls = [];
     const git = {
-      commit: (_message, _opts) => {
-        calls.push({ method: 'commit' });
-      },
+      commit: (_message, _opts) => {},
       execFile: (args) => {
-        calls.push({ method: 'execFile', args });
         if (args[0] === 'commit' && args[1] === '--amend') {
           throw new Error('commit rejected');
         }

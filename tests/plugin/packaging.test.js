@@ -109,7 +109,7 @@ test('T2.4 — no file references the old ATTEST filename', () => {
   // extension .yaml so it is already excluded by the extension filter.
   const excludedDirs = new Set(['node_modules', '.git', 'dist', '.worktrees', 'plans']);
   const self = relative(REPO_ROOT, fileURLToPath(import.meta.url));
-  const target = 'ATTEST.' + 'md';
+  const target = 'ATTEST.md';
 
   function walkFiles(dir) {
     const files = [];

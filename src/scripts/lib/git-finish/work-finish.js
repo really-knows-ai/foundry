@@ -135,6 +135,24 @@ function runCommit({ writeTempMessage, attestContent, execGit, branchName, archi
   return { ok: true, commitFile: msg.commitFile };
 }
 
+/**
+ * Stage the attestation JSONL file so it is included in the merge commit
+ * alongside the artefact changes.
+ */
+function stageAttestationFile(execGit, sealCheck) {
+  const runIdMatch = sealCheck.body.match(/^foundry-run:\s*(\S+)/m);
+  if (runIdMatch) {
+    execGit(['add', '-f', `.foundry/attestations/${runIdMatch[1]}.jsonl`]);
+  }
+}
+
+/** Best-effort cleanup of the temporary commit message file. */
+function cleanupCommitFile(deleteFile, commitFile) {
+  if (deleteFile && commitFile) {
+    bestEffort(() => deleteFile(commitFile), []);
+  }
+}
+
 /** Run finish steps: archive, merge, commit, cleanup, delete branch. */
 function runFinish({
   execGit, branchName, baseBranch, deleteFile, writeTempMessage, sealCheck,
@@ -146,11 +164,7 @@ function runFinish({
   const mergeResult = runMerge(execGit, branchName, baseBranch, archiveBranch, deleteFile);
   if (!mergeResult.ok) return mergeResult;
 
-  // Stage the attestation file so it is included in the merge commit alongside the artefact changes.
-  const runIdMatch = sealCheck.body.match(/^foundry-run:\s*(\S+)/m);
-  if (runIdMatch) {
-    execGit(['add', '-f', `.foundry/attestations/${runIdMatch[1]}.jsonl`]);
-  }
+  stageAttestationFile(execGit, sealCheck);
 
   const commitResult = runCommit({
     writeTempMessage,
@@ -159,9 +173,7 @@ function runFinish({
   });
   if (!commitResult.ok) return commitResult;
 
-  if (deleteFile && commitResult.commitFile) {
-    bestEffort(() => deleteFile(commitResult.commitFile), []);
-  }
+  cleanupCommitFile(deleteFile, commitResult.commitFile);
 
   const hash = execGit(['rev-parse', '--short', 'HEAD']).trim();
   const del = deleteBranch(execGit, branchName);

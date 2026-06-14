@@ -200,6 +200,36 @@ function classifyLineResult(result, lineNumber) {
 }
 
 /**
+ * Apply a single line action to the shared parse state.
+ *
+ * Returns an error result when the action signals a fatal parse error,
+ * or an empty object on success.
+ *
+ * @param {{ type: string, message?: string, attestation?: object }} action
+ * @param {{ stageAttestations: object[], cycleAttestation: object|null, mismatchedCount: number }} state
+ * @returns {{ error?: string }}
+ */
+function applyLineAction(action, state) {
+  if (action.type === 'error') {
+    return { error: action.message };
+  }
+  if (action.type === 'cycle') {
+    state.cycleAttestation = action.attestation;
+    return {};
+  }
+  if (action.type === 'mismatch_stage') {
+    state.mismatchedCount++;
+    return {};
+  }
+  if (action.type === 'stage') {
+    state.stageAttestations.push(action.attestation);
+    return {};
+  }
+  // Skip, unknown — no state change needed
+  return {};
+}
+
+/**
  * Parse all non-empty lines from a JSONL file, verifying hashes and
  * collecting stage attestations. Lines whose `_hash` does not verify
  * are skipped regardless of schema. Pre-existing cycle lines (with
@@ -211,29 +241,19 @@ function classifyLineResult(result, lineNumber) {
  * @returns {{ stageAttestations: object[], hasCycleLine: boolean, cycleAttestation: object|null }}
  */
 function parseAttestationLines(lines) {
-  const stageAttestations = [];
-  let cycleAttestation = null;
-  let mismatchedCount = 0;
+  const state = { stageAttestations: [], cycleAttestation: null, mismatchedCount: 0 };
   for (let i = 0; i < lines.length; i++) {
     const result = verifyStageLine(lines[i]);
     const action = classifyLineResult(result, i + 1);
-
-    if (action.type === 'error') {
-      return { error: action.message };
-    }
-    if (action.type === 'cycle') {
-      cycleAttestation = action.attestation;
-      continue;
-    }
-    if (action.type === 'mismatch_stage') {
-      mismatchedCount++;
-      continue;
-    }
-    if (action.type === 'stage') {
-      stageAttestations.push(action.attestation);
-    }
+    const outcome = applyLineAction(action, state);
+    if (outcome.error) return outcome;
   }
-  return { stageAttestations, hasCycleLine: cycleAttestation !== null, cycleAttestation, mismatchedCount };
+  return {
+    stageAttestations: state.stageAttestations,
+    hasCycleLine: state.cycleAttestation !== null,
+    cycleAttestation: state.cycleAttestation,
+    mismatchedCount: state.mismatchedCount,
+  };
 }
 
 /**
