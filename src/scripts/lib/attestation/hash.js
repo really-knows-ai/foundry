@@ -264,15 +264,16 @@ function resolveRunId(runId, io) {
 
 /**
  * Read a run's JSONL file, returning its content or an error.
- * Handles both file-not-found (via io.exists) and IO read failures.
+ * Attempts the read directly; the IO layer surfaces the error
+ * when the file does not exist or cannot be read.
  */
 function readRunFile(io, path, resolvedRunId) {
-  if (!io.exists(path)) {
-    return { ok: false, error: `no attestation file found for run ${resolvedRunId}` };
-  }
   try {
     return { ok: true, content: io.readFile(path) };
   } catch (err) {
+    if (err.code === 'ENOENT' || err.message?.startsWith('ENOENT')) {
+      return { ok: false, error: `no attestation file found for run ${resolvedRunId}` };
+    }
     return { ok: false, error: `IO read failure for run ${resolvedRunId}: ${err.message}` };
   }
 }
@@ -282,7 +283,7 @@ function readRunFile(io, path, resolvedRunId) {
  * building a composite cycle attestation, and appending the seal line.
  *
  * @param {string} runId - ULID run identifier (resolved from WORK.md if falsy)
- * @param {object} io - IO interface with exists, readFile, appendFile
+ * @param {object} io - IO interface with readFile, appendFile
  * @returns {Promise<{ok: boolean, cycle?: string, composite_status?: string,
  *   stage_count?: number, seal_hash?: string, error?: string}>}
  */
