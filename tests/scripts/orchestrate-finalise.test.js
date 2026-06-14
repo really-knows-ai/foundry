@@ -43,20 +43,6 @@ mock.module('../../src/scripts/lib/attestation/hash.js', {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createGitMock() {
-  const calls = [];
-  return {
-    execFile: (args) => {
-      calls.push(args);
-      if (args[0] === 'log' && args[1] === '-1') {
-        return 'feat: initial commit\n';
-      }
-      return '';
-    },
-    _calls: calls,
-  };
-}
-
 const RUN_ID = '01JKVT7Z8Q3WN0GJM2TYBR4BB';
 
 // ---------------------------------------------------------------------------
@@ -82,69 +68,26 @@ describe('sealCycleAttestation wrapper', () => {
   });
 
   it('delegates to hash.js and returns correct shape', async () => {
-    const git = createGitMock();
-
-    const result = await sealCycleAttestation({ runId: RUN_ID, git, io: {} });
+    const result = await sealCycleAttestation(RUN_ID, {});
 
     assert.equal(result.ok, true);
     assert.equal(result.sealSha, 'abc123def456');
     assert.equal(result.compositeStatus, 'pass');
     assert.equal(result.stageCount, 3);
-
-    // JSONL file is staged into the commit
-    const addCall = git._calls.find(c => c[0] === 'add');
-    assert.ok(addCall, 'git execFile called with add as first arg');
-    assert.equal(addCall[2], `.foundry/attestations/${RUN_ID}.jsonl`);
-
-    // git commit --amend was called (after add — same commit)
-    const amendCall = git._calls.find(c => c[0] === 'commit');
-    assert.ok(amendCall, 'git execFile called with commit as first arg');
-    assert.equal(amendCall[0], 'commit');
-    assert.equal(amendCall[1], '--amend');
-
-    // add happens before commit --amend (same commit)
-    const addIdx = git._calls.findIndex(c => c[0] === 'add');
-    const commitIdx = git._calls.findIndex(c => c[0] === 'commit');
-    assert.ok(addIdx < commitIdx, 'git add runs before commit --amend');
   });
 
   it('returns violation when hashSealCycle fails', async () => {
     // Scenario A: hashSealCycle throws
     hashReturnValue = new Error('seal failed');
-    let result = await sealCycleAttestation({ runId: RUN_ID, git: createGitMock(), io: {} });
+    let result = await sealCycleAttestation(RUN_ID, {});
     assert.equal(result.ok, false);
     assert.equal(result.error, 'seal failed');
 
     // Scenario B: hashSealCycle returns error result
     hashReturnValue = { ok: false, error: 'no file' };
-    result = await sealCycleAttestation({ runId: RUN_ID, git: createGitMock(), io: {} });
+    result = await sealCycleAttestation(RUN_ID, {});
     assert.equal(result.ok, false);
     assert.equal(result.error, 'no file');
-  });
-
-  it('returns violation when git amend fails', async () => {
-    hashReturnValue = {
-      ok: true,
-      cycle: 'test-cycle',
-      composite_status: 'pass',
-      stage_count: 3,
-      seal_hash: 'abc123def456',
-    };
-
-    const git = {
-      execFile: (args) => {
-        // add succeeds, log succeeds, but commit --amend throws
-        if (args[0] === 'commit') {
-          throw new Error('commit rejected');
-        }
-        return '';
-      },
-    };
-
-    const result = await sealCycleAttestation({ runId: RUN_ID, git, io: {} });
-    assert.equal(result.ok, false);
-    assert.ok(result.error.startsWith('amend failed: '));
-    assert.ok(result.error.includes('commit rejected'));
   });
 
   it('produces deterministic hash for same inputs', async () => {
@@ -157,38 +100,13 @@ describe('sealCycleAttestation wrapper', () => {
       seal_hash: hash,
     };
 
-    const git1 = createGitMock();
-    const git2 = createGitMock();
-
-    const r1 = await sealCycleAttestation({ runId: RUN_ID, git: git1, io: {} });
-    const r2 = await sealCycleAttestation({ runId: RUN_ID, git: git2, io: {} });
+    const r1 = await sealCycleAttestation(RUN_ID, {});
+    const r2 = await sealCycleAttestation(RUN_ID, {});
 
     assert.equal(r1.ok, true);
     assert.equal(r2.ok, true);
     assert.equal(r1.sealSha, hash);
     assert.equal(r2.sealSha, hash);
-  });
-
-  it('includes all four fields in commit body', async () => {
-    hashReturnValue = {
-      ok: true,
-      cycle: 'test-cycle',
-      composite_status: 'pass',
-      stage_count: 3,
-      seal_hash: 'abc123def456',
-    };
-
-    const git = createGitMock();
-
-    await sealCycleAttestation({ runId: RUN_ID, git, io: {} });
-
-    const amendCall = git._calls.find(c => c[0] === 'commit');
-    assert.ok(amendCall, 'git commit --amend called');
-    const msg = amendCall[amendCall.length - 1];
-    assert.ok(msg.includes('foundry-run:'), 'commit body includes foundry-run');
-    assert.ok(msg.includes('attestation-seal:'), 'commit body includes attestation-seal');
-    assert.ok(msg.includes('composite-status:'), 'commit body includes composite-status');
-    assert.ok(msg.includes('stage-count:'), 'commit body includes stage-count');
   });
 });
 
@@ -448,5 +366,90 @@ describe('finaliseStage', () => {
       'git add of attestation file runs before git commit --amend, ' +
       'confirming both are present in the same amended commit'
     );
+  });
+
+  it('includes all four seal fields in amend commit body', async () => {
+    const io = createIoMock({
+      workMdContent: WORK_MD_FM,
+      cycleName: CYCLE_NAME,
+      cycleStages: FINAL_STAGES,
+      feedbackExists: true,
+    });
+
+    const git = createGitMockForFinalise();
+    const finalize = createFinalizeMock({ ok: true, changedFiles: [] });
+
+    await finaliseStageMod({
+      lastStage: { stage: 'finalise', baseSha: 'abc123' },
+      activeStage: { stage: 'finalise' },
+      cycleId: CYCLE_NAME,
+      io,
+      finalize,
+      git,
+      postVersion: '1.0.0',
+      contractPassed: true,
+      structuredSummary: 'final stage summary',
+    });
+
+    const amendCall = git._calls.find(
+      c => c.method === 'execFile' && c.args[0] === 'commit' && c.args[1] === '--amend'
+    );
+    assert.ok(amendCall, 'git commit --amend called');
+    const msg = amendCall.args[amendCall.args.length - 1];
+    assert.ok(msg.includes('foundry-run:'), 'commit body includes foundry-run');
+    assert.ok(msg.includes('attestation-seal:'), 'commit body includes attestation-seal');
+    assert.ok(msg.includes('composite-status:'), 'commit body includes composite-status');
+    assert.ok(msg.includes('stage-count:'), 'commit body includes stage-count');
+  });
+
+  it('handles git amend failure gracefully without crashing finaliseStage', async () => {
+    hashReturnValue = {
+      ok: true,
+      cycle: 'test-cycle',
+      composite_status: 'pass',
+      stage_count: 3,
+      seal_hash: 'abc123def456',
+    };
+
+    const io = createIoMock({
+      workMdContent: WORK_MD_FM,
+      cycleName: CYCLE_NAME,
+      cycleStages: FINAL_STAGES,
+      feedbackExists: true,
+    });
+
+    const calls = [];
+    const git = {
+      commit: (_message, _opts) => {
+        calls.push({ method: 'commit' });
+      },
+      execFile: (args) => {
+        calls.push({ method: 'execFile', args });
+        if (args[0] === 'commit' && args[1] === '--amend') {
+          throw new Error('commit rejected');
+        }
+        if (args[0] === 'log' && args[1] === '-1') {
+          return 'feat: initial commit\n';
+        }
+        return '';
+      },
+    };
+
+    const finalize = createFinalizeMock({ ok: true, changedFiles: [] });
+
+    const result = await finaliseStageMod({
+      lastStage: { stage: 'finalise', baseSha: 'abc123' },
+      activeStage: { stage: 'finalise' },
+      cycleId: CYCLE_NAME,
+      io,
+      finalize,
+      git,
+      postVersion: '1.0.0',
+      contractPassed: true,
+      structuredSummary: 'final stage summary',
+    });
+
+    assert.equal(result, null, 'finaliseStage returns null despite amend failure');
+    assert.equal(hashSealCallCount, 1, 'sealCycleAttestation was called once');
   });
 });

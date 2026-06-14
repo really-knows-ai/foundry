@@ -85,20 +85,17 @@ function clearStageState(activeStage, lastStage, io) {
 }
 
 // ---------------------------------------------------------------------------
-// Seal wrapper — orchestrator-facing facade over hash.js sealCycleAttestation
+// Seal delegator — matches the R4/R8 signature sealCycleAttestation(runId, io)
 // ---------------------------------------------------------------------------
 
 /**
- * Seal the current run by delegating to hash.js sealCycleAttestation and
- * amending the HEAD commit with the seal fields.
+ * Seal the current run by delegating to hash.js sealCycleAttestation.
  *
- * @param {object} opts
- * @param {string} opts.runId  ULID run identifier
- * @param {{ execFile: (string[]) => string }} opts.git  Git adapter with execFile
- * @param {object} opts.io     IO interface
+ * @param {string} runId  ULID run identifier
+ * @param {object} io     IO interface
  * @returns {Promise<{ ok: boolean, sealSha?: string, compositeStatus?: string, stageCount?: number, error?: string }>}
  */
-export async function sealCycleAttestation({ runId, git, io }) {
+export async function sealCycleAttestation(runId, io) {
   let result;
   try {
     result = await hashSealCycle(runId, io);
@@ -107,27 +104,6 @@ export async function sealCycleAttestation({ runId, git, io }) {
   }
   if (!result.ok) {
     return { ok: false, error: result.error };
-  }
-
-  // Stage the JSONL attestation file so the amend captures the new cycle seal line.
-  git.execFile(['add', '-f', `.foundry/attestations/${runId}.jsonl`]);
-
-  const bodyFields = [
-    `foundry-run: ${runId}`,
-    `attestation-seal: ${result.seal_hash}`,
-    `composite-status: ${result.composite_status}`,
-    `stage-count: ${result.stage_count}`,
-  ].join('\n');
-
-  // Read the current HEAD commit message via execFile, then prepend it
-  // so we append seal fields rather than losing the original message.
-  const currentMessage = git.execFile(['log', '-1', '--pretty=%B']);
-  const augmentedMessage = currentMessage.trimEnd() + '\n\n' + bodyFields;
-
-  try {
-    git.execFile(['commit', '--amend', '--allow-empty', '-m', augmentedMessage]);
-  } catch (err) {
-    return { ok: false, error: 'amend failed: ' + (err.message || String(err)) };
   }
 
   return {
@@ -185,9 +161,30 @@ async function maybeSealRun(lastStage, cycleId, git, io) {
   if (!isFinalStageOfCycle(lastStage, cycleId, io)) return;
   if (computeOpenFeedback(io) !== 0) return;
 
-  const sealResult = await sealCycleAttestation({ runId, git, io });
+  const sealResult = await sealCycleAttestation(runId, io);
   if (!sealResult.ok) {
     console.warn(`finaliseStage: seal failed for run ${runId}: ${sealResult.error}`);
+    return;
+  }
+
+  // Stage the JSONL attestation file so the amend captures the new cycle seal line.
+  git.execFile(['add', '-f', `.foundry/attestations/${runId}.jsonl`]);
+
+  const bodyFields = [
+    `foundry-run: ${runId}`,
+    `attestation-seal: ${sealResult.sealSha}`,
+    `composite-status: ${sealResult.compositeStatus}`,
+    `stage-count: ${sealResult.stageCount}`,
+  ].join('\n');
+
+  // Read the current HEAD commit message via execFile, then append seal fields.
+  const currentMessage = git.execFile(['log', '-1', '--pretty=%B']);
+  const augmentedMessage = currentMessage.trimEnd() + '\n\n' + bodyFields;
+
+  try {
+    git.execFile(['commit', '--amend', '--allow-empty', '-m', augmentedMessage]);
+  } catch (err) {
+    console.warn(`finaliseStage: amend failed for run ${runId}: ${err.message}`);
   }
 }
 
