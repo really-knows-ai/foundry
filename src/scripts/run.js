@@ -317,6 +317,9 @@ export async function continueRun(opts) {
 
   const hp = 'WORK.history.yaml';
 
+  // Ensure run ID is present in WORK.md frontmatter (idempotent — skips if already set)
+  persistRunId(io);
+
   const haResult = await handleHumanAppraiseResumeIfNeeded(io, opts, hp);
   if (haResult) return haResult;
 
