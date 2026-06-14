@@ -273,7 +273,7 @@ export function handleDeadlockOverride(ctx) {
   const remaining = filterDeadlocked(store.list());
 
   if (remaining.length === 0) {
-    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', records, newItemIds, iteration });
+    appendHumanAppraiseAttestation(io, cycleId, { verdict: 'resolved', records, newItemIds, store, iteration });
     closeHumanAppraiseStage(io, activeStage, cycleId, 'deadlock resolved');
     return { action: 'continue-run' };
   }
