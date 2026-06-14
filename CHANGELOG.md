@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.14.3] - 2026-06-14
+
+### Fixed
+
+- Pass cycle model overrides through `opencode run --model` so forge and appraise dispatches actually use the model the user configured in the cycle definition. Previously the resolved model was silently dropped before spawning the child process, so every dispatch used the session default model regardless of cycle-level configuration.
+- Changed the child dispatch CLI invocation ordering from `run --attach ... --file <file>` to `run "Follow the attached prompt file." --attach ... --file <file>` because `opencode run` requires a message or command before any flags; the previous shape emitted `Error: You must provide a message or a command`.
+- Wired `foundry_cycle_run` and `foundry_cycle_continue` into the dry-run trace so forensic snapshots capture the actual timeout-bearing dispatch tool calls instead of only the retry calls.
+- Resolved `mock.module` relative paths with `new URL(..., import.meta.url)` for Node 22 LTS compatibility in CI.
+
 ## [3.14.2] - 2026-06-14
 
 ### Fixed
