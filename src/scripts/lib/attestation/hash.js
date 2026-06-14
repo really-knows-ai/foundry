@@ -282,7 +282,7 @@ async function writeSealLine(io, path, sealedLine) {
  * pre-existing cycle attestation. Returns null when no cycle line exists
  * and sealing should proceed normally.
  */
-function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, cycleAttestation, mismatchedCount) {
+function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, cycleAttestation) {
   if (!hasCycleLine) return null;
   return {
     ok: true,
@@ -290,7 +290,6 @@ function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, cycl
     composite_status: cycleAttestation.composite_status,
     stage_count: (cycleAttestation.stage_attestations || []).length,
     seal_hash: cycleAttestation._hash,
-    mismatched_count: mismatchedCount || 0,
   };
 }
 
@@ -352,9 +351,9 @@ export async function sealCycleAttestation(runId, io) {
   if (parsed.error) {
     return { ok: false, error: parsed.error };
   }
-  const { stageAttestations, hasCycleLine, cycleAttestation: existingCycleAttestation, mismatchedCount } = parsed;
+  const { stageAttestations, hasCycleLine, cycleAttestation: existingCycleAttestation } = parsed;
 
-  const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation, mismatchedCount);
+  const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation);
   if (earlyResult) return earlyResult;
 
   const sealPayload = buildSealPayload(stageAttestations, resolvedRunId, io);
@@ -372,6 +371,5 @@ export async function sealCycleAttestation(runId, io) {
     composite_status: sealPayload.composite_status,
     stage_count: stageAttestations.length,
     seal_hash: sealHash,
-    mismatched_count: mismatchedCount || 0,
   };
 }
