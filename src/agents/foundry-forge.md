@@ -7,6 +7,7 @@ permission:
   glob: allow
   grep: allow
   list: allow
+  skill: allow
   edit:
     "*": allow
     "foundry/**": deny

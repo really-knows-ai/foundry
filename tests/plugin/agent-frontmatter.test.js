@@ -64,18 +64,18 @@ function specPermittedTools(agentName) {
       'foundry_attestation_show', 'foundry_attestation_verify',
     ],
     'foundry-forge': [
-      'read', 'glob', 'grep', 'list',
+      'read', 'glob', 'grep', 'list', 'skill',
       'foundry_stage_begin', 'foundry_stage_end', 'foundry_stage_output',
       'foundry_workfile_get', 'foundry_config_read_cycle',
       'foundry_config_read_artefact_type', 'foundry_config_read_laws',
     ],
     'foundry-appraise': [
-      'read', 'glob', 'grep', 'list',
+      'read', 'glob', 'grep', 'list', 'skill',
       'foundry_stage_begin', 'foundry_stage_end', 'foundry_stage_output',
       'foundry_artefact_list', 'foundry_config_read_artefact_type',
     ],
     'foundry-assay': [
-      'read', 'glob', 'grep', 'list',
+      'read', 'glob', 'grep', 'list', 'skill',
       'foundry_stage_begin', 'foundry_stage_end', 'foundry_assay_run',
       'foundry_workfile_get', 'foundry_config_read_cycle',
     ],

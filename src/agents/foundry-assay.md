@@ -7,6 +7,7 @@ permission:
   glob: allow
   grep: allow
   list: allow
+  skill: allow
   foundry_stage_begin: allow
   foundry_stage_end: allow
   foundry_assay_run: allow
