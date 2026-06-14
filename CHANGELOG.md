@@ -1,6 +1,16 @@
 # Changelog
 
-## [3.14.0] - 2026-06-10
+## [3.14.0] - 2026-06-14
+
+### Added
+
+- **Per-stage attestation.** Attestation moves from a monolithic cycle-level snapshot to per-stage records scoped by run. Every stage executor appends a self-verifying JSONL line to `.foundry/attestations/<run-id>.jsonl`. The final line is the cycle attestation that seals the run with a content hash covering all embedded stage records.
+- `foundry_attestation_show` tool — displays raw JSONL contents for a run or lists available runs.
+- `foundry_attestation_verify` tool — re-verifies every line hash, cycle line embedded records, and the commit seal cross-check to detect tampering.
+- Run ID lifecycle — ULIDs generated at cycle start, written to WORK.md frontmatter, consumed by every executor.
+- `sealCycleAttestation` — builds and appends the cycle attestation line automatically during orchestration finalise (not an agent-callable tool).
+- Git commit seal — merge commits carry `foundry-run`, `attestation-seal`, `composite-status`, and `stage-count` in the commit body, linking git history to the audit log.
+- Governance data included in cycle attestation — law file hashes and cycle config hash.
 
 ### Changed
 
@@ -11,6 +21,12 @@
   - `foundry_memory_extractor_create` → `foundry_memory_create_extractor`
   - `foundry_memory_change_embedding_model` → `foundry_memory_reembed`
 - Updated all tool registrations, agent permission blocks, skill files, documentation, test files, and internal error/prompt strings to reference the new names.
+
+### Removed
+
+- `foundry_attest` tool — cycle sealing is orchestration-driven.
+- `src/scripts/lib/attestation/payload.js` and `attest.js` — superseded by stage-payload.js and cycle-payload.js.
+- `ATTEST.md` files and all code references — superseded by `.foundry/attestations/<run-id>.jsonl`.
 
 ## [3.13.3] - 2026-06-08
 
