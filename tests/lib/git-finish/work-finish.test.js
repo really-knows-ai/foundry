@@ -134,19 +134,22 @@ test('finishWorkBranchWithArchive executes expected git sequence and returns cor
   const branchArchiveIdx = calls.findIndex(c => c[0] === 'branch' && c[1]?.startsWith('archive/'));
   const checkoutIdx = calls.findIndex(c => c[0] === 'checkout' && c[1] === 'main');
   const mergeIdx = calls.findIndex(c => c[0] === 'merge' && c[1] === '--squash');
+  const addAttestIdx = calls.findIndex(c => c[0] === 'add' && c[1] === '-f' && c[2] === '.foundry/attestations/01TESTRUNID.jsonl');
   const commitIdx = calls.findIndex(c => c[0] === 'commit');
   const branchDeleteIdx = calls.findIndex(c => c[0] === 'branch' && c[1] === '-D');
 
   assert.ok(branchArchiveIdx !== -1, 'Should create archive branch');
   assert.ok(checkoutIdx !== -1, 'Should checkout base branch');
   assert.ok(mergeIdx !== -1, 'Should squash merge');
+  assert.ok(addAttestIdx !== -1, 'Should stage attestation file into merge commit');
   assert.ok(commitIdx !== -1, 'Should commit');
   assert.ok(branchDeleteIdx !== -1, 'Should delete work branch');
 
   // Verify order
   assert.ok(branchArchiveIdx < checkoutIdx, 'Archive branch before checkout');
   assert.ok(checkoutIdx < mergeIdx, 'Checkout before merge');
-  assert.ok(mergeIdx < commitIdx, 'Merge before commit');
+  assert.ok(mergeIdx < addAttestIdx, 'Merge before attestation add');
+  assert.ok(addAttestIdx < commitIdx, 'Attestation add before commit');
   assert.ok(commitIdx < branchDeleteIdx, 'Commit before branch deletion');
 });
 

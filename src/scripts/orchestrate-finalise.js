@@ -167,9 +167,6 @@ async function maybeSealRun(lastStage, cycleId, git, io) {
     return;
   }
 
-  // Stage the JSONL attestation file so the amend captures the new cycle seal line.
-  git.execFile(['add', '-f', `.foundry/attestations/${runId}.jsonl`]);
-
   const bodyFields = [
     `foundry-run: ${runId}`,
     `attestation-seal: ${sealResult.sealSha}`,

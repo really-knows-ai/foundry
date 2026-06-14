@@ -146,6 +146,12 @@ function runFinish({
   const mergeResult = runMerge(execGit, branchName, baseBranch, archiveBranch, deleteFile);
   if (!mergeResult.ok) return mergeResult;
 
+  // Stage the attestation file so it is included in the merge commit alongside the artefact changes.
+  const runIdMatch = sealCheck.body.match(/^foundry-run:\s*(\S+)/m);
+  if (runIdMatch) {
+    execGit(['add', '-f', `.foundry/attestations/${runIdMatch[1]}.jsonl`]);
+  }
+
   const commitResult = runCommit({
     writeTempMessage,
     attestContent: sealCheck.body,

@@ -303,7 +303,7 @@ describe('finaliseStage', () => {
     assert.equal(hashSealCallCount, 1, 'sealCycleAttestation was called once');
   });
 
-  it('stages artefact changes and attestation file before commit --amend', async () => {
+  it('stages artefact changes and amends commit with seal fields', async () => {
     const io = createIoMock({
       workMdContent: WORK_MD_FM,
       cycleName: CYCLE_NAME,
@@ -331,41 +331,11 @@ describe('finaliseStage', () => {
     const stageCommitCall = git._calls.find(c => c.method === 'commit');
     assert.ok(stageCommitCall, 'stage commit was called for artefact changes');
 
-    // Verify the attestation file was staged via git add
-    const addCall = git._calls.find(
-      c => c.method === 'execFile' && c.args[0] === 'add'
-    );
-    assert.ok(addCall, 'git add was called for attestation file');
-    assert.equal(
-      addCall.args[2],
-      `.foundry/attestations/${RUN_ID}.jsonl`,
-      'git add targets the correct attestation file'
-    );
-
-    // Verify the seal commit --amend was called
+    // Verify the seal commit --amend was called (for commit body, not attestation file)
     const amendCall = git._calls.find(
       c => c.method === 'execFile' && c.args[0] === 'commit' && c.args[1] === '--amend'
     );
     assert.ok(amendCall, 'git commit --amend was called for seal');
-
-    // Verify ordering: stage commit (artefacts) -> git add (attestation) -> amend (both)
-    const stageCommitIdx = git._calls.findIndex(c => c.method === 'commit');
-    const addIdx = git._calls.findIndex(
-      c => c.method === 'execFile' && c.args[0] === 'add'
-    );
-    const amendIdx = git._calls.findIndex(
-      c => c.method === 'execFile' && c.args[0] === 'commit' && c.args[1] === '--amend'
-    );
-
-    assert.ok(
-      stageCommitIdx < addIdx,
-      'stage commit (artefact changes) runs before git add of attestation file'
-    );
-    assert.ok(
-      addIdx < amendIdx,
-      'git add of attestation file runs before git commit --amend, ' +
-      'confirming both are present in the same amended commit'
-    );
   });
 
   it('includes all four seal fields in amend commit body', async () => {
