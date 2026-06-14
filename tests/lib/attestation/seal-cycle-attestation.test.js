@@ -321,6 +321,7 @@ describe('Group E — mixed valid, corrupt, and tampered lines', () => {
       assert.equal(sealed.stage_attestations.length, 2);
       const hasTampered = sealed.stage_attestations.some(a => a._hash_mismatch === true);
       assert.equal(hasTampered, false, 'tampered attestation is excluded from the composite');
+      assert.equal(result.mismatched_count, 1, 'hash mismatch on tampered stage line is reported');
       assert.match(sealed._hash, /^[0-9a-f]{64}$/);
 
       // Verify seal hash

@@ -182,7 +182,7 @@ function classifyMismatchLine(result, lineNumber) {
     return { type: 'error', message: `cycle line hash mismatch at line ${lineNumber}: stored ${result.savedHash}, computed ${result.computedHash} — the composite cannot be trusted` };
   }
   handleMismatchLine({ lineNumber, savedHash: result.savedHash, computedHash: result.computedHash });
-  return { type: 'skip' };
+  return { type: 'mismatch_stage' };
 }
 
 function classifyLineResult(result, lineNumber) {
@@ -213,6 +213,7 @@ function classifyLineResult(result, lineNumber) {
 function parseAttestationLines(lines) {
   const stageAttestations = [];
   let cycleAttestation = null;
+  let mismatchedCount = 0;
   for (let i = 0; i < lines.length; i++) {
     const result = verifyStageLine(lines[i]);
     const action = classifyLineResult(result, i + 1);
@@ -224,11 +225,15 @@ function parseAttestationLines(lines) {
       cycleAttestation = action.attestation;
       continue;
     }
+    if (action.type === 'mismatch_stage') {
+      mismatchedCount++;
+      continue;
+    }
     if (action.type === 'stage') {
       stageAttestations.push(action.attestation);
     }
   }
-  return { stageAttestations, hasCycleLine: cycleAttestation !== null, cycleAttestation };
+  return { stageAttestations, hasCycleLine: cycleAttestation !== null, cycleAttestation, mismatchedCount };
 }
 
 /**
@@ -277,7 +282,7 @@ async function writeSealLine(io, path, sealedLine) {
  * pre-existing cycle attestation. Returns null when no cycle line exists
  * and sealing should proceed normally.
  */
-function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, cycleAttestation) {
+function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, cycleAttestation, mismatchedCount) {
   if (!hasCycleLine) return null;
   return {
     ok: true,
@@ -285,6 +290,7 @@ function checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, cycl
     composite_status: cycleAttestation.composite_status,
     stage_count: (cycleAttestation.stage_attestations || []).length,
     seal_hash: cycleAttestation._hash,
+    mismatched_count: mismatchedCount || 0,
   };
 }
 
@@ -346,9 +352,9 @@ export async function sealCycleAttestation(runId, io) {
   if (parsed.error) {
     return { ok: false, error: parsed.error };
   }
-  const { stageAttestations, hasCycleLine, cycleAttestation: existingCycleAttestation } = parsed;
+  const { stageAttestations, hasCycleLine, cycleAttestation: existingCycleAttestation, mismatchedCount } = parsed;
 
-  const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation);
+  const earlyResult = checkExistingCycle(stageAttestations, hasCycleLine, resolvedRunId, existingCycleAttestation, mismatchedCount);
   if (earlyResult) return earlyResult;
 
   const sealPayload = buildSealPayload(stageAttestations, resolvedRunId, io);
@@ -366,5 +372,6 @@ export async function sealCycleAttestation(runId, io) {
     composite_status: sealPayload.composite_status,
     stage_count: stageAttestations.length,
     seal_hash: sealHash,
+    mismatched_count: mismatchedCount || 0,
   };
 }
