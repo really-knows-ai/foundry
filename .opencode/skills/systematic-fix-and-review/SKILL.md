@@ -70,7 +70,7 @@ Return to step 2a for the next incomplete item. Each invocation of `fix-review-i
 
 ### 3. Report completion
 
-When every item is fixed and approved, delete `REVIEW.md`. Report:
+When every item is fixed and approved, keep `REVIEW.md` in place — `implementation-review` merges new items into it on subsequent reviews. Report:
 
 - Total items fixed.
 - Number of fix-reviewer cycles used (one cycle = one implementer fix + reviewer approve).
@@ -86,7 +86,7 @@ When every item is fixed and approved, delete `REVIEW.md`. Report:
 - Wont-fix items (`- [~]`) still go through review — the reviewer evaluates the justification. If the justification is rejected, the implementer must produce a code fix instead. No commit is needed for approved wont-fix items.
 - If a subagent errors (not rejects), report the failure and stop. Do not silently skip the item.
 - Do not commit `REVIEW.md`.
-- Delete `REVIEW.md` only when every item is approved.
+- Keep `REVIEW.md` in place when done — `implementation-review` merges new items into it on subsequent reviews.
 
 ## Common Mistakes
 
