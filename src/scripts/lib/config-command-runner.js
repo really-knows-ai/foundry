@@ -246,10 +246,6 @@ function buildLogData(args) {
   const { reason, command, argv, t0, execResult, dirtyBefore, dirtyAfter, cwd } = args;
   const stdoutB = execResult.stdout || '';
   const stderrB = execResult.stderr || '';
-  const stdoutBytes = Buffer.byteLength(stdoutB);
-  const stderrBytes = Buffer.byteLength(stderrB);
-  const sTrunc = stdoutBytes > MAX_CAPTURE_BYTES;
-  const eTrunc = stderrBytes > MAX_CAPTURE_BYTES;
 
   return {
     reason, command, argv,
@@ -262,8 +258,8 @@ function buildLogData(args) {
     timedOut: execResult.timedOut === true,
     stdout: boundOutput(stdoutB),
     stderr: boundOutput(stderrB),
-    stdoutTruncated: sTrunc,
-    stderrTruncated: eTrunc,
+    stdoutTruncated: execResult.stdoutTruncated === true,
+    stderrTruncated: execResult.stderrTruncated === true,
     dirtyBefore, dirtyAfter,
     changedFiles: dirtyAfter.filter((f) => !dirtyBefore.includes(f)),
   };

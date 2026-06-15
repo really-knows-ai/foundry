@@ -663,7 +663,7 @@ describe('runCommand', () => {
     const longStdout = 'x'.repeat(MAX_CAPTURE_BYTES + 1000);
     const result = runCommand({
       io: makeMockIO(),
-      exec: makeMockExec({ execResult: { stdout: longStdout, stderr: '', exitCode: 0, signal: null, timedOut: false, stdoutTruncated: false, stderrTruncated: false } }),
+      exec: makeMockExec({ execResult: { stdout: longStdout, stderr: '', exitCode: 0, signal: null, timedOut: false, stdoutTruncated: true, stderrTruncated: false } }),
       command: 'node foundry/script.mjs',
       reason: 'truncation test',
     });
