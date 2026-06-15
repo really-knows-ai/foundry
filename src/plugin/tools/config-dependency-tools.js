@@ -11,7 +11,7 @@ import { spawnSync, execFileSync } from 'child_process';
 import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
 import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
 import { makeExec } from './helpers.js';
-import { resolvePnpm, resolveGit } from '../../scripts/lib/tool-paths.js';
+import { resolveFromPath, resolveGit } from '../../scripts/lib/tool-paths.js';
 import { ulid } from '../../scripts/lib/ulid.js';
 import { MAX_CAPTURE_BYTES } from '../../scripts/lib/config-command-runner.js';
 import { parsePorcelainZ } from '../../scripts/lib/git-policy.js';
@@ -176,21 +176,23 @@ function checkPackagePreconditions(foundryPkgPath) {
     };
   }
 
-  return { ok: true };
+  const packageManager = pm.split('@')[0];
+
+  return { ok: true, packageManager };
 }
 
 // -- install execution ------------------------------------------------------
 
-function performInstall(worktree, name, dev) {
+function performInstall(worktree, name, dev, packageManager) {
   const exec = makeExec(worktree);
   const beforeDirty = detectDirtyFiles(exec);
 
   const preErr = checkPreInstallDirty(beforeDirty);
   if (preErr) return preErr;
 
-  const pnpmPath = resolvePnpm();
+  const pmPath = resolveFromPath(packageManager);
   const foundryDir = path.resolve(worktree, 'foundry');
-  const pnpmResult = runPnpmAdd(pnpmPath, name, dev, foundryDir);
+  const pnpmResult = runPnpmAdd(pmPath, name, dev, foundryDir);
 
   const afterDirty = detectDirtyFiles(exec);
   const postErr = checkPostInstallDirty(afterDirty);
@@ -263,7 +265,7 @@ function handleAddDependency(worktree, args) {
 
   const t0 = Date.now();
 
-  const installResult = performInstall(worktree, name, dev);
+  const installResult = performInstall(worktree, name, dev, preconditions.packageManager);
   if (!installResult.ok) return installResult;
 
   const commitResult = commitDependencyInstall(

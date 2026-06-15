@@ -22,4 +22,4 @@ function resolvePnpm() {
   return process.env.FOUNDRY_PNPM_PATH || resolveFromPath('pnpm');
 }
 
-export { resolveGit, resolveOpenCode, resolvePnpm };
+export { resolveGit, resolveOpenCode, resolvePnpm, resolveFromPath };
