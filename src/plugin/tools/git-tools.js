@@ -152,7 +152,8 @@ function checkUntrackedFoundryFiles(cwd) {
   if (!untracked.length) return null;
   return JSON.stringify({
     ok: false,
-    error: 'foundry_git_finish refuses: untracked foundry/** files exist. Commit or stash them first.',
+    error: 'foundry_git_finish refuses: untracked foundry/** files exist: ' +
+      untracked.join(', ') + '. Commit or stash them first.',
     untrackedFoundry: untracked,
   });
 }
