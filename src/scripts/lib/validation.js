@@ -17,7 +17,7 @@ import { parseValidatorJsonl } from './validator-jsonl.js';
 // Private helpers
 // ---------------------------------------------------------------------------
 
-function shellQuote(value) {
+export function shellQuote(value) {
   return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 

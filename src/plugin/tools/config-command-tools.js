@@ -14,7 +14,7 @@ import path from 'path';
 import { Readable } from 'stream';
 import { runCommand, createExec } from '../../scripts/lib/config-command-runner.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
-import { expandValidatorCommand } from '../../scripts/lib/validation.js';
+import { expandValidatorCommand, shellQuote } from '../../scripts/lib/validation.js';
 import { makeIO, makeExec } from './helpers.js';
 import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
 import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
@@ -62,15 +62,6 @@ function rejectRootPackageChanges(runResult) {
     reason: 'root_package_file_changed',
     disallowedFiles: disallowed,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Shell-quote a value for safe argv tokenisation via parseCommand.
-// Matches the shellQuote helper used by validation.js.
-// ---------------------------------------------------------------------------
-
-function shellQuote(value) {
-  return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
 // ---------------------------------------------------------------------------
