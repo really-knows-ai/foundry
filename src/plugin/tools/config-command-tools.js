@@ -87,10 +87,18 @@ function isUnderFoundry(worktree, testPath) {
 // Validator input helpers
 // ---------------------------------------------------------------------------
 
+function checkStringArrayElements(arr, label) {
+  if (!Array.isArray(arr)) return `${label} must be a string array`;
+  if (arr.some(item => typeof item !== 'string')) return `each element in ${label} must be a string`;
+  return null;
+}
+
 function validateRunValidatorArgs(args) {
   if (!args.command) return 'command is required';
-  if (!Array.isArray(args.files)) return 'files must be a string array';
-  if (!Array.isArray(args.patterns)) return 'patterns must be a string array';
+  const filesErr = checkStringArrayElements(args.files, 'files');
+  if (filesErr) return filesErr;
+  const patternsErr = checkStringArrayElements(args.patterns, 'patterns');
+  if (patternsErr) return patternsErr;
   return null;
 }
 
