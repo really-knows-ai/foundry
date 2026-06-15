@@ -5,7 +5,7 @@ description: Review the current repository state against a project's SPEC.md in 
 
 # Implementation Review
 
-Read a project's `SPEC.md` from `plans/<project-name>/`, then dispatch parallel `@reviewer` subagents—one per spec section—to audit the current repository state for compliance. Consolidate every finding into `plans/<project-name>/REVIEW.md` as a plain checklist of items to address.
+Read a project's `SPEC.md` from `plans/<project-name>/`, then dispatch parallel `@reviewer` subagents—one per spec section—to audit the current repository state for compliance. Consolidate findings with any existing `REVIEW.md`, cross-referencing new issues against previously resolved, wont-fix, and open items.
 
 ## Workflow
 
@@ -17,9 +17,17 @@ Read `plans/<project-name>/SPEC.md`. If the directory or file does not exist, st
 
 Break `SPEC.md` into its top-level logical sections. Each section becomes an independent review target.
 
-### 3. Delete any existing review
+### 3. Read the existing review (if present)
 
-If `plans/<project-name>/REVIEW.md` already exists, delete it now so the new review is a clean, single source of truth.
+If `plans/<project-name>/REVIEW.md` exists, read it. Note every item and its state:
+
+- `- [ ]` — open, not yet addressed
+- `- [x]` — previously fixed and approved
+- `- [~]` — previously marked wont-fix with a justification
+
+If no `REVIEW.md` exists, treat the existing checklist as empty.
+
+Do not delete the existing file. The new findings will be consolidated into it.
 
 ### 4. Dispatch one reviewer per section
 
@@ -48,13 +56,30 @@ When all subagents return, gather every non-empty finding. If every reviewer ret
 
 > No issues.
 
-and do **not** write a `REVIEW.md` file.
+and leave `REVIEW.md` unchanged (do not delete it).
 
-Otherwise, merge all findings into a single checklist in `plans/<project-name>/REVIEW.md`:
+Otherwise, consolidate the new findings with the existing checklist:
 
-- Write each issue as a top-level checklist item: `- [ ] ...`
-- Preserve the exact wording returned by the reviewers when possible.
-- Do not group, deduplicate, or reclassify items.
+#### Cross-reference each new finding against existing items
+
+For each new finding from the reviewers:
+
+- **Matches a `- [x]` item:** The fix did not hold or was insufficient. Revert it to `- [ ]` and merge the new feedback into the item description. The original feedback and the new finding are both relevant context.
+- **Matches a `- [~]` item:** Assess whether the new finding invalidates the wont-fix justification. If the justification still holds, leave the item as `- [~]`. If invalidated, revert to `- [ ]` and merge the new feedback with the original item text.
+- **Matches an open `- [ ]` item:** Consolidate the new feedback into the existing item. Do not add a duplicate.
+- **No existing match:** Append as a new `- [ ]` item.
+
+#### Preserve unmatched existing items
+
+Existing items with no matching new finding are left as-is — do not change or remove them.
+
+#### Write the consolidated checklist
+
+Write the result back to `plans/<project-name>/REVIEW.md`:
+
+- Each item is a top-level checklist item: `- [ ] ...`, `- [x] ...`, or `- [~] ...`
+- Preserve exact wording from reviewers when possible; merge rather than rewrite.
+- Do not group, deduplicate beyond the cross-reference rules above, or reclassify items.
 - Do not add a summary, a compliance score, or any preamble beyond the checklist itself.
 - Do not add severity labels.
 
@@ -63,12 +88,14 @@ Otherwise, merge all findings into a single checklist in `plans/<project-name>/R
 - Reviewers must assess the **current repository state**, not diffs or history.
 - Every spec section gets its own reviewer, and all reviewers run in parallel.
 - `REVIEW.md` is a plain checklist. No summaries, no scores, no severity labels, no compliance judgement.
-- If there are no issues at all, output nothing to disk and reply with "No issues."
-- An existing `REVIEW.md` is deleted before the new one is written, so there is never stale data.
+- If there are no issues at all, leave `REVIEW.md` unchanged and reply with "No issues."
+- Consolidate new findings into the existing `REVIEW.md`. Do not delete it.
+- When a new finding matches a `- [x]` or `- [~]` item and invalidates it, revert the item to `- [ ]` with both the original and new feedback merged.
 
 ## Common Mistakes
 
 - **Looking at git diff instead of the present state.** The review is of the codebase as it exists, not what changed recently.
 - **Running reviewers sequentially.** They must run in parallel so each section is audited independently.
-- **Writing REVIEW.md when there are no issues.** If every section is fully satisfied, do not create the file.
+- **Deleting the existing REVIEW.md.** Consolidate findings into it; do not replace it.
 - **Adding severity or compliance commentary.** The output is a checklist of items to fix, full stop.
+- **Duplicating items that already exist.** Cross-reference new findings against the existing checklist and merge when they match.
