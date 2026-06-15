@@ -162,7 +162,7 @@ function checkNodePath(argv, baseDir) {
   return { ok: true, mode: 'node-foundry-script' };
 }
 
-function checkPnpm(argv) {
+function checkPnpm(argv, baseDir) {
   if (argv.length < 2) {
     return { ok: false, error: 'missing pnpm subcommand', reason: 'missing_subcommand' };
   }
@@ -172,6 +172,7 @@ function checkPnpm(argv) {
   if (argv.length < 3) {
     return { ok: false, error: 'missing script name', reason: 'missing_script_name' };
   }
+  if (!baseDir) return { ok: false, error: 'cwd is required for pnpm, must be foundry/', reason: 'missing_cwd' };
   return { ok: true, mode: 'pnpm-run' };
 }
 
@@ -179,6 +180,8 @@ function checkPnpm(argv) {
  * Validate parsed argv against the config command allow-list.
  *
  * @param {string[]} argv - Parsed command tokens
+ * @param {string} [baseDir] - Worktree root path. Required for pnpm commands;
+ *   used to resolve foundry/ paths for node commands.
  * @returns {{ ok: true, mode: string } | { ok: false, error: string, reason: string }}
  */
 export function checkCommandPolicy(argv, baseDir) {
@@ -188,7 +191,7 @@ export function checkCommandPolicy(argv, baseDir) {
 
   const first = argv[0];
   if (first === 'node') return checkNodePath(argv, baseDir);
-  if (first === 'pnpm') return checkPnpm(argv);
+  if (first === 'pnpm') return checkPnpm(argv, baseDir);
 
   return { ok: false, error: `command not allowed: ${first}`, reason: 'command_not_allowed' };
 }

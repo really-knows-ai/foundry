@@ -153,10 +153,17 @@ describe('checkCommandPolicy', () => {
     assert.equal(result.reason, 'missing_path');
   });
 
-  test('allows pnpm run test', () => {
-    const result = checkCommandPolicy(['pnpm', 'run', 'test']);
+  test('allows pnpm run test with baseDir (worktree) set', () => {
+    const result = checkCommandPolicy(['pnpm', 'run', 'test'], '/repo');
     assert.equal(result.ok, true);
     assert.equal(result.mode, 'pnpm-run');
+  });
+
+  test('rejects pnpm run test without baseDir (missing cwd)', () => {
+    const result = checkCommandPolicy(['pnpm', 'run', 'test']);
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'cwd is required for pnpm, must be foundry/');
+    assert.equal(result.reason, 'missing_cwd');
   });
 
   test('rejects pnpm with no arguments', () => {
