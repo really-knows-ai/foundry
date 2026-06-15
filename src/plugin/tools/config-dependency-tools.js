@@ -291,7 +291,7 @@ function handleAddDependency(worktree, args) {
   return {
     ok: true,
     sha: commitResult.sha,
-    changedFiles: ALLOWED_DEPENDENCY_FILES,
+    changedFiles: installResult.changedFiles,
     logPath,
   };
 }
