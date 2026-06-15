@@ -64,7 +64,9 @@ Otherwise, consolidate the new findings with the existing checklist:
 
 For each new finding from the reviewers, determine whether it matches an existing item. Every match triggers re-evaluation:
 
-- **Match on any item** (`- [x]`, `- [~]`, or `- [ ]`): Merge the new feedback into the item and set it to `- [ ]`. For a `- [x]` item, the fix did not hold and the item is reopened. For a `- [~]` item, the new finding invalidates the justification. For an open `- [ ]` item, the new feedback supplements the existing description.
+- **Matches a `- [x]` item:** Check whether the original fix still addresses the new finding. If the fix held, leave the item as `- [x]`. If the fix did not hold, revert to `- [ ]` and merge the new feedback with the original item text.
+- **Matches a `- [~]` item:** Check whether the original wont-fix justification still covers the new finding. If the justification holds, leave the item as `- [~]`. If invalidated, revert to `- [ ]` and merge the new feedback with the original item text.
+- **Matches an open `- [ ]` item:** Merge the new feedback into the existing item. Do not add a duplicate.
 - **No match:** Append as a new `- [ ]` item.
 
 #### Preserve unmatched existing items
@@ -88,7 +90,7 @@ Write the result back to `plans/<project-name>/REVIEW.md`:
 - `REVIEW.md` is a plain checklist. No summaries, no scores, no severity labels, no compliance judgement.
 - If there are no issues at all, leave `REVIEW.md` unchanged and reply with "No issues."
 - Consolidate new findings into the existing `REVIEW.md`. Do not delete it.
-- A new finding that matches any existing item reopens it to `- [ ]` with the merged feedback. Fixes that did not hold, wont-fix justifications that were invalidated, and open items with new feedback are all re-evaluated the same way.
+- A new finding that matches an existing item triggers re-evaluation. Check whether the original fix or wont-fix justification still holds against the new finding before changing the item's state.
 
 ## Common Mistakes
 
