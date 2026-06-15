@@ -54,8 +54,12 @@ function isToolManagedFile(file) {
 function classifyDirtyFiles(dirtyFiles) {
   const unexpected = [];
   const rootFiles = [];
+  const toolManagedFiles = [];
   for (const f of dirtyFiles) {
-    if (isToolManagedFile(f)) continue;
+    if (isToolManagedFile(f)) {
+      toolManagedFiles.push(f);
+      continue;
+    }
     if (isAllowedDependencyFile(f)) continue;
     if (isRootPackageFile(f)) {
       rootFiles.push(f);
@@ -63,7 +67,7 @@ function classifyDirtyFiles(dirtyFiles) {
       unexpected.push(f);
     }
   }
-  return { rootFiles, unexpected };
+  return { rootFiles, unexpected, toolManagedFiles };
 }
 
 // -- git status helpers ------------------------------------------------------
