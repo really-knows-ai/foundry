@@ -414,9 +414,11 @@ describe('foundry_config_run_validator — JSONL parsing and contract errors (D5
       makeCtx(dir),
     ));
     assert.equal(res.ok, true);
-    // The dirty tree test creates a file, so dirtyAfter should include it
-    // Note: fixture files in the script may show up; we just verify changedFiles exists
     assert.ok(Array.isArray(res.violations));
     assert.equal(res.violations.length, 1);
+    // Dirty-tree tracking fields present on the response
+    assert.ok(Array.isArray(res.dirtyBefore));
+    assert.ok(Array.isArray(res.dirtyAfter));
+    assert.ok(res.dirtyAfter.length >= res.dirtyBefore.length);
   });
 });

@@ -99,6 +99,8 @@ function buildCrashResponse(runResult) {
     error: 'validator exited non-zero without valid JSONL',
     exitCode: runResult.exitCode,
     logPath: runResult.logPath,
+    dirtyBefore: runResult.dirtyBefore,
+    dirtyAfter: runResult.dirtyAfter,
   };
 }
 
@@ -112,6 +114,8 @@ function buildSuccessResponse(runResult, parseResult) {
     rawStderr: runResult.stderr,
     exitCode: runResult.exitCode,
     logPath: runResult.logPath,
+    dirtyBefore: runResult.dirtyBefore,
+    dirtyAfter: runResult.dirtyAfter,
   };
 }
 
