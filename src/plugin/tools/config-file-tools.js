@@ -73,7 +73,7 @@ const CONFIG_TOOL_DIR_PREFIXES = [
 function isConfigOverlap(filePath) {
   const normalised = filePath.split(path.sep).join('/');
   for (const prefix of CONFIG_TOOL_DIR_PREFIXES) {
-    if (normalised.startsWith(prefix) && normalised.endsWith('.json')) {
+    if (normalised.startsWith(prefix) && (normalised.endsWith('.json') || normalised.endsWith('.md'))) {
       return true;
     }
   }
