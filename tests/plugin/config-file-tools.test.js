@@ -97,6 +97,24 @@ describe('foundry_config_write_file — path rejection (T3)', () => {
     assert.match(res.error, /path must be under foundry/);
   });
 
+  test('rejects path that resolves to the foundry directory itself (foundry)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry', content: 'test', reason: 'is directory itself' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /path must be under foundry/);
+  });
+
+  test('rejects path that resolves to a directory under foundry/ (foundry/artefacts)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/artefacts', content: 'test', reason: 'is directory' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /path must be under foundry/);
+  });
+
   test('rejects empty content', async () => {
     const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
       { path: 'foundry/test.js', content: '', reason: 'empty content' },

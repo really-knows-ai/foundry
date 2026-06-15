@@ -6,7 +6,7 @@
 // back on commit-policy rejection.
 
 import path from 'path';
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, realpathSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, realpathSync, statSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
 import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
@@ -29,7 +29,16 @@ function pathUnderFoundry(worktree, filePath) {
   } catch {
     real = resolved;
   }
-  return real === foundryDir || real.startsWith(foundryDir + path.sep);
+  // Must be strictly under foundry/ (not equal to foundry/ itself)
+  if (!real.startsWith(foundryDir + path.sep)) return false;
+  // If the path exists on disk it must be a normal file, not a directory
+  try {
+    const stat = statSync(real);
+    if (stat.isDirectory()) return false;
+  } catch {
+    // Path does not exist — valid as a new file path
+  }
+  return true;
 }
 
 // -- rollback helpers --------------------------------------------------------
