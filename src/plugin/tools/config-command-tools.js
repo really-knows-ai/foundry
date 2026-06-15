@@ -155,8 +155,7 @@ function validateTestPath(worktree, testPath) {
 function buildTestResponse(result) {
   if (!result.ok) return result;
   return {
-    ok: true,
-    passed: result.exitCode === 0,
+    ok: result.exitCode === 0,
     exitCode: result.exitCode,
     stdout: result.stdout,
     stderr: result.stderr,

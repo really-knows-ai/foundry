@@ -237,7 +237,7 @@ describe('foundry_config_run_validator_test — path rejection (D10)', () => {
       makeCtx(dir),
     ));
     assert.equal(res.ok, true);
-    assert.equal(res.passed, true);
+    assert.equal(res.ok, true);
     assert.equal(res.exitCode, 0);
   });
 
@@ -268,7 +268,7 @@ describe('foundry_config_run_validator_test — pass/fail (D7)', () => {
     cleanup(dir);
   });
 
-  test('passing .test.mjs returns passed: true', async () => {
+  test('passing .test.mjs returns ok: true', async () => {
     writeFixture(dir, 'foundry/artefacts/haiku/passing.test.mjs',
       'import assert from "node:assert/strict";\n' +
       'assert.equal(1 + 1, 2);\n');
@@ -279,11 +279,11 @@ describe('foundry_config_run_validator_test — pass/fail (D7)', () => {
       makeCtx(dir),
     ));
     assert.equal(res.ok, true);
-    assert.equal(res.passed, true);
+    assert.equal(res.ok, true);
     assert.equal(res.exitCode, 0);
   });
 
-  test('failing .test.mjs returns passed: false', async () => {
+  test('failing .test.mjs returns ok: false', async () => {
     writeFixture(dir, 'foundry/artefacts/haiku/failing.test.mjs',
       'import assert from "node:assert/strict";\n' +
       'assert.equal(1 + 1, 3);\n');
@@ -293,13 +293,12 @@ describe('foundry_config_run_validator_test — pass/fail (D7)', () => {
       { path: 'foundry/artefacts/haiku/failing.test.mjs' },
       makeCtx(dir),
     ));
-    assert.equal(res.ok, true);
-    assert.equal(res.passed, false);
+    assert.equal(res.ok, false);
     assert.notEqual(res.exitCode, 0);
     assert.ok(res.stderr);
   });
 
-  test('passing .test.js returns passed: true', async () => {
+  test('passing .test.js returns ok: true', async () => {
     writeFixture(dir, 'foundry/artefacts/haiku/passing.test.js',
       'const assert = require("assert");\n' +
       'assert.strictEqual(1 + 1, 2);\n');
@@ -310,7 +309,7 @@ describe('foundry_config_run_validator_test — pass/fail (D7)', () => {
       makeCtx(dir),
     ));
     assert.equal(res.ok, true);
-    assert.equal(res.passed, true);
+    assert.equal(res.ok, true);
     assert.equal(res.exitCode, 0);
   });
 
