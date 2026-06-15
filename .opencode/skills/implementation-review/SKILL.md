@@ -62,12 +62,10 @@ Otherwise, consolidate the new findings with the existing checklist:
 
 #### Cross-reference each new finding against existing items
 
-For each new finding from the reviewers:
+For each new finding from the reviewers, determine whether it matches an existing item. Every match triggers re-evaluation:
 
-- **Matches a `- [x]` item:** The fix did not hold or was insufficient. Revert it to `- [ ]` and merge the new feedback into the item description. The original feedback and the new finding are both relevant context.
-- **Matches a `- [~]` item:** Assess whether the new finding invalidates the wont-fix justification. If the justification still holds, leave the item as `- [~]`. If invalidated, revert to `- [ ]` and merge the new feedback with the original item text.
-- **Matches an open `- [ ]` item:** Consolidate the new feedback into the existing item. Do not add a duplicate.
-- **No existing match:** Append as a new `- [ ]` item.
+- **Match on any item** (`- [x]`, `- [~]`, or `- [ ]`): Merge the new feedback into the item and set it to `- [ ]`. For a `- [x]` item, the fix did not hold and the item is reopened. For a `- [~]` item, the new finding invalidates the justification. For an open `- [ ]` item, the new feedback supplements the existing description.
+- **No match:** Append as a new `- [ ]` item.
 
 #### Preserve unmatched existing items
 
@@ -90,7 +88,7 @@ Write the result back to `plans/<project-name>/REVIEW.md`:
 - `REVIEW.md` is a plain checklist. No summaries, no scores, no severity labels, no compliance judgement.
 - If there are no issues at all, leave `REVIEW.md` unchanged and reply with "No issues."
 - Consolidate new findings into the existing `REVIEW.md`. Do not delete it.
-- When a new finding matches a `- [x]` or `- [~]` item and invalidates it, revert the item to `- [ ]` with both the original and new feedback merged.
+- A new finding that matches any existing item reopens it to `- [ ]` with the merged feedback. Fixes that did not hold, wont-fix justifications that were invalidated, and open items with new feedback are all re-evaluated the same way.
 
 ## Common Mistakes
 
