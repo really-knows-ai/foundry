@@ -15,6 +15,7 @@ import { branchSlug } from '../tracing.js';
 import { renderReadme } from './render.js';
 
 const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];
+const DISPATCH_LOG_DIR = '.foundry/dispatch-logs';
 
 async function checkCleanTree(execFile) {
   const status = await execFile(['status', '--porcelain', '--untracked-files=no']);
@@ -48,7 +49,26 @@ async function captureTrace(io, branch) {
   return { traceFile, traceText: '' };
 }
 
-async function writeSnapshot({ io, snapDir, readme, workCapture, diffPatch, traceText }) {
+async function captureDispatchLogs(io) {
+  if (!(await io.exists(DISPATCH_LOG_DIR)) || typeof io.readdir !== 'function') return {};
+  const logs = {};
+  for (const name of await io.readdir(DISPATCH_LOG_DIR)) {
+    if (!name.endsWith('.json')) continue;
+    logs[name] = await io.readFile(`${DISPATCH_LOG_DIR}/${name}`);
+  }
+  return logs;
+}
+
+async function writeDispatchLogs(io, snapDir, dispatchLogs) {
+  const entries = Object.entries(dispatchLogs);
+  if (entries.length === 0) return;
+  await io.mkdirp(`${snapDir}/dispatch-logs`);
+  for (const [name, body] of entries) {
+    await io.writeFile(`${snapDir}/dispatch-logs/${name}`, body);
+  }
+}
+
+async function writeSnapshot({ io, snapDir, readme, workCapture, diffPatch, traceText, dispatchLogs }) {
   await io.mkdirp(`${snapDir}/work`);
   await io.writeFile(`${snapDir}/README.md`, readme);
   for (const [name, body] of Object.entries(workCapture)) {
@@ -56,6 +76,7 @@ async function writeSnapshot({ io, snapDir, readme, workCapture, diffPatch, trac
   }
   await io.writeFile(`${snapDir}/diff.patch`, diffPatch);
   await io.writeFile(`${snapDir}/trace.jsonl`, traceText);
+  await writeDispatchLogs(io, snapDir, dispatchLogs);
 }
 
 async function truncateTraceIfExists(io, traceFile) {
@@ -81,6 +102,7 @@ export async function finishDryRun({ message, branch, io, execFile }) {
   const diffPatch = await execFile(['diff', `${parent}...HEAD`]);
   const workCapture = await captureWorkFiles(io);
   const { traceFile, traceText } = await captureTrace(io, branch);
+  const dispatchLogs = await captureDispatchLogs(io);
 
   // 6-7. Build runId, snapshot dir, and render README.
   const runId = `${branchSlug(branch)}-${ulid()}`;
@@ -89,7 +111,7 @@ export async function finishDryRun({ message, branch, io, execFile }) {
 
   // 8. Materialise snapshot directory. If any write fails, preserve dry-run branch.
   try {
-    await writeSnapshot({ io, snapDir, readme, workCapture, diffPatch, traceText });
+    await writeSnapshot({ io, snapDir, readme, workCapture, diffPatch, traceText, dispatchLogs });
   } catch (err) {
     return { ok: false, error: `snapshot write failed: ${err.message}` };
   }

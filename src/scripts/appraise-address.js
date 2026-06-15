@@ -282,14 +282,20 @@ export async function tryAppraiseAddress(opts, io, feedbackPath, cycleId, dispat
  * Returns null when no appraisers are available.
  *
  * @param {object[]} appraisers - List of appraiser objects
- * @param {{ writePromptFile: Function, spawnDispatch: Function, awaitProcess: Function, withCleanup: Function }} dh
+ * @param {{
+ *   writePromptFile: Function,
+ *   spawnDispatch: Function,
+ *   awaitProcess: Function,
+ *   withCleanup: Function,
+ *   createDispatchLog?: Function,
+ * }} dh
  * @param {object} io - IO adapter
  * @param {string} worktree - Worktree path
  * @returns {Function|null}
  */
 export function buildAddressDispatchFn(appraisers, dispatchHelpers, io, worktree) {
   if (appraisers.length === 0) return null;
-  const { writePromptFile, spawnDispatch, awaitProcess, withCleanup } = dispatchHelpers;
+  const { writePromptFile, spawnDispatch, awaitProcess, withCleanup, createDispatchLog } = dispatchHelpers;
 
   return async function(item) {
     for (const appraiser of appraisers) {
@@ -299,7 +305,10 @@ export function buildAddressDispatchFn(appraisers, dispatchHelpers, io, worktree
         const promptPath = writePromptFile(io, prompt);
         paths.push(promptPath);
         const child = spawnDispatch(worktree, promptPath, 'foundry-appraise');
-        await awaitProcess(child, 300_000);
+        const dispatchLog = createDispatchLog
+          ? createDispatchLog(io, { ...child.foundryDispatch, stage: 'appraise-address', appraiser: appraiser.id })
+          : null;
+        await awaitProcess(child, 300_000, dispatchLog);
       });
     }
   };

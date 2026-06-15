@@ -153,6 +153,28 @@ test('trace content copied and original truncated', async () => {
   assert.equal(readFileSync(traceFile, 'utf8'), '');
 });
 
+test('dispatch logs copied into snapshot', async () => {
+  const { dir, git } = setupRepo();
+  writeFileSync(join(dir, 'WORK.md'), '---\nflow: f\ngoal: "g"\nstatus: done\n---\nbody\n');
+  writeFileSync(join(dir, '.gitignore'), '.foundry/\n.snapshots/\n');
+  git('add', '.');
+  git('commit', '-qm', 'work');
+  mkdirSync(join(dir, '.foundry/dispatch-logs'), { recursive: true });
+  const log = '{"status":"timeout","stderr":"permission prompt"}\n';
+  writeFileSync(join(dir, '.foundry/dispatch-logs/child.json'), log);
+
+  const r = await finishDryRun({
+    message: 'dispatch log test',
+    branch: 'dry-run/foo/flow-x-y',
+    io: realFsIo(dir),
+    execFile: execFn(dir),
+  });
+
+  assert.equal(r.ok, true);
+  const snap = join(dir, r.snapshotPath);
+  assert.equal(readFileSync(join(snap, 'dispatch-logs/child.json'), 'utf8'), log);
+});
+
 test('write failure leaves worktree on dry-run branch', async () => {
   const { dir, git } = setupRepo();
   writeFileSync(join(dir, 'WORK.md'), '---\nflow: f\ngoal: "g"\nstatus: done\n---\nbody\n');

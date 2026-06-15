@@ -1,7 +1,16 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { PassThrough } from 'node:stream';
 
-import { spawnDispatch, awaitProcess, writePromptFile, cleanupFiles, withCleanup, _setExecFile } from '../../../src/scripts/lib/dispatch-cli.js';
+import {
+  spawnDispatch,
+  awaitProcess,
+  writePromptFile,
+  cleanupFiles,
+  withCleanup,
+  createDispatchLog,
+  _setExecFile,
+} from '../../../src/scripts/lib/dispatch-cli.js';
 
 function makeMockIO(files = {}) {
   const store = { ...files };
@@ -61,6 +70,10 @@ test('T4 - spawnDispatch calls execFile with correct args including agent name',
     '--attach', '--agent', 'test-agent', '--dir', worktree, '--file', promptPath,
   ]);
   assert.equal(opts.cwd, worktree);
+  assert.equal(opts.stdio, 'pipe');
+  assert.deepEqual(result.foundryDispatch, {
+    command: 'opencode', args, cwd: worktree, agentName: 'test-agent', promptPath,
+  });
   assert.equal(result, fakeChild);
 });
 
@@ -136,6 +149,25 @@ test('T8 - awaitProcess kills with SIGKILL and rejects on timeout', async () => 
   await assert.rejects(awaitProcess(child, 5), /timed out/i);
   assert.equal(killMock.mock.callCount(), 1);
   assert.equal(killMock.mock.calls[0].arguments[0], 'SIGKILL');
+});
+
+test('T8b - awaitProcess writes dispatch output log on timeout', async () => {
+  const io = makeMockIO();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const child = { stdout, stderr, on: () => {}, kill: mock.fn() };
+  const dispatchLog = createDispatchLog(io, { command: 'opencode', args: ['run'] });
+
+  stdout.write('child stdout');
+  stderr.write('child stderr');
+
+  await assert.rejects(awaitProcess(child, 5, dispatchLog), /dispatch log: \.foundry\/dispatch-logs\//);
+
+  const logged = JSON.parse(io._get(dispatchLog.path));
+  assert.equal(logged.status, 'timeout');
+  assert.equal(logged.stdout, 'child stdout');
+  assert.equal(logged.stderr, 'child stderr');
+  assert.deepEqual(logged.args, ['run']);
 });
 
 test('T9 - cleanupFiles deletes each file if it exists, silently skips missing files', () => {

@@ -4,7 +4,37 @@ import { execFile } from 'node:child_process';
 let _execFile = execFile;
 
 const PROMPTS_DIR = '.foundry/dispatch-prompts';
+const LOGS_DIR = '.foundry/dispatch-logs';
 const DEFAULT_TIMEOUT_MS = 300_000;
+const MAX_OUTPUT_CHARS = 200_000;
+
+function outputBuffer() {
+  let text = '';
+  let truncated = false;
+  return {
+    push(chunk) {
+      if (truncated) return;
+      text += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+      if (text.length <= MAX_OUTPUT_CHARS) return;
+      text = text.slice(0, MAX_OUTPUT_CHARS);
+      truncated = true;
+    },
+    snapshot() { return { text, truncated }; },
+  };
+}
+
+function attachOutputCapture(child) {
+  const stdout = outputBuffer();
+  const stderr = outputBuffer();
+  if (child.stdout && typeof child.stdout.on === 'function') child.stdout.on('data', stdout.push);
+  if (child.stderr && typeof child.stderr.on === 'function') child.stderr.on('data', stderr.push);
+  return { stdout, stderr };
+}
+
+function writeLog(io, logPath, payload) {
+  io.mkdir(LOGS_DIR);
+  io.writeFile(logPath, JSON.stringify(payload, null, 2) + '\n');
+}
 
 function objectModelArg(modelParam) {
   if (!modelParam.modelID) return null;
@@ -44,30 +74,75 @@ export function _setExecFile(fn) {
 }
 
 export function spawnDispatch(worktree, promptPath, agentName, modelParam) {
-  return _execFile('opencode', dispatchArgs(worktree, promptPath, agentName, modelParam), {
+  const args = dispatchArgs(worktree, promptPath, agentName, modelParam);
+  const child = _execFile('opencode', args, {
     cwd: worktree,
+    stdio: 'pipe',
+  });
+  child.foundryDispatch = { command: 'opencode', args, cwd: worktree, agentName, promptPath };
+  return child;
+}
+
+export function createDispatchLog(io, metadata = {}) {
+  const logPath = `${LOGS_DIR}/${randomUUID()}.json`;
+  return {
+    path: logPath,
+    finish(outcome) {
+      writeLog(io, logPath, { ...metadata, ...outcome });
+    },
+  };
+}
+
+function dispatchError(message, dispatchLog) {
+  if (!dispatchLog) return new Error(message);
+  return new Error(`${message} (dispatch log: ${dispatchLog.path})`);
+}
+
+function outputSnapshot(buffers) {
+  const stdout = buffers.stdout.snapshot();
+  const stderr = buffers.stderr.snapshot();
+  return {
+    stdout: stdout.text,
+    stderr: stderr.text,
+    stdoutTruncated: stdout.truncated,
+    stderrTruncated: stderr.truncated,
+  };
+}
+
+function finishLog(dispatchLog, buffers, startedAt, outcome) {
+  if (!dispatchLog) return;
+  dispatchLog.finish({
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - Date.parse(startedAt),
+    ...outcome,
+    ...outputSnapshot(buffers),
   });
 }
 
-export function awaitProcess(child, timeoutMs = DEFAULT_TIMEOUT_MS) {
+export function awaitProcess(child, timeoutMs = DEFAULT_TIMEOUT_MS, dispatchLog = null) {
   return new Promise((resolve, reject) => {
     let settled = false;
+    const startedAt = new Date().toISOString();
+    const buffers = attachOutputCapture(child);
 
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
       child.kill('SIGKILL');
-      reject(new Error('child process timed out'));
+      finishLog(dispatchLog, buffers, startedAt, { status: 'timeout', signal: 'SIGKILL' });
+      reject(dispatchError('child process timed out', dispatchLog));
     }, timeoutMs);
 
-    child.on('exit', (code) => {
+    child.on('exit', (code, signal) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      finishLog(dispatchLog, buffers, startedAt, { status: code === 0 ? 'ok' : 'exit', code, signal });
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`child process exited with code ${code}`));
+        reject(dispatchError(`child process exited with code ${code}`, dispatchLog));
       }
     });
 
@@ -75,6 +150,7 @@ export function awaitProcess(child, timeoutMs = DEFAULT_TIMEOUT_MS) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      finishLog(dispatchLog, buffers, startedAt, { status: 'error', error: err.message ?? String(err) });
       reject(err);
     });
   });

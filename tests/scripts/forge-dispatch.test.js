@@ -252,7 +252,11 @@ test('D1.5b - forgeDispatch cleans up temp files on non-zero exit', async () => 
     },
   });
 
-  assert.equal(dispatch.error, 'child process exited with code 1');
+  assert.match(
+    dispatch.error,
+    /^child process exited with code 1 \(dispatch log: \.foundry\/dispatch-logs\/.*\.json\)$/,
+  );
+  assert.equal(io.readDir('.foundry/dispatch-logs/').length, 1);
   assert.equal(io.exists('.foundry/tokens/test.token'), false);
   assert.equal(io.readDir('.foundry/dispatch-prompts/').length, 0);
 });
@@ -314,7 +318,8 @@ test('D1.6 - forgeDispatch kills child with SIGKILL on timeout and cleans up', a
     timeoutMs: 5,
   });
 
-  assert.equal(dispatch.error, 'child process timed out');
+  assert.match(dispatch.error, /^child process timed out \(dispatch log: \.foundry\/dispatch-logs\/.*\.json\)$/);
+  assert.equal(io.readDir('.foundry/dispatch-logs/').length, 1);
   assert.equal(child.kill.mock.callCount(), 1);
   assert.equal(child.kill.mock.calls[0].arguments[0], 'SIGKILL');
   assert.equal(io.exists('.foundry/tokens/test.token'), false);

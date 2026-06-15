@@ -15,7 +15,13 @@ import { buildDispatch } from './lib/evaluation-units.js';
 import { parseModelId } from './lib/parse-model-id.js';
 import { getCycleDefinition, getLaws, getAppraisers, getFlow, getArtefactType } from './lib/config.js';
 
-import { writePromptFile as _writePromptFile, spawnDispatch as _spawnDispatch, awaitProcess as _awaitProcess, withCleanup as _withCleanup } from './lib/dispatch-cli.js';
+import {
+  writePromptFile as _writePromptFile,
+  spawnDispatch as _spawnDispatch,
+  awaitProcess as _awaitProcess,
+  withCleanup as _withCleanup,
+  createDispatchLog as _createDispatchLog,
+} from './lib/dispatch-cli.js';
 import { dispatchAppraisePrompt, batchAppraiseDispatch, checkAppraiseDispatchFailure } from './lib/appraise-dispatch.js';
 import { tryAppraiseAddress, buildAddressDispatchFn } from './appraise-address.js';
 import { appendAppraiseAttestation } from './lib/attestation/executor-attestation.js';
@@ -70,12 +76,17 @@ function catchEmptyArray() { return []; }
 function catchEmptyFlow() { return { frontmatter: {} }; }
 
 // Extract injectable dispatch helpers from apprOpts with defaults
+function dispatchHelper(apprOpts, name, fallback) {
+  return apprOpts[name] || fallback;
+}
+
 function extractDispatchHelpers(apprOpts) {
   return {
-    writePromptFile: apprOpts.writePromptFile || _writePromptFile,
-    spawnDispatch: apprOpts.spawnDispatch || _spawnDispatch,
-    awaitProcess: apprOpts.awaitProcess || _awaitProcess,
-    withCleanup: apprOpts.withCleanup || _withCleanup,
+    writePromptFile: dispatchHelper(apprOpts, 'writePromptFile', _writePromptFile),
+    spawnDispatch: dispatchHelper(apprOpts, 'spawnDispatch', _spawnDispatch),
+    awaitProcess: dispatchHelper(apprOpts, 'awaitProcess', _awaitProcess),
+    withCleanup: dispatchHelper(apprOpts, 'withCleanup', _withCleanup),
+    createDispatchLog: dispatchHelper(apprOpts, 'createDispatchLog', _createDispatchLog),
   };
 }
 

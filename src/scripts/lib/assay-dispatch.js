@@ -5,7 +5,7 @@
  */
 
 import { renderDispatchPrompt } from '../orchestrate-cycle.js';
-import { spawnDispatch, awaitProcess, writePromptFile, withCleanup } from './dispatch-cli.js';
+import { spawnDispatch, awaitProcess, writePromptFile, withCleanup, createDispatchLog } from './dispatch-cli.js';
 
 function writeTokenFile(io, sort, cycleId) {
   const tokenFileName = cycleId + '.token';
@@ -88,7 +88,8 @@ export async function assayDispatch({ sort, io, worktree, cycleId, dispatchPromp
       cleanStageOutputDir(io);
 
       const child = spawnDispatch(worktree, promptPath, 'foundry-assay');
-      await awaitProcess(child, timeoutMs);
+      const dispatchLog = createDispatchLog(io, { ...child.foundryDispatch, stage: 'assay', cycleId });
+      await awaitProcess(child, timeoutMs, dispatchLog);
 
       const stageOutputLines = collectStageOutputLines(io);
       return { stageOutputLines };
