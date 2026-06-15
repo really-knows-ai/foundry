@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.14.4] - 2026-06-15
+
+### Fixed
+
+- Captured child OpenCode process stdout/stderr in dispatch logs under `.foundry/dispatch-logs/` so timeout and exit failures carry the full output the child produced. Restored `stdio: 'pipe'` on the spawn call and wired logging through forge, appraise, assay, and appraise-address dispatch paths. Dry-run snapshots now include a `dispatch-logs/` directory alongside the trace.
+- Added `write: *` permission to the `foundry-forge` agent so first-generation forge can create artefact files (e.g. `haikus/*.md`) while still denying writes to `foundry/**`.
+- Allowed `package.json` and `pnpm-lock.yaml` on config branches so validator dependency changes (e.g. `pnpm add syllable`) do not block config creation or finish. Config creators now roll back the just-written file when the commit policy rejects the worktree, preventing stranded partial files.
+
 ## [3.14.3] - 2026-06-14
 
 ### Fixed
