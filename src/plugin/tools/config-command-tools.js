@@ -138,6 +138,10 @@ function buildTestResponse(result) {
 // foundry_config_run_command executor  (Phase 02, unchanged behaviour)
 // ---------------------------------------------------------------------------
 
+function isPnpmRun(command) {
+  return (command || '').trim().startsWith('pnpm run ');
+}
+
 function executeRunCommand(args, context) {
   const guard = requireOnConfigBranch({ exec: createExec(context.worktree) });
   if (!guard.ok) {
@@ -146,7 +150,10 @@ function executeRunCommand(args, context) {
 
   try {
     const io = makeIO(context.worktree);
-    const exec = createExec(context.worktree, 30000);
+    const execCwd = isPnpmRun(args.command)
+      ? path.resolve(context.worktree, 'foundry')
+      : context.worktree;
+    const exec = createExec(execCwd, 30000);
     const result = runCommand({
       io, exec, command: args.command, reason: args.reason,
       timeout: args.timeout, worktree: context.worktree,
