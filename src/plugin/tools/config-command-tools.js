@@ -161,6 +161,7 @@ function buildTestResponse(result) {
     durationMs: result.durationMs,
     changedFiles: result.changedFiles,
     dirtyBefore: result.dirtyBefore,
+    dirtyAfter: result.dirtyAfter,
     logPath: result.logPath,
   };
 }
