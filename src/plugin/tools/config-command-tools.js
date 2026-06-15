@@ -48,18 +48,21 @@ const ALL_GUARDS = [gitRepoGuard, foundryRootGuard, configBranchGuard, gateNotFa
 // Root package file protection — enforces spec item 13 (line 130):
 // "The command runner must not modify host root package manager files by
 // default." When a command changes root package.json, pnpm-lock.yaml,
-// package-lock.json, yarn.lock, or bun.lock, the result is flagged as a
-// policy violation.
+// package-lock.json, yarn.lock, or bun.lock, the result reports the policy
+// violation via disallowedFiles and error without overriding the ok field.
+// The dirty-tree check is a policy concern, not a validity concern; ok and
+// root package changes are reported independently.
 // ---------------------------------------------------------------------------
 
 function rejectRootPackageChanges(runResult) {
-  if (!runResult.ok || !runResult.changedFiles) return runResult;
+  if (!runResult.changedFiles) return runResult;
   const disallowed = runResult.changedFiles.filter((f) => ROOT_PACKAGE_FILES.includes(f));
   if (disallowed.length === 0) return runResult;
   return {
     ...runResult,
-    ok: false,
-    error: `root package file(s) changed: ${disallowed.join(', ')}`,
+    error: runResult.error
+      ? `${runResult.error}; root package file(s) changed: ${disallowed.join(', ')}`
+      : `root package file(s) changed: ${disallowed.join(', ')}`,
     reason: 'root_package_file_changed',
     disallowedFiles: disallowed,
   };
@@ -191,17 +194,30 @@ function executeRunCommand(args, context) {
 // ---------------------------------------------------------------------------
 
 async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
-  const runResult = rejectRootPackageChanges(runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree, cwd: worktree }));
-  if (!runResult.ok) return JSON.stringify(runResult);
+  const rawResult = runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree, cwd: worktree });
+  const policyResult = rejectRootPackageChanges(rawResult);
+  if (!rawResult.ok) return JSON.stringify(policyResult);
 
-  const stdout = runResult.stdout || '';
+  const stdout = rawResult.stdout || '';
   const stream = Readable.from([stdout]);
   const parseResult = await parseValidatorJsonl(stream, patterns);
 
-  if (hasValidatorCrashed(parseResult, runResult.exitCode)) {
-    return JSON.stringify(buildCrashResponse(runResult, parseResult));
+  let response;
+  if (hasValidatorCrashed(parseResult, rawResult.exitCode)) {
+    response = buildCrashResponse(rawResult, parseResult);
+  } else {
+    response = buildSuccessResponse(rawResult, parseResult);
   }
-  return JSON.stringify(buildSuccessResponse(runResult, parseResult));
+
+  if (policyResult.disallowedFiles) {
+    response.disallowedFiles = policyResult.disallowedFiles;
+    response.error = response.error
+      ? `${response.error}; ${policyResult.error}`
+      : policyResult.error;
+    response.reason = policyResult.reason;
+  }
+
+  return JSON.stringify(response);
 }
 
 // ---------------------------------------------------------------------------

@@ -65,70 +65,77 @@ describe('rejectRootPackageChanges', () => {
     assert.equal(rejectRootPackageChanges(result), result);
   });
 
-  test('passes through result when ok is false (already failed)', () => {
-    const result = { ok: false, changedFiles: ['package.json'], error: 'previous error' };
-    assert.equal(rejectRootPackageChanges(result), result);
-  });
-
-  test('rejects result when package.json is in changedFiles', () => {
-    const result = { ok: true, changedFiles: ['foundry/foo.js', 'package.json'] };
+  test('reports root package changes when ok is false (already failed)', () => {
+    const result = { ok: false, changedFiles: ['package.json'], error: 'command failed' };
     const out = rejectRootPackageChanges(result);
     assert.equal(out.ok, false);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.match(out.error, /command failed; root package file\(s\) changed/);
+    assert.ok(out.error.includes('package.json'));
+    assert.deepEqual(out.disallowedFiles, ['package.json']);
+  });
+
+  test('reports root package changes when package.json is in changedFiles', () => {
+    const result = { ok: true, changedFiles: ['foundry/foo.js', 'package.json'] };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.ok, true);
     assert.equal(out.reason, 'root_package_file_changed');
     assert.match(out.error, /root package file\(s\) changed/);
     assert.ok(out.error.includes('package.json'));
     assert.deepEqual(out.disallowedFiles, ['package.json']);
   });
 
-  test('rejects result when pnpm-lock.yaml is in changedFiles', () => {
+  test('reports root package changes when pnpm-lock.yaml is in changedFiles', () => {
     const result = { ok: true, changedFiles: ['foundry/foo.js', 'pnpm-lock.yaml'] };
     const out = rejectRootPackageChanges(result);
-    assert.equal(out.ok, false);
+    assert.equal(out.ok, true);
     assert.equal(out.reason, 'root_package_file_changed');
     assert.ok(out.error.includes('pnpm-lock.yaml'));
     assert.deepEqual(out.disallowedFiles, ['pnpm-lock.yaml']);
   });
 
-  test('rejects result with multiple root package files changed', () => {
+  test('reports root package changes with multiple files changed', () => {
     const result = { ok: true, changedFiles: ['package.json', 'pnpm-lock.yaml', 'foundry/foo.js'] };
     const out = rejectRootPackageChanges(result);
-    assert.equal(out.ok, false);
+    assert.equal(out.ok, true);
     assert.equal(out.reason, 'root_package_file_changed');
     assert.ok(out.error.includes('package.json'));
     assert.ok(out.error.includes('pnpm-lock.yaml'));
     assert.deepEqual(out.disallowedFiles, ['package.json', 'pnpm-lock.yaml']);
   });
 
-  test('rejects result when package-lock.json is in changedFiles', () => {
+  test('reports root package changes when package-lock.json is in changedFiles', () => {
     const result = { ok: true, changedFiles: ['package-lock.json'] };
     const out = rejectRootPackageChanges(result);
-    assert.equal(out.ok, false);
+    assert.equal(out.ok, true);
     assert.equal(out.reason, 'root_package_file_changed');
     assert.deepEqual(out.disallowedFiles, ['package-lock.json']);
   });
 
-  test('rejects result when yarn.lock is in changedFiles', () => {
+  test('reports root package changes when yarn.lock is in changedFiles', () => {
     const result = { ok: true, changedFiles: ['yarn.lock'] };
     const out = rejectRootPackageChanges(result);
-    assert.equal(out.ok, false);
+    assert.equal(out.ok, true);
     assert.equal(out.reason, 'root_package_file_changed');
     assert.deepEqual(out.disallowedFiles, ['yarn.lock']);
   });
 
-  test('rejects result when bun.lock is in changedFiles', () => {
+  test('reports root package changes when bun.lock is in changedFiles', () => {
     const result = { ok: true, changedFiles: ['bun.lock'] };
     const out = rejectRootPackageChanges(result);
-    assert.equal(out.ok, false);
+    assert.equal(out.ok, true);
     assert.equal(out.reason, 'root_package_file_changed');
     assert.deepEqual(out.disallowedFiles, ['bun.lock']);
   });
 
-  test('preserves original result fields on rejection', () => {
+  test('preserves original result fields when reporting root package changes', () => {
     const result = { ok: true, changedFiles: ['package.json'], exitCode: 0, stdout: 'hello' };
     const out = rejectRootPackageChanges(result);
     assert.equal(out.exitCode, 0);
     assert.equal(out.stdout, 'hello');
-    assert.equal(out.ok, false);
+    assert.equal(out.ok, true);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.deepEqual(out.disallowedFiles, ['package.json']);
   });
 });
 
@@ -150,7 +157,7 @@ describe('root package file protection', () => {
     cleanup(dir);
   });
 
-  test('rejects command that modifies root package.json', async () => {
+  test('reports root package.json changes as policy violation without overriding ok', async () => {
     writeFixture(dir, 'foundry/artefacts/haiku/touch-package.mjs',
       'import { writeFileSync } from "node:fs";\n' +
       'writeFileSync("package.json", JSON.stringify({ name: "hacked" }), "utf8");\n');
@@ -160,7 +167,9 @@ describe('root package file protection', () => {
       { command: 'node foundry/artefacts/haiku/touch-package.mjs', reason: 'test root protection' },
       makeCtx(dir),
     ));
-    assert.equal(res.ok, false);
+    // ok reflects command execution success; root package changes are
+    // reported independently via disallowedFiles and error.
+    assert.equal(res.ok, true);
     assert.equal(res.reason, 'root_package_file_changed');
     assert.match(res.error, /root package file\(s\) changed/);
     assert.ok(res.disallowedFiles.includes('package.json'));
