@@ -113,6 +113,9 @@ async function finishDryRunBranch({ branch, args, cwd }) {
   const exec = (argv) => execFileSync('git', argv,
     { cwd, encoding: 'utf8', stdio: 'pipe' });
 
+  const untrackedRefusal = checkUntrackedFoundryFiles(cwd);
+  if (untrackedRefusal) return untrackedRefusal;
+
   if (args.confirm !== true) {
     return JSON.stringify({
       ok: false,
@@ -124,9 +127,6 @@ async function finishDryRunBranch({ branch, args, cwd }) {
       },
     });
   }
-
-  const untrackedRefusal = checkUntrackedFoundryFiles(cwd);
-  if (untrackedRefusal) return untrackedRefusal;
 
   try {
     const out = await finishDryRun({
