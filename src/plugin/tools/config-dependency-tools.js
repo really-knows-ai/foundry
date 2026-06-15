@@ -140,11 +140,16 @@ function runPnpmAdd(pnpmPath, name, dev, cwd) {
     shell: false,
     maxBuffer: MAX_CAPTURE_BYTES * 4,
   });
+  const stdout = result.stdout || '';
+  const stderr = result.stderr || '';
   return {
-    stdout: result.stdout || '',
-    stderr: result.stderr || '',
+    stdout,
+    stderr,
     exitCode: result.status,
     signal: result.signal,
+    argv,
+    stdoutTruncated: Buffer.byteLength(stdout) > MAX_CAPTURE_BYTES,
+    stderrTruncated: Buffer.byteLength(stderr) > MAX_CAPTURE_BYTES,
   };
 }
 
@@ -213,7 +218,7 @@ function performInstall(worktree, name, dev, packageManager) {
     !isToolManagedFile(f) && (!beforeDirty.includes(f) || isAllowedDependencyFile(f)),
   ))];
 
-  return { pnpmResult, changedFiles };
+  return { pnpmResult, changedFiles, beforeDirty, afterDirty };
 }
 
 // -- commit helper -----------------------------------------------------------
@@ -246,7 +251,29 @@ function commitDependencyInstall(worktree, message) {
   }
 }
 
-// -- audit log helper -------------------------------------------------------
+// -- audit log helpers ------------------------------------------------------
+
+function buildDependencyLogData({ reason, name, dev, t0, pnpmResult,
+  beforeDirty, afterDirty, changedFiles, worktree }) {
+  return {
+    reason,
+    tool: 'foundry_config_add_dependency',
+    dependency: name,
+    dev,
+    command: dev ? 'pnpm add -D' : 'pnpm add',
+    argv: pnpmResult.argv,
+    cwd: path.resolve(worktree, 'foundry'),
+    startedAt: new Date(t0).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - t0,
+    exitCode: pnpmResult.exitCode, signal: pnpmResult.signal, timedOut: false,
+    stdout: pnpmResult.stdout, stderr: pnpmResult.stderr,
+    stdoutTruncated: pnpmResult.stdoutTruncated,
+    stderrTruncated: pnpmResult.stderrTruncated,
+    dirtyBefore: beforeDirty, dirtyAfter: afterDirty,
+    changedFiles,
+  };
+}
 
 function buildAuditLog(worktree, logData) {
   const logDir = '.foundry/config-command-logs';
@@ -285,19 +312,15 @@ function handleAddDependency(worktree, args) {
   );
   if (!commitResult.ok) return commitResult;
 
-  const logPath = buildAuditLog(worktree, {
-    reason,
-    tool: 'foundry_config_add_dependency',
-    dependency: name,
-    dev,
-    startedAt: new Date(t0).toISOString(),
-    finishedAt: new Date().toISOString(),
-    durationMs: Date.now() - t0,
-    exitCode: installResult.pnpmResult.exitCode,
-    stdout: installResult.pnpmResult.stdout,
-    stderr: installResult.pnpmResult.stderr,
+  const pnpmResult = installResult.pnpmResult;
+  const { beforeDirty, afterDirty } = installResult;
+
+  const logPath = buildAuditLog(worktree, buildDependencyLogData({
+    reason, name, dev, t0,
+    pnpmResult, beforeDirty, afterDirty,
     changedFiles: installResult.changedFiles,
-  });
+    worktree,
+  }));
 
   return {
     ok: true,
