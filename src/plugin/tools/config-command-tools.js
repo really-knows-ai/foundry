@@ -156,7 +156,7 @@ function executeRunCommand(args, context) {
     const exec = createExec(execCwd, 30000);
     const result = runCommand({
       io, exec, command: args.command, reason: args.reason,
-      timeout: args.timeout, worktree: context.worktree,
+      timeout: args.timeout, worktree: context.worktree, cwd: execCwd,
     });
     return JSON.stringify(result);
   } catch (err) {
@@ -170,7 +170,7 @@ function executeRunCommand(args, context) {
 // ---------------------------------------------------------------------------
 
 async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
-  const runResult = runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree });
+  const runResult = runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree, cwd: worktree });
   if (!runResult.ok) return JSON.stringify(runResult);
 
   const stdout = runResult.stdout || '';
@@ -210,7 +210,7 @@ function executeRunValidatorTest(args, context) {
   try {
     const io = makeIO(context.worktree);
     const exec = createExec(context.worktree, 30000);
-    const result = runCommand({ io, exec, command: `node ${args.path}`, reason: 'validator companion test', worktree: context.worktree });
+    const result = runCommand({ io, exec, command: `node ${args.path}`, reason: 'validator companion test', worktree: context.worktree, cwd: context.worktree });
     return JSON.stringify(buildTestResponse(result));
   } catch (err) {
     return JSON.stringify({ ok: false, error: err.message ?? String(err) });

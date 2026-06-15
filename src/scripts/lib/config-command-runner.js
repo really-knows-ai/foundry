@@ -268,7 +268,7 @@ function isTruncated(bytes, bufferExceeded) {
 }
 
 function buildLogData(args) {
-  const { reason, command, argv, t0, execResult, dirtyBefore, dirtyAfter } = args;
+  const { reason, command, argv, t0, execResult, dirtyBefore, dirtyAfter, cwd } = args;
   const stdoutB = execResult.stdout || '';
   const stderrB = execResult.stderr || '';
   const stdoutBytes = Buffer.byteLength(stdoutB);
@@ -278,7 +278,7 @@ function buildLogData(args) {
 
   return {
     reason, command, argv,
-    cwd: process.cwd(),
+    cwd: cwd || process.cwd(),
     startedAt: new Date(t0).toISOString(),
     finishedAt: new Date().toISOString(),
     durationMs: Date.now() - t0,
@@ -335,7 +335,7 @@ function logFailure(logData) {
  * @param {number} [options.timeout] - Timeout in milliseconds
  * @returns {object} - Execution result
  */
-export function runCommand({ io, exec, command, reason, timeout, worktree }) {
+export function runCommand({ io, exec, command, reason, timeout, worktree, cwd }) {
   if (isEmptyReason(reason)) {
     return { ok: false, error: 'reason is required', reason: 'missing_reason' };
   }
@@ -353,7 +353,7 @@ export function runCommand({ io, exec, command, reason, timeout, worktree }) {
   const dirtyAfter = detectDirtyTree(exec);
 
   const logData = buildLogData({
-    reason, command, argv: parsed.argv, t0, execResult, dirtyBefore, dirtyAfter,
+    reason, command, argv: parsed.argv, t0, execResult, dirtyBefore, dirtyAfter, cwd,
   });
 
   const logResult = writeAuditLog(io, logData);
