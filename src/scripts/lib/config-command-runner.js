@@ -147,13 +147,14 @@ export function parseCommand(command) {
 // D2 — checkCommandPolicy helpers
 // ---------------------------------------------------------------------------
 
-function checkNodePath(argv) {
+function checkNodePath(argv, baseDir) {
   if (argv.length < 2) {
     return { ok: false, error: 'missing script path', reason: 'missing_path' };
   }
+  const dir = baseDir || process.cwd();
   const scriptPath = argv[1];
-  const resolved = path.resolve(scriptPath);
-  const foundryResolved = path.resolve('foundry');
+  const resolved = path.resolve(dir, scriptPath);
+  const foundryResolved = path.resolve(dir, 'foundry');
   const underFoundry = resolved === foundryResolved || resolved.startsWith(foundryResolved + path.sep);
   if (!underFoundry) {
     return { ok: false, error: `path outside foundry/: ${scriptPath}`, reason: 'path_outside_foundry' };
@@ -180,13 +181,13 @@ function checkPnpm(argv) {
  * @param {string[]} argv - Parsed command tokens
  * @returns {{ ok: true, mode: string } | { ok: false, error: string, reason: string }}
  */
-export function checkCommandPolicy(argv) {
+export function checkCommandPolicy(argv, baseDir) {
   if (!argv || argv.length === 0) {
     return { ok: false, error: 'no command tokens', reason: 'empty_argv' };
   }
 
   const first = argv[0];
-  if (first === 'node') return checkNodePath(argv);
+  if (first === 'node') return checkNodePath(argv, baseDir);
   if (first === 'pnpm') return checkPnpm(argv);
 
   return { ok: false, error: `command not allowed: ${first}`, reason: 'command_not_allowed' };
@@ -331,7 +332,7 @@ function logFailure(logData) {
  * @param {number} [options.timeout] - Timeout in milliseconds
  * @returns {object} - Execution result
  */
-export function runCommand({ io, exec, command, reason, timeout }) {
+export function runCommand({ io, exec, command, reason, timeout, worktree }) {
   if (isEmptyReason(reason)) {
     return { ok: false, error: 'reason is required', reason: 'missing_reason' };
   }
@@ -340,7 +341,7 @@ export function runCommand({ io, exec, command, reason, timeout }) {
   const parsed = parseCommand(command);
   if (!parsed.ok) return parsed;
 
-  const policy = checkCommandPolicy(parsed.argv);
+  const policy = checkCommandPolicy(parsed.argv, worktree);
   if (!policy.ok) return policy;
 
   const dirtyBefore = detectDirtyTree(exec);

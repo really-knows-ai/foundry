@@ -147,7 +147,10 @@ function executeRunCommand(args, context) {
   try {
     const io = makeIO(context.worktree);
     const exec = createExec(context.worktree, 30000);
-    const result = runCommand({ io, exec, command: args.command, reason: args.reason, timeout: args.timeout });
+    const result = runCommand({
+      io, exec, command: args.command, reason: args.reason,
+      timeout: args.timeout, worktree: context.worktree,
+    });
     return JSON.stringify(result);
   } catch (err) {
     return JSON.stringify({ ok: false, error: err.message ?? String(err) });
@@ -159,8 +162,8 @@ function executeRunCommand(args, context) {
 // helpers.
 // ---------------------------------------------------------------------------
 
-async function runValidatorCommand(expanded, patterns, io, exec) {
-  const runResult = runCommand({ io, exec, command: expanded, reason: 'validator execution' });
+async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
+  const runResult = runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree });
   if (!runResult.ok) return JSON.stringify(runResult);
 
   const stdout = runResult.stdout || '';
@@ -183,7 +186,7 @@ async function executeRunValidator(args, context) {
     const expanded = expandPlaceholders(args.command, args.files, args.patterns);
     const io = makeIO(context.worktree);
     const exec = createExec(context.worktree, 30000);
-    return await runValidatorCommand(expanded, args.patterns, io, exec);
+    return await runValidatorCommand(expanded, args.patterns, io, exec, context.worktree);
   } catch (err) {
     return JSON.stringify({ ok: false, error: String(err) });
   }
@@ -200,7 +203,7 @@ function executeRunValidatorTest(args, context) {
   try {
     const io = makeIO(context.worktree);
     const exec = createExec(context.worktree, 30000);
-    const result = runCommand({ io, exec, command: `node ${args.path}`, reason: 'validator companion test' });
+    const result = runCommand({ io, exec, command: `node ${args.path}`, reason: 'validator companion test', worktree: context.worktree });
     return JSON.stringify(buildTestResponse(result));
   } catch (err) {
     return JSON.stringify({ ok: false, error: err.message ?? String(err) });
