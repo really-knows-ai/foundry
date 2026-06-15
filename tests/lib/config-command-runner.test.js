@@ -99,6 +99,36 @@ describe('parseCommand', () => {
     assert.equal(result.reason, 'empty_command');
   });
 
+  test('rejects glob bracket expression [abc] outside quotes', () => {
+    const result = parseCommand('node [abc].js');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
+  test('rejects glob bracket expression [a-z] outside quotes', () => {
+    const result = parseCommand('node [a-z].js');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
+  test('rejects glob bracket expression with negation [!abc]', () => {
+    const result = parseCommand('node [!abc].js');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
+  test('allows [ inside single quotes', () => {
+    const result = parseCommand("node '[abc].js'");
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.argv, ['node', '[abc].js']);
+  });
+
+  test('allows ] inside single quotes', () => {
+    const result = parseCommand("node 'file]name.js'");
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.argv, ['node', 'file]name.js']);
+  });
+
   test('allows quoted * inside single quotes', () => {
     const result = parseCommand("node '*.js'");
     assert.equal(result.ok, true);

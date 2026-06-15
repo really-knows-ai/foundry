@@ -16,6 +16,8 @@ const SINGLE_CHAR_SHELL = {
   '`': 'backtick',
   '*': 'glob pattern',
   '?': 'glob pattern',
+  '[': 'glob bracket expression',
+  ']': 'glob bracket expression',
 };
 
 const TWO_CHAR_FEATURES = {
@@ -373,4 +375,4 @@ export function runCommand({ io, exec, command, reason, timeout, worktree, cwd, 
   return successFromLogData(logData, logResult.logPath);
 }
 
-export { createExec } from './config-command-exec.js';
+export { createExec, MAX_CAPTURE_BYTES } from './config-command-exec.js';
