@@ -98,7 +98,7 @@ function bootstrapGitignore(worktree) {
   }
   content = ensureNewlineSuffix(content);
   const existingLines = content.split('\n').map(l => l.trim());
-  const lines = ['.snapshots/', '.foundry/', '!.foundry/attestations/', 'node_modules/', '.DS_Store'];
+  const lines = ['.snapshots/', '.foundry/', '!.foundry/attestations/', 'node_modules/', 'foundry/node_modules/', '.DS_Store'];
   for (const line of lines) {
     if (existingLines.includes(line)) continue;
     content += `${line}\n`;
@@ -127,11 +127,26 @@ function ensurePackageJson(worktree) {
   }
 }
 
+function ensureFoundryPackageJson(worktree) {
+  const pkgPath = path.join(worktree, 'foundry', 'package.json');
+  if (existsSync(pkgPath)) return;
+  const meta = {
+    name: 'foundry-config',
+    private: true,
+    type: 'module',
+    packageManager: 'pnpm@10.15.1',
+    dependencies: {},
+    devDependencies: {},
+  };
+  writeFileSync(pkgPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+}
+
 function runBootstrapSequence(worktree, pkgRoot) {
   ensurePackageJson(worktree);
   bootstrapDirectories(worktree);
   bootstrapDotFoundryDirs(worktree);
   bootstrapGitignore(worktree);
+  ensureFoundryPackageJson(worktree);
   writeAllFoundryAgents(worktree, pkgRoot);
   writeFoundrySkills(worktree, pkgRoot);
   const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
@@ -223,6 +238,10 @@ function runConfigBootstrap(worktree, pkgRoot) {
     runBootstrapSequence(worktree, pkgRoot);
     return true;
   }
+
+  // Ensure foundry/package.json exists even for pre-existing installs
+  // that predate the package boundary feature (upgrade path).
+  ensureFoundryPackageJson(worktree);
 
   return false;
 }
