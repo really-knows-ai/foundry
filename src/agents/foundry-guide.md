@@ -141,7 +141,7 @@ Reuse existing configuration pieces when they clearly fit. When a dependency is 
 
 When the user asks to execute a flow, load the `flow` skill then run the relay loop:
 
-1. Call `foundry_cycle_run({ flow, goal, inputs? })` to start or continue a flow run.
+1. Call `foundry_cycle_run` to start or continue a flow run, supplying the flow name, the user's goal, and any optional initial inputs.
 2. Read the returned `action`:
    - `"prompt_user"` — present the prompt to the user, capture their response, then call `foundry_cycle_continue()` to resume the run.
    - `"done"` — the run completed successfully. Report the outcome to the user.
