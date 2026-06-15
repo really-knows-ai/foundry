@@ -13,7 +13,7 @@ import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-br
 import { makeExec } from './helpers.js';
 import { resolveFromPath, resolveGit } from '../../scripts/lib/tool-paths.js';
 import { ulid } from '../../scripts/lib/ulid.js';
-import { MAX_CAPTURE_BYTES } from '../../scripts/lib/config-command-exec.js';
+import { MAX_CAPTURE_BYTES } from '../../scripts/lib/config-command-runner.js';
 import { parsePorcelainZ } from '../../scripts/lib/git-policy.js';
 
 // -- constants ---------------------------------------------------------------

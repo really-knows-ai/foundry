@@ -13,7 +13,7 @@
 import path from 'path';
 import { Readable } from 'stream';
 import { runCommand } from '../../scripts/lib/config-command-runner.js';
-import { createExec } from '../../scripts/lib/config-command-exec.js';
+import { createExec } from '../../scripts/lib/config-command-runner.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
 import { expandValidatorCommand, shellQuote } from '../../scripts/lib/validation.js';
 import { makeIO, makeExec } from './helpers.js';
