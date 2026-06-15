@@ -162,7 +162,7 @@ function checkNodePath(argv, baseDir) {
   return { ok: true, mode: 'node-foundry-script' };
 }
 
-function checkPnpm(argv, baseDir) {
+function checkPnpm(argv, baseDir, cwd) {
   if (argv.length < 2) {
     return { ok: false, error: 'missing pnpm subcommand', reason: 'missing_subcommand' };
   }
@@ -172,7 +172,11 @@ function checkPnpm(argv, baseDir) {
   if (argv.length < 3) {
     return { ok: false, error: 'missing script name', reason: 'missing_script_name' };
   }
-  if (!baseDir) return { ok: false, error: 'cwd is required for pnpm, must be foundry/', reason: 'missing_cwd' };
+  if (!baseDir || !cwd) return { ok: false, error: 'cwd is required for pnpm, must be foundry/', reason: 'missing_cwd' };
+  const foundryDir = path.resolve(baseDir, 'foundry');
+  if (path.resolve(cwd) !== foundryDir) {
+    return { ok: false, error: 'cwd must be foundry/ for pnpm run', reason: 'cwd_not_foundry' };
+  }
   return { ok: true, mode: 'pnpm-run' };
 }
 
@@ -182,16 +186,18 @@ function checkPnpm(argv, baseDir) {
  * @param {string[]} argv - Parsed command tokens
  * @param {string} [baseDir] - Worktree root path. Required for pnpm commands;
  *   used to resolve foundry/ paths for node commands.
+ * @param {string} [cwd] - Working directory for the command. Required for
+ *   pnpm commands; must resolve to the foundry/ directory under baseDir.
  * @returns {{ ok: true, mode: string } | { ok: false, error: string, reason: string }}
  */
-export function checkCommandPolicy(argv, baseDir) {
+export function checkCommandPolicy(argv, baseDir, cwd) {
   if (!argv || argv.length === 0) {
     return { ok: false, error: 'no command tokens', reason: 'empty_argv' };
   }
 
   const first = argv[0];
   if (first === 'node') return checkNodePath(argv, baseDir);
-  if (first === 'pnpm') return checkPnpm(argv, baseDir);
+  if (first === 'pnpm') return checkPnpm(argv, baseDir, cwd);
 
   return { ok: false, error: `command not allowed: ${first}`, reason: 'command_not_allowed' };
 }
@@ -344,7 +350,7 @@ export function runCommand({ io, exec, command, reason, timeout, worktree, cwd }
   const parsed = parseCommand(command);
   if (!parsed.ok) return parsed;
 
-  const policy = checkCommandPolicy(parsed.argv, worktree);
+  const policy = checkCommandPolicy(parsed.argv, worktree, cwd);
   if (!policy.ok) return policy;
 
   const dirtyBefore = detectDirtyTree(exec);
