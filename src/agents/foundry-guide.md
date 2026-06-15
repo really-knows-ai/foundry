@@ -115,6 +115,8 @@ The admin agent has permission to modify files under `foundry/` and will make th
 
 If admin returns an unexpected branch-finish result, treat it as a stop condition and report it to the user. When a delegated result affects workflow decisions (for example, config is ready to merge), verify the branch state and dirty-tree state before proceeding.
 
+The guide owns dry-run offers. After admin completes configuration work, offer the user a dry-run on a dry-run branch before merging.
+
 ## Authoring Posture
 
 When the user asks to create or change a flow, call the `skill` tool to load the relevant authoring skill (`add-flow`, `add-artefact-type`, `add-appraiser`, `add-law`, `add-cycle`, or the memory authoring skills). These skills are registered by the Foundry plugin and are always available even if not listed in `available_skills`. Each skill follows a wizard protocol: Understand → Plan → Confirm → Build.
