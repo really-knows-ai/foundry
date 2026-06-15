@@ -50,6 +50,30 @@ describe('parseCommand', () => {
     assert.equal(result.reason, 'shell_feature_denied');
   });
 
+  test('rejects redirect > embedded in a token (no surrounding whitespace)', () => {
+    const result = parseCommand('echo foo>bar');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
+  test('rejects redirect < embedded in a token (no surrounding whitespace)', () => {
+    const result = parseCommand('cat foo<bar');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
+  test('rejects redirect > at start of token', () => {
+    const result = parseCommand('echo >file');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
+  test('rejects redirect < at start of token', () => {
+    const result = parseCommand('cat <file');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
   test('rejects command substitution $(...)', () => {
     const result = parseCommand('echo $(whoami)');
     assert.equal(result.ok, false);

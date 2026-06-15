@@ -18,6 +18,8 @@ const SINGLE_CHAR_SHELL = {
   '?': 'glob pattern',
   '[': 'glob bracket expression',
   ']': 'glob bracket expression',
+  '>': 'redirect >',
+  '<': 'redirect <',
 };
 
 const TWO_CHAR_FEATURES = {
