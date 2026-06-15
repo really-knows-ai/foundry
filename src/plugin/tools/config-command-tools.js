@@ -105,9 +105,6 @@ function buildCrashResponse(runResult, parseResult) {
     patternErrors: parseResult.patternErrors,
     exitCode: runResult.exitCode,
     logPath: runResult.logPath,
-    dirtyBefore: runResult.dirtyBefore,
-    dirtyAfter: runResult.dirtyAfter,
-    timedOut: runResult.timedOut,
   };
 }
 
