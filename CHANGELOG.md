@@ -1,5 +1,79 @@
 # Changelog
 
+## [3.15.0] - 2026-06-16
+
+### Added
+
+- **Scoped config command runner.** Admin agents run shell commands and
+  dependency operations scoped to `foundry/` within the active worktree.
+  Commands are parsed, validated against a shell-injection policy, and
+  executed with cwd locked to the Foundry package directory. Output and
+  changed files are tracked in the audit log.
+- **Command parser** (`src/scripts/lib/command-parser.js`). Statically
+  inspects shell command strings for chaining operators, redirect
+  characters, and glob patterns, rejecting them before execution.
+- **Config file tools.** `foundry_config_write_file`,
+  `foundry_config_read_file`, `foundry_config_transform_file`, and
+  `foundry_config_remove_file` let the admin agent create, edit, and
+  delete files inside `foundry/` with command-execution audit logging
+  and overlap detection against other tool-managed files.
+- **Config dependency tools.** `foundry_config_add_dependency` and
+  `foundry_config_remove_dependency` manage `foundry/package.json`
+  dependencies using the project's declared package manager, with
+  tool-managed file tracking and blocked root package manager file
+  modification.
+- **Config command tools.** `foundry_config_run_command` and
+  `foundry_config_run_validator` execute arbitrary shell commands and
+  validator scripts respectively, with dirty-tree tracking, timeout
+  resolution, and structured error envelopes.
+- **Config finish safety.** `foundry_git_finish` on a `config/*` branch
+  now refuses when untracked `foundry/**` files exist, protects root
+  `package.json` and `package-lock.json` from config branch changes,
+  and classifies tool-managed files separately from user-authored
+  changes.
+- **Foundry package boundary.** Only paths within `foundry/` are valid
+  for config file tools; directory paths and `foundry/` itself are
+  rejected. Root `package.json` creation via `pnpm init` is removed
+  from bootstrap.
+- **Agent safety boundaries expanded.** All five agents (guide, admin,
+  forge, appraise, assay) now carry blocker-reporting instructions:
+  stop and report when a tool call fails or the system enters an
+  unexpected state. The guide agent owns admin delegation result
+  verification, merge decisions, and dry-run offers. Admin branch
+  lifecycle prohibition tightened (no create verb on `work/*`).
+- **Agent prompt clarity test suite** (`tests/agents/prompt-clarity.test.js`)
+  enforces consistent safety boundary, ownership, and blocker-reporting
+  language across all five agent prompts.
+- **Full test coverage** for the new subsystems: command runner unit
+  tests, config tool end-to-end tests, permission tests, and foundry
+  package boundary tests.
+
+### Fixed
+
+- Resolved `.required()` TypeError on validator tool schemas by removing
+  Zod `.required()` from `files` and `patterns` and adding handler-level
+  validation with explicit string element type checks.
+- Propagated `timedOut` through all executor response shapes
+  (`buildSuccessResponse`, `buildCrashResponse`, `buildTestResponse`,
+  `logFailure`) so callers can detect timeout termination.
+- Used `execResult` truncation flags directly instead of recomputing
+  from bounded output, fixing incorrect truncation detection.
+- Rejected embedded redirect (`>`, `<`) and glob bracket (`[`, `]`)
+  characters in shell command strings via `SINGLE_CHAR_SHELL`.
+- Rejected newline characters as shell command chaining in the command
+  parser.
+- Aligned non-zero exit tolerance with quench JSONL parsing logic so
+  crashes produce a single clear error instead of cascaded parse errors.
+- Mapped test exit code to `ok` field on validator test responses and
+  dropped the redundant `passed` field.
+- Included `rawStdout`, `rawStderr`, `violations`, `parseErrors`, and
+  `patternErrors` in `buildCrashResponse` for complete failure context.
+- Removed stale manual git operation references from forge and assay
+  skill files.
+- Deduplicated `shellQuote` by sharing from `validation.js`.
+- Replaced pseudo-tool-call syntax with natural prose in the guide
+  prompt to prevent the model from printing tool calls as prose.
+
 ## [3.14.4] - 2026-06-15
 
 ### Fixed
