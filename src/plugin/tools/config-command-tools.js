@@ -169,11 +169,6 @@ function isPnpmRun(command) {
 }
 
 function executeRunCommand(args, context) {
-  const guard = requireOnConfigBranch({ exec: createExec(context.worktree) });
-  if (!guard.ok) {
-    return JSON.stringify({ ok: false, error: `foundry_config_run_command: ${guard.error}` });
-  }
-
   try {
     const io = makeIO(context.worktree);
     const execCwd = isPnpmRun(args.command)
@@ -266,7 +261,7 @@ function makeRunCommandTool(tool) {
       timeout: tool.schema.number().optional()
         .describe('Timeout in milliseconds (default 30000, max 120000)'),
     },
-    execute: executeRunCommand,
+    execute: guarded('foundry_config_run_command', ALL_GUARDS, executeRunCommand),
   });
 }
 
