@@ -547,9 +547,6 @@ describe('foundry_config_run_validator — JSONL parsing and contract errors (D5
     assert.equal(res.ok, true);
     assert.ok(Array.isArray(res.violations));
     assert.equal(res.violations.length, 1);
-    // Dirty-tree tracking fields present on the response
-    assert.ok(Array.isArray(res.dirtyBefore));
-    assert.ok(Array.isArray(res.dirtyAfter));
-    assert.ok(res.dirtyAfter.length >= res.dirtyBefore.length);
+    // Dirty-tree tracking fields logged to the audit log, not on the tool response
   });
 });
