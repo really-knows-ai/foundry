@@ -169,7 +169,16 @@ function isPnpmRun(command) {
   return (command || '').trim().startsWith('pnpm run ');
 }
 
+function validateRunCommandArgs(args) {
+  if (!args.command) return JSON.stringify({ ok: false, error: 'command is required', reason: 'missing_command' });
+  if (!args.reason) return JSON.stringify({ ok: false, error: 'reason is required', reason: 'missing_reason' });
+  return null;
+}
+
 function executeRunCommand(args, context) {
+  const inputError = validateRunCommandArgs(args);
+  if (inputError) return inputError;
+
   try {
     const io = makeIO(context.worktree);
     const execCwd = isPnpmRun(args.command)
@@ -269,11 +278,9 @@ function makeRunCommandTool(tool) {
       'under foundry/** or a pnpm run script.',
     args: {
       command: tool.schema.string()
-        .describe('Command string (e.g. "node foundry/artefacts/haiku/validate-syllables.test.mjs")')
-        .required(),
+        .describe('Command string (e.g. "node foundry/artefacts/haiku/validate-syllables.test.mjs")'),
       reason: tool.schema.string()
-        .describe('Non-empty reason for the audit log')
-        .required(),
+        .describe('Non-empty reason for the audit log'),
       timeout: tool.schema.number().optional()
         .describe('Timeout in milliseconds (default 30000, max 120000)'),
     },
@@ -293,11 +300,9 @@ function makeRunValidatorTool(tool) {
       command: tool.schema.string()
         .describe('Validator command with optional {files} and {pattern} placeholders'),
       files: tool.schema.array(tool.schema.string())
-        .describe('Array of file paths for {files} expansion')
-        .required(),
+        .describe('Array of file paths for {files} expansion'),
       patterns: tool.schema.array(tool.schema.string())
-        .describe('Array of glob patterns for {pattern} expansion and JSONL file matching')
-        .required(),
+        .describe('Array of glob patterns for {pattern} expansion and JSONL file matching'),
     },
     execute: guarded('foundry_config_run_validator', ALL_GUARDS, executeRunValidator),
   });
