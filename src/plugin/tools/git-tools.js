@@ -6,6 +6,7 @@ import {
   classifyBranch,
   finishWorkBranch,
   finishConfigBranch,
+  untrackedFoundryFiles,
   KIND_DRY_RUN,
   KINDS,
 } from './git-helpers.js';
@@ -124,6 +125,9 @@ async function finishDryRunBranch({ branch, args, cwd }) {
     });
   }
 
+  const untrackedRefusal = checkUntrackedFoundryFiles(cwd);
+  if (untrackedRefusal) return untrackedRefusal;
+
   try {
     const out = await finishDryRun({
       message: args.message, branch, io, execFile: exec,
@@ -143,7 +147,19 @@ function routeDryRunFinish(branch, args, cwd) {
   return finishDryRunBranch({ branch, args, cwd });
 }
 
+function checkUntrackedFoundryFiles(cwd) {
+  const untracked = untrackedFoundryFiles(cwd);
+  if (!untracked.length) return null;
+  return JSON.stringify({
+    ok: false,
+    error: 'foundry_git_finish refuses: untracked foundry/** files exist. Commit or stash them first.',
+    untrackedFoundry: untracked,
+  });
+}
+
 function routeBranchFinish(kind, branch, base, cwd, args) {
+  const untrackedRefusal = checkUntrackedFoundryFiles(cwd);
+  if (untrackedRefusal) return untrackedRefusal;
   if (kind === 'work')
     return finishWorkBranch({ workBranch: branch, base, cwd, args });
   if (kind === 'config')

@@ -251,12 +251,6 @@ export function finishBranchCommon({ branchName, branchType, base, cwd, args }) 
 }
 
 function checkConfigBranchPreconditions(cwd, base, branchName) {
-  const untracked = untrackedFoundryFiles(cwd);
-  if (untracked.length) return JSON.stringify({
-    ok: false,
-    error: 'foundry_git_finish refuses: untracked foundry/** files exist. Commit or stash them first.',
-    untrackedFoundry: untracked,
-  });
   const diff = execFileSync('git', ['diff', '--name-only', `${base}..${branchName}`],
     { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   const result = checkConfigBranchFiles(diff);
