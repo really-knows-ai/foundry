@@ -8,13 +8,16 @@
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { spawnSync, execFileSync } from 'child_process';
-import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
+import { guarded } from '../../scripts/lib/guards.js';
 import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
-import { makeExec } from './helpers.js';
+import { makeExec, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { resolveFromPath, resolveGit } from '../../scripts/lib/tool-paths.js';
 import { ulid } from '../../scripts/lib/ulid.js';
 import { MAX_CAPTURE_BYTES } from '../../scripts/lib/config-command-runner.js';
 import { parsePorcelainZ } from '../../scripts/lib/git-policy.js';
+import { gitRepoGuard, foundryRootGuard, configBranchGuard, configGateNotFailed } from './guard-helpers.js';
+
+const CREATE_GUARDS = [gitRepoGuard, foundryRootGuard, configBranchGuard, configGateNotFailed];
 
 // -- constants ---------------------------------------------------------------
 
@@ -291,21 +294,22 @@ function buildAuditLog(worktree, logData) {
 
 // -- core handler ------------------------------------------------------------
 
-function handleAddDependency(worktree, args) {
+function handleAddDependency(args, context) {
+  const worktree = context.worktree;
   const validated = validateArgs(args);
-  if (validated.error) return { ok: false, error: validated.error };
+  if (validated.error) return JSON.stringify({ ok: false, error: validated.error });
 
   const { name, reason, dev } = validated;
 
   const preconditions = checkPackagePreconditions(
     path.resolve(worktree, 'foundry', 'package.json'),
   );
-  if (!preconditions.ok) return preconditions;
+  if (!preconditions.ok) return JSON.stringify(preconditions);
 
   const t0 = Date.now();
 
   const installResult = performInstall(worktree, name, dev, preconditions.packageManager);
-  if (!installResult.ok) return installResult;
+  if (!installResult.ok) return JSON.stringify(installResult);
 
   const commitResult = commitDependencyInstall(
     worktree,
@@ -320,9 +324,9 @@ function handleAddDependency(worktree, args) {
     worktree,
   }));
 
-  if (!commitResult.ok) return { ok: false, error: commitResult.error, logPath };
+  if (!commitResult.ok) return JSON.stringify({ ok: false, error: commitResult.error, logPath });
 
-  return { ok: true, sha: commitResult.sha, changedFiles, logPath };
+  return JSON.stringify({ ok: true, sha: commitResult.sha, changedFiles, logPath });
 }
 
 // -- tool factory ------------------------------------------------------------
@@ -343,18 +347,12 @@ export function createConfigDependencyTools({ tool }) {
         reason: tool.schema.string()
           .describe('Non-empty reason for the audit log and commit message'),
       },
-      async execute(args, context) {
-        const guard = requireOnConfigBranch({ exec: makeExec(context.worktree) });
-        if (!guard.ok) {
-          return JSON.stringify({ ok: false, error: `foundry_config_add_dependency: ${guard.error}` });
-        }
-
-        try {
-          return JSON.stringify(handleAddDependency(context.worktree, args));
-        } catch (err) {
-          return JSON.stringify({ ok: false, error: err.message ?? String(err) });
-        }
-      },
+      execute: guarded(
+        'foundry_config_add_dependency',
+        CREATE_GUARDS,
+        handleAddDependency,
+        { branchIo: branchIoFactory, io: asyncIoFactory },
+      ),
     }),
   };
 }

@@ -1,6 +1,11 @@
 import { openFeedbackStore } from '../../scripts/lib/feedback-store.js';
-import { makeIO } from './helpers.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+import { makeIO, flowBranchGuard, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { writeCall } from '../../scripts/lib/stage-calls.js';
+
+const gateNotFailed = notFailedGuard(makeIO);
+
+const FLOW_GUARDS = [flowBranchGuard, gateNotFailed];
 
 async function executeFeedbackList(args, context) {
   const io = makeIO(context.worktree);
@@ -34,10 +39,12 @@ async function executeFeedbackList(args, context) {
 
 export function createFeedbackTools({ tool }) {
   return {
-    foundry_feedback_list: tool({ description: 'List feedback items, optionally filtered by file',
+    foundry_feedback_list: tool({
+      description: 'List feedback items, optionally filtered by file',
       args: {
         file: tool.schema.string().optional().describe('Filter by artefact file path'),
       },
-      execute: executeFeedbackList }),
+      execute: guarded('foundry_feedback_list', FLOW_GUARDS, executeFeedbackList, { branchIo: branchIoFactory, io: asyncIoFactory }),
+    }),
   };
 }

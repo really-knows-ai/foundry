@@ -8,11 +8,14 @@
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, realpathSync, statSync } from 'fs';
 import { execFileSync } from 'child_process';
-import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
+import { guarded } from '../../scripts/lib/guards.js';
 import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
-import { makeExec } from './helpers.js';
+import { branchIoFactory, asyncIoFactory } from './helpers.js';
 import { resolveGit } from '../../scripts/lib/tool-paths.js';
 import { ulid } from '../../scripts/lib/ulid.js';
+import { gitRepoGuard, foundryRootGuard, configBranchGuard, configGateNotFailed } from './guard-helpers.js';
+
+const CORE_GUARDS = [gitRepoGuard, foundryRootGuard, configGateNotFailed];
 
 // -- path helpers ------------------------------------------------------------
 
@@ -168,17 +171,36 @@ function buildCommitDetails(args) {
 
 // -- core handler ------------------------------------------------------------
 
-function handleWriteFile(worktree, args) {
-  const validationErr = validateWriteFileArgs(args);
-  if (validationErr) return { ok: false, error: validationErr };
+function rejectIfNotConfigBranch(context) {
+  const guard = configBranchGuard(null, context);
+  if (!guard.ok) {
+    return `foundry_config_write_file: ${guard.error}`;
+  }
+  return null;
+}
 
+function validateFilePreconditions(worktree, args) {
   const filePath = args.path.trim();
   if (!pathUnderFoundry(worktree, filePath)) {
-    return { ok: false, error: `path must be under foundry/: ${filePath}` };
+    return `path must be under foundry/: ${filePath}`;
   }
-
   const overlapErr = checkOverlapError(args, filePath);
-  if (overlapErr) return { ok: false, error: overlapErr };
+  if (overlapErr) return overlapErr;
+  return null;
+}
+
+function handleWriteFile(args, context) {
+  const worktree = context.worktree;
+
+  const branchErr = rejectIfNotConfigBranch(context);
+  if (branchErr) return JSON.stringify({ ok: false, error: branchErr });
+
+  const validationErr = validateWriteFileArgs(args);
+  if (validationErr) return JSON.stringify({ ok: false, error: validationErr });
+
+  const filePath = args.path.trim();
+  const preErr = validateFilePreconditions(worktree, args);
+  if (preErr) return JSON.stringify({ ok: false, error: preErr });
 
   const { commitMessage, auditReason } = buildCommitDetails(args);
 
@@ -186,7 +208,7 @@ function handleWriteFile(worktree, args) {
   const t0 = Date.now();
 
   const result = writeFileWithRollback(worktree, snapshot, args.content, commitMessage);
-  if (!result.ok) return result;
+  if (!result.ok) return JSON.stringify(result);
 
   writeFileAuditLog(worktree, {
     reason: auditReason,
@@ -210,7 +232,7 @@ function handleWriteFile(worktree, args) {
     changedFiles: [filePath],
   });
 
-  return { ok: true, path: filePath, sha: result.sha };
+  return JSON.stringify({ ok: true, path: filePath, sha: result.sha });
 }
 
 // -- tool factory ------------------------------------------------------------
@@ -235,18 +257,12 @@ export function createConfigFileTools({ tool }) {
         update: tool.schema.boolean().optional()
           .describe('Bypass overlap rejection for files owned by specialised config create tools'),
       },
-      async execute(args, context) {
-        const guard = requireOnConfigBranch({ exec: makeExec(context.worktree) });
-        if (!guard.ok) {
-          return JSON.stringify({ ok: false, error: `foundry_config_write_file: ${guard.error}` });
-        }
-
-        try {
-          return JSON.stringify(handleWriteFile(context.worktree, args));
-        } catch (err) {
-          return JSON.stringify({ ok: false, error: err.message ?? String(err) });
-        }
-      },
+      execute: guarded(
+        'foundry_config_write_file',
+        CORE_GUARDS,
+        handleWriteFile,
+        { branchIo: branchIoFactory, io: asyncIoFactory },
+      ),
     }),
   };
 }

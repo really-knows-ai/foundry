@@ -5,7 +5,11 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { hashAttestation } from '../../scripts/lib/attestation/hash.js';
-import { errorJson } from './helpers.js';
+import { guarded } from '../../scripts/lib/guards.js';
+import { errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
+import { gitRepoGuard } from './guard-helpers.js';
+
+const ATTEST_GUARDS = [gitRepoGuard];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -273,7 +277,7 @@ function createShowTool(tool) {
       run_id: tool.schema.string().optional()
         .describe('Run identifier (ULID). When absent, lists available runs.'),
     },
-    async execute(args, context) {
+    execute: guarded('foundry_attestation_show', ATTEST_GUARDS, async (args, context) => {
       try {
         const cwd = context.worktree;
         const runId = args.run_id;
@@ -294,7 +298,7 @@ function createShowTool(tool) {
       } catch (err) {
         return errorJson(err);
       }
-    },
+    }, { branchIo: branchIoFactory, io: asyncIoFactory }),
   });
 }
 
@@ -356,7 +360,7 @@ function createVerifyTool(tool) {
       run_id: tool.schema.string().optional()
         .describe('Run identifier (ULID). When absent, lists available runs.'),
     },
-    execute: executeVerifyTool,
+    execute: guarded('foundry_attestation_verify', ATTEST_GUARDS, executeVerifyTool, { branchIo: branchIoFactory, io: asyncIoFactory }),
   });
 }
 

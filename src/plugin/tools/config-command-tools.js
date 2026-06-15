@@ -15,33 +15,13 @@ import { Readable } from 'stream';
 import { runCommand, createExec } from '../../scripts/lib/config-command-runner.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
 import { expandValidatorCommand, buildPlaceholderSubstitutions } from '../../scripts/lib/validation.js';
-import { makeIO, makeExec } from './helpers.js';
-import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
-import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
-import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+import { makeIO } from './helpers.js';
+import { guarded } from '../../scripts/lib/guards.js';
+import { gitRepoGuard, foundryRootGuard, configBranchGuard, configGateNotFailed } from './guard-helpers.js';
 
 const ROOT_PACKAGE_FILES = ['package.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock'];
 
-// ---------------------------------------------------------------------------
-// Guard functions — matches the pattern from config-create-tools and
-// config-law-tools.
-// ---------------------------------------------------------------------------
-
-function gitRepoGuard(_args, context) {
-  return requireGitRepo(makeIO(context.worktree));
-}
-
-function foundryRootGuard(_args, context) {
-  return requireFoundryRoot(makeIO(context.worktree));
-}
-
-function configBranchGuard(_args, context) {
-  return requireOnConfigBranch({ exec: makeExec(context.worktree) });
-}
-
-const gateNotFailed = notFailedGuard(makeIO);
-
-const ALL_GUARDS = [gitRepoGuard, foundryRootGuard, configBranchGuard, gateNotFailed];
+const ALL_GUARDS = [gitRepoGuard, foundryRootGuard, configBranchGuard, configGateNotFailed];
 
 // ---------------------------------------------------------------------------
 // Root package file protection — enforces spec item 13 (line 130):

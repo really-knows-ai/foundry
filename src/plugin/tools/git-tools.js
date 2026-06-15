@@ -10,11 +10,15 @@ import {
   KIND_DRY_RUN,
   KINDS,
 } from './git-helpers.js';
+import { guarded } from '../../scripts/lib/guards.js';
 import { makeIO, makeExec, asyncIoFactory } from './helpers.js';
 import { requireNoActiveStage } from '../../scripts/lib/stage-guard.js';
 import { currentBranch } from '../../scripts/lib/branch-guard.js';
 import { truncateTrace } from '../../scripts/lib/tracing.js';
 import { finishDryRun } from '../../scripts/lib/snapshot/finish.js';
+import { gitRepoGuard } from './guard-helpers.js';
+
+const GIT_GUARDS = [gitRepoGuard];
 
 function refuse(error) { return JSON.stringify({ error }); }
 
@@ -208,9 +212,7 @@ export function createGitTools({ tool }) {
         description: tool.schema.string()
           .describe('Slugified description suffix.'),
       },
-      async execute(args, context) {
-        return executeGitBranch(args, context);
-      },
+      execute: guarded('foundry_git_branch', GIT_GUARDS, executeGitBranch),
     }),
 
     foundry_git_finish: tool({
@@ -226,9 +228,7 @@ export function createGitTools({ tool }) {
         confirm: tool.schema.boolean().optional()
           .describe('Must be true to perform destructive operations; otherwise returns a plan'),
       },
-      async execute(args, context) {
-        return executeGitFinish(args, context);
-      },
+      execute: guarded('foundry_git_finish', GIT_GUARDS, executeGitFinish),
     }),
   };
 }
