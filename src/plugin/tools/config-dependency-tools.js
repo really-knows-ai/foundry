@@ -343,7 +343,7 @@ export function createConfigDependencyTools({ tool }) {
         reason: tool.schema.string()
           .describe('Non-empty reason for the audit log and commit message'),
       },
-      execute(args, context) {
+      async execute(args, context) {
         const guard = requireOnConfigBranch({ exec: makeExec(context.worktree) });
         if (!guard.ok) {
           return JSON.stringify({ ok: false, error: `foundry_config_add_dependency: ${guard.error}` });
