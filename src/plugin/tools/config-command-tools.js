@@ -180,9 +180,11 @@ function executeRunCommand(args, context) {
       ? path.resolve(context.worktree, 'foundry')
       : context.worktree;
     const exec = createExec(execCwd, 30000);
+    const rootExec = createExec(context.worktree);
     const result = runCommand({
       io, exec, command: args.command, reason: args.reason,
       timeout: args.timeout, worktree: context.worktree, cwd: execCwd,
+      dirtyExec: rootExec,
     });
     return JSON.stringify(rejectRootPackageChanges(result));
   } catch (err) {

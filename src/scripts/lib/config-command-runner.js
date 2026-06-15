@@ -339,9 +339,13 @@ function logFailure(logData) {
  * @param {string} options.command - Raw command string
  * @param {string} options.reason - Non-empty reason for audit log
  * @param {number} [options.timeout] - Timeout in milliseconds
+ * @param {Function} [options.dirtyExec] - Separate exec for dirty-tree
+ *   detection. Defaults to `exec` when not provided. Use when the command exec
+ *   runs from a subdirectory (e.g. `foundry/` for pnpm) but dirty-tree
+ *   detection must run from the repository root.
  * @returns {object} - Execution result
  */
-export function runCommand({ io, exec, command, reason, timeout, worktree, cwd }) {
+export function runCommand({ io, exec, command, reason, timeout, worktree, cwd, dirtyExec }) {
   if (isEmptyReason(reason)) {
     return { ok: false, error: 'reason is required', reason: 'missing_reason' };
   }
@@ -353,10 +357,11 @@ export function runCommand({ io, exec, command, reason, timeout, worktree, cwd }
   const policy = checkCommandPolicy(parsed.argv, worktree, cwd);
   if (!policy.ok) return policy;
 
-  const dirtyBefore = detectDirtyTree(exec);
+  const dirtyCheck = dirtyExec || exec;
+  const dirtyBefore = detectDirtyTree(dirtyCheck);
   const t0 = Date.now();
   const execResult = exec(parsed.argv, { timeout: effectiveTimeout });
-  const dirtyAfter = detectDirtyTree(exec);
+  const dirtyAfter = detectDirtyTree(dirtyCheck);
 
   const logData = buildLogData({
     reason, command, argv: parsed.argv, t0, execResult, dirtyBefore, dirtyAfter, cwd,
