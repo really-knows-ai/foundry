@@ -254,7 +254,7 @@ function commitDependencyInstall(worktree, message) {
 // -- audit log helpers ------------------------------------------------------
 
 function buildDependencyLogData({ reason, name, dev, t0, pnpmResult,
-  beforeDirty, afterDirty, changedFiles, worktree }) {
+  beforeDirty, afterDirty, changedFiles, commitResult, worktree }) {
   return {
     reason,
     tool: 'foundry_config_add_dependency',
@@ -272,6 +272,7 @@ function buildDependencyLogData({ reason, name, dev, t0, pnpmResult,
     stderrTruncated: pnpmResult.stderrTruncated,
     dirtyBefore: beforeDirty, dirtyAfter: afterDirty,
     changedFiles,
+    ...(commitResult.ok ? { commitSha: commitResult.sha } : { commitError: commitResult.error }),
   };
 }
 
@@ -310,24 +311,18 @@ function handleAddDependency(worktree, args) {
     worktree,
     `config: add dependency ${name} — ${reason}`,
   );
-  if (!commitResult.ok) return commitResult;
 
-  const pnpmResult = installResult.pnpmResult;
-  const { beforeDirty, afterDirty } = installResult;
-
+  const { pnpmResult, beforeDirty, afterDirty, changedFiles } = installResult;
   const logPath = buildAuditLog(worktree, buildDependencyLogData({
     reason, name, dev, t0,
-    pnpmResult, beforeDirty, afterDirty,
-    changedFiles: installResult.changedFiles,
+    pnpmResult, beforeDirty, afterDirty, changedFiles,
+    commitResult,
     worktree,
   }));
 
-  return {
-    ok: true,
-    sha: commitResult.sha,
-    changedFiles: installResult.changedFiles,
-    logPath,
-  };
+  if (!commitResult.ok) return { ok: false, error: commitResult.error, logPath };
+
+  return { ok: true, sha: commitResult.sha, changedFiles, logPath };
 }
 
 // -- tool factory ------------------------------------------------------------
