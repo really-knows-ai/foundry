@@ -422,7 +422,7 @@ function hasBufferExceeded(result) {
  */
 function execCommand(argv, { cwd, timeout } = {}) {
   const wd = cwd || process.cwd();
-  const to = timeout || DEFAULT_TIMEOUT;
+  const to = resolveTimeout(timeout);
   const result = spawnWithTimeout(argv, wd, to);
 
   const stdout = extractStdout(result);
