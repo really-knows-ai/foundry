@@ -31,6 +31,8 @@ Evaluate artefact files against the laws defined for the artefact type. The disp
 4. Write structured findings via `foundry_stage_output` as JSONL (one JSON object per line).
 5. Call `foundry_stage_end` to register stage completion.
 
+Stop and report a blocker when a tool call fails or a precondition for a lifecycle step is not met. Do not proceed past the point of failure.
+
 ## Evaluation protocol
 
 Your dispatch prompt specifies:
