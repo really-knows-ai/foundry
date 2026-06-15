@@ -207,3 +207,71 @@ test('foundry_git_finish on config/foo: succeeds even when repo signing is broke
     cleanup(dir);
   }
 });
+
+// ── Phase 05: Config finish safety ──────────────────────────────────────────
+
+test('foundry_git_finish on config/foo: refuses untracked foundry/** files', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/add-rule -q', { cwd: dir, env: GIT_ENV });
+    mkdirSync(join(dir, 'foundry', 'laws'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'laws', 'rules.md'), '# rules\n');
+    execSync('git add . && git commit -m "config: add rule" -q', { cwd: dir, env: GIT_ENV });
+    // Write an untracked file under foundry/.
+    writeFileSync(join(dir, 'foundry', 'uncommitted.txt'), 'not staged\n');
+
+    const r = await callFinish(dir, { message: 'finish', confirm: true });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /untracked foundry/);
+    assert.ok(Array.isArray(r.untrackedFoundry));
+    assert.ok(r.untrackedFoundry.some(f => f.includes('foundry/uncommitted.txt')),
+      `expected untrackedFoundry to include foundry/uncommitted.txt, got: ${JSON.stringify(r.untrackedFoundry)}`);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish on config/foo: ignores ignored .foundry/** files', async () => {
+  const dir = initRepo();
+  try {
+    // Ensure .foundry/ is gitignored.
+    writeFileSync(join(dir, '.gitignore'), '.foundry/\n', 'utf8');
+    execSync('git add . && git commit -m "add gitignore" -q', { cwd: dir, env: GIT_ENV });
+
+    execSync('git checkout -b config/add-rule -q', { cwd: dir, env: GIT_ENV });
+    mkdirSync(join(dir, 'foundry'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'rules.md'), '# rules\n');
+    execSync('git add . && git commit -m "config: add rule" -q', { cwd: dir, env: GIT_ENV });
+    // Write an untracked file under .foundry/ (gitignored).
+    mkdirSync(join(dir, '.foundry'), { recursive: true });
+    writeFileSync(join(dir, '.foundry', 'state.json'), '{"ok":true}\n');
+
+    const r = await callFinish(dir, { message: 'finish', confirm: true });
+    assert.equal(r.ok, true, `expected finish to succeed with only .foundry/ untracked, got: ${JSON.stringify(r)}`);
+    assert.equal(r.branch, 'main');
+    assert.ok(r.hash);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('foundry_git_finish on config/foo: preserves config branch after untracked refusal', async () => {
+  const dir = initRepo();
+  try {
+    execSync('git checkout -b config/add-rule -q', { cwd: dir, env: GIT_ENV });
+    mkdirSync(join(dir, 'foundry', 'laws'), { recursive: true });
+    writeFileSync(join(dir, 'foundry', 'laws', 'rules.md'), '# rules\n');
+    execSync('git add . && git commit -m "config: add rule" -q', { cwd: dir, env: GIT_ENV });
+    // Write an untracked file under foundry/.
+    writeFileSync(join(dir, 'foundry', 'stray.txt'), 'not committed\n');
+
+    const r = await callFinish(dir, { message: 'finish', confirm: true });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /untracked foundry/);
+
+    const branch = execSync('git branch --show-current', { cwd: dir, env: GIT_ENV }).toString().trim();
+    assert.equal(branch, 'config/add-rule');
+  } finally {
+    cleanup(dir);
+  }
+});

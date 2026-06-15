@@ -4,7 +4,8 @@ import { existsSync, unlinkSync, writeFileSync, readFileSync } from 'fs';
 import { slugify } from '../../scripts/lib/slug.js';
 import { CONFIG_RE, DRY_RUN_RE } from '../../scripts/lib/branch-guard.js';
 import { finishWorkBranchWithArchive } from '../../scripts/lib/git-finish/work-finish.js';
-import { checkConfigBranchFiles } from '../../scripts/lib/git-policy.js';
+import { checkConfigBranchFiles, CONFIG_ALLOWED_PATTERNS } from '../../scripts/lib/git-policy.js';
+import { minimatch } from 'minimatch';
 
 const WORK_FILES = ['WORK.md', 'WORK.history.yaml', 'WORK.feedback.yaml'];
 
@@ -144,6 +145,15 @@ export function dirtyTrackedFiles(cwd) {
   return out ? out.split('\n').map((l) => l.slice(3)) : [];
 }
 
+export function untrackedFoundryFiles(cwd) {
+  const out = execFileSync('git',
+    ['ls-files', '--others', '--exclude-standard'],
+    { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
+  if (!out) return [];
+  return out.split('\n')
+    .filter(f => CONFIG_ALLOWED_PATTERNS.some(p => minimatch(f, p, { dot: true })));
+}
+
 // -- finishBranchCommon helpers --
 
 function computeFinishPlan(opts) {
@@ -240,25 +250,31 @@ export function finishBranchCommon({ branchName, branchType, base, cwd, args }) 
   return JSON.stringify({ ok: true, hash, branch: base });
 }
 
-function runPreMergeGuards({ branchName, branchType, base, cwd, opts, planned }) {
-  const dirty = dirtyTrackedFiles(cwd);
-  if (dirty.length) return makeDirtyRefusal(dirty);
-  if (branchType === 'work') {
-    deleteWorkFilesAndCommit(planned.filesToDelete, cwd, branchName);
-    return null;
-  }
-  if (branchType !== 'config') return null;
+function checkConfigBranchPreconditions(cwd, base, branchName) {
+  const untracked = untrackedFoundryFiles(cwd);
+  if (untracked.length) return JSON.stringify({
+    ok: false,
+    error: 'foundry_git_finish refuses: untracked foundry/** files exist. Commit or stash them first.',
+    untrackedFoundry: untracked,
+  });
   const diff = execFileSync('git', ['diff', '--name-only', `${base}..${branchName}`],
     { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   const result = checkConfigBranchFiles(diff);
-  if (result) {
-    return JSON.stringify({
-      ok: false,
-      error: 'Config branches may only change files inside foundry/. Outside files detected:',
-      outside: result.files,
-    });
-  }
+  if (result) return JSON.stringify({
+    ok: false,
+    error: 'Config branches may only change files inside foundry/. Outside files detected:',
+    outside: result.files,
+  });
   return null;
+}
+
+function runPreMergeGuards({ branchName, branchType, base, cwd, opts, planned }) {
+  const dirty = dirtyTrackedFiles(cwd);
+  if (dirty.length) return makeDirtyRefusal(dirty);
+  if (branchType === 'work')
+    { deleteWorkFilesAndCommit(planned.filesToDelete, cwd, branchName); return null; }
+  if (branchType !== 'config') return null;
+  return checkConfigBranchPreconditions(cwd, base, branchName);
 }
 
 // -- finishWorkBranch helpers --
