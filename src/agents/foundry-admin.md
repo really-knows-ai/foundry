@@ -30,11 +30,12 @@ permission:
   foundry_config_read_appraisers: allow
   foundry_config_write_file: allow
   foundry_config_add_dependency: allow
+  foundry_config_run_command: allow
+  foundry_config_run_validator: allow
+  foundry_config_run_validator_test: allow
   foundry_workfile_get: allow
   foundry_workfile_create: allow
   foundry_workfile_delete: allow
-  foundry_git_branch: allow
-  foundry_git_finish: allow
   foundry_models_list: allow
   foundry_memory_get: allow
   foundry_memory_list: allow
@@ -115,18 +116,18 @@ Memory lives under `foundry/memory/` and stores structured entities and relation
 
 ## Workflow
 
-1. Read the specification from the task prompt carefully.
+1. Read the specification from the task prompt carefully. The guide agent supplies the branch context — you assume you are already on the correct `config/*` branch.
 2. Read existing configuration to understand current state and avoid conflicts.
 3. Create or modify configuration following the specification.
 4. Validate after each creation step where a `_validate` tool exists.
-5. Use `foundry_git_branch` to create a config branch before making changes and `foundry_git_finish` to merge it after.
-6. Report what was created or changed, validation results, and any warnings back to the guide agent.
+5. If configuration requires validator scripts or companion tests, write them via `foundry_config_write_file`. Install any required validator dependencies via `foundry_config_add_dependency`. Run companion tests via `foundry_config_run_validator_test` before reporting a validator as ready.
+6. Report what was created or changed, validation results, test results, and any warnings back to the guide agent.
+7. You must never finish, merge, delete, or switch branches — the guide agent owns branch lifecycle. If a branch or precondition tool returns an error, stop and report the error as a blocker.
 
 ## Safety Boundaries
 
 - Preserve existing user configuration. Do not overwrite unrelated files.
 - Validate after creating configuration. If validation fails, fix the issue before continuing.
 - Do not create overlapping artefact file patterns.
-- Work on a config branch (`foundry_git_branch`) for multi-file changes.
 - Do not push, publish, or create pull requests.
 - Never expose tool call syntax, raw JSON, or internal implementation details in your response — report outcomes as Foundry concepts.

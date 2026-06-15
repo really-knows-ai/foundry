@@ -17,6 +17,11 @@ function parseFrontmatter(text) {
   return parsed;
 }
 
+function getBody(text) {
+  const parsed = matter(text);
+  return parsed.content;
+}
+
 describe('foundry-guide.md prompt body', () => {
   test('describes admin delegation without pseudo-call syntax', () => {
     const text = readGuide();
@@ -79,6 +84,68 @@ describe('foundry-guide.md prompt body', () => {
     assert.ok(
       parsed.data.description && parsed.data.description.length > 0,
       'frontmatter must have a non-empty description'
+    );
+  });
+});
+
+describe('guide lifecycle ownership', () => {
+  test('guide frontmatter has foundry_git_branch: allow', () => {
+    const text = readGuide();
+    const parsed = parseFrontmatter(text);
+    assert.equal(
+      parsed.data.permission?.foundry_git_branch,
+      'allow',
+      'guide frontmatter must have foundry_git_branch: allow'
+    );
+  });
+
+  test('guide frontmatter has foundry_git_finish: allow', () => {
+    const text = readGuide();
+    const parsed = parseFrontmatter(text);
+    assert.equal(
+      parsed.data.permission?.foundry_git_finish,
+      'allow',
+      'guide frontmatter must have foundry_git_finish: allow'
+    );
+  });
+
+  test('guide prompt states guide owns branch lifecycle', () => {
+    const text = readGuide();
+    const body = getBody(text);
+    const pattern = /(own|responsible for).*(branch lifecycle|branch.*decision|config branch|git branch)/i;
+    assert.ok(
+      pattern.test(body),
+      'guide prompt must state guide owns branch lifecycle'
+    );
+  });
+
+  test('guide prompt describes admin delegation return contract', () => {
+    const text = readGuide();
+    const body = getBody(text);
+    const returnItems = /(path|sha|commit hash|validation output|command log|blocker)/i;
+    assert.ok(
+      returnItems.test(body),
+      'guide prompt must describe what admin delegation returns (paths, SHAs, validation output, command logs, or blockers)'
+    );
+  });
+
+  test('guide prompt identifies unexpected admin branch finishing as stop condition', () => {
+    const text = readGuide();
+    const body = getBody(text);
+    const pattern = /(unexpected|unexpectedly).*admin.*(branch|finish)|admin.*(branch|finish).*(stop|report)/i;
+    assert.ok(
+      pattern.test(body),
+      'guide prompt must mention unexpected admin branch behaviour as a stop or report condition'
+    );
+  });
+
+  test('guide prompt describes verification of branch and dirty state', () => {
+    const text = readGuide();
+    const body = getBody(text);
+    const pattern = /(verify|check).*(branch|dirty).*(state|status|tree)/i;
+    assert.ok(
+      pattern.test(body),
+      'guide prompt must describe verifying branch or dirty state when delegated results affect workflow'
     );
   });
 });

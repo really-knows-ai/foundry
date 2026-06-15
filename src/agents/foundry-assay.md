@@ -8,6 +8,7 @@ permission:
   grep: allow
   list: allow
   skill: allow
+  bash: deny
   foundry_stage_begin: allow
   foundry_stage_end: allow
   foundry_assay_run: allow
