@@ -12,7 +12,8 @@
 
 import path from 'path';
 import { Readable } from 'stream';
-import { runCommand, createExec } from '../../scripts/lib/config-command-runner.js';
+import { runCommand } from '../../scripts/lib/config-command-runner.js';
+import { createExec } from '../../scripts/lib/config-command-exec.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
 import { expandValidatorCommand, shellQuote } from '../../scripts/lib/validation.js';
 import { makeIO, makeExec } from './helpers.js';
@@ -208,7 +209,9 @@ async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
   const stream = Readable.from([stdout]);
   const parseResult = await parseValidatorJsonl(stream, patterns);
 
-  if (hasValidatorCrashed(parseResult, runResult.exitCode)) return JSON.stringify(buildCrashResponse(runResult, parseResult));
+  if (hasValidatorCrashed(parseResult, runResult.exitCode)) {
+    return JSON.stringify(buildCrashResponse(runResult, parseResult));
+  }
   return JSON.stringify(buildSuccessResponse(runResult, parseResult));
 }
 

@@ -167,6 +167,13 @@ function routeBranchFinish(kind, branch, base, cwd, args) {
   return refuseUnknownFinishBranch(branch);
 }
 
+function finishNonDryRunBranch(branch, kind, base, args, cwd) {
+  const untrackedRefusal = checkUntrackedFoundryFiles(cwd);
+  if (untrackedRefusal) return untrackedRefusal;
+  if (branch === base) return makeNoopResult(base);
+  return routeBranchFinish(kind, branch, base, cwd, args);
+}
+
 async function executeGitFinish(args, context) {
   const io = makeIO(context.worktree);
   const stageGuard = requireNoActiveStage(io);
@@ -181,10 +188,7 @@ async function executeGitFinish(args, context) {
     return routeDryRunFinish(branch, args, cwd);
 
   const base = args.baseBranch || 'main';
-  const untrackedRefusal = checkUntrackedFoundryFiles(cwd);
-  if (untrackedRefusal) return untrackedRefusal;
-  if (branch === base) return makeNoopResult(base);
-  return routeBranchFinish(kind, branch, base, cwd, args);
+  return finishNonDryRunBranch(branch, kind, base, args, cwd);
 }
 
 // -- Tool definitions --
