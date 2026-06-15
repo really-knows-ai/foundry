@@ -582,3 +582,104 @@ describe('runCommand', () => {
     assert.equal(result.reason, 'audit_log_failed');
   });
 });
+
+// ---------------------------------------------------------------------------
+// D4 — {files} and {pattern} expansion using expandValidatorCommand
+// ---------------------------------------------------------------------------
+describe('expandValidatorCommand (placeholder expansion)', () => {
+  let expandValidatorCommand;
+
+  // Load the module dynamically to avoid import order issues
+  test.before(async () => {
+    expandValidatorCommand = (await import('../../src/scripts/lib/validation.js')).expandValidatorCommand;
+  });
+
+  function sq(v) {
+    return "'" + String(v).replace(/'/g, "'\\''") + "'";
+  }
+
+  test('{files} expands to shell-quoted, space-separated file list', () => {
+    const result = expandValidatorCommand('node check.mjs {files}', {
+      pattern: '',
+      files: 'a.md b.md',
+    });
+    assert.equal(result, 'node check.mjs a.md b.md');
+  });
+
+  test('{pattern} expands to shell-quoted, space-separated pattern list', () => {
+    const result = expandValidatorCommand('node check.mjs {pattern}', {
+      pattern: sq('*.md'),
+      files: '',
+    });
+    assert.equal(result, "node check.mjs '*.md'");
+  });
+
+  test('both placeholders expand together', () => {
+    const files = [sq('a.md'), sq('b.md')].join(' ');
+    const pats = [sq('*.md'), sq('*.txt')].join(' ');
+    const result = expandValidatorCommand('node check.mjs {files} {pattern}', {
+      pattern: pats,
+      files,
+    });
+    assert.equal(result, "node check.mjs 'a.md' 'b.md' '*.md' '*.txt'");
+  });
+
+  test('placeholders are standalone tokens (not part of a larger word)', () => {
+    const result = expandValidatorCommand('node prefix{files}suffix', {
+      pattern: '',
+      files: 'a.md',
+    });
+    // No substitution because {files} is bounded by prefix/suffix chars, not whitespace
+    assert.equal(result, 'node prefix{files}suffix');
+  });
+
+  test('single-quoted placeholder is expanded', () => {
+    const result = expandValidatorCommand("node check.mjs '{files}'", {
+      pattern: '',
+      files: sq('a.md'),
+    });
+    assert.equal(result, "node check.mjs 'a.md'");
+  });
+
+  test('double-quoted placeholder is expanded', () => {
+    const result = expandValidatorCommand('node check.mjs "{files}"', {
+      pattern: '',
+      files: sq('a.md'),
+    });
+    assert.equal(result, "node check.mjs 'a.md'");
+  });
+
+  test('empty files expands to empty string (no files to validate)', () => {
+    const result = expandValidatorCommand('node check.mjs {files}', {
+      pattern: '',
+      files: '',
+    });
+    assert.equal(result, 'node check.mjs ');
+  });
+
+  test('multiple patterns and files expand correctly', () => {
+    const files = ['f1.md', 'f2.md'].map(sq).join(' ');
+    const pats = ['*.md', '*.txt'].map(sq).join(' ');
+    const result = expandValidatorCommand('node check.mjs {files} --pattern {pattern}', {
+      pattern: pats,
+      files,
+    });
+    assert.equal(result, "node check.mjs 'f1.md' 'f2.md' --pattern '*.md' '*.txt'");
+  });
+
+  test('no placeholders leaves command unchanged', () => {
+    const result = expandValidatorCommand('node check.mjs --strict', {
+      pattern: sq('*.md'),
+      files: sq('a.md'),
+    });
+    assert.equal(result, "node check.mjs --strict");
+  });
+
+  test('command with only {pattern} and no files', () => {
+    const result = expandValidatorCommand('rg --json {pattern}', {
+      pattern: sq('*.md'),
+      files: '',
+    });
+    assert.equal(result, "rg --json '*.md'");
+  });
+});
