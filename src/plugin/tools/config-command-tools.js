@@ -15,7 +15,7 @@ import { Readable } from 'stream';
 import { runCommand } from '../../scripts/lib/config-command-runner.js';
 import { createExec } from '../../scripts/lib/config-command-runner.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
-import { expandValidatorCommand, shellQuote } from '../../scripts/lib/validation.js';
+import { expandValidatorCommand, buildPlaceholderSubstitutions } from '../../scripts/lib/validation.js';
 import { makeIO, makeExec } from './helpers.js';
 import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
 import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
@@ -122,12 +122,7 @@ function buildSuccessResponse(runResult, parseResult) {
 }
 
 function expandPlaceholders(command, files, patterns) {
-  const filesSubst = files.map(shellQuote).join(' ');
-  const patternsSubst = patterns.map(shellQuote).join(' ');
-  return expandValidatorCommand(command, {
-    pattern: patternsSubst,
-    files: filesSubst,
-  });
+  return expandValidatorCommand(command, buildPlaceholderSubstitutions(patterns, files));
 }
 
 function hasValidatorCrashed(parseResult, exitCode) {

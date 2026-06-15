@@ -119,10 +119,7 @@ export async function runValidatorsAndReport(laws, patterns, foundryDir, artefac
   } else {
     expandedFiles = await expandPatterns(patterns, worktree);
   }
-  const substitutions = {
-    pattern: patterns.map(shellQuote).join(' '),
-    files: expandedFiles.map(shellQuote).join(' '),
-  };
+  const substitutions = buildPlaceholderSubstitutions(patterns, expandedFiles);
   const results = await runValidators(laws, patterns, substitutions, worktree);
 
   return {
@@ -239,6 +236,24 @@ export async function executeValidator(expanded, worktree, patterns) {
       await parseValidatorJsonl(stream, patterns),
     );
   }
+}
+
+/**
+ * Build the {pattern, files} substitution object for expandValidatorCommand.
+ *
+ * Each element in the input arrays is shell-quoted and the results joined
+ * with spaces, producing values suitable for placeholder expansion in
+ * validator commands.
+ *
+ * @param {string[]} patterns - Glob patterns for {pattern} substitution
+ * @param {string[]} files - File paths for {files} substitution
+ * @returns {{ pattern: string, files: string }}
+ */
+export function buildPlaceholderSubstitutions(patterns, files) {
+  return {
+    pattern: patterns.map(shellQuote).join(' '),
+    files: files.map(shellQuote).join(' '),
+  };
 }
 
 /**
