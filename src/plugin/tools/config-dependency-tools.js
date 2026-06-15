@@ -203,7 +203,7 @@ function performInstall(worktree, name, dev, packageManager) {
   if (postErr) return postErr;
 
   const changedFiles = [...new Set(afterDirty.filter((f) =>
-    !beforeDirty.includes(f) || isAllowedDependencyFile(f),
+    !isToolManagedFile(f) && (!beforeDirty.includes(f) || isAllowedDependencyFile(f)),
   ))];
 
   return { pnpmResult, changedFiles };
