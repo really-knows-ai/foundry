@@ -26,6 +26,12 @@ export const TOOL_MANAGED = [
 
 const TOOL_MANAGED_PREFIX = ['.foundry/'];
 
+export const CONFIG_ALLOWED_PATTERNS = [
+  'foundry/**',
+  'package.json',
+  'pnpm-lock.yaml',
+];
+
 export function isToolManaged(file) {
   if (TOOL_MANAGED.includes(file)) return true;
   return TOOL_MANAGED_PREFIX.some((p) => file.startsWith(p));
@@ -113,7 +119,8 @@ export function checkConfigBranchFiles(diffOut) {
   const toolManaged = new Set(TOOL_MANAGED);
   const outside = diffOut.split('\n')
     .map(f => f.trim())
-    .filter(f => f.length > 0 && !toolManaged.has(f) && !f.startsWith('foundry/'))
+    .filter(f => f.length > 0 && !toolManaged.has(f))
+    .filter(f => !CONFIG_ALLOWED_PATTERNS.some(p => minimatch(f, p, { dot: true })))
     .filter(f => !TOOL_MANAGED_PREFIX.some(p => f.startsWith(p)));
   return outside.length ? { files: outside } : null;
 }

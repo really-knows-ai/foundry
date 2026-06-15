@@ -30,6 +30,7 @@ class UnexpectedFilesError extends Error {
 }
 
 export { UnexpectedFilesError };
+export { CONFIG_ALLOWED_PATTERNS } from './git-policy.js';
 
 /**
  * @param {object} opts

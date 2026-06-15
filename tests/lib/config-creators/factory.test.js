@@ -111,6 +111,26 @@ test('factory: rejects when file already exists', async () => {
   assert.ok(!exec.calls.some((c) => c[0] === 'commit'));
 });
 
+test('factory: removes created file when commit policy rejects the worktree', async () => {
+  const pathFor = (args) => `foundry/test/${args.name}.md`;
+  const validator = makeMockValidator(true);
+  const create = makeCreator({
+    kind: { human: 'test-type', underscored: 'test_type' },
+    pathFor,
+    validator,
+  });
+
+  const io = makeAsyncMockIO();
+  const exec = makeFakeExecFile(['foundry/test/foo.md', 'notes.txt']);
+
+  await assert.rejects(
+    () => create({ name: 'foo', body: VALID_BODY, io, execFile: exec }),
+    /unexpected_files/,
+  );
+  assert.equal(io._has('foundry/test/foo.md'), false);
+  assert.ok(!exec.calls.some((c) => c[0] === 'commit'));
+});
+
 test('factory: supports custom validation logic', async () => {
   const pathFor = (args) => `foundry/test/${args.target.file}`;
   const validator = makeMockValidator(true);

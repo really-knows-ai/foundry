@@ -7,6 +7,7 @@ import {
   parsePorcelainZ,
   partitionDirty,
   allowedPatternsForStage,
+  checkConfigBranchFiles,
 } from '../../src/scripts/lib/git-policy.js';
 
 describe('isToolManaged', () => {
@@ -105,5 +106,24 @@ describe('allowedPatternsForStage', () => {
     assert.deepEqual(allowedPatternsForStage({ stageBase: 'appraise' }), []);
     assert.deepEqual(allowedPatternsForStage({ stageBase: 'human-appraise' }), []);
     assert.deepEqual(allowedPatternsForStage({}), []);
+  });
+});
+
+describe('checkConfigBranchFiles', () => {
+  it('allows foundry config plus validator dependency files', () => {
+    const diffOut = [
+      'foundry/artefacts/haiku/laws.md',
+      'foundry/artefacts/haiku/validate-syllables.mjs',
+      'package.json',
+      'pnpm-lock.yaml',
+    ].join('\n');
+
+    assert.equal(checkConfigBranchFiles(diffOut), null);
+  });
+
+  it('rejects unrelated root files on config branches', () => {
+    const result = checkConfigBranchFiles('foundry/flows/haiku.md\nREADME.md\n');
+
+    assert.deepEqual(result, { files: ['README.md'] });
   });
 });

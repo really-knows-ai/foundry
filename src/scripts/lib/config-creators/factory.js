@@ -1,5 +1,6 @@
 import { dirname } from 'node:path';
 import { commitWithPolicy } from '../git-bridge.js';
+import { CONFIG_ALLOWED_PATTERNS } from '../git-policy.js';
 
 function runCustomValidation(customValidation, args) {
   if (!customValidation) return null;
@@ -38,11 +39,17 @@ export function makeCreator({ kind, pathFor, validator, customValidation }) {
 
     const kindNormalised = normaliseKind(kind);
 
-    const sha = commitWithPolicy({
-      message: `config: add ${kindNormalised.human} ${args.name}\n\nvia foundry_config_create_${kindNormalised.underscored}`,
-      allowedPatterns: ['foundry/**'],
-      execFile: args.execFile,
-    });
+    let sha;
+    try {
+      sha = commitWithPolicy({
+        message: `config: add ${kindNormalised.human} ${args.name}\n\nvia foundry_config_create_${kindNormalised.underscored}`,
+        allowedPatterns: CONFIG_ALLOWED_PATTERNS,
+        execFile: args.execFile,
+      });
+    } catch (err) {
+      await args.io.rm(path);
+      throw err;
+    }
 
     return { ok: true, path, sha };
   };

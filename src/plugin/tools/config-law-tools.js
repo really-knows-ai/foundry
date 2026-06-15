@@ -8,7 +8,7 @@ import { validate as validateLaw } from '../../scripts/lib/config-validators/law
 import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
 import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
-import { UnexpectedFilesError, commitWithPolicy } from '../../scripts/lib/git-bridge.js';
+import { UnexpectedFilesError, commitWithPolicy, CONFIG_ALLOWED_PATTERNS } from '../../scripts/lib/git-bridge.js';
 import { makeIO, makeExec, makeAsyncIO, errorJson, branchIoFactory, asyncIoFactory } from './helpers.js';
 import { execFileSync } from 'child_process';
 import { assembleLawMarkdown, assembleEditLawMarkdown } from '../../scripts/lib/config-creators/law.js';
@@ -209,7 +209,7 @@ async function executeAddLaw(args, context) {
 
     const sha = commitWithPolicy({
       message: `config: add law ${args.name}\n\nvia foundry_config_add_law`,
-      allowedPatterns: ['foundry/**'], execFile,
+      allowedPatterns: CONFIG_ALLOWED_PATTERNS, execFile,
     });
     return JSON.stringify({ ok: true, path, sha });
   } catch (err) {

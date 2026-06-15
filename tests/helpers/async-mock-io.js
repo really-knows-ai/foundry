@@ -9,6 +9,7 @@ export function makeAsyncMockIO(files = {}) {
     },
     writeFile: async (p, c) => { store[p] = c; },
     mkdirp: async (p) => { dirs.add(p); },
+    rm: async (p) => { delete store[p]; },
     _get: (p) => store[p],
     _set: (p, c) => { store[p] = c; },
     _has: (p) => p in store,
