@@ -93,10 +93,15 @@ function validateRunValidatorArgs(args) {
   return null;
 }
 
-function buildCrashResponse(runResult) {
+function buildCrashResponse(runResult, parseResult) {
   return {
     ok: false,
     error: 'validator exited non-zero without valid JSONL',
+    rawStdout: runResult.stdout,
+    rawStderr: runResult.stderr,
+    violations: parseResult.items,
+    parseErrors: parseResult.parseErrors,
+    patternErrors: parseResult.patternErrors,
     exitCode: runResult.exitCode,
     logPath: runResult.logPath,
     dirtyBefore: runResult.dirtyBefore,
@@ -200,7 +205,7 @@ async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
   const stream = Readable.from([stdout]);
   const parseResult = await parseValidatorJsonl(stream, patterns);
 
-  if (hasValidatorCrashed(parseResult, runResult.exitCode)) return JSON.stringify(buildCrashResponse(runResult));
+  if (hasValidatorCrashed(parseResult, runResult.exitCode)) return JSON.stringify(buildCrashResponse(runResult, parseResult));
   return JSON.stringify(buildSuccessResponse(runResult, parseResult));
 }
 
