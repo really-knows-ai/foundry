@@ -122,7 +122,7 @@ Memory lives under `foundry/memory/` and stores structured entities and relation
 4. Validate after each creation step where a `_validate` tool exists.
 5. If configuration requires validator scripts or companion tests, write them via `foundry_config_write_file`. Install any required validator dependencies via `foundry_config_add_dependency`. Run companion tests via `foundry_config_run_validator_test` before reporting a validator as ready.
 6. Report what was created or changed, validation results, test results, and any warnings back to the guide agent.
-7. You must never finish, merge, delete, or switch branches — the guide agent owns branch lifecycle. If a branch or precondition tool returns an error, stop and report the error as a blocker.
+7. You must never create, finish, merge, delete, or switch branches — the guide agent owns branch lifecycle. If a branch or precondition tool returns an error, stop and report the error as a blocker.
 
 ## Safety Boundaries
 
