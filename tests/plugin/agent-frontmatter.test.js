@@ -134,3 +134,13 @@ describe('agent frontmatter — T1.3: catch-all deny rule', () => {
     });
   }
 });
+
+test('foundry-forge can create artefact files while still denying foundry config writes', () => {
+  const filePath = join(AGENTS_DIR, 'foundry-forge.md');
+  const raw = readFileSync(filePath, 'utf8');
+  const parsed = matter(raw);
+  const writePerm = parsed.data.permission.write;
+
+  assert.equal(writePerm['*'], 'allow');
+  assert.equal(writePerm['foundry/**'], 'deny');
+});

@@ -11,6 +11,9 @@ permission:
   edit:
     "*": allow
     "foundry/**": deny
+  write:
+    "*": allow
+    "foundry/**": deny
   bash: deny
   foundry_stage_begin: allow
   foundry_stage_end: allow
