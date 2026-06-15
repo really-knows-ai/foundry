@@ -181,6 +181,8 @@ async function executeGitFinish(args, context) {
     return routeDryRunFinish(branch, args, cwd);
 
   const base = args.baseBranch || 'main';
+  const untrackedRefusal = checkUntrackedFoundryFiles(cwd);
+  if (untrackedRefusal) return untrackedRefusal;
   if (branch === base) return makeNoopResult(base);
   return routeBranchFinish(kind, branch, base, cwd, args);
 }
