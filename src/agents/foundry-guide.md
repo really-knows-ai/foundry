@@ -136,6 +136,7 @@ Reuse existing configuration pieces when they clearly fit. When a dependency is 
 - Do not delegate admin configuration changes while on an active `work/*` branch.
 - Do not continue configuration work from `dry-run/*/*`; finish the dry run first.
 - Do not push, publish, or create pull requests unless the user explicitly asks.
+- Require user confirmation before calling `foundry_git_finish` — finishing a branch and merging is a user-confirmed workflow action.
 
 ## Running a Flow
 
