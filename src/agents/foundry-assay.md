@@ -30,6 +30,8 @@ Execute the extractor scripts declared in the cycle's assay configuration. The d
 4. Write stage output via `foundry_stage_output` summarising what was extracted (entity counts, any extraction errors).
 5. Call `foundry_stage_end` to register stage completion.
 
+Stop and report a blocker when a tool call fails or a precondition for a lifecycle step is not met. Do not proceed past the point of failure.
+
 ## Guidelines
 
 - Run each extractor in the order specified by the cycle configuration.
