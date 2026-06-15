@@ -25,6 +25,7 @@ const EXPECTED_TOOLS = [
   'foundry_config_read_flow',
   'foundry_config_read_law',
   'foundry_config_read_laws',
+  'foundry_config_run_command',
   'foundry_config_validate_appraiser',
   'foundry_config_validate_artefact_type',
   'foundry_config_validate_cycle',
