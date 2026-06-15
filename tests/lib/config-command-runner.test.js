@@ -171,20 +171,26 @@ describe('parseCommand', () => {
 // ---------------------------------------------------------------------------
 describe('checkCommandPolicy', () => {
   test('allows node foundry/script.mjs', () => {
-    const result = checkCommandPolicy(['node', 'foundry/script.mjs']);
+    const argv = ['node', 'foundry/script.mjs'];
+    const result = checkCommandPolicy(argv);
     assert.equal(result.ok, true);
+    assert.deepEqual(result.argv, argv);
     assert.equal(result.mode, 'node-foundry-script');
   });
 
   test('allows node foundry/artefacts/haiku/validate.mjs', () => {
-    const result = checkCommandPolicy(['node', 'foundry/artefacts/haiku/validate.mjs']);
+    const argv = ['node', 'foundry/artefacts/haiku/validate.mjs'];
+    const result = checkCommandPolicy(argv);
     assert.equal(result.ok, true);
+    assert.deepEqual(result.argv, argv);
     assert.equal(result.mode, 'node-foundry-script');
   });
 
   test('allows node foundry/deep/nested/path/test.mjs', () => {
-    const result = checkCommandPolicy(['node', 'foundry/deep/nested/path/test.mjs']);
+    const argv = ['node', 'foundry/deep/nested/path/test.mjs'];
+    const result = checkCommandPolicy(argv);
     assert.equal(result.ok, true);
+    assert.deepEqual(result.argv, argv);
     assert.equal(result.mode, 'node-foundry-script');
   });
 
@@ -208,8 +214,10 @@ describe('checkCommandPolicy', () => {
   });
 
   test('allows pnpm run test with baseDir and cwd set to foundry/', () => {
-    const result = checkCommandPolicy(['pnpm', 'run', 'test'], '/repo', '/repo/foundry');
+    const argv = ['pnpm', 'run', 'test'];
+    const result = checkCommandPolicy(argv, '/repo', '/repo/foundry');
     assert.equal(result.ok, true);
+    assert.deepEqual(result.argv, argv);
     assert.equal(result.mode, 'pnpm-run');
   });
 

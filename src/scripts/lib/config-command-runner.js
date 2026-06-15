@@ -158,7 +158,7 @@ function checkNodePath(argv, baseDir) {
   if (!underFoundry) {
     return { ok: false, error: `path outside foundry/: ${scriptPath}`, reason: 'path_outside_foundry' };
   }
-  return { ok: true, mode: 'node-foundry-script' };
+  return { ok: true, argv, mode: 'node-foundry-script' };
 }
 
 function checkPnpmArgv(argv) {
@@ -188,7 +188,7 @@ function checkPnpm(argv, baseDir, cwd) {
   if (argvResult) return argvResult;
   const cwdResult = checkPnpmCwd(baseDir, cwd);
   if (cwdResult) return cwdResult;
-  return { ok: true, mode: 'pnpm-run' };
+  return { ok: true, argv, mode: 'pnpm-run' };
 }
 
 /**
@@ -199,7 +199,7 @@ function checkPnpm(argv, baseDir, cwd) {
  *   used to resolve foundry/ paths for node commands.
  * @param {string} [cwd] - Working directory for the command. Required for
  *   pnpm commands; must resolve to the foundry/ directory under baseDir.
- * @returns {{ ok: true, mode: string } | { ok: false, error: string, reason: string }}
+ * @returns {{ ok: true, argv: string[], mode: string } | { ok: false, error: string, reason: string }}
  */
 export function checkCommandPolicy(argv, baseDir, cwd) {
   if (!argv || argv.length === 0) {
