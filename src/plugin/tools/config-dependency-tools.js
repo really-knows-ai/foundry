@@ -102,7 +102,7 @@ function checkPreInstallDirty(dirtyFiles) {
 }
 
 function checkPostInstallDirty(dirtyFiles) {
-  const { rootFiles, unexpected } = classifyDirtyFiles(dirtyFiles);
+  const { rootFiles, unexpected, toolManagedFiles } = classifyDirtyFiles(dirtyFiles);
   if (rootFiles.length > 0) {
     return {
       ok: false,
@@ -110,6 +110,13 @@ function checkPostInstallDirty(dirtyFiles) {
         `root package-file isolation: root package file(s) changed: ` +
         `${rootFiles.join(', ')}. Config dependencies must be installed in foundry/ only.`,
       unexpectedFiles: rootFiles,
+    };
+  }
+  if (toolManagedFiles.length > 0) {
+    return {
+      ok: false,
+      error: `unexpected changed files after installation: ${toolManagedFiles.join(', ')}`,
+      unexpectedFiles: toolManagedFiles,
     };
   }
   if (unexpected.length > 0) {
