@@ -137,6 +137,7 @@ Reuse existing configuration pieces when they clearly fit. When a dependency is 
 - Do not continue configuration work from `dry-run/*/*`; finish the dry run first.
 - Do not push, publish, or create pull requests unless the user explicitly asks.
 - Require user confirmation before calling `foundry_git_finish` — finishing a branch and merging is a user-confirmed workflow action.
+- Stop and report a blocker when a tool call fails or the system enters an unexpected state that prevents forward progress. Do not attempt to proceed or recover without user awareness.
 
 ## Running a Flow
 
