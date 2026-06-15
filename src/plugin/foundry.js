@@ -30,6 +30,9 @@ import { createGitTools } from './tools/git-tools.js';
 import { createConfigTools } from './tools/config-tools.js';
 import { createConfigCreateTools } from './tools/config-create-tools.js';
 import { createConfigLawTools } from './tools/config-law-tools.js';
+import { createConfigCommandTools } from './tools/config-command-tools.js';
+import { createConfigFileTools } from './tools/config-file-tools.js';
+import { createConfigDependencyTools } from './tools/config-dependency-tools.js';
 import { createValidateTools } from './tools/validate-tools.js';
 import { createAssayTools } from './tools/assay-tools.js';
 import { createMemoryTools } from './tools/memory-tools.js';
@@ -37,7 +40,7 @@ import { createMemoryAdminTools } from './tools/memory-admin-tools.js';
 import { createSnapshotTools } from './tools/snapshot-tools.js';
 import { createAttestationTools } from './tools/attestation-tools.js';
 import { createStageOutputTool } from './tools/stage-output-tool.js';
-import { resolveGit, resolvePnpm } from '../scripts/lib/tool-paths.js';
+import { resolveGit } from '../scripts/lib/tool-paths.js';
 
 function findPackageRoot(startDir) {
   let dir = startDir;
@@ -98,7 +101,7 @@ function bootstrapGitignore(worktree) {
   }
   content = ensureNewlineSuffix(content);
   const existingLines = content.split('\n').map(l => l.trim());
-  const lines = ['.snapshots/', '.foundry/', '!.foundry/attestations/', 'node_modules/', '.DS_Store'];
+  const lines = ['.snapshots/', '.foundry/', '!.foundry/attestations/', 'node_modules/', 'foundry/node_modules/', '.DS_Store'];
   for (const line of lines) {
     if (existingLines.includes(line)) continue;
     content += `${line}\n`;
@@ -118,20 +121,25 @@ function initGitRepo(worktree) {
   }
 }
 
-function ensurePackageJson(worktree) {
-  if (existsSync(path.join(worktree, 'package.json'))) return;
-  try {
-    execFileSync(resolvePnpm(), ['init'], { cwd: worktree, stdio: 'pipe' });
-  } catch (err) {
-    console.error('Foundry pnpm init error:', err.message);
-  }
+function ensureFoundryPackageJson(worktree) {
+  const pkgPath = path.join(worktree, 'foundry', 'package.json');
+  if (existsSync(pkgPath)) return;
+  const meta = {
+    name: 'foundry-config',
+    private: true,
+    type: 'module',
+    packageManager: 'pnpm@10.15.1',
+    dependencies: {},
+    devDependencies: {},
+  };
+  writeFileSync(pkgPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
 }
 
 function runBootstrapSequence(worktree, pkgRoot) {
-  ensurePackageJson(worktree);
   bootstrapDirectories(worktree);
   bootstrapDotFoundryDirs(worktree);
   bootstrapGitignore(worktree);
+  ensureFoundryPackageJson(worktree);
   writeAllFoundryAgents(worktree, pkgRoot);
   writeFoundrySkills(worktree, pkgRoot);
   const pkg = JSON.parse(readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'));
@@ -224,6 +232,10 @@ function runConfigBootstrap(worktree, pkgRoot) {
     return true;
   }
 
+  // Ensure foundry/package.json exists even for pre-existing installs
+  // that predate the package boundary feature (upgrade path).
+  ensureFoundryPackageJson(worktree);
+
   return false;
 }
 
@@ -261,6 +273,9 @@ function buildTools(createTool, pending, client) {
     ...createConfigTools({ tool: createTool }),
     ...createConfigCreateTools({ tool: createTool }),
     ...createConfigLawTools({ tool: createTool }),
+    ...createConfigCommandTools({ tool: createTool }),
+    ...createConfigFileTools({ tool: createTool }),
+    ...createConfigDependencyTools({ tool: createTool }),
     ...createValidateTools({ tool: createTool }),
     ...createAssayTools({ tool: createTool }),
     ...createMemoryTools({ tool: createTool }),

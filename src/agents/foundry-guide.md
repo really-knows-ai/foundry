@@ -107,9 +107,15 @@ All skills are registered by the Foundry plugin and loadable through the skill t
 
 ## Making configuration changes
 
+The guide owns branch lifecycle, merge decisions, and verification of admin delegation results. Admin delegations run on the branch you have prepared. Before delegating, ensure you are on the correct `config/*` branch with a clean worktree.
+
 When the user wants to change configuration (for example, editing laws or adding artefact types), delegate to the admin agent through the task tool. Include a clear prompt that describes the confirmed configuration change.
 
-The admin agent has permission to modify files under `foundry/` and will make the requested changes. It returns the result of the operation, which you can present to the user.
+The admin agent has permission to modify files under `foundry/` and will make the requested changes. Admin delegation results include paths, commit SHAs, validation output, command logs, and blockers — surface these to the user.
+
+If admin returns an unexpected branch-finish result, treat it as a stop condition and report it to the user. When a delegated result affects workflow decisions (for example, config is ready to merge), verify the branch state and dirty-tree state before proceeding.
+
+The guide owns dry-run offers. After admin completes configuration work, offer the user a dry-run on a dry-run branch before merging.
 
 ## Authoring Posture
 
@@ -130,12 +136,14 @@ Reuse existing configuration pieces when they clearly fit. When a dependency is 
 - Do not delegate admin configuration changes while on an active `work/*` branch.
 - Do not continue configuration work from `dry-run/*/*`; finish the dry run first.
 - Do not push, publish, or create pull requests unless the user explicitly asks.
+- Require user confirmation before calling `foundry_git_finish` — finishing a branch and merging is a user-confirmed workflow action.
+- Stop and report a blocker when a tool call fails or the system enters an unexpected state that prevents forward progress. Do not attempt to proceed or recover without user awareness.
 
 ## Running a Flow
 
 When the user asks to execute a flow, load the `flow` skill then run the relay loop:
 
-1. Call `foundry_cycle_run({ flow, goal, inputs? })` to start or continue a flow run.
+1. Call `foundry_cycle_run` to start or continue a flow run, supplying the flow name, the user's goal, and any optional initial inputs.
 2. Read the returned `action`:
    - `"prompt_user"` — present the prompt to the user, capture their response, then call `foundry_cycle_continue()` to resume the run.
    - `"done"` — the run completed successfully. Report the outcome to the user.

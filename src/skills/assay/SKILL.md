@@ -32,9 +32,8 @@ If `foundry_workfile_get` returns `{status: "failed", reason: ...}`, STOP. Do no
 >
 > No further work is permitted. To recover:
 >
->   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
->   2. Back out to main (`git checkout main`) and delete the work branch.
->   3. Investigate and fix the root cause of the failure before restarting.
+   >   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
+   >   2. Investigate and fix the root cause of the failure before restarting.
 
 Then return control to the user and stop.
 

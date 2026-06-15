@@ -38,6 +38,8 @@ Generate or revise artefacts according to the cycle's output-type and artefact t
 4. Write stage output via `foundry_stage_output`.
 5. Call `foundry_stage_end` to register stage completion.
 
+Stop and report a blocker when a tool call fails or a precondition for a lifecycle step is not met. Do not proceed past the point of failure.
+
 ## What to produce
 
 Your output must be a complete, self-contained artefact that satisfies the artefact type's file pattern. You may edit any file that is not under `foundry/`. Read existing artefacts with `foundry_workfile_get` to understand context and prior iterations.

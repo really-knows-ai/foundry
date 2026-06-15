@@ -70,11 +70,11 @@ Walk the user through which elements of the law can be validated deterministical
 >
 > Shall I add validators for the script-checkable elements?
 
-For each script-checkable element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Use existing project dependencies and Node.js built‑ins. Hand‑rolled heuristics (custom syllable counters, regex parsers, manual character walks) are a last resort — they produce false positives, waste tokens on debugging, and break on edge cases. Install a library instead. Only write validation logic from scratch when no npm package exists for the task and the heuristic is trivially correct.
+For each script-checkable element, write a standalone `.mjs` script next to the artefacts it validates (e.g. `foundry/artefacts/<type>/check-line-count.mjs`) and reference it in the command (e.g. `node foundry/artefacts/<type>/check-line-count.mjs {files}`). Place validators alongside the artefacts so they colocate with what they validate. Use existing project dependencies and Node.js built‑ins. Hand‑rolled heuristics (custom syllable counters, regex parsers, manual character walks) are a last resort — they produce false positives, waste tokens on debugging, and break on edge cases. Install a library via `foundry_config_add_dependency` instead — this installs the dependency into `foundry/` without modifying the host project's root `package.json`. Only write validation logic from scratch when no npm package exists for the task and the heuristic is trivially correct.
 
 All flow artefacts — validator scripts, tests, test fixtures — live inside `foundry/`. Never place artefacts outside `foundry/`. Test fixtures colocate with the validator's test file under `foundry/artefacts/<type>/test/fixtures/`. When test fixtures match an artefact type's `file-patterns:`, they trigger false-positive quench feedback during flow runs. Keeping them inside `foundry/` prevents this.
 
-Every validator carries a companion test file alongside it (e.g. `check-line-count.test.js`). The test uses Node's built‑in test runner — `node --test check-line-count.test.js`. Follow TDD: write the test, confirm it fails against a current artefact, implement the validator, verify the test passes. The test feeds sample inputs to the validator script and asserts the correct JSONL output on stdout — it validates the JSONL contract, not just that the script runs.
+Every validator carries a companion test file alongside it (e.g. `check-line-count.test.js`). The test uses Node's built‑in test runner. After writing the test file via `foundry_config_write_file`, run it with `foundry_config_run_validator_test` to confirm it fails. Then implement the validator, write it with `foundry_config_write_file`, and run the test again to confirm it passes. The test feeds sample inputs to the validator script and asserts the correct JSONL output on stdout — it validates the JSONL contract, not just that the script runs.
 
 **Validators**: Ask about `validators` (optional) — offer to create one or skip.
 
@@ -103,9 +103,9 @@ Ask: "Proceed with this plan?" — wait for user answer before building. If the 
 
 1. **Write validators with TDD**: For each validator declared in the plan:
 
-   a. **Write the test first** — create a companion test file alongside the validator (e.g. `foundry/artefacts/<type>/check-line-count.test.js`). The test imports or spawns the validator script with sample inputs and asserts the correct JSONL output on stdout. Run `node --test` to confirm it fails.
+    a. **Write the test first** — create a companion test file alongside the validator (e.g. `foundry/artefacts/<type>/check-line-count.test.js`) via `foundry_config_write_file`. The test imports or spawns the validator script with sample inputs and asserts the correct JSONL output on stdout. Run `foundry_config_run_validator_test` to confirm it fails.
 
-   b. **Implement the validator** — write the `.mjs` script. Run the test again to confirm it passes. Do not commit the validator without its passing test.
+    b. **Implement the validator** — write the `.mjs` script via `foundry_config_write_file`. Run `foundry_config_run_validator_test` again to confirm it passes. Do not commit the validator without its passing test.
 
 2. **Validate**: Call `foundry_config_validate_law({ name: "<id>", body: "<assembled markdown>" })`. Assemble the body from the fields using the `## <id>` heading format the tool produces internally. If the result is `{ ok: false, errors: [...] }`, address each error and re-run until `{ ok: true }`. Common issues: missing required frontmatter keys, references to artefact types that do not exist yet.
 
@@ -160,7 +160,7 @@ Then proceed with the update.
 
 > 🔍 **Drift check:** Verify that the changed validator still aligns with the law's prose. If the validator has narrowed or broadened, the prose may need a corresponding update.
 
-After the validator implementation changes, update the companion test file. Run the tests to confirm they pass against the updated validator before committing.
+After the validator implementation changes, update the companion test file. Run `foundry_config_run_validator_test` to confirm the tests pass against the updated validator before committing.
 
 #### 5e. Apply the update
 

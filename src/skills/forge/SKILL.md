@@ -37,8 +37,7 @@ Forge runs inside an enforced stage. Your **first** and **last** tool calls are 
    > No further work is permitted. To recover:
    >
    >   1. `foundry_workfile_delete({confirm: true})` to abandon the cycle.
-   >   2. Back out to main (`git checkout main`) and delete the work branch.
-   >   3. Investigate and fix the root cause of the failure before restarting.
+   >   2. Investigate and fix the root cause of the failure before restarting.
 
    Then return control to the user and stop.
 3. `foundry_config_read_cycle` — understand what to produce and what inputs are available.

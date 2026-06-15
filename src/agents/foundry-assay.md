@@ -8,6 +8,7 @@ permission:
   grep: allow
   list: allow
   skill: allow
+  bash: deny
   foundry_stage_begin: allow
   foundry_stage_end: allow
   foundry_assay_run: allow
@@ -28,6 +29,8 @@ Execute the extractor scripts declared in the cycle's assay configuration. The d
 3. Run the specified extractors via `foundry_assay_run` — the tool executes each extractor's CLI and feeds the JSONL output into memory.
 4. Write stage output via `foundry_stage_output` summarising what was extracted (entity counts, any extraction errors).
 5. Call `foundry_stage_end` to register stage completion.
+
+Stop and report a blocker when a tool call fails or a precondition for a lifecycle step is not met. Do not proceed past the point of failure.
 
 ## Guidelines
 

@@ -1,0 +1,336 @@
+// Tools for scoped config command execution.
+//
+// Registers:
+//   foundry_config_run_command      — no-shell config command runner
+//   foundry_config_run_validator    — validator with {files}/{pattern} expansion
+//                                      and JSONL parsing
+//   foundry_config_run_validator_test — companion test runner for validator
+//                                        scripts
+//
+// All three require a config/* branch, a git repository, a Foundry root, and
+// a not-failed gate.  Validator and test tools are new in Phase 04.
+
+import path from 'path';
+import { Readable } from 'stream';
+import { runCommand, createExec } from '../../scripts/lib/config-command-runner.js';
+import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
+import { expandValidatorCommand, buildPlaceholderSubstitutions } from '../../scripts/lib/validation.js';
+import { makeIO, makeExec } from './helpers.js';
+import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
+import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
+import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
+
+const ROOT_PACKAGE_FILES = ['package.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock'];
+
+// ---------------------------------------------------------------------------
+// Guard functions — matches the pattern from config-create-tools and
+// config-law-tools.
+// ---------------------------------------------------------------------------
+
+function gitRepoGuard(_args, context) {
+  return requireGitRepo(makeIO(context.worktree));
+}
+
+function foundryRootGuard(_args, context) {
+  return requireFoundryRoot(makeIO(context.worktree));
+}
+
+function configBranchGuard(_args, context) {
+  return requireOnConfigBranch({ exec: makeExec(context.worktree) });
+}
+
+const gateNotFailed = notFailedGuard(makeIO);
+
+const ALL_GUARDS = [gitRepoGuard, foundryRootGuard, configBranchGuard, gateNotFailed];
+
+// ---------------------------------------------------------------------------
+// Root package file protection — enforces spec item 13 (line 130):
+// "The command runner must not modify host root package manager files by
+// default." When a command changes root package.json, pnpm-lock.yaml,
+// package-lock.json, yarn.lock, or bun.lock, the result reports the policy
+// violation via disallowedFiles and error without overriding the ok field.
+// The dirty-tree check is a policy concern, not a validity concern; ok and
+// root package changes are reported independently.
+// ---------------------------------------------------------------------------
+
+function rejectRootPackageChanges(runResult) {
+  if (!runResult.changedFiles) return runResult;
+  const disallowed = runResult.changedFiles.filter((f) => ROOT_PACKAGE_FILES.includes(f));
+  if (disallowed.length === 0) return runResult;
+  return {
+    ...runResult,
+    error: runResult.error
+      ? `${runResult.error}; root package file(s) changed: ${disallowed.join(', ')}`
+      : `root package file(s) changed: ${disallowed.join(', ')}`,
+    reason: 'root_package_file_changed',
+    disallowedFiles: disallowed,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Path helpers
+// ---------------------------------------------------------------------------
+
+function isUnderFoundry(worktree, testPath) {
+  const resolved = path.resolve(worktree, testPath);
+  const foundryResolved = path.resolve(worktree, 'foundry');
+  return resolved.startsWith(foundryResolved + path.sep);
+}
+
+// ---------------------------------------------------------------------------
+// Validator input helpers
+// ---------------------------------------------------------------------------
+
+function checkStringArrayElements(arr, label) {
+  if (!Array.isArray(arr)) return `${label} must be a string array`;
+  if (arr.some(item => typeof item !== 'string')) return `each element in ${label} must be a string`;
+  return null;
+}
+
+function validateRunValidatorArgs(args) {
+  if (!args.command) return 'command is required';
+  const filesErr = checkStringArrayElements(args.files, 'files');
+  if (filesErr) return filesErr;
+  const patternsErr = checkStringArrayElements(args.patterns, 'patterns');
+  if (patternsErr) return patternsErr;
+  return null;
+}
+
+function buildCrashResponse(runResult, parseResult) {
+  return {
+    ok: false,
+    error: 'validator exited non-zero without valid JSONL',
+    rawStdout: runResult.stdout,
+    rawStderr: runResult.stderr,
+    violations: parseResult.items,
+    parseErrors: parseResult.parseErrors,
+    patternErrors: parseResult.patternErrors,
+    exitCode: runResult.exitCode,
+    logPath: runResult.logPath,
+  };
+}
+
+function buildSuccessResponse(runResult, parseResult) {
+  return {
+    ok: parseResult.parseErrors.length === 0,
+    violations: parseResult.items,
+    parseErrors: parseResult.parseErrors,
+    patternErrors: parseResult.patternErrors,
+    rawStdout: runResult.stdout,
+    rawStderr: runResult.stderr,
+    exitCode: runResult.exitCode,
+    logPath: runResult.logPath,
+  };
+}
+
+function expandPlaceholders(command, files, patterns) {
+  return expandValidatorCommand(command, buildPlaceholderSubstitutions(patterns, files));
+}
+
+function hasValidatorCrashed(parseResult, exitCode) {
+  return parseResult.items.length === 0 && parseResult.parseErrors.length > 0 && exitCode !== 0;
+}
+
+// ---------------------------------------------------------------------------
+// Validator test input helpers
+// ---------------------------------------------------------------------------
+
+function validateTestPath(worktree, testPath) {
+  if (!testPath) return 'path is required';
+  if (!isUnderFoundry(worktree, testPath)) return `path outside foundry/: ${testPath}`;
+  if (!/\.test\.(?:js|mjs)$/.test(testPath)) {
+    return `path does not match *.test.js or *.test.mjs: ${testPath}`;
+  }
+  return null;
+}
+
+function buildTestResponse(result) {
+  if (!result.ok) return result;
+  return {
+    ok: result.exitCode === 0,
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    durationMs: result.durationMs,
+    changedFiles: result.changedFiles,
+    dirtyBefore: result.dirtyBefore,
+    dirtyAfter: result.dirtyAfter,
+    timedOut: result.timedOut,
+    logPath: result.logPath,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// foundry_config_run_command executor  (Phase 02, unchanged behaviour)
+// ---------------------------------------------------------------------------
+
+function isPnpmRun(command) {
+  return (command || '').trim().startsWith('pnpm run ');
+}
+
+function validateRunCommandArgs(args) {
+  if (!args.command) return JSON.stringify({ ok: false, error: 'command is required', reason: 'missing_command' });
+  if (!args.reason) return JSON.stringify({ ok: false, error: 'reason is required', reason: 'missing_reason' });
+  return null;
+}
+
+function executeRunCommand(args, context) {
+  const inputError = validateRunCommandArgs(args);
+  if (inputError) return inputError;
+
+  try {
+    const io = makeIO(context.worktree);
+    const execCwd = isPnpmRun(args.command)
+      ? path.resolve(context.worktree, 'foundry')
+      : context.worktree;
+    const exec = createExec(execCwd, 30000);
+    const rootExec = createExec(context.worktree);
+    const result = runCommand({
+      io, exec, command: args.command, reason: args.reason,
+      timeout: args.timeout, worktree: context.worktree, cwd: execCwd,
+      dirtyExec: rootExec,
+    });
+    return JSON.stringify(rejectRootPackageChanges(result));
+  } catch (err) {
+    return JSON.stringify({ ok: false, error: err.message ?? String(err) });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Validator command runner — shared between executeRunValidator and test
+// helpers.
+// ---------------------------------------------------------------------------
+
+function mergePolicyInfo(response, policyResult) {
+  response.disallowedFiles = policyResult.disallowedFiles;
+  response.error = response.error
+    ? `${response.error}; ${policyResult.error}`
+    : policyResult.error;
+  response.reason = policyResult.reason;
+}
+
+async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
+  const rawResult = runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree, cwd: worktree });
+  const policyResult = rejectRootPackageChanges(rawResult);
+  if (!rawResult.ok) return JSON.stringify(policyResult);
+
+  const stdout = rawResult.stdout || '';
+  const stream = Readable.from([stdout]);
+  const parseResult = await parseValidatorJsonl(stream, patterns);
+
+  let response;
+  if (hasValidatorCrashed(parseResult, rawResult.exitCode)) {
+    response = buildCrashResponse(rawResult, parseResult);
+  } else {
+    response = buildSuccessResponse(rawResult, parseResult);
+  }
+
+  if (policyResult.disallowedFiles) mergePolicyInfo(response, policyResult);
+
+  return JSON.stringify(response);
+}
+
+// ---------------------------------------------------------------------------
+// foundry_config_run_validator executor
+// ---------------------------------------------------------------------------
+
+async function executeRunValidator(args, context) {
+  const validationError = validateRunValidatorArgs(args);
+  if (validationError) return JSON.stringify({ ok: false, error: validationError });
+
+  try {
+    const expanded = expandPlaceholders(args.command, args.files, args.patterns);
+    const io = makeIO(context.worktree);
+    const exec = createExec(context.worktree, 30000);
+    return await runValidatorCommand(expanded, args.patterns, io, exec, context.worktree);
+  } catch (err) {
+    return JSON.stringify({ ok: false, error: String(err) });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// foundry_config_run_validator_test executor
+// ---------------------------------------------------------------------------
+
+function executeRunValidatorTest(args, context) {
+  const validationError = validateTestPath(context.worktree, args.path);
+  if (validationError) return JSON.stringify({ ok: false, error: validationError, reason: 'path_outside_foundry' });
+
+  try {
+    const io = makeIO(context.worktree);
+    const exec = createExec(context.worktree, 30000);
+    const result = rejectRootPackageChanges(runCommand({ io, exec, command: `node ${args.path}`, reason: 'validator companion test', worktree: context.worktree, cwd: context.worktree }));
+    return JSON.stringify(buildTestResponse(result));
+  } catch (err) {
+    return JSON.stringify({ ok: false, error: err.message ?? String(err) });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tool factories
+// ---------------------------------------------------------------------------
+
+function makeRunCommandTool(tool) {
+  return tool({
+    description:
+      'Run an allowed command with no shell, policy enforcement, ' +
+      'timeout, output capture, dirty-tree tracking, and an audit log. ' +
+      'Requires a config/* branch. The command must be a node script ' +
+      'under foundry/** or a pnpm run script.',
+    args: {
+      command: tool.schema.string()
+        .describe('Command string (e.g. "node foundry/artefacts/haiku/validate-syllables.test.mjs")'),
+      reason: tool.schema.string()
+        .describe('Non-empty reason for the audit log'),
+      timeout: tool.schema.number().optional()
+        .describe('Timeout in milliseconds (default 30000, max 120000)'),
+    },
+    execute: guarded('foundry_config_run_command', ALL_GUARDS, executeRunCommand),
+  });
+}
+
+function makeRunValidatorTool(tool) {
+  return tool({
+    description:
+      'Run a validator command with quench-compatible {files} and ' +
+      '{pattern} placeholder expansion. Parses stdout as JSONL using ' +
+      'the real validator parser. Reports violations, parse errors, ' +
+      'pattern errors, and the audit log path. Tolerates non-zero exit ' +
+      'codes when stdout contains valid JSONL. Requires a config/* branch.',
+    args: {
+      command: tool.schema.string()
+        .describe('Validator command with optional {files} and {pattern} placeholders'),
+      files: tool.schema.array(tool.schema.string())
+        .describe('Array of file paths for {files} expansion'),
+      patterns: tool.schema.array(tool.schema.string())
+        .describe('Array of glob patterns for {pattern} expansion and JSONL file matching'),
+    },
+    execute: guarded('foundry_config_run_validator', ALL_GUARDS, executeRunValidator),
+  });
+}
+
+function makeRunValidatorTestTool(tool) {
+  return tool({
+    description:
+      'Run a validator companion test under foundry/. Validates the ' +
+      'path is under foundry/** and matches *.test.js or *.test.mjs, ' +
+      'then runs node <path> without a shell. Returns pass/fail, exit ' +
+      'code, output, duration, dirty-tree changes, and the audit log ' +
+      'path. Requires a config/* branch.',
+    args: {
+      path: tool.schema.string()
+        .describe('Path to the test file under foundry/ (e.g. foundry/artefacts/haiku/validate.test.mjs)'),
+    },
+    execute: guarded('foundry_config_run_validator_test', ALL_GUARDS, executeRunValidatorTest),
+  });
+}
+
+export { rejectRootPackageChanges };
+
+export function createConfigCommandTools({ tool }) {
+  return {
+    foundry_config_run_command: makeRunCommandTool(tool),
+    foundry_config_run_validator: makeRunValidatorTool(tool),
+    foundry_config_run_validator_test: makeRunValidatorTestTool(tool),
+  };
+}

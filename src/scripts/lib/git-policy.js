@@ -28,8 +28,6 @@ const TOOL_MANAGED_PREFIX = ['.foundry/'];
 
 export const CONFIG_ALLOWED_PATTERNS = [
   'foundry/**',
-  'package.json',
-  'pnpm-lock.yaml',
 ];
 
 export function isToolManaged(file) {

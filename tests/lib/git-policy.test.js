@@ -110,15 +110,52 @@ describe('allowedPatternsForStage', () => {
 });
 
 describe('checkConfigBranchFiles', () => {
-  it('allows foundry config plus validator dependency files', () => {
+  it('allows foundry-owned package files via foundry/** pattern', () => {
     const diffOut = [
       'foundry/artefacts/haiku/laws.md',
       'foundry/artefacts/haiku/validate-syllables.mjs',
-      'package.json',
-      'pnpm-lock.yaml',
+      'foundry/package.json',
+      'foundry/pnpm-lock.yaml',
     ].join('\n');
 
     assert.equal(checkConfigBranchFiles(diffOut), null);
+  });
+
+  it('rejects root package.json on config branches', () => {
+    const result = checkConfigBranchFiles('package.json\n');
+
+    assert.deepEqual(result, { files: ['package.json'] });
+  });
+
+  it('rejects root pnpm-lock.yaml on config branches', () => {
+    const result = checkConfigBranchFiles('pnpm-lock.yaml\n');
+
+    assert.deepEqual(result, { files: ['pnpm-lock.yaml'] });
+  });
+
+  it('rejects root package-lock.json on config branches', () => {
+    const result = checkConfigBranchFiles('package-lock.json\n');
+
+    assert.deepEqual(result, { files: ['package-lock.json'] });
+  });
+
+  it('rejects root yarn.lock on config branches', () => {
+    const result = checkConfigBranchFiles('yarn.lock\n');
+
+    assert.deepEqual(result, { files: ['yarn.lock'] });
+  });
+
+  it('rejects root bun.lock on config branches', () => {
+    const result = checkConfigBranchFiles('bun.lock\n');
+
+    assert.deepEqual(result, { files: ['bun.lock'] });
+  });
+
+  it('allows foundry/package.json and rejects root README.md in same diff', () => {
+    const diffOut = 'foundry/package.json\nREADME.md\n';
+
+    const result = checkConfigBranchFiles(diffOut);
+    assert.deepEqual(result, { files: ['README.md'] });
   });
 
   it('rejects unrelated root files on config branches', () => {
