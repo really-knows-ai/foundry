@@ -275,9 +275,11 @@ function makeRunValidatorTool(tool) {
       command: tool.schema.string()
         .describe('Validator command with optional {files} and {pattern} placeholders'),
       files: tool.schema.array(tool.schema.string())
-        .describe('Array of file paths for {files} expansion'),
+        .describe('Array of file paths for {files} expansion')
+        .required(),
       patterns: tool.schema.array(tool.schema.string())
-        .describe('Array of glob patterns for {pattern} expansion and JSONL file matching'),
+        .describe('Array of glob patterns for {pattern} expansion and JSONL file matching')
+        .required(),
     },
     execute: guarded('foundry_config_run_validator', ALL_GUARDS, executeRunValidator),
   });
