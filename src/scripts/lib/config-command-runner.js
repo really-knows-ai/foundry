@@ -290,7 +290,7 @@ function buildLogData(args) {
     stdoutTruncated: sTrunc,
     stderrTruncated: eTrunc,
     dirtyBefore, dirtyAfter,
-    changedFiles: dirtyAfter,
+    changedFiles: dirtyAfter.filter((f) => !dirtyBefore.includes(f)),
   };
 }
 
@@ -306,7 +306,7 @@ function successFromLogData(logData, logPath) {
     stderrTruncated: logData.stderrTruncated,
     dirtyBefore: logData.dirtyBefore,
     dirtyAfter: logData.dirtyAfter,
-    changedFiles: logData.dirtyAfter,
+    changedFiles: logData.changedFiles,
     logPath,
   };
 }

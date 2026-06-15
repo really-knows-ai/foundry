@@ -487,7 +487,7 @@ describe('runCommand', () => {
     });
     assert.equal(result.ok, true);
     assert.deepEqual(result.dirtyAfter, ['foundry/output.txt']);
-    assert.equal(result.changedFiles, result.dirtyAfter);
+    assert.deepEqual(result.changedFiles, ['foundry/output.txt']);
   });
 
   test('times out and returns timedOut: true', () => {
@@ -559,7 +559,36 @@ describe('runCommand', () => {
     });
     assert.equal(result.ok, true);
     assert.deepEqual(result.changedFiles, ['foundry/output.js']);
-    assert.equal(result.changedFiles, result.dirtyAfter);
+    assert.deepEqual(result.changedFiles, result.dirtyAfter);
+  });
+
+  test('changedFiles excludes files already dirty before execution', () => {
+    const count = { calls: 0 };
+    const execMock = (argv, opts) => {
+      const cmd = Array.isArray(argv) ? argv.join(' ') : argv;
+      if (cmd.startsWith('git status')) {
+        count.calls++;
+        // First call (before): src/a.js is already dirty
+        if (count.calls === 1) return { stdout: ' M src/a.js\0' };
+        // Second call (after): src/a.js persists and foundry/output.txt is new
+        return { stdout: ' M src/a.js\0?? foundry/output.txt\0' };
+      }
+      return { stdout: 'done', stderr: '', exitCode: 0, signal: null, timedOut: false, stdoutTruncated: false, stderrTruncated: false };
+    };
+
+    const result = runCommand({
+      io: makeMockIO(),
+      exec: execMock,
+      command: 'node foundry/script.mjs',
+      reason: 'changed files overlap test',
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.dirtyBefore, ['src/a.js']);
+    assert.deepEqual(result.dirtyAfter, ['src/a.js', 'foundry/output.txt']);
+    // changedFiles must only include the file that appeared during execution
+    assert.deepEqual(result.changedFiles, ['foundry/output.txt']);
+    // Sanity check: changedFiles must not equal dirtyAfter when there is overlap
+    assert.notDeepEqual(result.changedFiles, result.dirtyAfter);
   });
 
   test('truncates stdout exceeding MAX_CAPTURE_BYTES', () => {
