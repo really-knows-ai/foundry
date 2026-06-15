@@ -124,6 +124,7 @@ function makeGitExecFile(worktree) {
 
 function writeFileWithRollback(worktree, snapshot, content, commitMessage) {
   const execFile = makeGitExecFile(worktree);
+  mkdirSync(path.dirname(snapshot.resolved), { recursive: true });
   writeFileSync(snapshot.resolved, content, 'utf8');
 
   try {

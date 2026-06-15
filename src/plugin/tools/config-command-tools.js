@@ -12,8 +12,7 @@
 
 import path from 'path';
 import { Readable } from 'stream';
-import { runCommand } from '../../scripts/lib/config-command-runner.js';
-import { createExec } from '../../scripts/lib/config-command-runner.js';
+import { runCommand, createExec } from '../../scripts/lib/config-command-runner.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
 import { expandValidatorCommand, buildPlaceholderSubstitutions } from '../../scripts/lib/validation.js';
 import { makeIO, makeExec } from './helpers.js';
@@ -202,6 +201,14 @@ function executeRunCommand(args, context) {
 // helpers.
 // ---------------------------------------------------------------------------
 
+function mergePolicyInfo(response, policyResult) {
+  response.disallowedFiles = policyResult.disallowedFiles;
+  response.error = response.error
+    ? `${response.error}; ${policyResult.error}`
+    : policyResult.error;
+  response.reason = policyResult.reason;
+}
+
 async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
   const rawResult = runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree, cwd: worktree });
   const policyResult = rejectRootPackageChanges(rawResult);
@@ -218,13 +225,7 @@ async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
     response = buildSuccessResponse(rawResult, parseResult);
   }
 
-  if (policyResult.disallowedFiles) {
-    response.disallowedFiles = policyResult.disallowedFiles;
-    response.error = response.error
-      ? `${response.error}; ${policyResult.error}`
-      : policyResult.error;
-    response.reason = policyResult.reason;
-  }
+  if (policyResult.disallowedFiles) mergePolicyInfo(response, policyResult);
 
   return JSON.stringify(response);
 }

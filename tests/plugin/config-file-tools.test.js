@@ -258,7 +258,7 @@ describe('foundry_config_write_file — commit success (T4)', () => {
     assert.ok(logFiles.length > 0, 'audit log files must exist');
     const lastLog = logFiles[logFiles.length - 1];
     const logContent = JSON.parse(readFileSync(join(logDir, lastLog), 'utf8'));
-    assert.equal(logContent.tool, 'foundry_config_write_file');
+    assert.equal(logContent.command, 'foundry_config_write_file');
     assert.equal(logContent.reason, 'add test helper');
     assert.equal(logContent.sha, res.sha);
     assert.deepEqual(logContent.changedFiles, [targetPath]);
