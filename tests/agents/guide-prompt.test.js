@@ -86,6 +86,15 @@ describe('foundry-guide.md prompt body', () => {
       'frontmatter must have a non-empty description'
     );
   });
+
+  test('describes finish/merge as user-confirmed workflow actions', () => {
+    const text = readGuide();
+    const pattern = /finish.*user-confirmed|merge.*user-confirmed/i;
+    assert.ok(
+      pattern.test(text),
+      'guide prompt must describe finish or merge as a user-confirmed workflow action'
+    );
+  });
 });
 
 describe('guide lifecycle ownership', () => {
