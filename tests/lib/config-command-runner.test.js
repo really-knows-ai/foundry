@@ -116,6 +116,12 @@ describe('parseCommand', () => {
     assert.equal(result.reason, 'shell_feature_denied');
   });
 
+  test('rejects newline command chaining', () => {
+    const result = parseCommand('node foundry/script.mjs\nrm -rf /');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'shell_feature_denied');
+  });
+
   test('rejects empty input string', () => {
     const result = parseCommand('');
     assert.equal(result.ok, false);

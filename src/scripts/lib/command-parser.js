@@ -9,6 +9,8 @@ const SINGLE_CHAR_SHELL = {
   '|': 'pipe |',
   ';': 'semicolon ;',
   '`': 'backtick',
+  '\n': 'newline (command chaining)',
+  '\r': 'carriage return',
   '*': 'glob pattern',
   '?': 'glob pattern',
   '[': 'glob bracket expression',
