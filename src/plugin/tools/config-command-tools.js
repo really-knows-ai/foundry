@@ -256,9 +256,11 @@ function makeRunCommandTool(tool) {
       'under foundry/** or a pnpm run script.',
     args: {
       command: tool.schema.string()
-        .describe('Command string (e.g. "node foundry/artefacts/haiku/validate-syllables.test.mjs")'),
+        .describe('Command string (e.g. "node foundry/artefacts/haiku/validate-syllables.test.mjs")')
+        .required(),
       reason: tool.schema.string()
-        .describe('Non-empty reason for the audit log'),
+        .describe('Non-empty reason for the audit log')
+        .required(),
       timeout: tool.schema.number().optional()
         .describe('Timeout in milliseconds (default 30000, max 120000)'),
     },
