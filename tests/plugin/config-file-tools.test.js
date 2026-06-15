@@ -142,6 +142,75 @@ describe('foundry_config_write_file — path rejection (T3)', () => {
     assert.equal(res.ok, false);
     assert.match(res.error, /config/);
   });
+
+  test('rejects .json under foundry/artefacts/ (overlap with config tools)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/artefacts/some-config.json', content: '{}', reason: 'overlap test' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /overlaps with specialised config tool/);
+  });
+
+  test('rejects .json under foundry/flows/ (overlap with config tools)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/flows/my-flow.json', content: '{}', reason: 'overlap test' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /overlaps with specialised config tool/);
+  });
+
+  test('rejects .json under foundry/cycles/ (overlap with config tools)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/cycles/my-cycle.json', content: '{}', reason: 'overlap test' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /overlaps with specialised config tool/);
+  });
+
+  test('rejects .json under foundry/appraisers/ (overlap with config tools)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/appraisers/my-appraiser.json', content: '{}', reason: 'overlap test' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /overlaps with specialised config tool/);
+  });
+
+  test('rejects .json under foundry/laws/ (overlap with config tools)', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/laws/rules.json', content: '{}', reason: 'overlap test' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /overlaps with specialised config tool/);
+  });
+
+  test('allows .json outside config tool directories', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/support/config.json', content: '{}', reason: 'non-overlap json' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true, JSON.stringify(res));
+  });
+
+  test('allows .js support file under foundry/artefacts/', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/artefacts/validator.js', content: 'export const v = 1;\n', reason: 'support file' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true, JSON.stringify(res));
+  });
+
+  test('bypasses overlap rejection when update=true', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: 'foundry/artefacts/some-config.json', content: '{}', reason: 'update mode', update: true },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true, JSON.stringify(res));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -263,17 +332,17 @@ describe('foundry_config_write_file — rollback (T5)', () => {
   test('rollback restores overwritten existing file when commit policy rejects', async () => {
     const worktree = setup();
 
-    // Commit an existing file at foundry/artefacts/config.json
-    const existingPath = 'foundry/artefacts/config.json';
-    const originalContent = '{"version": 1}\n';
+    // Commit an existing support file at foundry/artefacts/config.js
+    const existingPath = 'foundry/artefacts/config.js';
+    const originalContent = 'export const version = 1;\n';
     writeFileSync(join(worktree, existingPath), originalContent, 'utf8');
-    execSync('git add . && git commit -qm "add config.json"', { cwd: worktree, env: GIT_ENV });
+    execSync('git add . && git commit -qm "add config.js"', { cwd: worktree, env: GIT_ENV });
 
     // Introduce a dirty non-allowed file in the repository root
     writeFileSync(join(worktree, 'root-stray.txt'), 'dirty', 'utf8');
 
     const plugin = await FoundryPlugin({ directory: worktree });
-    const newContent = '{"version": 2}\n';
+    const newContent = 'export const version = 2;\n';
     const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
       { path: existingPath, content: newContent, reason: 'should rollback overwrite' },
       makeCtx(worktree),

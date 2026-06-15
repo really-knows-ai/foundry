@@ -60,6 +60,32 @@ function rollbackSnapshot(snapshot) {
   }
 }
 
+// -- overlap detection -------------------------------------------------------
+
+const CONFIG_TOOL_DIR_PREFIXES = [
+  'foundry/artefacts/',
+  'foundry/flows/',
+  'foundry/cycles/',
+  'foundry/appraisers/',
+  'foundry/laws/',
+];
+
+function isConfigOverlap(filePath) {
+  const normalised = filePath.split(path.sep).join('/');
+  for (const prefix of CONFIG_TOOL_DIR_PREFIXES) {
+    if (normalised.startsWith(prefix) && normalised.endsWith('.json')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function checkOverlapError(args, filePath) {
+  if (args.update) return null;
+  if (!isConfigOverlap(filePath)) return null;
+  return `path overlaps with specialised config tool: ${filePath}`;
+}
+
 // -- validation --------------------------------------------------------------
 
 function isEmpty(val) {
@@ -150,6 +176,9 @@ function handleWriteFile(worktree, args) {
     return { ok: false, error: `path must be under foundry/: ${filePath}` };
   }
 
+  const overlapErr = checkOverlapError(args, filePath);
+  if (overlapErr) return { ok: false, error: overlapErr };
+
   const { commitMessage, auditReason } = buildCommitDetails(args);
 
   const snapshot = snapshotFile(worktree, filePath);
@@ -191,6 +220,8 @@ export function createConfigFileTools({ tool }) {
           .describe('Structured reason for the commit message and audit log'),
         message: tool.schema.string()
           .describe('Full commit message (alternative to reason)'),
+        update: tool.schema.boolean().optional()
+          .describe('Bypass overlap rejection for files owned by specialised config create tools'),
       },
       execute(args, context) {
         const guard = requireOnConfigBranch({ exec: makeExec(context.worktree) });
