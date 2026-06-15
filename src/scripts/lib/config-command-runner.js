@@ -323,6 +323,7 @@ function logFailure(logData) {
     error: 'failed to write audit log',
     reason: 'audit_log_failed',
     exitCode: logData.exitCode,
+    timedOut: logData.timedOut,
     stdout: logData.stdout,
     stderr: logData.stderr,
   };
