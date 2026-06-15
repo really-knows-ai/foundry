@@ -133,10 +133,10 @@ describe('checkConfigBranchFiles', () => {
     assert.deepEqual(result, { files: ['pnpm-lock.yaml'] });
   });
 
-  it('rejects root package-lock.yaml on config branches', () => {
-    const result = checkConfigBranchFiles('package-lock.yaml\n');
+  it('rejects root package-lock.json on config branches', () => {
+    const result = checkConfigBranchFiles('package-lock.json\n');
 
-    assert.deepEqual(result, { files: ['package-lock.yaml'] });
+    assert.deepEqual(result, { files: ['package-lock.json'] });
   });
 
   it('rejects root yarn.lock on config branches', () => {

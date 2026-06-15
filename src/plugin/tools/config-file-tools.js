@@ -1,0 +1,183 @@
+// Tools for writing config files under foundry/.
+//
+// Registers foundry_config_write_file — a safe, auditable path for writing
+// validator scripts, tests, fixtures, and support files under foundry/**.
+// Writes the file, commits it through the config commit policy, and rolls
+// back on commit-policy rejection.
+
+import path from 'path';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, realpathSync } from 'fs';
+import { execFileSync } from 'child_process';
+import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
+import { commitWithPolicy, UnexpectedFilesError } from '../../scripts/lib/git-bridge.js';
+import { makeExec } from './helpers.js';
+import { resolveGit } from '../../scripts/lib/tool-paths.js';
+import { ulid } from '../../scripts/lib/ulid.js';
+
+// -- path helpers ------------------------------------------------------------
+
+function resolveInWorktree(worktree, filePath) {
+  return path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(worktree, filePath);
+}
+
+function pathUnderFoundry(worktree, filePath) {
+  const resolved = resolveInWorktree(worktree, filePath);
+  const foundryDir = path.resolve(worktree, 'foundry');
+  let real;
+  try {
+    real = realpathSync.native(resolved);
+  } catch {
+    real = resolved;
+  }
+  return real === foundryDir || real.startsWith(foundryDir + path.sep);
+}
+
+// -- rollback helpers --------------------------------------------------------
+
+function snapshotFile(worktree, filePath) {
+  const resolved = resolveInWorktree(worktree, filePath);
+  return {
+    exists: existsSync(resolved),
+    content: existsSync(resolved) ? readFileSync(resolved, 'utf8') : null,
+    resolved,
+  };
+}
+
+function rollbackSnapshot(snapshot) {
+  if (snapshot.exists) {
+    writeFileSync(snapshot.resolved, snapshot.content, 'utf8');
+  } else if (existsSync(snapshot.resolved)) {
+    unlinkSync(snapshot.resolved);
+  }
+}
+
+// -- validation --------------------------------------------------------------
+
+function isEmpty(val) {
+  return !val || val.trim() === '';
+}
+
+function validateWriteFileArgs(args) {
+  if (isEmpty(args.path)) return 'path is required';
+  if (isEmpty(args.content)) return 'content is required';
+  if (isEmpty(args.reason)) return 'reason is required';
+  return null;
+}
+
+// -- audit log ---------------------------------------------------------------
+
+function writeFileAuditLog(worktree, logData) {
+  const logDir = '.foundry/config-command-logs';
+  mkdirSync(path.resolve(worktree, logDir), { recursive: true });
+  const id = ulid();
+  const logPath = path.join(logDir, `${id}.json`);
+  const fullLog = { ...logData, id };
+  writeFileSync(path.resolve(worktree, logPath), JSON.stringify(fullLog, null, 2), 'utf8');
+  return logPath;
+}
+
+// -- git exec helper ---------------------------------------------------------
+
+function makeGitExecFile(worktree) {
+  const gitPath = resolveGit();
+  return (argv) => execFileSync(gitPath, argv, {
+    cwd: worktree, encoding: 'utf8', stdio: 'pipe',
+  });
+}
+
+// -- write-and-commit with rollback ------------------------------------------
+
+function writeFileWithRollback(worktree, snapshot, content, reason) {
+  const execFile = makeGitExecFile(worktree);
+  writeFileSync(snapshot.resolved, content, 'utf8');
+
+  try {
+    const sha = commitWithPolicy({
+      message: `config: ${reason}`,
+      allowedPatterns: ['foundry/**'],
+      execFile,
+    });
+
+    if (sha === null) {
+      rollbackSnapshot(snapshot);
+      return { ok: false, error: 'no changes to commit after file write' };
+    }
+
+    return { ok: true, sha };
+  } catch (err) {
+    rollbackSnapshot(snapshot);
+    if (err instanceof UnexpectedFilesError) {
+      return {
+        ok: false,
+        error: `unexpected files in worktree: ${err.files.join(', ')}`,
+        affected_files: err.files,
+      };
+    }
+    return { ok: false, error: err.message ?? String(err) };
+  }
+}
+
+// -- core handler ------------------------------------------------------------
+
+function handleWriteFile(worktree, args) {
+  const validationErr = validateWriteFileArgs(args);
+  if (validationErr) return { ok: false, error: validationErr };
+
+  const filePath = args.path.trim();
+  if (!pathUnderFoundry(worktree, filePath)) {
+    return { ok: false, error: `path must be under foundry/: ${filePath}` };
+  }
+
+  const snapshot = snapshotFile(worktree, filePath);
+  const t0 = Date.now();
+
+  const result = writeFileWithRollback(worktree, snapshot, args.content, args.reason);
+  if (!result.ok) return result;
+
+  writeFileAuditLog(worktree, {
+    reason: args.reason,
+    tool: 'foundry_config_write_file',
+    path: filePath,
+    startedAt: new Date(t0).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - t0,
+    sha: result.sha,
+    changedFiles: [filePath],
+  });
+
+  return { ok: true, path: filePath, sha: result.sha };
+}
+
+// -- tool factory ------------------------------------------------------------
+
+export function createConfigFileTools({ tool }) {
+  return {
+    foundry_config_write_file: tool({
+      description:
+        'Write a support file under foundry/** and commit it through the ' +
+        'config commit policy. Requires a config/* branch. The file path ' +
+        'must resolve to a normal file under foundry/. Rolls back on ' +
+        'commit-policy rejection.',
+      args: {
+        path: tool.schema.string()
+          .describe('Relative file path under foundry/'),
+        content: tool.schema.string()
+          .describe('File content (non-empty)'),
+        reason: tool.schema.string()
+          .describe('Non-empty reason for the commit message and audit log'),
+      },
+      execute(args, context) {
+        const guard = requireOnConfigBranch({ exec: makeExec(context.worktree) });
+        if (!guard.ok) {
+          return JSON.stringify({ ok: false, error: `foundry_config_write_file: ${guard.error}` });
+        }
+
+        try {
+          return JSON.stringify(handleWriteFile(context.worktree, args));
+        } catch (err) {
+          return JSON.stringify({ ok: false, error: err.message ?? String(err) });
+        }
+      },
+    }),
+  };
+}

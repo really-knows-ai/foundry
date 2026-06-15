@@ -28,6 +28,8 @@ permission:
   foundry_config_read_laws: allow
   foundry_config_read_flow: allow
   foundry_config_read_appraisers: allow
+  foundry_config_write_file: allow
+  foundry_config_add_dependency: allow
   foundry_workfile_get: allow
   foundry_workfile_create: allow
   foundry_workfile_delete: allow

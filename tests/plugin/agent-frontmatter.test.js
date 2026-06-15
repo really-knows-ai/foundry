@@ -48,6 +48,7 @@ function specPermittedTools(agentName) {
       'foundry_config_read_cycle', 'foundry_config_read_artefact_type',
       'foundry_config_read_laws', 'foundry_config_read_flow', 'foundry_config_read_appraisers',
       'foundry_workfile_get', 'foundry_workfile_create', 'foundry_workfile_delete',
+      'foundry_config_write_file', 'foundry_config_add_dependency',
       'foundry_git_branch', 'foundry_git_finish', 'foundry_models_list',
       'foundry_memory_get', 'foundry_memory_list', 'foundry_memory_traverse',
       'foundry_memory_query', 'foundry_memory_search', 'foundry_memory_put',

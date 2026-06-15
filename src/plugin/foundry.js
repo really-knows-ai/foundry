@@ -31,6 +31,8 @@ import { createConfigTools } from './tools/config-tools.js';
 import { createConfigCreateTools } from './tools/config-create-tools.js';
 import { createConfigLawTools } from './tools/config-law-tools.js';
 import { createConfigCommandTools } from './tools/config-command-tools.js';
+import { createConfigFileTools } from './tools/config-file-tools.js';
+import { createConfigDependencyTools } from './tools/config-dependency-tools.js';
 import { createValidateTools } from './tools/validate-tools.js';
 import { createAssayTools } from './tools/assay-tools.js';
 import { createMemoryTools } from './tools/memory-tools.js';
@@ -282,6 +284,8 @@ function buildTools(createTool, pending, client) {
     ...createConfigCreateTools({ tool: createTool }),
     ...createConfigLawTools({ tool: createTool }),
     ...createConfigCommandTools({ tool: createTool }),
+    ...createConfigFileTools({ tool: createTool }),
+    ...createConfigDependencyTools({ tool: createTool }),
     ...createValidateTools({ tool: createTool }),
     ...createAssayTools({ tool: createTool }),
     ...createMemoryTools({ tool: createTool }),
