@@ -304,6 +304,8 @@ function makeRunValidatorTestTool(tool) {
   });
 }
 
+export { rejectRootPackageChanges };
+
 export function createConfigCommandTools({ tool }) {
   return {
     foundry_config_run_command: makeRunCommandTool(tool),

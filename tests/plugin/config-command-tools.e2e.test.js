@@ -8,6 +8,7 @@
 // D8 — Audit log writing
 // D9 — Dirty-tree reporting
 // D10 — Path rejection for validator test tool
+// D11 — Root package file protection via rejectRootPackageChanges
 
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,6 +19,7 @@ import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FoundryPlugin } from '../../src/plugin/foundry.js';
+import { rejectRootPackageChanges } from '../../src/plugin/tools/config-command-tools.js';
 
 const GIT_ENV = {
   ...process.env,
@@ -47,6 +49,136 @@ function writeFixture(dir, relPath, content) {
   mkdirSync(join(full, '..'), { recursive: true });
   writeFileSync(full, content, 'utf8');
 }
+
+// ---------------------------------------------------------------------------
+// Unit tests for rejectRootPackageChanges — pure function that enforces
+// the "Command runner does not touch root package manager files" policy.
+// ---------------------------------------------------------------------------
+describe('rejectRootPackageChanges', () => {
+  test('passes through result with no changedFiles', () => {
+    const result = { ok: true, exitCode: 0 };
+    assert.equal(rejectRootPackageChanges(result), result);
+  });
+
+  test('passes through result with changedFiles but none are root package files', () => {
+    const result = { ok: true, changedFiles: ['foundry/foo.js', 'README.md'] };
+    assert.equal(rejectRootPackageChanges(result), result);
+  });
+
+  test('passes through result when ok is false (already failed)', () => {
+    const result = { ok: false, changedFiles: ['package.json'], error: 'previous error' };
+    assert.equal(rejectRootPackageChanges(result), result);
+  });
+
+  test('rejects result when package.json is in changedFiles', () => {
+    const result = { ok: true, changedFiles: ['foundry/foo.js', 'package.json'] };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.match(out.error, /root package file\(s\) changed/);
+    assert.ok(out.error.includes('package.json'));
+    assert.deepEqual(out.disallowedFiles, ['package.json']);
+  });
+
+  test('rejects result when pnpm-lock.yaml is in changedFiles', () => {
+    const result = { ok: true, changedFiles: ['foundry/foo.js', 'pnpm-lock.yaml'] };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.ok(out.error.includes('pnpm-lock.yaml'));
+    assert.deepEqual(out.disallowedFiles, ['pnpm-lock.yaml']);
+  });
+
+  test('rejects result with multiple root package files changed', () => {
+    const result = { ok: true, changedFiles: ['package.json', 'pnpm-lock.yaml', 'foundry/foo.js'] };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.ok(out.error.includes('package.json'));
+    assert.ok(out.error.includes('pnpm-lock.yaml'));
+    assert.deepEqual(out.disallowedFiles, ['package.json', 'pnpm-lock.yaml']);
+  });
+
+  test('rejects result when package-lock.json is in changedFiles', () => {
+    const result = { ok: true, changedFiles: ['package-lock.json'] };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.deepEqual(out.disallowedFiles, ['package-lock.json']);
+  });
+
+  test('rejects result when yarn.lock is in changedFiles', () => {
+    const result = { ok: true, changedFiles: ['yarn.lock'] };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.deepEqual(out.disallowedFiles, ['yarn.lock']);
+  });
+
+  test('rejects result when bun.lock is in changedFiles', () => {
+    const result = { ok: true, changedFiles: ['bun.lock'] };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'root_package_file_changed');
+    assert.deepEqual(out.disallowedFiles, ['bun.lock']);
+  });
+
+  test('preserves original result fields on rejection', () => {
+    const result = { ok: true, changedFiles: ['package.json'], exitCode: 0, stdout: 'hello' };
+    const out = rejectRootPackageChanges(result);
+    assert.equal(out.exitCode, 0);
+    assert.equal(out.stdout, 'hello');
+    assert.equal(out.ok, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Root package file protection — "Command runner does not touch root
+// package manager files."
+// ---------------------------------------------------------------------------
+describe('root package file protection', () => {
+  let dir;
+  let plugin;
+
+  beforeEach(async () => {
+    dir = setupRepo();
+    execSync('git checkout -q -b config/add-validator', { cwd: dir, env: GIT_ENV });
+    plugin = await FoundryPlugin({ directory: dir });
+  });
+
+  afterEach(() => {
+    cleanup(dir);
+  });
+
+  test('rejects command that modifies root package.json', async () => {
+    writeFixture(dir, 'foundry/artefacts/haiku/touch-package.mjs',
+      'import { writeFileSync } from "node:fs";\n' +
+      'writeFileSync("package.json", JSON.stringify({ name: "hacked" }), "utf8");\n');
+    execSync('git add -A && git commit -qm "add touch-package script"', { cwd: dir, env: GIT_ENV });
+
+    const res = JSON.parse(await plugin.tool.foundry_config_run_command.execute(
+      { command: 'node foundry/artefacts/haiku/touch-package.mjs', reason: 'test root protection' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, 'root_package_file_changed');
+    assert.match(res.error, /root package file\(s\) changed/);
+    assert.ok(res.disallowedFiles.includes('package.json'));
+  });
+
+  test('allows command that modifies foundry/package.json (scoped to foundry/)', async () => {
+    writeFixture(dir, 'foundry/artefacts/haiku/touch-foundry-package.mjs',
+      'import { writeFileSync } from "node:fs";\n' +
+      'writeFileSync("foundry/package.json", JSON.stringify({ name: "foundry-pkg" }), "utf8");\n');
+    execSync('git add -A && git commit -qm "add touch-foundry-package script"', { cwd: dir, env: GIT_ENV });
+
+    const res = JSON.parse(await plugin.tool.foundry_config_run_command.execute(
+      { command: 'node foundry/artefacts/haiku/touch-foundry-package.mjs', reason: 'test foundry package' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, true);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // D10 — Path rejection for foundry_config_run_validator_test
