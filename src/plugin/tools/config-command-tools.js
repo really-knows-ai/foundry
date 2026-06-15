@@ -106,6 +106,7 @@ function buildCrashResponse(runResult, parseResult) {
     logPath: runResult.logPath,
     dirtyBefore: runResult.dirtyBefore,
     dirtyAfter: runResult.dirtyAfter,
+    timedOut: runResult.timedOut,
   };
 }
 
