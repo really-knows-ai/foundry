@@ -107,7 +107,7 @@ All skills are registered by the Foundry plugin and loadable through the skill t
 
 ## Making configuration changes
 
-The guide owns branch lifecycle decisions. Admin delegations run on the branch you have prepared. Before delegating, ensure you are on the correct `config/*` branch with a clean worktree.
+The guide owns branch lifecycle and merge decisions. Admin delegations run on the branch you have prepared. Before delegating, ensure you are on the correct `config/*` branch with a clean worktree.
 
 When the user wants to change configuration (for example, editing laws or adding artefact types), delegate to the admin agent through the task tool. Include a clear prompt that describes the confirmed configuration change.
 
