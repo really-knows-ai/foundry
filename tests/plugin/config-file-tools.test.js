@@ -106,13 +106,13 @@ describe('foundry_config_write_file — path rejection (T3)', () => {
     assert.equal(res.error, 'content is required');
   });
 
-  test('rejects missing reason', async () => {
+  test('rejects when both reason and message are missing', async () => {
     const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/test.js', content: 'hello', reason: '' },
+      { path: 'foundry/test.js', content: 'hello', reason: '', message: '' },
       makeCtx(dir),
     ));
     assert.equal(res.ok, false);
-    assert.equal(res.error, 'reason is required');
+    assert.equal(res.error, 'reason or message is required');
   });
 
   test('rejects on non-config branch (main)', async () => {
@@ -175,6 +175,33 @@ describe('foundry_config_write_file — commit success (T4)', () => {
     assert.equal(logContent.reason, 'add test helper');
     assert.equal(logContent.sha, res.sha);
     assert.deepEqual(logContent.changedFiles, [targetPath]);
+  });
+
+  test('uses message parameter as the full commit message', async () => {
+    const worktree = setup();
+    const plugin = await FoundryPlugin({ directory: worktree });
+    const targetPath = 'foundry/artefacts/message-test.js';
+    const content = 'export const v = 2;\n';
+    const commitMsg = 'feat(foundry): add message test helper';
+
+    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
+      { path: targetPath, content, message: commitMsg },
+      makeCtx(worktree),
+    ));
+    assert.equal(res.ok, true, JSON.stringify(res));
+    assert.equal(res.path, targetPath);
+    assert.ok(typeof res.sha === 'string' && res.sha.length > 0, 'sha must be a non-empty string');
+
+    // Assert the commit message is the provided message, not config: prefixed
+    const logMsg = execSync('git log -1 --format=%B', { cwd: worktree, env: GIT_ENV, encoding: 'utf8' }).trim();
+    assert.equal(logMsg, commitMsg);
+
+    // Assert the audit log reason matches the provided message
+    const logDir = join(worktree, '.foundry', 'config-command-logs');
+    const logFiles = execSync('ls', { cwd: logDir, encoding: 'utf8' }).trim().split('\n');
+    const lastLog = logFiles[logFiles.length - 1];
+    const logContent = JSON.parse(readFileSync(join(logDir, lastLog), 'utf8'));
+    assert.equal(logContent.reason, commitMsg);
   });
 });
 

@@ -60,7 +60,7 @@ function isEmpty(val) {
 function validateWriteFileArgs(args) {
   if (isEmpty(args.path)) return 'path is required';
   if (isEmpty(args.content)) return 'content is required';
-  if (isEmpty(args.reason)) return 'reason is required';
+  if (isEmpty(args.reason) && isEmpty(args.message)) return 'reason or message is required';
   return null;
 }
 
@@ -87,13 +87,13 @@ function makeGitExecFile(worktree) {
 
 // -- write-and-commit with rollback ------------------------------------------
 
-function writeFileWithRollback(worktree, snapshot, content, reason) {
+function writeFileWithRollback(worktree, snapshot, content, commitMessage) {
   const execFile = makeGitExecFile(worktree);
   writeFileSync(snapshot.resolved, content, 'utf8');
 
   try {
     const sha = commitWithPolicy({
-      message: `config: ${reason}`,
+      message: commitMessage,
       allowedPatterns: ['foundry/**'],
       execFile,
     });
@@ -117,6 +117,19 @@ function writeFileWithRollback(worktree, snapshot, content, reason) {
   }
 }
 
+// -- commit message helpers ---------------------------------------------------
+
+function buildCommitDetails(args) {
+  if (args.message) {
+    const msg = args.message.trim();
+    return { commitMessage: msg, auditReason: msg };
+  }
+  return {
+    commitMessage: `config: ${args.reason.trim()}`,
+    auditReason: args.reason.trim(),
+  };
+}
+
 // -- core handler ------------------------------------------------------------
 
 function handleWriteFile(worktree, args) {
@@ -128,14 +141,16 @@ function handleWriteFile(worktree, args) {
     return { ok: false, error: `path must be under foundry/: ${filePath}` };
   }
 
+  const { commitMessage, auditReason } = buildCommitDetails(args);
+
   const snapshot = snapshotFile(worktree, filePath);
   const t0 = Date.now();
 
-  const result = writeFileWithRollback(worktree, snapshot, args.content, args.reason);
+  const result = writeFileWithRollback(worktree, snapshot, args.content, commitMessage);
   if (!result.ok) return result;
 
   writeFileAuditLog(worktree, {
-    reason: args.reason,
+    reason: auditReason,
     tool: 'foundry_config_write_file',
     path: filePath,
     startedAt: new Date(t0).toISOString(),
@@ -164,7 +179,9 @@ export function createConfigFileTools({ tool }) {
         content: tool.schema.string()
           .describe('File content (non-empty)'),
         reason: tool.schema.string()
-          .describe('Non-empty reason for the commit message and audit log'),
+          .describe('Structured reason for the commit message and audit log'),
+        message: tool.schema.string()
+          .describe('Full commit message (alternative to reason)'),
       },
       execute(args, context) {
         const guard = requireOnConfigBranch({ exec: makeExec(context.worktree) });
