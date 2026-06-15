@@ -62,11 +62,11 @@ describe('foundry package boundary — bootstrap', () => {
     const plugin = await FoundryPlugin({ directory: dir });
     await plugin.config({ skills: {} });
 
-    // The bootstrap creates a root package.json via ensurePackageJson, so it
-    // will exist. But it must not be touched by the foundry boundary logic.
-    // This test verifies the root package.json is separate and unmodified.
+    // Root package manager files must not be created by bootstrap.
+    // They are modified only through an explicit future project-level tool
+    // or direct user action outside this project (spec item 8).
     const rootPkgPath = join(dir, 'package.json');
-    assert.ok(existsSync(rootPkgPath), 'root package.json is created by bootstrap');
+    assert.equal(existsSync(rootPkgPath), false, 'root package.json must not be created by bootstrap');
   });
 
   test('does not modify existing root package.json', async () => {
