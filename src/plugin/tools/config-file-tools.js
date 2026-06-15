@@ -189,11 +189,22 @@ function handleWriteFile(worktree, args) {
 
   writeFileAuditLog(worktree, {
     reason: auditReason,
-    tool: 'foundry_config_write_file',
+    command: 'foundry_config_write_file',
+    argv: args,
+    cwd: worktree,
     path: filePath,
     startedAt: new Date(t0).toISOString(),
     finishedAt: new Date().toISOString(),
     durationMs: Date.now() - t0,
+    exitCode: null,
+    signal: null,
+    timedOut: false,
+    stdout: null,
+    stderr: null,
+    stdoutTruncated: false,
+    stderrTruncated: false,
+    dirtyBefore: null,
+    dirtyAfter: null,
     sha: result.sha,
     changedFiles: [filePath],
   });
