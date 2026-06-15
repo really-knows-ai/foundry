@@ -20,6 +20,8 @@ import { requireOnConfigBranch } from '../../scripts/lib/branch-guard.js';
 import { requireGitRepo, requireFoundryRoot } from '../../scripts/lib/foundational-guards.js';
 import { guarded, notFailedGuard } from '../../scripts/lib/guards.js';
 
+const ROOT_PACKAGE_FILES = ['package.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock'];
+
 // ---------------------------------------------------------------------------
 // Guard functions — matches the pattern from config-create-tools and
 // config-law-tools.
@@ -40,6 +42,27 @@ function configBranchGuard(_args, context) {
 const gateNotFailed = notFailedGuard(makeIO);
 
 const ALL_GUARDS = [gitRepoGuard, foundryRootGuard, configBranchGuard, gateNotFailed];
+
+// ---------------------------------------------------------------------------
+// Root package file protection — enforces spec item 13 (line 130):
+// "The command runner must not modify host root package manager files by
+// default." When a command changes root package.json, pnpm-lock.yaml,
+// package-lock.json, yarn.lock, or bun.lock, the result is flagged as a
+// policy violation.
+// ---------------------------------------------------------------------------
+
+function rejectRootPackageChanges(runResult) {
+  if (!runResult.ok || !runResult.changedFiles) return runResult;
+  const disallowed = runResult.changedFiles.filter((f) => ROOT_PACKAGE_FILES.includes(f));
+  if (disallowed.length === 0) return runResult;
+  return {
+    ...runResult,
+    ok: false,
+    error: `root package file(s) changed: ${disallowed.join(', ')}`,
+    reason: 'root_package_file_changed',
+    disallowedFiles: disallowed,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Shell-quote a value for safe argv tokenisation via parseCommand.
@@ -158,7 +181,7 @@ function executeRunCommand(args, context) {
       io, exec, command: args.command, reason: args.reason,
       timeout: args.timeout, worktree: context.worktree, cwd: execCwd,
     });
-    return JSON.stringify(result);
+    return JSON.stringify(rejectRootPackageChanges(result));
   } catch (err) {
     return JSON.stringify({ ok: false, error: err.message ?? String(err) });
   }
@@ -170,7 +193,7 @@ function executeRunCommand(args, context) {
 // ---------------------------------------------------------------------------
 
 async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
-  const runResult = runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree, cwd: worktree });
+  const runResult = rejectRootPackageChanges(runCommand({ io, exec, command: expanded, reason: 'validator execution', worktree, cwd: worktree }));
   if (!runResult.ok) return JSON.stringify(runResult);
 
   const stdout = runResult.stdout || '';
@@ -210,7 +233,7 @@ function executeRunValidatorTest(args, context) {
   try {
     const io = makeIO(context.worktree);
     const exec = createExec(context.worktree, 30000);
-    const result = runCommand({ io, exec, command: `node ${args.path}`, reason: 'validator companion test', worktree: context.worktree, cwd: context.worktree });
+    const result = rejectRootPackageChanges(runCommand({ io, exec, command: `node ${args.path}`, reason: 'validator companion test', worktree: context.worktree, cwd: context.worktree }));
     return JSON.stringify(buildTestResponse(result));
   } catch (err) {
     return JSON.stringify({ ok: false, error: err.message ?? String(err) });
