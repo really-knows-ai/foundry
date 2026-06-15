@@ -133,9 +133,8 @@ function expandPlaceholders(command, files, patterns) {
   });
 }
 
-function hasCrashed(runResult) {
-  const noStdout = !runResult.stdout || runResult.stdout.trim() === '';
-  return noStdout && runResult.exitCode !== 0 && runResult.exitCode !== null;
+function hasValidatorCrashed(parseResult, exitCode) {
+  return parseResult.items.length === 0 && parseResult.parseErrors.length > 0 && exitCode !== 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +207,7 @@ async function runValidatorCommand(expanded, patterns, io, exec, worktree) {
   const stream = Readable.from([stdout]);
   const parseResult = await parseValidatorJsonl(stream, patterns);
 
-  if (hasCrashed(runResult)) return JSON.stringify(buildCrashResponse(runResult));
+  if (hasValidatorCrashed(parseResult, runResult.exitCode)) return JSON.stringify(buildCrashResponse(runResult));
   return JSON.stringify(buildSuccessResponse(runResult, parseResult));
 }
 

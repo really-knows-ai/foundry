@@ -310,7 +310,7 @@ describe('foundry_config_run_validator — JSONL parsing and contract errors (D5
     assert.notEqual(res.exitCode, 0);
   });
 
-  test('non-zero exit with no stdout produces validator crash error', async () => {
+  test('non-zero exit with empty stdout is tolerated (no valid items, no parse errors)', async () => {
     writeFixture(dir, 'foundry/artefacts/haiku/exit1-noout.mjs',
       'process.exit(1);\n');
     execSync('git add -A && git commit -qm "add exit1 noout script"', { cwd: dir, env: GIT_ENV });
@@ -323,9 +323,12 @@ describe('foundry_config_run_validator — JSONL parsing and contract errors (D5
       },
       makeCtx(dir),
     ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /validator exited non-zero without valid JSONL/);
-    assert.ok(res.logPath);
+    // Empty stdout + non-zero exit produces no parse errors, so the
+    // validator is not considered crashed (matching quench behaviour).
+    assert.equal(res.ok, true);
+    assert.equal(res.violations.length, 0);
+    assert.equal(res.parseErrors.length, 0);
+    assert.notEqual(res.exitCode, 0);
   });
 
   test('empty stdout returns zero violations and no errors', async () => {
