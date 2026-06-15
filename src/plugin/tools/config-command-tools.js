@@ -155,6 +155,7 @@ function buildTestResponse(result) {
     stderr: result.stderr,
     durationMs: result.durationMs,
     changedFiles: result.changedFiles,
+    dirtyBefore: result.dirtyBefore,
     logPath: result.logPath,
   };
 }
