@@ -9,15 +9,21 @@ Read a project's `SPEC.md` from `plans/<project-name>/`, then dispatch parallel 
 
 ## Workflow
 
-### 1. Read the spec
+### 1. Read the spec (always on main)
 
-Read `plans/<project-name>/SPEC.md`. If the directory or file does not exist, stop and report the missing path.
+Read `plans/<project-name>/SPEC.md` from main. Specs, plans, and REVIEW.md live on main regardless of where the implementation lives. If the directory or file does not exist, stop and report the missing path.
 
-### 2. Divide the spec into sections
+### 2. Locate the implementation
+
+Run `git worktree list` from main. If a worktree exists whose branch contains the project name, the implementation lives there. Record its path — reviewers will assess that checkout.
+
+If no matching worktree exists, the implementation is on main. Record the main checkout path.
+
+### 3. Divide the spec into sections
 
 Break `SPEC.md` into its top-level logical sections. Each section becomes an independent review target.
 
-### 3. Read the existing review (if present)
+### 4. Read the existing review (if present)
 
 If `plans/<project-name>/REVIEW.md` exists, read it. Note every item and its state:
 
@@ -29,7 +35,7 @@ If no `REVIEW.md` exists, treat the existing checklist as empty.
 
 Do not delete the existing file. The new findings will be consolidated into it.
 
-### 4. Dispatch one reviewer per section
+### 5. Dispatch one reviewer per section
 
 For each spec section, launch an `@reviewer` subagent in parallel with the others. Every subagent receives this prompt:
 
@@ -40,7 +46,7 @@ Review the current repository state against this single section of the spec.
 [verbatim section text]
 
 **Repository:**
-Review the current HEAD / working-tree state of the repository. Do not look at git diff, commit history, or branch comparisons. Assess the code as it exists now.
+Review the checkout at [worktree path, or main path if no worktree exists]. Do not look at git diff, commit history, or branch comparisons. Assess the code as it exists now in that checkout.
 
 **Task:**
 - Identify every place where the present implementation does not satisfy this spec section.
@@ -50,7 +56,7 @@ Review the current HEAD / working-tree state of the repository. Do not look at g
 - If this section is fully satisfied, return exactly: "No issues."
 ```
 
-### 5. Collect and consolidate
+### 6. Collect and consolidate
 
 When all subagents return, gather every non-empty finding. If every reviewer returns "No issues." (or equivalent), respond to the user with:
 
@@ -85,6 +91,9 @@ Write the result back to `plans/<project-name>/REVIEW.md`:
 
 ## Hard Rules
 
+- Specs, plans, and REVIEW.md live on main in `plans/<project-name>/`. They are the single source of truth.
+- Reviewers must assess the implementation checkout — the project worktree if one exists, otherwise main.
+- The worktree is identified by running `git worktree list` from main and matching the branch name against the project name.
 - Reviewers must assess the **current repository state**, not diffs or history.
 - Every spec section gets its own reviewer, and all reviewers run in parallel.
 - `REVIEW.md` is a plain checklist. No summaries, no scores, no severity labels, no compliance judgement.
@@ -94,6 +103,7 @@ Write the result back to `plans/<project-name>/REVIEW.md`:
 
 ## Common Mistakes
 
+- **Reviewing the wrong checkout.** If a project worktree exists, review that checkout. If none exists, review main. Treating main as the implementation target when a worktree exists produces a stale review.
 - **Looking at git diff instead of the present state.** The review is of the codebase as it exists, not what changed recently.
 - **Running reviewers sequentially.** They must run in parallel so each section is audited independently.
 - **Deleting the existing REVIEW.md.** Consolidate findings into it; do not replace it.

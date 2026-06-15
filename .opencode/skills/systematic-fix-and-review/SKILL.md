@@ -5,15 +5,19 @@ description: Fix every item in an existing REVIEW.md through strict fix → revi
 
 # Systematic Fix and Review
 
-Read an existing `plans/<project>/REVIEW.md` checklist, then fix each item through strict fix → reviewer cycles. Each item is fixed by invoking the `fix-review-item` skill (commit skipped), then reviewed by a `@reviewer` subagent. Items loop until approved before proceeding.
+Read an existing `plans/<project>/REVIEW.md` checklist from main, then fix each item through strict fix → reviewer cycles. Each item is fixed by invoking the `fix-review-item` skill (commit skipped), then reviewed by a `@reviewer` subagent. Items loop until approved before proceeding.
 
 This skill composes the `fix-review-item` skill as its inner fix loop. Compared to running `fix-review-item` standalone, it adds a reviewer gate between the fix and the commit. The `- [x]` mark and the commit are deferred until the reviewer approves.
+
+The spec, plan, and REVIEW.md live on main. Implementation happens in the project's worktree (if one exists) or on main (if no worktree exists). This skill runs from main and delegates implementation work to the appropriate checkout.
 
 ## Workflow
 
 ### 1. Read the review checklist
 
-Read `plans/<project>/REVIEW.md`. Determine the project directory under `plans/`. If `REVIEW.md` does not exist or contains no incomplete items (`- [ ]`), stop and report nothing to do.
+Read `plans/<project>/REVIEW.md` from main. Determine the project directory under `plans/`. If `REVIEW.md` does not exist or contains no incomplete items (`- [ ]`), stop and report nothing to do.
+
+Run `git worktree list` to locate the implementation checkout. If a worktree branch contains the project name, record its path. Otherwise the implementation checkout is main.
 
 ### 2. Fix each item, one at a time
 
@@ -21,7 +25,7 @@ For each incomplete item in `REVIEW.md` in order, run the inner fix-review cycle
 
 #### a. Fix the item (deferring the commit)
 
-Invoke the `fix-review-item` skill, but skip step 4 (the commit). When invoking `fix-review-item`, override the implementer prompt:
+Invoke the `fix-review-item` skill, but skip step 5 (the commit). The skill will automatically locate the implementation checkout (worktree or main) and dispatch the implementer there. When invoking `fix-review-item`, override the implementer prompt:
 
 - Replace the instruction to mark the item as `- [x]` with an instruction to leave the checkbox alone. The systematic skill owns the marking — it happens only after reviewer approval in step 2d.
 - Everything else in the `fix-review-item` workflow runs as normal: find the first `- [ ]`, dispatch the `@implementer` with SPEC.md context, and return the changed files and the implementer's report.
@@ -35,7 +39,7 @@ Issue a `@reviewer` subagent to review the outcome.
 **For a code fix** (item was not marked wont-fix), instruct the reviewer:
 
 - Read `AGENTS.md` before reviewing.
-- Review only the files changed by the implementer.
+- Review only the files changed by the implementer in the implementation checkout.
 - Approve or provide concrete, actionable feedback.
 
 **For a wont-fix** (item marked `- [~]`), instruct the reviewer:
@@ -53,9 +57,9 @@ Issue a `@reviewer` subagent to review the outcome.
 
 When the reviewer approves:
 
-1. Mark the item as `- [x]` in `REVIEW.md`.
-2. Stage every changed file **except** `plans/<project>/REVIEW.md`.
-3. Commit with a concise message describing the fix.
+1. Mark the item as `- [x]` in `REVIEW.md` (on main).
+2. Stage every changed file in the implementation checkout **except** `plans/<project>/REVIEW.md`.
+3. Commit in the implementation checkout with a concise message describing the fix.
 
 ```
 git add [changed files, excluding REVIEW.md]
@@ -78,7 +82,8 @@ When every item is fixed and approved, keep `REVIEW.md` in place — `implementa
 
 ## Hard Rules
 
-- Read `REVIEW.md` at the start. If it is missing, stop and ask the user to produce one first.
+- Specs, plans, and REVIEW.md live on main in `plans/<project>/`. Read and edit REVIEW.md from main only.
+- Run `git worktree list` to find the implementation checkout. If a worktree branch contains the project name, all implementation work (edits, commits, reviews) targets that checkout.
 - Fix items strictly in list order.
 - Compose `fix-review-item` for each item, skipping the commit step and overriding the implementer prompt to defer the `- [x]` mark. Re-dispatch the implementer directly (not via the skill) on reviewer rejection to focus on the specific feedback.
 - Do not skip, batch, reorder, or deprioritise items.
@@ -90,6 +95,7 @@ When every item is fixed and approved, keep `REVIEW.md` in place — `implementa
 
 ## Common Mistakes
 
+- **Reviewing or editing on the wrong checkout.** The implementer and reviewer work in the implementation checkout. REVIEW.md is edited on main. Treating main as the implementation target when a worktree exists produces stale fixes.
 - **Committing before review.** The commit only happens after the reviewer approves.
 - **Letting the implementer mark `- [x]`.** The systematic skill owns the mark. Override the `fix-review-item` implementer prompt to leave the checkbox alone.
 - **Re-dispatching `fix-review-item` on reviewer rejection.** On rejection, dispatch the implementer directly with the feedback — do not re-invoke the `fix-review-item` skill from scratch.

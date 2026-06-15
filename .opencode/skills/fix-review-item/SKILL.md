@@ -9,19 +9,25 @@ Fix the first incomplete checklist item in `plans/<project>/REVIEW.md`, commit t
 
 ## Workflow
 
-### 1. Select the project and review
+### 1. Select the project and review (always on main)
 
 Determine the project directory under `plans/`. If the user does not provide one, list directories under `plans/` that contain `REVIEW.md` and ask which project to use.
 
-Read `plans/<project>/REVIEW.md`. If it does not exist or contains no incomplete items (no `- [ ]` lines), stop and report that there is nothing to fix.
+Read `plans/<project>/REVIEW.md`. Specs, plans, and REVIEW.md live on main regardless of where the implementation lives. If the file does not exist or contains no incomplete items (no `- [ ]` lines), stop and report that there is nothing to fix.
 
-### 2. Find the first incomplete item
+### 2. Locate the implementation
+
+Run `git worktree list` to find a worktree whose branch contains the project name. If one exists, the implementer works in that checkout. If none exists, the implementer works in the main checkout.
+
+Record the path — this is the working directory for steps 3 and 4.
+
+### 3. Find the first incomplete item
 
 Scan `REVIEW.md` for the first line matching `- [ ]`. This is the target item. Read the item's full description — it may span multiple indented lines. Note the item's line number.
 
 Already-resolved items (`- [x]`) and wont-fix items (`- [~]`) are skipped.
 
-### 3. Dispatch the implementer
+### 4. Dispatch the implementer
 
 Issue an `@implementer` subagent with this prompt:
 
@@ -29,13 +35,13 @@ Issue an `@implementer` subagent with this prompt:
 Fix the following item from the review checklist.
 
 **Spec file:**
-[path to SPEC.md]
+[path to SPEC.md on main, e.g. /path/to/main/plans/<project>/SPEC.md]
 
 **Review item to fix:**
 [verbatim text of the item, including any indented sub-lines]
 
 **Working directory:**
-[the worktree path if known, otherwise the current checkout]
+[the worktree path, or the main checkout path if no worktree exists]
 
 Requirements:
 - Read `AGENTS.md` before editing. Follow the repository's conventions and rules.
@@ -46,9 +52,9 @@ Requirements:
 - Report what you changed and why.
 ```
 
-### 4. Commit the fix
+### 5. Commit the fix
 
-When the implementer returns successfully, commit the changes. Stage every modified file **except** `plans/<project>/REVIEW.md`. Use a concise commit message describing the specific fix.
+When the implementer returns successfully, commit the changes in the implementation checkout. Stage every modified file **except** `plans/<project>/REVIEW.md`. Use a concise commit message describing the specific fix.
 
 ```
 git add [changed files, excluding REVIEW.md]
@@ -59,7 +65,7 @@ Do not commit `REVIEW.md`. It is gitignored for a reason — it lives outside th
 
 If the implementer marked the item as wont-fix (`- [~]`) rather than fixing it, skip the commit step entirely and report the decision.
 
-### 5. Report and stop
+### 6. Report and stop
 
 Report:
 - The item that was addressed
@@ -71,6 +77,8 @@ Stop. Do not proceed to the next item — this skill fixes one item per invocati
 
 ## Hard Rules
 
+- Specs, plans, and REVIEW.md live on main in `plans/<project>/`. Read them from main.
+- Run `git worktree list` to find the implementation checkout. If a worktree branch contains the project name, use that checkout. Otherwise use main.
 - Fix exactly one item: the first `- [ ]` in `REVIEW.md`.
 - Do not commit `REVIEW.md`.
 - Items marked `- [x]` or `- [~]` are skipped; only `- [ ]` is actionable.
@@ -79,6 +87,7 @@ Stop. Do not proceed to the next item — this skill fixes one item per invocati
 
 ## Common Mistakes
 
+- **Working in the wrong checkout.** The implementer must work in the project's worktree if one exists. Reviewing main when a worktree exists produces a stale implementation.
 - **Fixing multiple items in one call.** This skill fixes exactly one item. Run it again for the next item.
 - **Committing REVIEW.md.** The review file is gitignored and must not be committed. Stage only the implementation changes.
 - **Skipping wont-fix items.** Wont-fix items (`- [~]`) are already decided — skip them.
