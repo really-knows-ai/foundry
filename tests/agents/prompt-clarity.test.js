@@ -167,7 +167,7 @@ describe('prompt clarity — no unavailable tool instructions', () => {
         'foundry_stage_retry',
         'foundry_config_write_file',
         'foundry_config_add_dependency',
-        'foundry_config_run_command',
+        'foundry_config_git_log',
         'foundry_config_run_validator',
         'foundry_config_run_validator_test',
         'foundry_assay_run',

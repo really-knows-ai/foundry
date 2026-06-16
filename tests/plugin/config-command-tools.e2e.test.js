@@ -140,16 +140,15 @@ describe('rejectRootPackageChanges', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Root package file protection — "Command runner does not touch root
-// package manager files."
+// Git log tool
 // ---------------------------------------------------------------------------
-describe('root package file protection', () => {
+describe('foundry_config_git_log', () => {
   let dir;
   let plugin;
 
   beforeEach(async () => {
     dir = setupRepo();
-    execSync('git checkout -q -b config/add-validator', { cwd: dir, env: GIT_ENV });
+    execSync('git checkout -q -b config/git-log-test', { cwd: dir, env: GIT_ENV });
     plugin = await FoundryPlugin({ directory: dir });
   });
 
@@ -157,35 +156,44 @@ describe('root package file protection', () => {
     cleanup(dir);
   });
 
-  test('reports root package.json changes as policy violation without overriding ok', async () => {
-    writeFixture(dir, 'foundry/artefacts/haiku/touch-package.mjs',
-      'import { writeFileSync } from "node:fs";\n' +
-      'writeFileSync("package.json", JSON.stringify({ name: "hacked" }), "utf8");\n');
-    execSync('git add -A && git commit -qm "add touch-package script"', { cwd: dir, env: GIT_ENV });
+  test('returns recent commits as structured sha/message pairs', async () => {
+    // Create a few commits so git log has something to return
+    writeFixture(dir, 'foundry/artefacts/haiku/extra.md', '# extra\n');
+    execSync('git add -A && git commit -qm "config: add artefact-type haiku"', { cwd: dir, env: GIT_ENV });
+    writeFixture(dir, 'foundry/artefacts/haiku/laws.md', '## test-law\n');
+    execSync('git add -A && git commit -qm "config: add law"', { cwd: dir, env: GIT_ENV });
 
-    const res = JSON.parse(await plugin.tool.foundry_config_run_command.execute(
-      { command: 'node foundry/artefacts/haiku/touch-package.mjs', reason: 'test root protection' },
+    const res = JSON.parse(await plugin.tool.foundry_config_git_log.execute(
+      { count: 2 },
       makeCtx(dir),
     ));
-    // ok reflects command execution success; root package changes are
-    // reported independently via disallowedFiles and error.
     assert.equal(res.ok, true);
-    assert.equal(res.reason, 'root_package_file_changed');
-    assert.match(res.error, /root package file\(s\) changed/);
-    assert.ok(res.disallowedFiles.includes('package.json'));
+    assert.ok(Array.isArray(res.commits));
+    assert.equal(res.commits.length, 2);
+    assert.ok(res.commits[0].sha.length >= 7);
+    assert.ok(typeof res.commits[0].message === 'string');
+    assert.match(res.commits[0].message, /config: add law/);
+    assert.match(res.commits[1].message, /config: add artefact-type haiku/);
   });
 
-  test('allows command that modifies foundry/package.json (scoped to foundry/)', async () => {
-    writeFixture(dir, 'foundry/artefacts/haiku/touch-foundry-package.mjs',
-      'import { writeFileSync } from "node:fs";\n' +
-      'writeFileSync("foundry/package.json", JSON.stringify({ name: "foundry-pkg" }), "utf8");\n');
-    execSync('git add -A && git commit -qm "add touch-foundry-package script"', { cwd: dir, env: GIT_ENV });
-
-    const res = JSON.parse(await plugin.tool.foundry_config_run_command.execute(
-      { command: 'node foundry/artefacts/haiku/touch-foundry-package.mjs', reason: 'test foundry package' },
+  test('defaults to 10 commits when count is omitted', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_git_log.execute(
+      {},
       makeCtx(dir),
     ));
     assert.equal(res.ok, true);
+    assert.ok(res.commits.length <= 10);
+  });
+
+  test('rejects when not on a config branch', async () => {
+    execSync('git checkout -q -b some-other-branch', { cwd: dir, env: GIT_ENV });
+    const offBranchPlugin = await FoundryPlugin({ directory: dir });
+    const res = JSON.parse(await offBranchPlugin.tool.foundry_config_git_log.execute(
+      { count: 1 },
+      makeCtx(dir),
+    ));
+    assert.ok(res.error, 'expected an error from config branch guard');
+    assert.match(res.error, /config\/<description> branch/);
   });
 });
 

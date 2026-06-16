@@ -121,17 +121,22 @@ export { parseCommand } from './command-parser.js';
 // D2 — checkCommandPolicy helpers
 // ---------------------------------------------------------------------------
 
+function isPathUnderFoundry(dir, scriptPath) {
+  const resolved = path.resolve(dir, scriptPath);
+  const foundryResolved = path.resolve(dir, 'foundry');
+  return resolved === foundryResolved || resolved.startsWith(foundryResolved + path.sep);
+}
+
 function checkNodePath(argv, baseDir) {
   if (argv.length < 2) {
     return { ok: false, error: 'missing script path', reason: 'missing_path' };
   }
+  if (argv[1].startsWith('-')) {
+    return { ok: false, error: `node flags not allowed (${argv[1]}), provide a script path`, reason: 'invalid_argv' };
+  }
   const dir = baseDir || process.cwd();
-  const scriptPath = argv[1];
-  const resolved = path.resolve(dir, scriptPath);
-  const foundryResolved = path.resolve(dir, 'foundry');
-  const underFoundry = resolved === foundryResolved || resolved.startsWith(foundryResolved + path.sep);
-  if (!underFoundry) {
-    return { ok: false, error: `path outside foundry/: ${scriptPath}`, reason: 'path_outside_foundry' };
+  if (!isPathUnderFoundry(dir, argv[1])) {
+    return { ok: false, error: `path outside foundry/: ${argv[1]}`, reason: 'path_outside_foundry' };
   }
   return { ok: true, argv, mode: 'node-foundry-script' };
 }

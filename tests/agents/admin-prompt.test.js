@@ -69,13 +69,13 @@ describe('foundry-admin.md frontmatter — new config tools permitted', () => {
     );
   });
 
-  test('admin must have foundry_config_run_command permission', () => {
+  test('admin must have foundry_config_git_log permission', () => {
     const text = readAdmin();
     const parsed = parseFrontmatter(text);
     assert.equal(
-      parsed.data.permission?.foundry_config_run_command,
+      parsed.data.permission?.foundry_config_git_log,
       'allow',
-      'foundry_config_run_command must be allow for admin'
+      'foundry_config_git_log must be allow for admin'
     );
   });
 

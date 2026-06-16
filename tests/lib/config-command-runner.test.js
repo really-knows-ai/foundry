@@ -482,6 +482,17 @@ describe('runCommand', () => {
     assert.equal(result.reason, 'command_not_allowed');
   });
 
+  test('rejects node -e flag (inline eval)', () => {
+    const result = runCommand({
+      io: makeMockIO(),
+      exec: makeMockExec(),
+      command: 'node -e "console.log(1)"',
+      reason: 'testing flag rejection',
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'invalid_argv');
+  });
+
   test('executes an allowed command and returns success', () => {
     const io = makeMockIO();
     const result = runCommand({

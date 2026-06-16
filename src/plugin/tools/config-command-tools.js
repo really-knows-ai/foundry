@@ -1,9 +1,9 @@
 // Tools for scoped config command execution.
 //
 // Registers:
-//   foundry_config_run_command      — no-shell config command runner
-//   foundry_config_run_validator    — validator with {files}/{pattern} expansion
-//                                      and JSONL parsing
+//   foundry_config_git_log            — read-only git log for commit verification
+//   foundry_config_run_validator      — validator with {files}/{pattern} expansion
+//                                        and JSONL parsing
 //   foundry_config_run_validator_test — companion test runner for validator
 //                                        scripts
 //
@@ -11,6 +11,7 @@
 // a not-failed gate.  Validator and test tools are new in Phase 04.
 
 import path from 'path';
+import { spawnSync } from 'node:child_process';
 import { Readable } from 'stream';
 import { runCommand, createExec } from '../../scripts/lib/config-command-runner.js';
 import { parseValidatorJsonl } from '../../scripts/lib/validator-jsonl.js';
@@ -141,36 +142,25 @@ function buildTestResponse(result) {
 }
 
 // ---------------------------------------------------------------------------
-// foundry_config_run_command executor  (Phase 02, unchanged behaviour)
+// foundry_config_git_log executor
 // ---------------------------------------------------------------------------
 
-function isPnpmRun(command) {
-  return (command || '').trim().startsWith('pnpm run ');
+function sanitiseCount(raw) {
+  return Math.min(Math.max(1, raw ?? 10), 100);
 }
 
-function validateRunCommandArgs(args) {
-  if (!args.command) return JSON.stringify({ ok: false, error: 'command is required', reason: 'missing_command' });
-  if (!args.reason) return JSON.stringify({ ok: false, error: 'reason is required', reason: 'missing_reason' });
-  return null;
+function parseGitLog(stdout) {
+  return stdout.trim().split('\n').filter(Boolean).map(line => {
+    const i = line.indexOf(' ');
+    return { sha: line.slice(0, i), message: line.slice(i + 1) };
+  });
 }
 
-function executeRunCommand(args, context) {
-  const inputError = validateRunCommandArgs(args);
-  if (inputError) return inputError;
-
+function executeGitLog(args, context) {
   try {
-    const io = makeIO(context.worktree);
-    const execCwd = isPnpmRun(args.command)
-      ? path.resolve(context.worktree, 'foundry')
-      : context.worktree;
-    const exec = createExec(execCwd, 30000);
-    const rootExec = createExec(context.worktree);
-    const result = runCommand({
-      io, exec, command: args.command, reason: args.reason,
-      timeout: args.timeout, worktree: context.worktree, cwd: execCwd,
-      dirtyExec: rootExec,
-    });
-    return JSON.stringify(rejectRootPackageChanges(result));
+    const result = spawnSync('git', ['log', '--oneline', `-${sanitiseCount(args.count)}`], { cwd: context.worktree, encoding: 'utf8' });
+    if (result.error) throw result.error;
+    return JSON.stringify({ ok: true, commits: parseGitLog(result.stdout || '') });
   } catch (err) {
     return JSON.stringify({ ok: false, error: err.message ?? String(err) });
   }
@@ -250,22 +240,17 @@ function executeRunValidatorTest(args, context) {
 // Tool factories
 // ---------------------------------------------------------------------------
 
-function makeRunCommandTool(tool) {
+function makeGitLogTool(tool) {
   return tool({
     description:
-      'Run an allowed command with no shell, policy enforcement, ' +
-      'timeout, output capture, dirty-tree tracking, and an audit log. ' +
-      'Requires a config/* branch. The command must be a node script ' +
-      'under foundry/** or a pnpm run script.',
+      'Show recent git log for commit verification. Returns an array ' +
+      'of { sha, message } objects for the most recent commits on the ' +
+      'current branch. Requires a config/* branch.',
     args: {
-      command: tool.schema.string()
-        .describe('Command string (e.g. "node foundry/artefacts/haiku/validate-syllables.test.mjs")'),
-      reason: tool.schema.string()
-        .describe('Non-empty reason for the audit log'),
-      timeout: tool.schema.number().optional()
-        .describe('Timeout in milliseconds (default 30000, max 120000)'),
+      count: tool.schema.number().optional()
+        .describe('Number of commits to show (default 10, max 100)'),
     },
-    execute: guarded('foundry_config_run_command', ALL_GUARDS, executeRunCommand),
+    execute: guarded('foundry_config_git_log', ALL_GUARDS, executeGitLog),
   });
 }
 
@@ -309,7 +294,7 @@ export { rejectRootPackageChanges };
 
 export function createConfigCommandTools({ tool }) {
   return {
-    foundry_config_run_command: makeRunCommandTool(tool),
+    foundry_config_git_log: makeGitLogTool(tool),
     foundry_config_run_validator: makeRunValidatorTool(tool),
     foundry_config_run_validator_test: makeRunValidatorTestTool(tool),
   };
