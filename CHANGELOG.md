@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.15.3] - 2026-06-16
+
+### Fixed
+
+- Reordered guide agent's `task` permission rules so the catch-all `"*": deny` comes before the `"foundry-*": allow` and `"explore": allow` entries. OpenCode task permissions use last-matching-rule-wins semantics — the previous order silently matched every subagent against `*` last and removed `task` from the guide's available tool list, breaking all admin delegation.
+
 ## [3.15.2] - 2026-06-16
 
 ### Removed
