@@ -14,20 +14,24 @@ import assert from 'node:assert/strict';
 // ---------------------------------------------------------------------------
 
 const attestationCalls = [];
+const NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
+const ASSAY_MOCKED = NODE_MAJOR >= 24 && mock.module !== undefined;
 
-mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
-  exports: {
-    sha256Text: () => 'abc123',
-    sha256Buffer: () => 'abc123',
-    sortPaths: p => [...p].sort(),
-    hashAttestation: () => 'abc123',
-    generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    appendStageAttestation: (io, runId, params) => {
-      attestationCalls.push({ runId, params });
-      return Promise.resolve({ ok: true });
+if (ASSAY_MOCKED) {
+    mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
+      exports: {
+        sha256Text: () => 'abc123',
+        sha256Buffer: () => 'abc123',
+        sortPaths: p => [...p].sort(),
+        hashAttestation: () => 'abc123',
+        generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        appendStageAttestation: (io, runId, params) => {
+          attestationCalls.push({ runId, params });
+          return Promise.resolve({ ok: true });
+        },
     },
-  },
-});
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Mock IO
@@ -81,7 +85,7 @@ test.afterEach(() => {
 // appendAssayAttestation
 // ---------------------------------------------------------------------------
 
-describe('appendAssayAttestation', () => {
+describe('appendAssayAttestation', { skip: !ASSAY_MOCKED }, () => {
   test('appends attestation with stage assay and correct violation count', () => {
     const io = makeMockIo();
     const store = makeStore();

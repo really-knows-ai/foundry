@@ -20,21 +20,25 @@ import { makeMockIO } from '../helpers/mock-io.js';
 // ---------------------------------------------------------------------------
 
 const attestationCalls = [];
+const NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
+const HASH_MOCKED = NODE_MAJOR >= 24 && mock.module !== undefined;
 
-mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
-  exports: {
-    sha256Text: () => 'abc123',
-    sha256Buffer: () => 'abc123',
-    sortPaths: p => [...p].sort(),
-    hashAttestation: () => 'abc123',
-    generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    appendStageAttestation: (io, runId, params) => {
-      attestationCalls.push({ runId, params });
-      return Promise.resolve({ ok: true });
+if (HASH_MOCKED) {
+  mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
+    exports: {
+      sha256Text: () => 'abc123',
+      sha256Buffer: () => 'abc123',
+      sortPaths: p => [...p].sort(),
+      hashAttestation: () => 'abc123',
+      generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      appendStageAttestation: (io, runId, params) => {
+        attestationCalls.push({ runId, params });
+        return Promise.resolve({ ok: true });
+      },
+      sealCycleAttestation: () => Promise.resolve({ ok: true }),
     },
-    sealCycleAttestation: () => Promise.resolve({ ok: true }),
-  },
-});
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -841,12 +845,12 @@ describe('handleHumanAppraiseResume — no scenario configured', () => {
 // ---------------------------------------------------------------------------
 
 describe('human-appraise — attestation helper exports', () => {
-  test('appendHumanAppraiseAttestation is exported from executor-attestation', async () => {
+  test('appendHumanAppraiseAttestation is exported from executor-attestation', { skip: !HASH_MOCKED }, async () => {
     const { appendHumanAppraiseAttestation } = await import('../../src/scripts/lib/attestation/executor-attestation.js');
     assert.equal(typeof appendHumanAppraiseAttestation, 'function');
   });
 
-  test('run-human-appraise imports are updated — no direct hash.js imports for attestation', async () => {
+  test('run-human-appraise imports are updated — no direct hash.js imports for attestation', { skip: !HASH_MOCKED }, async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const { fileURLToPath } = await import('node:url');
@@ -862,7 +866,7 @@ describe('human-appraise — attestation helper exports', () => {
       'should import from executor-attestation module');
   });
 
-  test('builds evaluations from records', async () => {
+  test('builds evaluations from records', { skip: !HASH_MOCKED }, async () => {
     attestationCalls.length = 0;
 
     const io = makeMockIOWithWorkMd();
@@ -890,7 +894,7 @@ describe('human-appraise — attestation helper exports', () => {
     assert.deepEqual(params.evaluations[3], { appraiser: 'human', verdict: 'failed', completed: true });
   });
 
-  test('evaluations is empty array when records is absent', async () => {
+  test('evaluations is empty array when records is absent', { skip: !HASH_MOCKED }, async () => {
     attestationCalls.length = 0;
 
     const io = makeMockIOWithWorkMd();
@@ -905,7 +909,7 @@ describe('human-appraise — attestation helper exports', () => {
     assert.deepEqual(attestationCalls[0].params.evaluations, []);
   });
 
-  test('evaluations is empty array when records is empty', async () => {
+  test('evaluations is empty array when records is empty', { skip: !HASH_MOCKED }, async () => {
     attestationCalls.length = 0;
 
     const io = makeMockIOWithWorkMd();
@@ -921,7 +925,7 @@ describe('human-appraise — attestation helper exports', () => {
     assert.deepEqual(attestationCalls[0].params.evaluations, []);
   });
 
-  test('payload shape with deadlock resolution records', async () => {
+  test('payload shape with deadlock resolution records', { skip: !HASH_MOCKED }, async () => {
     attestationCalls.length = 0;
 
     const io = makeMockIOWithWorkMd();
@@ -957,7 +961,7 @@ describe('human-appraise — attestation helper exports', () => {
     assert.deepEqual(params.artefact_hashes, []);
   });
 
-  test('payload shape for always-human-appraise (no records)', async () => {
+  test('payload shape for always-human-appraise (no records)', { skip: !HASH_MOCKED }, async () => {
     attestationCalls.length = 0;
 
     const io = makeMockIOWithWorkMd();
@@ -977,7 +981,7 @@ describe('human-appraise — attestation helper exports', () => {
     assert.deepEqual(params.feedback_resolved, []);
   });
 
-  test('payload shape for violation path', async () => {
+  test('payload shape for violation path', { skip: !HASH_MOCKED }, async () => {
     attestationCalls.length = 0;
 
     const io = makeMockIOWithWorkMd();
