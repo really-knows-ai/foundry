@@ -137,6 +137,20 @@ describe('agent frontmatter — T1.3: catch-all deny rule', () => {
   }
 });
 
+describe('agent frontmatter — task delegation policy', () => {
+  test('foundry-guide allows foundry-* and explore after the catch-all deny', () => {
+    const filePath = join(AGENTS_DIR, 'foundry-guide.md');
+    const raw = readFileSync(filePath, 'utf8');
+    const parsed = matter(raw);
+    const task = parsed.data.permission.task;
+
+    assert.deepEqual(Object.keys(task), ['*', 'foundry-*', 'explore']);
+    assert.equal(task['*'], 'deny');
+    assert.equal(task['foundry-*'], 'allow');
+    assert.equal(task.explore, 'allow');
+  });
+});
+
 test('foundry-forge can create artefact files while still denying foundry config writes', () => {
   const filePath = join(AGENTS_DIR, 'foundry-forge.md');
   const raw = readFileSync(filePath, 'utf8');

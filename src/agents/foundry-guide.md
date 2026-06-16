@@ -11,9 +11,9 @@ permission:
   skill: allow
   webfetch: allow
   task:
+    "*": deny
     "foundry-*": allow
     "explore": allow
-    "*": deny
   edit: deny
   bash: deny
   foundry_cycle_run: allow
