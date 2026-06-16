@@ -49,13 +49,33 @@ describe('foundry-admin.md frontmatter — git tools prohibited', () => {
 });
 
 describe('foundry-admin.md frontmatter — new config tools permitted', () => {
-  test('admin must have foundry_config_write_file permission', () => {
+  test('admin must have foundry_config_write_validator permission', () => {
     const text = readAdmin();
     const parsed = parseFrontmatter(text);
     assert.equal(
-      parsed.data.permission?.foundry_config_write_file,
+      parsed.data.permission?.foundry_config_write_validator,
       'allow',
-      'foundry_config_write_file must be allow for admin'
+      'foundry_config_write_validator must be allow for admin'
+    );
+  });
+
+  test('admin must have foundry_config_write_test permission', () => {
+    const text = readAdmin();
+    const parsed = parseFrontmatter(text);
+    assert.equal(
+      parsed.data.permission?.foundry_config_write_test,
+      'allow',
+      'foundry_config_write_test must be allow for admin'
+    );
+  });
+
+  test('admin must have foundry_config_write_fixture permission', () => {
+    const text = readAdmin();
+    const parsed = parseFrontmatter(text);
+    assert.equal(
+      parsed.data.permission?.foundry_config_write_fixture,
+      'allow',
+      'foundry_config_write_fixture must be allow for admin'
     );
   });
 

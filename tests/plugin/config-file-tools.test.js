@@ -1,10 +1,7 @@
 // tests/plugin/config-file-tools.test.js
 //
-// Phase 03: Config File Writer — foundry_config_write_file
-//
-// T3 — Config file writer: path rejection tests
-// T4 — Config file writer: commit success test
-// T5 — Config file writer: rollback test
+// Config File Write Tools — foundry_config_write_validator,
+// foundry_config_write_test, foundry_config_write_fixture.
 
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,29 +20,14 @@ const GIT_ENV = {
 function makeCtx(worktree) { return { worktree }; }
 
 function setupRepo() {
-  const dir = mkdtempSync(join(tmpdir(), 'cfg-file-tools-'));
+  const dir = mkdtempSync(join(tmpdir(), 'cfg-file-'));
   execSync('git init -q -b main', { cwd: dir, env: GIT_ENV });
   try { execSync('git checkout -B main -q', { cwd: dir, env: GIT_ENV }); } catch { /* ignore */ }
-  mkdirSync(join(dir, 'foundry', 'artefacts'), { recursive: true });
+  mkdirSync(join(dir, 'foundry', 'artefacts', 'test-type'), { recursive: true });
+  writeFileSync(join(dir, 'foundry', 'artefacts', 'test-type', 'definition.md'),
+    '---\nname: test-type\nfile-patterns:\n  - test/*.md\n---\n\n## Definition\n\nTest artefact type.\n');
   writeFileSync(join(dir, 'foundry', '.gitkeep'), '');
-  writeFileSync(join(dir, 'README.md'), 'baseline\n');
   execSync('git add . && git commit -qm init', { cwd: dir, env: GIT_ENV });
-  return dir;
-}
-
-function setupRepoWithFoundryPkg() {
-  const dir = setupRepo();
-  // Add foundry/package.json like Phase 01 bootstrap would
-  const pkg = {
-    name: 'foundry-config',
-    private: true,
-    type: 'module',
-    packageManager: 'pnpm@10.15.1',
-    dependencies: {},
-    devDependencies: {},
-  };
-  writeFileSync(join(dir, 'foundry', 'package.json'), JSON.stringify(pkg, null, 2) + '\n', 'utf8');
-  execSync('git add . && git commit -qm "add foundry package.json"', { cwd: dir, env: GIT_ENV });
   return dir;
 }
 
@@ -54,11 +36,20 @@ function cleanup(dir) {
 }
 
 // ---------------------------------------------------------------------------
-// T3 — Config file writer: path rejection tests
+// Shared helpers
 // ---------------------------------------------------------------------------
-describe('foundry_config_write_file — path rejection (T3)', () => {
-  let dir;
-  let plugin;
+
+function assertWriteOk(res, expectedPathDir) {
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.ok(res.path.startsWith(expectedPathDir));
+  assert.ok(typeof res.sha === 'string' && res.sha.length > 0);
+}
+
+// ---------------------------------------------------------------------------
+// write_validator
+// ---------------------------------------------------------------------------
+describe('foundry_config_write_validator', () => {
+  let dir, plugin;
 
   beforeEach(async () => {
     dir = setupRepo();
@@ -66,293 +57,199 @@ describe('foundry_config_write_file — path rejection (T3)', () => {
     plugin = await FoundryPlugin({ directory: dir });
   });
 
-  afterEach(() => {
-    cleanup(dir);
+  afterEach(() => { cleanup(dir); });
+
+  test('writes and commits a .mjs validator under the artefact type dir', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_validator.execute(
+      { typeId: 'test-type', name: 'check-something', content: 'export const v = 1;\n', reason: 'test' },
+      makeCtx(dir),
+    ));
+    assertWriteOk(res, 'foundry/artefacts/test-type/');
+    assert.ok(res.path.endsWith('check-something.mjs'));
+    assert.ok(existsSync(join(dir, res.path)));
   });
 
-  test('rejects path outside foundry/ (lib/my-file.js)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'lib/my-file.js', content: 'test', reason: 'outside foundry' },
+  test('rejects when artefact type does not exist', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_validator.execute(
+      { typeId: 'nonexistent', name: 'check', content: 'ok', reason: 'test' },
       makeCtx(dir),
     ));
     assert.equal(res.ok, false);
-    assert.match(res.error, /path must be under foundry/);
+    assert.match(res.error, /artefact type not found/);
   });
 
-  test('rejects directory traversal (foundry/../outside/file.js)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/../outside/file.js', content: 'test', reason: 'traversal' },
+  test('rejects empty name', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_validator.execute(
+      { typeId: 'test-type', name: '', content: 'ok', reason: 'test' },
       makeCtx(dir),
     ));
     assert.equal(res.ok, false);
-    assert.match(res.error, /path must be under foundry/);
-  });
-
-  test('rejects absolute path outside (/etc/passwd)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: '/etc/passwd', content: 'test', reason: 'absolute outside' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /path must be under foundry/);
-  });
-
-  test('rejects path that resolves to the foundry directory itself (foundry)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry', content: 'test', reason: 'is directory itself' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /path must be under foundry/);
-  });
-
-  test('rejects path that resolves to a directory under foundry/ (foundry/artefacts)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/artefacts', content: 'test', reason: 'is directory' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /path must be under foundry/);
+    assert.equal(res.error, 'name is required');
   });
 
   test('rejects empty content', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/test.js', content: '', reason: 'empty content' },
+    const res = JSON.parse(await plugin.tool.foundry_config_write_validator.execute(
+      { typeId: 'test-type', name: 'check', content: '', reason: 'test' },
       makeCtx(dir),
     ));
     assert.equal(res.ok, false);
     assert.equal(res.error, 'content is required');
   });
-
-  test('rejects when both reason and message are missing', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/test.js', content: 'hello', reason: '', message: '' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.equal(res.error, 'reason or message is required');
-  });
-
-  test('rejects on non-config branch (main)', async () => {
-    execSync('git checkout -q main', { cwd: dir, env: GIT_ENV });
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/test.js', content: 'hello', reason: 'on main' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /config/);
-  });
-
-  test('rejects .json under foundry/artefacts/ (overlap with config tools)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/artefacts/some-config.json', content: '{}', reason: 'overlap test' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /overlaps with specialised config tool/);
-  });
-
-  test('rejects .json under foundry/flows/ (overlap with config tools)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/flows/my-flow.json', content: '{}', reason: 'overlap test' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /overlaps with specialised config tool/);
-  });
-
-  test('rejects .json under foundry/cycles/ (overlap with config tools)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/cycles/my-cycle.json', content: '{}', reason: 'overlap test' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /overlaps with specialised config tool/);
-  });
-
-  test('rejects .json under foundry/appraisers/ (overlap with config tools)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/appraisers/my-appraiser.json', content: '{}', reason: 'overlap test' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /overlaps with specialised config tool/);
-  });
-
-  test('rejects .json under foundry/laws/ (overlap with config tools)', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/laws/rules.json', content: '{}', reason: 'overlap test' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, false);
-    assert.match(res.error, /overlaps with specialised config tool/);
-  });
-
-  test('allows .json outside config tool directories', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/support/config.json', content: '{}', reason: 'non-overlap json' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, true, JSON.stringify(res));
-  });
-
-  test('allows .js support file under foundry/artefacts/', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/artefacts/validator.js', content: 'export const v = 1;\n', reason: 'support file' },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, true, JSON.stringify(res));
-  });
-
-  test('bypasses overlap rejection when update=true', async () => {
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: 'foundry/artefacts/some-config.json', content: '{}', reason: 'update mode', update: true },
-      makeCtx(dir),
-    ));
-    assert.equal(res.ok, true, JSON.stringify(res));
-  });
 });
 
 // ---------------------------------------------------------------------------
-// T4 — Config file writer: commit success test
+// write_test
 // ---------------------------------------------------------------------------
-describe('foundry_config_write_file — commit success (T4)', () => {
-  let dir;
+describe('foundry_config_write_test', () => {
+  let dir, plugin;
 
-  function setup() {
+  beforeEach(async () => {
     dir = setupRepo();
-    execSync('git checkout -q -b config/write-test', { cwd: dir, env: GIT_ENV });
-    return dir;
-  }
-
-  afterEach(() => {
-    cleanup(dir);
+    execSync('git checkout -q -b config/test-branch', { cwd: dir, env: GIT_ENV });
+    plugin = await FoundryPlugin({ directory: dir });
   });
 
-  test('writes and commits a file under foundry/ and returns { ok, path, sha }', async () => {
-    const worktree = setup();
-    const plugin = await FoundryPlugin({ directory: worktree });
-    const targetPath = 'foundry/artefacts/test.js';
-    const content = 'export const version = 1;\n';
+  afterEach(() => { cleanup(dir); });
 
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: targetPath, content, reason: 'add test helper' },
-      makeCtx(worktree),
+  test('writes and commits a .test.js companion test', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_test.execute(
+      { typeId: 'test-type', name: 'check-something', content: 'import { test } from "node:test";\n', reason: 'test' },
+      makeCtx(dir),
     ));
-    assert.equal(res.ok, true, JSON.stringify(res));
-    assert.equal(res.path, targetPath);
-    assert.ok(typeof res.sha === 'string' && res.sha.length > 0, 'sha must be a non-empty string');
-
-    // Assert the committed file exists on disk
-    assert.ok(existsSync(join(worktree, targetPath)), 'committed file must exist on disk');
-    assert.equal(readFileSync(join(worktree, targetPath), 'utf8'), content);
-
-    // Assert the commit is reachable in the git log
-    const logMsg = execSync('git log -1 --format=%B', { cwd: worktree, env: GIT_ENV, encoding: 'utf8' }).trim();
-    assert.match(logMsg, /add test helper/);
-
-    // Assert an audit log is written
-    const logDir = join(worktree, '.foundry', 'config-command-logs');
-    assert.ok(existsSync(logDir), 'audit log directory must exist');
-    const logFiles = execSync('ls', { cwd: logDir, encoding: 'utf8' }).trim().split('\n');
-    assert.ok(logFiles.length > 0, 'audit log files must exist');
-    const lastLog = logFiles[logFiles.length - 1];
-    const logContent = JSON.parse(readFileSync(join(logDir, lastLog), 'utf8'));
-    assert.equal(logContent.command, 'foundry_config_write_file');
-    assert.equal(logContent.reason, 'add test helper');
-    assert.equal(logContent.sha, res.sha);
-    assert.deepEqual(logContent.changedFiles, [targetPath]);
+    assertWriteOk(res, 'foundry/artefacts/test-type/');
+    assert.ok(res.path.endsWith('check-something.test.js'));
+    assert.ok(existsSync(join(dir, res.path)));
   });
 
-  test('uses message parameter as the full commit message', async () => {
-    const worktree = setup();
-    const plugin = await FoundryPlugin({ directory: worktree });
-    const targetPath = 'foundry/artefacts/message-test.js';
-    const content = 'export const v = 2;\n';
-    const commitMsg = 'feat(foundry): add message test helper';
-
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: targetPath, content, message: commitMsg },
-      makeCtx(worktree),
+  test('rejects when artefact type does not exist', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_test.execute(
+      { typeId: 'nonexistent', name: 'check', content: 'ok', reason: 'test' },
+      makeCtx(dir),
     ));
-    assert.equal(res.ok, true, JSON.stringify(res));
-    assert.equal(res.path, targetPath);
-    assert.ok(typeof res.sha === 'string' && res.sha.length > 0, 'sha must be a non-empty string');
+    assert.equal(res.ok, false);
+    assert.match(res.error, /artefact type not found/);
+  });
 
-    // Assert the commit message is the provided message, not config: prefixed
-    const logMsg = execSync('git log -1 --format=%B', { cwd: worktree, env: GIT_ENV, encoding: 'utf8' }).trim();
-    assert.equal(logMsg, commitMsg);
-
-    // Assert the audit log reason matches the provided message
-    const logDir = join(worktree, '.foundry', 'config-command-logs');
-    const logFiles = execSync('ls', { cwd: logDir, encoding: 'utf8' }).trim().split('\n');
-    const lastLog = logFiles[logFiles.length - 1];
-    const logContent = JSON.parse(readFileSync(join(logDir, lastLog), 'utf8'));
-    assert.equal(logContent.reason, commitMsg);
+  test('accepts message as full commit message', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_test.execute(
+      { typeId: 'test-type', name: 'helper', content: 'test("t", () => {});\n', message: 'feat(test): add helper' },
+      makeCtx(dir),
+    ));
+    assertWriteOk(res, 'foundry/artefacts/test-type/');
+    const msg = execSync('git log -1 --format=%B', { cwd: dir, env: GIT_ENV, encoding: 'utf8' }).trim();
+    assert.equal(msg, 'feat(test): add helper');
   });
 });
 
 // ---------------------------------------------------------------------------
-// T5 — Config file writer: rollback tests
+// write_fixture
 // ---------------------------------------------------------------------------
-describe('foundry_config_write_file — rollback (T5)', () => {
+describe('foundry_config_write_fixture', () => {
+  let dir, plugin;
+
+  beforeEach(async () => {
+    dir = setupRepo();
+    execSync('git checkout -q -b config/test-branch', { cwd: dir, env: GIT_ENV });
+    plugin = await FoundryPlugin({ directory: dir });
+  });
+
+  afterEach(() => { cleanup(dir); });
+
+  test('writes and commits a .md fixture under test/fixtures/', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_fixture.execute(
+      { typeId: 'test-type', name: 'valid-input', content: '# valid\n', reason: 'test' },
+      makeCtx(dir),
+    ));
+    assertWriteOk(res, 'foundry/artefacts/test-type/test/fixtures/');
+    assert.ok(res.path.endsWith('valid-input.md'));
+    assert.ok(existsSync(join(dir, res.path)));
+  });
+
+  test('rejects when artefact type does not exist', async () => {
+    const res = JSON.parse(await plugin.tool.foundry_config_write_fixture.execute(
+      { typeId: 'nonexistent', name: 'valid', content: 'ok', reason: 'test' },
+      makeCtx(dir),
+    ));
+    assert.equal(res.ok, false);
+    assert.match(res.error, /artefact type not found/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Branch guard
+// ---------------------------------------------------------------------------
+describe('config write tools — branch guard', () => {
+  test('rejects on non-config branch for all three tools', async () => {
+    const dir = setupRepo();
+    execSync('git checkout main -q', { cwd: dir, env: GIT_ENV });
+
+    const plugin = await FoundryPlugin({ directory: dir });
+    const args = { typeId: 'test-type', name: 'x', content: 'ok', reason: 'test' };
+
+    const vRes = JSON.parse(await plugin.tool.foundry_config_write_validator.execute(args, makeCtx(dir)));
+    assert.equal(vRes.ok, false);
+    assert.match(vRes.error, /config/);
+
+    const tRes = JSON.parse(await plugin.tool.foundry_config_write_test.execute(args, makeCtx(dir)));
+    assert.equal(tRes.ok, false);
+    assert.match(tRes.error, /config/);
+
+    const fRes = JSON.parse(await plugin.tool.foundry_config_write_fixture.execute(args, makeCtx(dir)));
+    assert.equal(fRes.ok, false);
+    assert.match(fRes.error, /config/);
+
+    cleanup(dir);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rollback
+// ---------------------------------------------------------------------------
+describe('config write tools — rollback', () => {
   let dir;
 
-  function setup() {
-    dir = setupRepoWithFoundryPkg();
-    execSync('git checkout -q -b config/rollback-test', { cwd: dir, env: GIT_ENV });
+  function setupDir() {
+    dir = setupRepo();
+    const pkg = {
+      name: 'foundry-config', private: true, type: 'module',
+      packageManager: 'pnpm@10.15.1', dependencies: {}, devDependencies: {},
+    };
+    writeFileSync(join(dir, 'foundry', 'package.json'), JSON.stringify(pkg, null, 2) + '\n', 'utf8');
+    execSync('git add . && git commit -qm "add foundry package.json"', { cwd: dir, env: GIT_ENV });
+    execSync('git checkout -q -b config/rollback', { cwd: dir, env: GIT_ENV });
     return dir;
   }
 
-  afterEach(() => {
-    cleanup(dir);
-  });
+  afterEach(() => { cleanup(dir); });
 
-  // T5a — Rollback deletes newly-created file
   test('rollback deletes newly-created file when commit policy rejects', async () => {
-    const worktree = setup();
-
-    // Introduce a dirty non-allowed file in the repository root
+    const worktree = setupDir();
     writeFileSync(join(worktree, 'root-stray.txt'), 'dirty', 'utf8');
 
     const plugin = await FoundryPlugin({ directory: worktree });
-    const targetPath = 'foundry/artefacts/new-file.js';
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: targetPath, content: '// new file', reason: 'should rollback' },
+    const res = JSON.parse(await plugin.tool.foundry_config_write_validator.execute(
+      { typeId: 'test-type', name: 'rollback-test', content: '// test', reason: 'should rollback' },
       makeCtx(worktree),
     ));
-
-    assert.equal(res.ok, false, 'must fail due to dirty root file');
-    // Assert the newly-created file does NOT exist on disk
-    assert.equal(existsSync(join(worktree, targetPath)), false,
-      'rollback must delete the newly-created file');
+    assert.equal(res.ok, false);
+    assert.equal(existsSync(join(worktree, 'foundry', 'artefacts', 'test-type', 'rollback-test.mjs')), false);
   });
 
-  // T5b — Rollback restores overwritten existing file
   test('rollback restores overwritten existing file when commit policy rejects', async () => {
-    const worktree = setup();
+    const worktree = setupDir();
+    const existingPath = join(worktree, 'foundry', 'artefacts', 'test-type', 'existing.mjs');
+    mkdirSync(join(worktree, 'foundry', 'artefacts', 'test-type'), { recursive: true });
+    writeFileSync(existingPath, 'export const v = 1;\n', 'utf8');
+    execSync('git add . && git commit -qm "add existing"', { cwd: worktree, env: GIT_ENV });
 
-    // Commit an existing support file at foundry/artefacts/config.js
-    const existingPath = 'foundry/artefacts/config.js';
-    const originalContent = 'export const version = 1;\n';
-    writeFileSync(join(worktree, existingPath), originalContent, 'utf8');
-    execSync('git add . && git commit -qm "add config.js"', { cwd: worktree, env: GIT_ENV });
-
-    // Introduce a dirty non-allowed file in the repository root
     writeFileSync(join(worktree, 'root-stray.txt'), 'dirty', 'utf8');
 
     const plugin = await FoundryPlugin({ directory: worktree });
-    const newContent = 'export const version = 2;\n';
-    const res = JSON.parse(await plugin.tool.foundry_config_write_file.execute(
-      { path: existingPath, content: newContent, reason: 'should rollback overwrite' },
+    const res = JSON.parse(await plugin.tool.foundry_config_write_validator.execute(
+      { typeId: 'test-type', name: 'existing', content: 'export const v = 2;\n', reason: 'should rollback' },
       makeCtx(worktree),
     ));
-
-    assert.equal(res.ok, false, 'must fail due to dirty root file');
-    // Assert the file still exists on disk with original content
-    assert.ok(existsSync(join(worktree, existingPath)),
-      'rollback must preserve the existing file');
-    assert.equal(readFileSync(join(worktree, existingPath), 'utf8'), originalContent,
-      'rollback must restore original content');
+    assert.equal(res.ok, false);
+    assert.equal(readFileSync(existingPath, 'utf8'), 'export const v = 1;\n');
   });
 });

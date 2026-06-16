@@ -1,9 +1,12 @@
-// Tools for writing config files under foundry/.
+// Tools for writing config support files under foundry/.
 //
-// Registers foundry_config_write_file — a safe, auditable path for writing
-// validator scripts, tests, fixtures, and support files under foundry/**.
-// Writes the file, commits it through the config commit policy, and rolls
-// back on commit-policy rejection.
+// Registers:
+//   foundry_config_write_validator — .mjs validator script under artefact type dir
+//   foundry_config_write_test       — .test.js companion test under artefact type dir
+//   foundry_config_write_fixture    — .md fixture under artefact type/test/fixtures/
+//
+// All three require a config/* branch, validate the artefact type exists, commit
+// through the config commit policy, and roll back on commit-policy rejection.
 
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, realpathSync, statSync } from 'fs';
@@ -32,9 +35,7 @@ function pathUnderFoundry(worktree, filePath) {
   } catch {
     real = resolved;
   }
-  // Must be strictly under foundry/ (not equal to foundry/ itself)
   if (!real.startsWith(foundryDir + path.sep)) return false;
-  // If the path exists on disk it must be a normal file, not a directory
   try {
     const stat = statSync(real);
     if (stat.isDirectory()) return false;
@@ -63,42 +64,22 @@ function rollbackSnapshot(snapshot) {
   }
 }
 
-// -- overlap detection -------------------------------------------------------
+// -- artefact type validation -------------------------------------------------
 
-const CONFIG_TOOL_DIR_PREFIXES = [
-  'foundry/artefacts/',
-  'foundry/flows/',
-  'foundry/cycles/',
-  'foundry/appraisers/',
-  'foundry/laws/',
-];
+function artefactDefinitionPath(worktree, typeId) {
+  return path.join(worktree, 'foundry', 'artefacts', typeId, 'definition.md');
+}
 
-function isConfigOverlap(filePath) {
-  const normalised = filePath.split(path.sep).join('/');
-  for (const prefix of CONFIG_TOOL_DIR_PREFIXES) {
-    if (normalised.startsWith(prefix) && (normalised.endsWith('.json') || normalised.endsWith('.md'))) {
-      return true;
-    }
+function isValidTypeId(typeId) {
+  return !typeId.includes('/') && !typeId.includes('..');
+}
+
+function validateArtefactType(worktree, typeId) {
+  if (!typeId || typeId.trim() === '') return 'typeId is required';
+  if (!isValidTypeId(typeId)) return 'invalid typeId';
+  if (!existsSync(artefactDefinitionPath(worktree, typeId))) {
+    return `artefact type not found: ${typeId}`;
   }
-  return false;
-}
-
-function checkOverlapError(args, filePath) {
-  if (args.update) return null;
-  if (!isConfigOverlap(filePath)) return null;
-  return `path overlaps with specialised config tool: ${filePath}`;
-}
-
-// -- validation --------------------------------------------------------------
-
-function isEmpty(val) {
-  return !val || val.trim() === '';
-}
-
-function validateWriteFileArgs(args) {
-  if (isEmpty(args.path)) return 'path is required';
-  if (isEmpty(args.content)) return 'content is required';
-  if (isEmpty(args.reason) && isEmpty(args.message)) return 'reason or message is required';
   return null;
 }
 
@@ -169,7 +150,17 @@ function buildCommitDetails(args) {
   };
 }
 
-// -- core handler ------------------------------------------------------------
+function isEmpty(val) {
+  return !val || val.trim() === '';
+}
+
+function validateCommonArgs(args) {
+  if (isEmpty(args.content)) return 'content is required';
+  if (isEmpty(args.reason) && isEmpty(args.message)) return 'reason or message is required';
+  return null;
+}
+
+// -- branch guard (internal, for ok: false error shape) ----------------------
 
 function rejectIfNotConfigBranch(context) {
   const guard = configBranchGuard(null, context);
@@ -179,28 +170,20 @@ function rejectIfNotConfigBranch(context) {
   return null;
 }
 
-function validateFilePreconditions(worktree, args) {
-  const filePath = args.path.trim();
-  if (!pathUnderFoundry(worktree, filePath)) {
-    return `path must be under foundry/: ${filePath}`;
-  }
-  const overlapErr = checkOverlapError(args, filePath);
-  if (overlapErr) return overlapErr;
-  return null;
-}
+// -- shared handler ----------------------------------------------------------
 
-function handleWriteFile(args, context) {
+function handleConfigFileWrite(toolName, filePath, args, context) {
   const worktree = context.worktree;
 
   const branchErr = rejectIfNotConfigBranch(context);
   if (branchErr) return JSON.stringify({ ok: false, error: branchErr });
 
-  const validationErr = validateWriteFileArgs(args);
+  const validationErr = validateCommonArgs(args);
   if (validationErr) return JSON.stringify({ ok: false, error: validationErr });
 
-  const filePath = args.path.trim();
-  const preErr = validateFilePreconditions(worktree, args);
-  if (preErr) return JSON.stringify({ ok: false, error: preErr });
+  if (!pathUnderFoundry(worktree, filePath)) {
+    return JSON.stringify({ ok: false, error: `path must be under foundry/: ${filePath}` });
+  }
 
   const { commitMessage, auditReason } = buildCommitDetails(args);
 
@@ -212,7 +195,7 @@ function handleWriteFile(args, context) {
 
   writeFileAuditLog(worktree, {
     reason: auditReason,
-    command: 'foundry_config_write_file',
+    command: toolName,
     argv: args,
     cwd: worktree,
     path: filePath,
@@ -235,34 +218,134 @@ function handleWriteFile(args, context) {
   return JSON.stringify({ ok: true, path: filePath, sha: result.sha });
 }
 
-// -- tool factory ------------------------------------------------------------
+// -- tool-specific handlers --------------------------------------------------
+
+function handleWriteValidator(args, context) {
+  const typeErr = validateArtefactType(context.worktree, args.typeId);
+  if (typeErr) return JSON.stringify({ ok: false, error: typeErr });
+
+  if (isEmpty(args.name)) return JSON.stringify({ ok: false, error: 'name is required' });
+  if (args.name.includes('/') || args.name.includes('..')) {
+    return JSON.stringify({ ok: false, error: 'invalid name' });
+  }
+
+  const filePath = `foundry/artefacts/${args.typeId}/${args.name}.mjs`;
+  return handleConfigFileWrite('foundry_config_write_validator', filePath, args, context);
+}
+
+function handleWriteTest(args, context) {
+  const typeErr = validateArtefactType(context.worktree, args.typeId);
+  if (typeErr) return JSON.stringify({ ok: false, error: typeErr });
+
+  if (isEmpty(args.name)) return JSON.stringify({ ok: false, error: 'name is required' });
+  if (args.name.includes('/') || args.name.includes('..')) {
+    return JSON.stringify({ ok: false, error: 'invalid name' });
+  }
+
+  const filePath = `foundry/artefacts/${args.typeId}/${args.name}.test.js`;
+  return handleConfigFileWrite('foundry_config_write_test', filePath, args, context);
+}
+
+function handleWriteFixture(args, context) {
+  const typeErr = validateArtefactType(context.worktree, args.typeId);
+  if (typeErr) return JSON.stringify({ ok: false, error: typeErr });
+
+  if (isEmpty(args.name)) return JSON.stringify({ ok: false, error: 'name is required' });
+  if (args.name.includes('/') || args.name.includes('..')) {
+    return JSON.stringify({ ok: false, error: 'invalid name' });
+  }
+
+  const filePath = `foundry/artefacts/${args.typeId}/test/fixtures/${args.name}.md`;
+  return handleConfigFileWrite('foundry_config_write_fixture', filePath, args, context);
+}
+
+// -- tool factories ----------------------------------------------------------
+
+function makeWriteValidatorTool(tool) {
+  return tool({
+    description:
+      'Write a validator script (.mjs) under foundry/artefacts/<typeId>/ and ' +
+      'commit it through the config commit policy. Requires a config/* branch ' +
+      'and the artefact type must already exist.',
+    args: {
+      typeId: tool.schema.string()
+        .describe('Artefact type ID (e.g. "haiku") — must already exist'),
+      name: tool.schema.string()
+        .describe('Script name without extension (e.g. "validate-syllables")'),
+      content: tool.schema.string()
+        .describe('File content (non-empty)'),
+      reason: tool.schema.string()
+        .describe('Structured reason for the commit message and audit log'),
+      message: tool.schema.string()
+        .describe('Full commit message (alternative to reason)'),
+    },
+    execute: guarded(
+      'foundry_config_write_validator',
+      CORE_GUARDS,
+      handleWriteValidator,
+      { branchIo: branchIoFactory, io: asyncIoFactory },
+    ),
+  });
+}
+
+function makeWriteTestTool(tool) {
+  return tool({
+    description:
+      'Write a companion test file (.test.js) under foundry/artefacts/<typeId>/ ' +
+      'and commit it through the config commit policy. Requires a config/* branch ' +
+      'and the artefact type must already exist.',
+    args: {
+      typeId: tool.schema.string()
+        .describe('Artefact type ID (e.g. "haiku") — must already exist'),
+      name: tool.schema.string()
+        .describe('Script name without extension (e.g. "validate-syllables")'),
+      content: tool.schema.string()
+        .describe('File content (non-empty)'),
+      reason: tool.schema.string()
+        .describe('Structured reason for the commit message and audit log'),
+      message: tool.schema.string()
+        .describe('Full commit message (alternative to reason)'),
+    },
+    execute: guarded(
+      'foundry_config_write_test',
+      CORE_GUARDS,
+      handleWriteTest,
+      { branchIo: branchIoFactory, io: asyncIoFactory },
+    ),
+  });
+}
+
+function makeWriteFixtureTool(tool) {
+  return tool({
+    description:
+      'Write a test fixture file (.md) under foundry/artefacts/<typeId>/test/fixtures/ ' +
+      'and commit it through the config commit policy. Requires a config/* branch ' +
+      'and the artefact type must already exist.',
+    args: {
+      typeId: tool.schema.string()
+        .describe('Artefact type ID (e.g. "haiku") — must already exist'),
+      name: tool.schema.string()
+        .describe('Fixture name without extension (e.g. "valid-haiku")'),
+      content: tool.schema.string()
+        .describe('File content (non-empty)'),
+      reason: tool.schema.string()
+        .describe('Structured reason for the commit message and audit log'),
+      message: tool.schema.string()
+        .describe('Full commit message (alternative to reason)'),
+    },
+    execute: guarded(
+      'foundry_config_write_fixture',
+      CORE_GUARDS,
+      handleWriteFixture,
+      { branchIo: branchIoFactory, io: asyncIoFactory },
+    ),
+  });
+}
 
 export function createConfigFileTools({ tool }) {
   return {
-    foundry_config_write_file: tool({
-      description:
-        'Write a support file under foundry/** and commit it through the ' +
-        'config commit policy. Requires a config/* branch. The file path ' +
-        'must resolve to a normal file under foundry/. Rolls back on ' +
-        'commit-policy rejection.',
-      args: {
-        path: tool.schema.string()
-          .describe('Relative file path under foundry/'),
-        content: tool.schema.string()
-          .describe('File content (non-empty)'),
-        reason: tool.schema.string()
-          .describe('Structured reason for the commit message and audit log'),
-        message: tool.schema.string()
-          .describe('Full commit message (alternative to reason)'),
-        update: tool.schema.boolean().optional()
-          .describe('Bypass overlap rejection for files owned by specialised config create tools'),
-      },
-      execute: guarded(
-        'foundry_config_write_file',
-        CORE_GUARDS,
-        handleWriteFile,
-        { branchIo: branchIoFactory, io: asyncIoFactory },
-      ),
-    }),
+    foundry_config_write_validator: makeWriteValidatorTool(tool),
+    foundry_config_write_test: makeWriteTestTool(tool),
+    foundry_config_write_fixture: makeWriteFixtureTool(tool),
   };
 }
