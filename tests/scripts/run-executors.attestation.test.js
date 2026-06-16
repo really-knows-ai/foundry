@@ -13,22 +13,24 @@ import assert from 'node:assert/strict';
 // ---------------------------------------------------------------------------
 
 const attestationCalls = [];
+const EXEC_NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
+const EXEC_MOCKED = EXEC_NODE_MAJOR >= 24 && mock.module !== undefined;
 
-// Provide all exports that hash.js normally provides so dependent modules
-// (artefacts.js, history.js, etc.) still resolve their imports.
-mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
-  exports: {
-    sha256Text: () => 'abc123',
-    sha256Buffer: () => 'abc123',
-    sortPaths: p => [...p].sort(),
-    hashAttestation: () => 'abc123',
-    generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    appendStageAttestation: (io, runId, params) => {
-      attestationCalls.push({ runId, params });
-      return Promise.resolve({ ok: true });
+if (EXEC_MOCKED) {
+  mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
+    exports: {
+      sha256Text: () => 'abc123',
+      sha256Buffer: () => 'abc123',
+      sortPaths: p => [...p].sort(),
+      hashAttestation: () => 'abc123',
+      generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      appendStageAttestation: (io, runId, params) => {
+        attestationCalls.push({ runId, params });
+        return Promise.resolve({ ok: true });
+      },
     },
-  },
-});
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Mock IO
@@ -84,7 +86,7 @@ test.afterEach(() => {
 // appendForgeAttestation
 // ---------------------------------------------------------------------------
 
-describe('appendForgeAttestation', () => {
+describe('appendForgeAttestation', { skip: !EXEC_MOCKED }, () => {
   test('appends attestation with stage forge', () => {
     const io = makeMockIo();
     helpers.appendForgeAttestation(io, 'test-cycle', 1, {
@@ -156,7 +158,7 @@ describe('appendForgeAttestation', () => {
 // appendQuenchAttestation — early-return (no store) and main paths
 // ---------------------------------------------------------------------------
 
-describe('appendQuenchAttestation', () => {
+describe('appendQuenchAttestation', { skip: !EXEC_MOCKED }, () => {
   test('appends quench attestation with violations 0 and empty arrays (early path)', () => {
     const io = makeMockIo();
     helpers.appendQuenchAttestation(io, 'test-cycle', 1, { artefact_hashes: [] });
@@ -218,7 +220,7 @@ describe('appendQuenchAttestation', () => {
 // appendAssayAttestation
 // ---------------------------------------------------------------------------
 
-describe('appendAssayAttestation', () => {
+describe('appendAssayAttestation', { skip: !EXEC_MOCKED }, () => {
   test('appends assay attestation with correct violation count', () => {
     const io = makeMockIo();
     const store = makeStore();
@@ -247,7 +249,7 @@ describe('appendAssayAttestation', () => {
 // Module exports
 // ---------------------------------------------------------------------------
 
-describe('module exports', () => {
+describe('module exports', { skip: !EXEC_MOCKED }, () => {
   test('executeForge is exported from run-executors', async () => {
     const mod = await import('../../src/scripts/run-executors.js');
     assert.equal(typeof mod.executeForge, 'function');

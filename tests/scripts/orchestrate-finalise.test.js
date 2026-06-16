@@ -23,21 +23,26 @@ let hashReturnValue = {
 };
 let hashSealCallCount = 0;
 
-mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
-  exports: {
-    sha256Text: () => 'abc123',
-    sha256Buffer: () => 'abc123',
-    sortPaths: p => [...p].sort(),
-    hashAttestation: () => 'abc123',
-    generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    appendStageAttestation: () => {},
-    sealCycleAttestation: () => {
-      hashSealCallCount++;
-      if (hashReturnValue instanceof Error) throw hashReturnValue;
-      return hashReturnValue;
+const ORCH_NODE_MAJOR = parseInt(process.versions.node.split('.')[0], 10);
+const ORCH_MOCKED = ORCH_NODE_MAJOR >= 24 && mock.module !== undefined;
+
+if (ORCH_MOCKED) {
+  mock.module(new URL('../../src/scripts/lib/attestation/hash.js', import.meta.url), {
+    exports: {
+      sha256Text: () => 'abc123',
+      sha256Buffer: () => 'abc123',
+      sortPaths: p => [...p].sort(),
+      hashAttestation: () => 'abc123',
+      generateRunId: () => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      appendStageAttestation: () => {},
+      sealCycleAttestation: () => {
+        hashSealCallCount++;
+        if (hashReturnValue instanceof Error) throw hashReturnValue;
+        return hashReturnValue;
+      },
     },
-  },
-});
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,7 +54,7 @@ const RUN_ID = '01JKVT7Z8Q3WN0GJM2TYBR4BB';
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('sealCycleAttestation wrapper', () => {
+describe('sealCycleAttestation wrapper', { skip: !ORCH_MOCKED }, () => {
   let sealCycleAttestation;
 
   before(async () => {
@@ -200,7 +205,7 @@ Some body content`;
 // finaliseStage integration tests
 // ---------------------------------------------------------------------------
 
-describe('finaliseStage', () => {
+describe('finaliseStage', { skip: !ORCH_MOCKED }, () => {
   let finaliseStageMod;
 
   before(async () => {
