@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.15.1] - 2026-06-16
+
+### Fixed
+
+- Made `execute` functions async in `config-dependency-tools` and `config-file-tools` so the OpenCode SDK can call `.then()` on tool results. The previous synchronous return caused a `.then is not a function` crash.
+- Wrapped all Foundry tools with `guarded()` for consistent async execution, guard enforcement, and dry-run tracing. Extracted shared guard helpers to `src/plugin/tools/guard-helpers.js`, eliminating duplicated guard functions across 12 files.
+
 ## [3.15.0] - 2026-06-16
 
 ### Added
