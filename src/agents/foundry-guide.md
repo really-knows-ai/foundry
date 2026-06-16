@@ -10,7 +10,10 @@ permission:
   question: allow
   skill: allow
   webfetch: allow
-  task: allow
+  task:
+    "foundry-*": allow
+    "explore": allow
+    "*": deny
   edit: deny
   bash: deny
   foundry_cycle_run: allow

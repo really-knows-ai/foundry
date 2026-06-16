@@ -28,7 +28,7 @@ const AGENT_NAMES = [
 function specPermittedTools(agentName) {
   const tables = {
     'foundry-guide': [
-      'read', 'glob', 'grep', 'list', 'question', 'skill', 'webfetch', 'task',
+      'read', 'glob', 'grep', 'list', 'question', 'skill', 'webfetch',
       'foundry_cycle_run', 'foundry_cycle_continue', 'foundry_stage_retry',
       'foundry_git_branch', 'foundry_git_finish',
       'foundry_config_read_appraisers', 'foundry_config_read_artefact_type',
