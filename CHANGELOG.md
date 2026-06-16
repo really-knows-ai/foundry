@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.15.2] - 2026-06-16
+
+### Removed
+
+- `foundry_config_run_command` — the `node <script under foundry/**>` and `pnpm run <script>` allow-list had no legitimate use case. `run_validator` and `run_validator_test` already cover all admin agent needs. Its only documented invocation was an agent working around git restrictions via `node -e` + `execSync`.
+
+### Added
+
+- `foundry_config_git_log` — returns structured `{ sha, message }` pairs for the most recent N commits on the current branch. Requires a `config/*` branch. Admin agents no longer need to hack `git log` through `write_file` + `run_command`.
+
+### Fixed
+
+- `checkNodePath` now rejects Node.js flags (`-e`, `--eval`, etc.) with a clear error instead of treating them as file paths.
+
+### Changed
+
+- Guide agent's `task` permission restricted to `foundry-*` subagents and `explore`. The guide can no longer route through general-purpose subagents to bypass its tool restrictions.
+
 ## [3.15.1] - 2026-06-16
 
 ### Fixed
